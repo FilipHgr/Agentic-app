@@ -3,6 +3,8 @@
 Webová hra v prohlížeči na výuku matematiky pro děti.
 - Primární zařízení je iPad Air v Safari (WebKit), na šířku, ovládání jen
   dotykem (ťuknutí, tažení). Žádný hover, klávesnice ani malé ovládací prvky.
+- Nikdy nespouštěj `npm run deploy` ani `wrangler deploy`. Nasazení dělá
+  Cloudflare automaticky po sloučení do `main`.
 
 ## Produkt
 - Primární zařízení je tablet na šířku, ovládání jen dotykem (ťuknutí, tažení).
