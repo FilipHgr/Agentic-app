@@ -9,6 +9,8 @@
     // Hra je jedna stránka, neznámou cestu obsluhuje index.html.
     "not_found_handling": "single-page-application",
   },
-  // Povoluje náhledové nasazení pro neprodukční větve (npx wrangler preview).
+  // Povoluje náhledová nasazení pro neprodukční větve.
   "previews": {},
+  // Náhledy dostanou adresu <větev>-agentic-app.<subdomain>.workers.dev.
+  "preview_urls": true,
 }
