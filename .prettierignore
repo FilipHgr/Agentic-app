@@ -2,6 +2,6 @@ dist/
 coverage/
 package-lock.json
 
-# Dokumentace vznikla před touto větví, nepřeformátováváme ji kvůli kostře.
+# CLAUDE.md vzniklo před touto větví, nepřeformátováváme ho kvůli kostře.
 CLAUDE.md
-README.md
+.vite/
