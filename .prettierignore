@@ -1,0 +1,7 @@
+dist/
+coverage/
+package-lock.json
+
+# CLAUDE.md vzniklo před touto větví, nepřeformátováváme ho kvůli kostře.
+CLAUDE.md
+.vite/

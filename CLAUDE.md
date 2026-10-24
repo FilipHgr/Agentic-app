@@ -1,10 +1,30 @@
 # Agentic-app
 
-Webová hra v prohlížeči na výuku angličtiny pro děti.
+Webová hra v prohlížeči na výuku matematiky pro děti.
+- Primární zařízení je iPad Air v Safari (WebKit), na šířku, ovládání jen
+  dotykem (ťuknutí, tažení). Žádný hover, klávesnice ani malé ovládací prvky.
+- Nikdy nespouštěj `npm run deploy` ani `wrangler deploy`. Nasazení dělá
+  Cloudflare automaticky po sloučení do `main`.
 
-## Příkazy
-- (doplnit po výběru stacku, např. `npm run dev`, `npm test`, `npm run lint`, `npm run build`)
-- Testy, lint a build spouštěj vždy přes tyto skripty v repu, ne přímo
+## Produkt
+- Primární zařízení je tablet na šířku, ovládání jen dotykem (ťuknutí, tažení).
+  Žádný hover, klávesnice ani malé ovládací prvky.
+- Hra musí být pochopitelná bez čtení návodu, jedna hlavní mechanika.
+- Každá akce má okamžitou zpětnou vazbu (animace, zvuk). Chyba nikdy netrestá.
+- Žádné prvky, které nejsou v zadání: menu, účty, obchod, reklamy, texty navíc.
+- Hra musí běžet plynule i na levnějším tabletu.
+- 
+## Technologie a příkazy
+- Phaser (hra, animace, dotyk), TypeScript (strict), Vite, Vitest,
+  ESLint + Prettier. Verze viz `package.json`.
+- Struktura: `src/logic/` čistý TypeScript bez Phaseru (příklady, vyhodnocení,
+  obtížnost, body), `src/scenes/` Phaser scény, které logiku jen volají.
+  Testy logiky jsou v `tests/`.
+- `npm run dev` – vývojový server
+- `npm test` – testy (Vitest)
+- `npm run lint` – ESLint a kontrola formátování
+- `npm run build` – produkční build
+- Testy, lint a build spouštěj vždy přes tyto skripty, ne přímo
   v nastavení GitHub Actions (kvůli případné migraci na GitLab).
 
 ## Git workflow
