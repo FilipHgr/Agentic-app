@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+
+# Proměnné prostředí (tajemství nikdy nepatří do repa)
+.env
+.env.*
+!.env.example
+
+*.log
+.DS_Store
+.idea/
