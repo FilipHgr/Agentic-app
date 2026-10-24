@@ -1,0 +1,11 @@
+{
+  // Nasazení statických souborů z `dist` na Cloudflare Workers.
+  // Build vytvoř přes `npm run build`, pak nasaď přes `npx wrangler deploy`.
+  "name": "agentic-app",
+  "compatibility_date": "2026-10-24",
+  "assets": {
+    "directory": "./dist",
+    // Hra je jedna stránka, neznámou cestu obsluhuje index.html.
+    "not_found_handling": "single-page-application",
+  },
+}
