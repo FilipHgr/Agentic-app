@@ -1,16 +1,21 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   // Nasazení statických souborů z `dist` na Cloudflare Workers.
-  // Build vytvoř přes `npm run build`, pak nasaď přes `npm run deploy`.
+  // Produkce: `npm run deploy`. Náhled této větve: `npm run deploy:preview`.
   "name": "agentic-app",
   "compatibility_date": "2026-10-24",
+  // Worker běží na agentic-app.<subdomain>.workers.dev; ze stejné subdomény
+  // se servírují i adresy náhledů.
+  "workers_dev": true,
   "assets": {
     "directory": "./dist",
     // Hra je jedna stránka, neznámou cestu obsluhuje index.html.
     "not_found_handling": "single-page-application",
   },
-  // Povoluje náhledová nasazení pro neprodukční větve.
+  // Nastavení náhledů pro `wrangler preview`. Prázdný blok znamená, že náhled
+  // použije stejnou konfiguraci jako produkce, jen na vlastní adrese.
   "previews": {},
-  // Náhledy dostanou adresu <větev>-agentic-app.<subdomain>.workers.dev.
+  // Zapíná adresy <verze>-agentic-app.<subdomain>.workers.dev,
+  // ze kterých se náhledy otevírají.
   "preview_urls": true,
 }

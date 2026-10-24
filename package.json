@@ -9,7 +9,9 @@
     "preview": "vite preview --host",
     "test": "vitest run",
     "lint": "eslint . && prettier --check .",
-    "deploy": "wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:preview": "npm run build && wrangler preview",
+    "deploy:preview:delete": "wrangler preview delete"
   },
   "dependencies": {
     "phaser": "^3.90.0"
