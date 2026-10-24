@@ -10,7 +10,7 @@
     "deny": [
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
-      "Bash(npm run deploy:*)",
+      "Bash(npm run deploy)",
       "Bash(npx wrangler deploy:*)",
       "Bash(npx wrangler login:*)"
     ]
