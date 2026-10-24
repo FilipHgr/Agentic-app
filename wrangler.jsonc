@@ -1,6 +1,7 @@
 {
+  "$schema": "node_modules/wrangler/config-schema.json",
   // Nasazení statických souborů z `dist` na Cloudflare Workers.
-  // Build vytvoř přes `npm run build`, pak nasaď přes `npx wrangler deploy`.
+  // Build vytvoř přes `npm run build`, pak nasaď přes `npm run deploy`.
   "name": "agentic-app",
   "compatibility_date": "2026-10-24",
   "assets": {
