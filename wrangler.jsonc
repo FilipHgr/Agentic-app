@@ -9,4 +9,6 @@
     // Hra je jedna stránka, neznámou cestu obsluhuje index.html.
     "not_found_handling": "single-page-application",
   },
+  // Povoluje náhledové nasazení pro neprodukční větve (npx wrangler preview).
+  "previews": {},
 }
