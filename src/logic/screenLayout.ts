@@ -16,17 +16,20 @@ const BOTTOM_MARGIN = 24;
 /** Kde je příklad, poměr k výšce obrazovky. */
 const PROBLEM_HEIGHT_RATIO = 0.2;
 
-/** Kde je řada teček nápovědy, poměr k výšce obrazovky. */
-const HINT_HEIGHT_RATIO = 0.43;
+/** Kde je střed nápovědy s tečkami, poměr k výšce obrazovky. */
+const HINT_HEIGHT_RATIO = 0.45;
 
-/** Průměr jedné tečky nápovědy. */
-export const HINT_DOT_SIZE = 30;
+/** Průměr jedné tečky nápovědy, dost velký na počítání prstem i okem. */
+export const HINT_DOT_SIZE = 50;
 
-/** Vzdálenost středů teček v jedné skupince. */
-const HINT_DOT_SPACING = 40;
+/** Vzdálenost středů sousedních teček ve skupince (vodorovně i svisle). */
+const HINT_DOT_SPACING = 64;
 
-/** Mezera mezi skupinkami teček navíc k běžné vzdálenosti teček. */
-const HINT_GROUP_GAP = 50;
+/** Nejvíc teček v jedné řadě skupinky, jako na počítadle: 7 = 5 + 2. */
+export const HINT_DOTS_PER_ROW = 5;
+
+/** Mezera mezi skupinkami navíc k běžné vzdálenosti teček. */
+const HINT_GROUP_GAP = 60;
 
 export interface Point {
   readonly x: number;
@@ -83,24 +86,51 @@ export function layoutScreen(
   };
 }
 
+/** Tečka nápovědy; `group` říká, ke kterému sčítanému číslu patří. */
+export interface HintDot extends Point {
+  readonly group: number;
+}
+
+/** Šířka skupinky teček od středu první k středu poslední tečky v řadě. */
+function groupWidth(count: number): number {
+  return (Math.min(count, HINT_DOTS_PER_ROW) - 1) * HINT_DOT_SPACING;
+}
+
 /**
- * Středy teček nápovědy v jedné řadě, skupinky oddělené mezerou,
- * celé vycentrované kolem `center`.
+ * Rozmístí tečky nápovědy. Každá skupinka má nejvýš 5 teček v řadě,
+ * další pokračují v řadě pod ní. Skupinky jsou vedle sebe, oddělené
+ * mezerou, a celé je to vycentrované kolem `center`.
  */
-export function layoutHintDots(groups: readonly number[], center: Point): Point[] {
-  const offsets: number[] = [];
+export function layoutHintDots(groups: readonly number[], center: Point): HintDot[] {
+  const groupLefts: number[] = [];
   let x = 0;
 
   groups.forEach((count, groupIndex) => {
     if (groupIndex > 0) {
-      x += HINT_GROUP_GAP;
+      x += HINT_DOT_SPACING + HINT_GROUP_GAP;
     }
+    groupLefts.push(x);
+    x += groupWidth(count);
+  });
+
+  const totalWidth = x;
+  const dots: HintDot[] = [];
+
+  groups.forEach((count, groupIndex) => {
+    const rowCount = Math.ceil(count / HINT_DOTS_PER_ROW);
+    const firstRowY = center.y - ((rowCount - 1) * HINT_DOT_SPACING) / 2;
+    const left = center.x - totalWidth / 2 + (groupLefts[groupIndex] ?? 0);
+
     for (let dot = 0; dot < count; dot += 1) {
-      offsets.push(x);
-      x += HINT_DOT_SPACING;
+      const column = dot % HINT_DOTS_PER_ROW;
+      const row = Math.floor(dot / HINT_DOTS_PER_ROW);
+      dots.push({
+        x: left + column * HINT_DOT_SPACING,
+        y: firstRowY + row * HINT_DOT_SPACING,
+        group: groupIndex,
+      });
     }
   });
 
-  const rowWidth = x - HINT_DOT_SPACING;
-  return offsets.map((offset) => ({ x: center.x - rowWidth / 2 + offset, y: center.y }));
+  return dots;
 }

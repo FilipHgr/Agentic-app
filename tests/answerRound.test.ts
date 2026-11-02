@@ -94,11 +94,10 @@ describe('AC2: tlačítka jsou dost velká, celá na obrazovce a nepřekrývají
     }
   });
 
-  it('tlačítka nepřekrývají příklad ani nápovědu', () => {
+  it('tlačítka nepřekrývají příklad', () => {
     const highestButtonTop = Math.min(...LAYOUT.answerButtons.map(top));
 
-    expect(LAYOUT.problem.y + PROBLEM_TEXT_HEIGHT / 2).toBeLessThan(LAYOUT.hint.y);
-    expect(LAYOUT.hint.y + HINT_DOT_SIZE / 2).toBeLessThan(highestButtonTop);
+    expect(LAYOUT.problem.y + PROBLEM_TEXT_HEIGHT / 2).toBeLessThan(highestButtonTop);
   });
 });
 
@@ -192,23 +191,75 @@ describe('AC5: po druhé chybě se ukáže nápověda s tečkami', () => {
     }
   });
 
-  it('skupinky jsou od sebe oddělené větší mezerou než tečky uvnitř', () => {
-    const dots = layoutHintDots([3, 4], LAYOUT.hint);
-    const gaps = dots.slice(1).map((dot, index) => dot.x - (dots[index]?.x ?? 0));
-    const gapBetweenGroups = gaps[2] ?? 0;
-
-    expect(gapBetweenGroups).toBeGreaterThan(gaps[0] ?? Infinity);
+  it('tečky jsou dost velké, aby se daly dobře spočítat', () => {
+    expect(HINT_DOT_SIZE).toBeGreaterThanOrEqual(44);
   });
 
-  it('i nejdelší nápověda se vejde na obrazovku a tečky se nepřekrývají', () => {
-    for (const groups of [[10], [5, 5], [9, 1], [1, 9]]) {
+  it('v jedné řadě je nejvýš 5 teček, jako na počítadle', () => {
+    for (const groups of [[10], [7, 3], [9, 1], [6]]) {
       const dots = layoutHintDots(groups, LAYOUT.hint);
-      for (const [index, dot] of dots.entries()) {
-        expect(dot.x - HINT_DOT_SIZE / 2).toBeGreaterThanOrEqual(0);
-        expect(dot.x + HINT_DOT_SIZE / 2).toBeLessThanOrEqual(SCREEN_WIDTH);
-        const next = dots[index + 1];
-        if (next) {
-          expect(next.x - dot.x).toBeGreaterThan(HINT_DOT_SIZE);
+      const rows = new Map<string, number>();
+      for (const dot of dots) {
+        const key = `${dot.group}:${dot.y}`;
+        rows.set(key, (rows.get(key) ?? 0) + 1);
+      }
+      expect(Math.max(...rows.values())).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it('7 teček je řada 5 a pod ní řada 2', () => {
+    const dots = layoutHintDots([7], LAYOUT.hint);
+    const rowYs = [...new Set(dots.map((dot) => dot.y))].sort((a, b) => a - b);
+
+    expect(rowYs).toHaveLength(2);
+    expect(dots.filter((dot) => dot.y === rowYs[0])).toHaveLength(5);
+    expect(dots.filter((dot) => dot.y === rowYs[1])).toHaveLength(2);
+  });
+
+  it('každá skupinka má tolik teček, kolik je její číslo', () => {
+    const dots = layoutHintDots([3, 4], LAYOUT.hint);
+
+    expect(dots.filter((dot) => dot.group === 0)).toHaveLength(3);
+    expect(dots.filter((dot) => dot.group === 1)).toHaveLength(4);
+  });
+
+  it('skupinky jsou od sebe oddělené větší mezerou než tečky uvnitř', () => {
+    const dots = layoutHintDots([3, 4], LAYOUT.hint);
+    const first = dots.filter((dot) => dot.group === 0).map((dot) => dot.x);
+    const second = dots.filter((dot) => dot.group === 1).map((dot) => dot.x);
+    const spacingInsideGroup = (first[1] ?? 0) - (first[0] ?? 0);
+    const gapBetweenGroups = Math.min(...second) - Math.max(...first);
+
+    expect(gapBetweenGroups).toBeGreaterThan(spacingInsideGroup);
+  });
+
+  it('u každého příkladu se nápověda vejde mezi příklad a číselník', () => {
+    const problemBottom = LAYOUT.problem.y + PROBLEM_TEXT_HEIGHT / 2;
+    const highestButtonTop = Math.min(...LAYOUT.answerButtons.map(top));
+    const radius = HINT_DOT_SIZE / 2;
+
+    for (let first = 0; first <= MAX_SUM; first += 1) {
+      for (let second = 0; first + second <= MAX_SUM; second += 1) {
+        const groups = hintDotGroups({ first, second, result: first + second });
+        for (const dot of layoutHintDots(groups, LAYOUT.hint)) {
+          expect(dot.x - radius).toBeGreaterThanOrEqual(0);
+          expect(dot.x + radius).toBeLessThanOrEqual(SCREEN_WIDTH);
+          expect(dot.y - radius).toBeGreaterThan(problemBottom);
+          expect(dot.y + radius).toBeLessThan(highestButtonTop);
+        }
+      }
+    }
+  });
+
+  it('u každého příkladu se tečky navzájem nepřekrývají', () => {
+    for (let first = 0; first <= MAX_SUM; first += 1) {
+      for (let second = 0; first + second <= MAX_SUM; second += 1) {
+        const groups = hintDotGroups({ first, second, result: first + second });
+        const dots = layoutHintDots(groups, LAYOUT.hint);
+        for (const [index, a] of dots.entries()) {
+          for (const b of dots.slice(index + 1)) {
+            expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(HINT_DOT_SIZE);
+          }
         }
       }
     }

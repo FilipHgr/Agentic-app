@@ -16,7 +16,11 @@ import type { ButtonSlot, ScreenLayout } from '../logic/screenLayout';
 
 const BUTTON_COLOR = 0xffffff;
 const BUTTON_CORRECT_COLOR = 0x8be04e;
-const HINT_DOT_COLOR = 0xffd54f;
+/** Každé sčítané číslo má tečky jiné barvy, aby šly skupinky rozlišit. */
+const HINT_GROUP_COLORS = [0xffd54f, 0x81d4fa];
+
+/** Tečky naskakují jedna po druhé, aby je dítě mohlo počítat s nimi. */
+const HINT_DOT_DELAY_MS = 120;
 const BUTTON_TEXT_COLOR = '#1f6f43';
 const BUTTON_CORNER_RADIUS = 24;
 
@@ -142,12 +146,19 @@ export class GameScene extends Phaser.Scene {
     this.hintIsShown = true;
 
     const groups = hintDotGroups(this.round.problem);
-    for (const dot of layoutHintDots(groups, this.layout().hint)) {
-      const circle = this.add.circle(dot.x, dot.y, HINT_DOT_SIZE / 2, HINT_DOT_COLOR);
+    layoutHintDots(groups, this.layout().hint).forEach((dot, index) => {
+      const color = HINT_GROUP_COLORS[dot.group % HINT_GROUP_COLORS.length];
+      const circle = this.add.circle(dot.x, dot.y, HINT_DOT_SIZE / 2, color);
       circle.setScale(0);
-      this.tweens.add({ targets: circle, scale: 1, duration: 200, ease: 'Back.easeOut' });
+      this.tweens.add({
+        targets: circle,
+        scale: 1,
+        duration: 200,
+        delay: index * HINT_DOT_DELAY_MS,
+        ease: 'Back.easeOut',
+      });
       this.roundObjects.push(circle);
-    }
+    });
   }
 
   private playSoundFor(outcome: TapOutcome): void {
