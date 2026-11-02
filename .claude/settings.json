@@ -4,7 +4,7 @@
       "Bash(npm test:*)",
       "Bash(npm run lint:*)",
       "Bash(npm run build:*)",
-      "Bash(git push -u origin app-:*)",
+      "Bash(git push -u origin sprint-:*)",
       "Bash(gh pr create:*)"
     ],
     "deny": [
