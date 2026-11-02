@@ -35,7 +35,7 @@ export class Mascot {
   private readonly outer: Phaser.GameObjects.Container;
   private readonly body: Phaser.GameObjects.Container;
   private readonly image: Phaser.GameObjects.Image;
-  private home: Point;
+  private readonly home: Point;
   private character: CharacterId;
   private mood: CharacterMood = 'klid';
   private backToCalm: Phaser.Time.TimerEvent | undefined;
@@ -85,12 +85,6 @@ export class Mascot {
         this.dance(durationMs);
         return;
     }
-  }
-
-  /** Přesune postavičku na nové místo, když se změní velikost obrazovky. */
-  moveTo(position: Point): void {
-    this.home = position;
-    this.resetPose();
   }
 
   /**
