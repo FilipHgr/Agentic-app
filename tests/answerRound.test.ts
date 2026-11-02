@@ -9,15 +9,17 @@ import {
   tapAnswer,
 } from '../src/logic/answerRound';
 import type { AnswerRound } from '../src/logic/answerRound';
-import { HINT_DOT_SIZE, layoutHintDots, layoutScreen } from '../src/logic/screenLayout';
+import {
+  HINT_DOT_SIZE,
+  PROBLEM_TEXT_HEIGHT,
+  layoutHintDots,
+  layoutScreen,
+} from '../src/logic/screenLayout';
 import type { ButtonSlot } from '../src/logic/screenLayout';
 
 const SCREEN_WIDTH = 1024;
 const SCREEN_HEIGHT = 768;
 const MIN_FINGER_SIZE = 140;
-
-/** Výška textu příkladu (písmo 160 px) – příklad sahá o polovinu nad i pod svůj střed. */
-const PROBLEM_TEXT_HEIGHT = 190;
 
 const LAYOUT = layoutScreen(SCREEN_WIDTH, SCREEN_HEIGHT, ANSWER_CHOICES.length);
 

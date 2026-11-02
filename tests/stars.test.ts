@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { ANSWER_CHOICES, tapAnswer } from '../src/logic/answerRound';
 import type { AnswerRound, TapOutcome } from '../src/logic/answerRound';
 import { SOUNDS, soundLengthSeconds } from '../src/logic/answerSounds';
-import { HINT_DOT_SIZE, STAR_SIZE, layoutHintDots, layoutScreen } from '../src/logic/screenLayout';
+import {
+  HINT_DOT_SIZE,
+  PROBLEM_TEXT_HEIGHT,
+  STAR_SIZE,
+  layoutHintDots,
+  layoutScreen,
+} from '../src/logic/screenLayout';
 import {
   STARS_PER_SET,
   createStarProgress,
@@ -14,9 +20,6 @@ import type { StarProgress } from '../src/logic/stars';
 
 const SCREEN_WIDTH = 1024;
 const SCREEN_HEIGHT = 768;
-
-/** Výška textu příkladu (písmo 160 px) – stejná rezerva jako v testech číselníku. */
-const PROBLEM_TEXT_HEIGHT = 190;
 
 const LAYOUT = layoutScreen(SCREEN_WIDTH, SCREEN_HEIGHT, ANSWER_CHOICES.length, STARS_PER_SET);
 
@@ -56,10 +59,15 @@ describe('AC1: nahoře je řada 10 hvězdiček, která nic nepřekrývá', () =>
     }
   });
 
-  it('hvězdičky jsou nad příkladem a nepřekrývají ho', () => {
+  it('hvězdičky jsou nad příkladem s dostatečnou mezerou', () => {
     const lowestStarBottom = Math.max(...LAYOUT.stars.map((star) => star.y + STAR_SIZE / 2));
+    const problemTop = LAYOUT.problem.y - PROBLEM_TEXT_HEIGHT / 2;
 
-    expect(lowestStarBottom).toBeLessThan(LAYOUT.problem.y - PROBLEM_TEXT_HEIGHT / 2);
+    expect(problemTop - lowestStarBottom).toBeGreaterThanOrEqual(30);
+  });
+
+  it('hvězdičky jsou dost velké, aby byly dobře vidět', () => {
+    expect(STAR_SIZE).toBeGreaterThanOrEqual(60);
   });
 
   it('příklad se stále nepřekrývá s nápovědou ani s číselníkem', () => {

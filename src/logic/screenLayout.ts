@@ -14,10 +14,16 @@ export const ANSWER_BUTTON_GAP = 20;
 const BOTTOM_MARGIN = 24;
 
 /** Kde je příklad, poměr k výšce obrazovky. */
-const PROBLEM_HEIGHT_RATIO = 0.24;
+const PROBLEM_HEIGHT_RATIO = 0.26;
+
+/** Velikost písma příkladu. */
+export const PROBLEM_FONT_SIZE = 140;
+
+/** Výška, kterou text příkladu zabere (písmo i s rezervou nad a pod). */
+export const PROBLEM_TEXT_HEIGHT = Math.round(PROBLEM_FONT_SIZE * 1.2);
 
 /** Kde je střed nápovědy s tečkami, poměr k výšce obrazovky. */
-const HINT_HEIGHT_RATIO = 0.45;
+const HINT_HEIGHT_RATIO = 0.47;
 
 /** Průměr jedné tečky nápovědy, dost velký na počítání prstem i okem. */
 export const HINT_DOT_SIZE = 50;
@@ -32,13 +38,13 @@ export const HINT_DOTS_PER_ROW = 5;
 const HINT_GROUP_GAP = 60;
 
 /** Velikost jedné hvězdičky v řadě nahoře. */
-export const STAR_SIZE = 48;
+export const STAR_SIZE = 64;
 
 /** Vzdálenost středů sousedních hvězdiček. */
-const STAR_SPACING = 60;
+const STAR_SPACING = 80;
 
 /** Svislá poloha středu řady hvězdiček. */
-const STARS_Y = 40;
+const STARS_Y = 46;
 
 export interface Point {
   readonly x: number;

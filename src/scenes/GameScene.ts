@@ -11,7 +11,13 @@ import {
 } from '../logic/answerRound';
 import type { AnswerRound, TapOutcome } from '../logic/answerRound';
 import { SOUNDS, soundForOutcome } from '../logic/answerSounds';
-import { HINT_DOT_SIZE, STAR_SIZE, layoutHintDots, layoutScreen } from '../logic/screenLayout';
+import {
+  HINT_DOT_SIZE,
+  PROBLEM_FONT_SIZE,
+  STAR_SIZE,
+  layoutHintDots,
+  layoutScreen,
+} from '../logic/screenLayout';
 import type { ButtonSlot, ScreenLayout } from '../logic/screenLayout';
 import { STARS_PER_SET, createStarProgress, startNewStarSet, starsAfterTap } from '../logic/stars';
 import type { StarProgress } from '../logic/stars';
@@ -80,7 +86,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createStarShape(x: number, y: number, color: number): Phaser.GameObjects.Star {
-    return this.add.star(x, y, 5, STAR_SIZE * 0.22, STAR_SIZE / 2, color);
+    return this.add.star(x, y, 5, STAR_SIZE * 0.25, STAR_SIZE / 2, color);
   }
 
   /** Rozsvítí tolik hvězdiček zleva, kolik jich hráč v řadě získal. */
@@ -101,7 +107,7 @@ export class GameScene extends Phaser.Scene {
     const problemText = this.add
       .text(layout.problem.x, layout.problem.y, formatProblem(this.round.problem), {
         fontFamily: 'Arial, sans-serif',
-        fontSize: '160px',
+        fontSize: `${PROBLEM_FONT_SIZE}px`,
         color: '#ffffff',
       })
       .setOrigin(0.5);
