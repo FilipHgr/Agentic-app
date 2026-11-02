@@ -26,12 +26,20 @@ nepiš do chatu jako hotové zadání, zadání žije v GitHub issue.
 
 ## 2. Schválení
 
-Claude nevidí komentáře v issue sám, vlastník mu napíše do chatu.
+Claude nesleduje issues sám, o schválení se dozví jen z chatu. Vlastník
+nemusí psát „ok“ na dvě místa:
 
-1. Přečti si issue včetně komentářů a zapracuj požadované změny do těla
-   issue.
-2. Nezodpovězená otevřená otázka znamená, že platí doporučení. Napiš
+- „ok“ (nebo „ok #číslo“) v chatu = schváleno bez připomínek,
+- připomínky v chatu = zapracuj je do těla issue,
+- „připomínky v issue“ v chatu = přečti si komentáře v issue
+  a zapracuj je do těla issue.
+
+Po schválení:
+
+1. Nezodpovězená otevřená otázka znamená, že platí doporučení. Napiš
    to vlastníkovi.
+2. Do issue přidej komentář, že vlastník úkol schválil v chatu, a co
+   z připomínek bylo zapracováno.
 3. Změň štítek na „schváleno“.
 
 ## 3. Zahájení práce

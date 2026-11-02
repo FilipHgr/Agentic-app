@@ -38,3 +38,13 @@ Sprint končí, když jsou hotové všechny schválené úkoly, nebo když to
    úkol, co se změnilo, odkaz na náhled, tabulka kritérií a testů, nové
    závislosti, výsledek `npm audit` a drobnosti mimo úkoly.
 3. Pošli vlastníkovi odkaz na PR. Slučuje vlastník.
+4. Po otevření PR přidá bot Cloudflare do PR komentář s výsledkem
+   nasazení náhledu. Zkontroluj, že je tam „Success“, a jinak to řekni.
+
+## 4. Po sloučení
+
+`Closes #…` zavírá issue jen při sloučení do `main`, ne do `staging`.
+Až vlastník napíše, že PR sloučil:
+
+1. Ověř, že PR je opravdu sloučený.
+2. Zavři issues sprintu ručně jako dokončené.
