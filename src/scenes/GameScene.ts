@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
 
+import { createBrowserAudioContext, createTonePlayer } from '../audio/tonePlayer';
 import { formatProblem } from '../logic/addition';
 import { ANSWER_CHOICE_COUNT, createAnswerRound, tapAnswer } from '../logic/answerRound';
-import type { AnswerRound } from '../logic/answerRound';
+import type { AnswerRound, TapOutcome } from '../logic/answerRound';
+import { SOUNDS, soundForOutcome } from '../logic/answerSounds';
 import { layoutScreen } from '../logic/screenLayout';
 import type { ButtonSlot } from '../logic/screenLayout';
 
@@ -26,6 +28,7 @@ interface AnswerButton {
 export class GameScene extends Phaser.Scene {
   private round: AnswerRound | undefined;
   private roundObjects: Phaser.GameObjects.GameObject[] = [];
+  private readonly sounds = createTonePlayer(createBrowserAudioContext);
 
   constructor() {
     super('game');
@@ -102,11 +105,19 @@ export class GameScene extends Phaser.Scene {
 
     const result = tapAnswer(this.round, button.value);
     this.round = result.round;
+    this.playSoundFor(result.outcome);
 
     if (result.outcome === 'correct') {
       this.celebrateCorrectAnswer(button);
     } else if (result.outcome === 'wrong') {
       this.showWrongAnswer(button);
+    }
+  }
+
+  private playSoundFor(outcome: TapOutcome): void {
+    const sound = soundForOutcome(outcome);
+    if (sound) {
+      this.sounds.play(SOUNDS[sound]);
     }
   }
 
