@@ -14,12 +14,7 @@ import type {
 
 /** Kolo s pevným příkladem 3 + 4, aby testy nezávisely na náhodě. */
 function roundThreePlusFour(): AnswerRound {
-  return {
-    problem: { first: 3, second: 4, result: 7 },
-    choices: [2, 7, 9],
-    rejected: [],
-    solved: false,
-  };
+  return { problem: { first: 3, second: 4, result: 7 }, wrongAnswers: 0, solved: false };
 }
 
 /** Zvuk, který hráč uslyší po ťuknutí na číslo. */
@@ -117,10 +112,8 @@ describe('AC2: po špatné odpovědi zazní jemný zvuk, který netrestá', () =
 });
 
 describe('AC3: ťuknutí, které nic nedělá, je potichu', () => {
-  it('ťuknutí na zešedlé číslo nevydá zvuk', () => {
-    const afterWrong = tapAnswer(roundThreePlusFour(), 2).round;
-
-    expect(soundAfterTap(afterWrong, 2)).toBeNull();
+  it('ťuknutí mimo číselník nevydá zvuk', () => {
+    expect(soundAfterTap(roundThreePlusFour(), 11)).toBeNull();
   });
 
   it('ťuknutí po správné odpovědi nevydá zvuk', () => {
