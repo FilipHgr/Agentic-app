@@ -22,6 +22,8 @@ import {
 import type { ButtonSlot, ScreenLayout } from '../logic/screenLayout';
 import { STARS_PER_SET, createStarProgress, startNewStarSet, starsAfterTap } from '../logic/stars';
 import type { StarProgress } from '../logic/stars';
+import { FIRST_CHARACTER, nextCharacter } from '../logic/characters';
+import type { CharacterId } from '../logic/characters';
 import { Mascot } from './Mascot';
 
 const BUTTON_COLOR = 0xffffff;
@@ -67,15 +69,21 @@ export class GameScene extends Phaser.Scene {
   private starProgress: StarProgress = createStarProgress();
   private starIcons: Phaser.GameObjects.Star[] = [];
   private mascot: Mascot | undefined;
+  private character: CharacterId = FIRST_CHARACTER;
   private readonly sounds = createTonePlayer(createBrowserAudioContext);
 
   constructor() {
     super('game');
   }
 
+  preload(): void {
+    // Když se obrázek nenačte, hra běží dál bez postavičky (viz Mascot.showMood).
+    Mascot.preload(this);
+  }
+
   create(): void {
     this.createStarRow();
-    this.mascot = new Mascot(this, this.layout().mascot);
+    this.mascot = new Mascot(this, this.layout().mascot, this.character);
     this.startRound();
   }
 
@@ -291,6 +299,8 @@ export class GameScene extends Phaser.Scene {
 
     this.time.delayedCall(CELEBRATION_MS, () => {
       this.starProgress = startNewStarSet();
+      this.character = nextCharacter(this.character);
+      this.mascot?.switchTo(this.character);
       this.paintStars();
       this.startRound();
     });

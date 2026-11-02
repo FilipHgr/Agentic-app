@@ -1,26 +1,24 @@
 /**
- * Jak maskot (sovička) reaguje na to, co hráč udělal. Čistý TypeScript
- * bez Phaseru, scéna podle toho jen spustí animaci.
+ * Jak postavička vedle příkladu reaguje na to, co hráč udělal. Čistý
+ * TypeScript bez Phaseru, scéna podle toho jen spustí animaci a obrázek.
  */
 
 import type { TapOutcome } from './answerRound';
+import type { CharacterMood } from './characters';
 
 /**
- * - `idle`: hráč nic nedělá, sovička se pohupuje a mrká
- * - `joy`: radost ze správné odpovědi, vyskočí a mávne křídly
- * - `encourage`: po chybě povzbudivě kývne
+ * - `idle`: hráč nic nedělá, postavička se pohupuje a mrká
+ * - `joy`: radost ze správné odpovědi
+ * - `encourage`: po chybě povzbudí
  * - `dance`: oslava po zaplnění řady hvězdiček
  */
 export type MascotReaction = 'idle' | 'joy' | 'encourage' | 'dance';
 
-/** Výraz očí sovičky. Smutný ani zamračený výraz záměrně neexistuje. */
-export type MascotExpression = 'open' | 'happy';
-
-/** Všechny reakce, které sovička umí. */
+/** Všechny reakce, které postavička umí. */
 export const MASCOT_REACTIONS: readonly MascotReaction[] = ['idle', 'joy', 'encourage', 'dance'];
 
 /**
- * Reakce na ťuknutí. `null` znamená, že sovička pokračuje v tom, co dělá.
+ * Reakce na ťuknutí. `null` znamená, že postavička pokračuje v tom, co dělá.
  *
  * @param setCompleted Hráč právě zaplnil řadu hvězdiček a přijde oslava.
  */
@@ -38,7 +36,16 @@ export function mascotReactionToTap(
   }
 }
 
-/** Výraz očí při dané reakci: radost a tanec mají veselé oči, jinak otevřené. */
-export function mascotExpression(reaction: MascotReaction): MascotExpression {
-  return reaction === 'joy' || reaction === 'dance' ? 'happy' : 'open';
+/** Obrázek nálady, který postavička při reakci ukáže. */
+export function moodForReaction(reaction: MascotReaction): CharacterMood {
+  switch (reaction) {
+    case 'idle':
+      return 'klid';
+    case 'joy':
+      return 'radost';
+    case 'encourage':
+      return 'povzbuzeni';
+    case 'dance':
+      return 'oslava';
+  }
 }

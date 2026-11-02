@@ -1,66 +1,70 @@
 import Phaser from 'phaser';
 
-import { mascotExpression } from '../logic/mascot';
+import {
+  CHARACTERS,
+  CHARACTER_MOODS,
+  characterImageKey,
+  characterImagePath,
+} from '../logic/characters';
+import type { CharacterId, CharacterMood } from '../logic/characters';
+import { moodForReaction } from '../logic/mascot';
 import type { MascotReaction } from '../logic/mascot';
 import { MASCOT_DANCE_SWAY, MASCOT_JUMP_HEIGHT, MASCOT_SIZE } from '../logic/screenLayout';
 import type { Point } from '../logic/screenLayout';
 
-const BODY_COLOR = 0x8d6e63;
-const BELLY_COLOR = 0xd7ccc8;
-const WING_COLOR = 0x6d4c41;
-const EYE_WHITE_COLOR = 0xffffff;
-const PUPIL_COLOR = 0x3e2723;
-const BEAK_COLOR = 0xffa726;
+/** Obrázky se načtou dvakrát větší, než se zobrazí, aby byly ostré i na Retina displeji. */
+const TEXTURE_SIZE = MASCOT_SIZE * 2;
 
-/** Rozměry sovičky jsou poměry k její velikosti, aby šla zvětšit jedním číslem. */
-const UNIT = MASCOT_SIZE / 160;
+/** Jak dlouho postavička ukazuje radost nebo povzbuzení, než se vrátí do klidu. */
+const MOOD_MS = 700;
 
-/** Jak dlouho trvá radost ze správné odpovědi. */
-const JOY_MS = 700;
-
-/** Mrknutí přijde náhodně jednou za tuto dobu. */
+/** Mrknutí přijde náhodně jednou za tuto dobu a trvá krátce. */
 const BLINK_MIN_MS = 2500;
 const BLINK_MAX_MS = 5000;
+const BLINK_MS = 140;
+
+/** Jak dlouho trvá odskok staré postavičky a přískok nové. */
+const SWITCH_MS = 220;
 
 /**
- * Sovička vlevo vedle příkladu. Jen se dívá a reaguje, na dotyk nereaguje.
- * Vnější kontejner skáče a tančí, vnitřní se pohupuje a kývá, aby se
- * pohyby nepraly.
+ * Postavička vlevo vedle příkladu. Jen se dívá a reaguje, na dotyk nereaguje.
+ * Vnější kontejner skáče, tančí a střídá postavičky, vnitřní se pohupuje
+ * a kývá, aby se pohyby nepraly.
  */
 export class Mascot {
   private readonly outer: Phaser.GameObjects.Container;
   private readonly body: Phaser.GameObjects.Container;
-  private readonly openEyes: Phaser.GameObjects.Container;
-  private readonly happyEyes: Phaser.GameObjects.Graphics;
-  private readonly leftWing: Phaser.GameObjects.Ellipse;
-  private readonly rightWing: Phaser.GameObjects.Ellipse;
+  private readonly image: Phaser.GameObjects.Image;
   private readonly home: Point;
+  private character: CharacterId;
+  private mood: CharacterMood = 'klid';
+  private backToCalm: Phaser.Time.TimerEvent | undefined;
+
+  /** Zařadí obrázky všech postaviček do načítání scény. */
+  static preload(scene: Phaser.Scene): void {
+    for (const character of CHARACTERS) {
+      for (const mood of CHARACTER_MOODS) {
+        scene.load.svg(characterImageKey(character, mood), characterImagePath(character, mood), {
+          width: TEXTURE_SIZE,
+          height: TEXTURE_SIZE,
+        });
+      }
+    }
+  }
 
   constructor(
     private readonly scene: Phaser.Scene,
     position: Point,
+    character: CharacterId,
   ) {
     this.home = position;
+    this.character = character;
 
-    this.leftWing = scene.add.ellipse(-58 * UNIT, 22 * UNIT, 34 * UNIT, 80 * UNIT, WING_COLOR);
-    this.rightWing = scene.add.ellipse(58 * UNIT, 22 * UNIT, 34 * UNIT, 80 * UNIT, WING_COLOR);
-    this.openEyes = this.createOpenEyes();
-    this.happyEyes = this.createHappyEyes();
-
-    this.body = scene.add.container(0, 0, [
-      this.leftWing,
-      this.rightWing,
-      ...this.createEars(),
-      scene.add.ellipse(0, 10 * UNIT, 120 * UNIT, 140 * UNIT, BODY_COLOR),
-      scene.add.ellipse(0, 34 * UNIT, 76 * UNIT, 78 * UNIT, BELLY_COLOR),
-      ...this.createFeet(),
-      this.openEyes,
-      this.happyEyes,
-      scene.add.triangle(0, 4 * UNIT, -9 * UNIT, 0, 9 * UNIT, 0, 0, 16 * UNIT, BEAK_COLOR),
-    ]);
+    this.image = scene.add.image(0, 0, '__MISSING').setDisplaySize(MASCOT_SIZE, MASCOT_SIZE);
+    this.body = scene.add.container(0, 0, [this.image]);
     this.outer = scene.add.container(position.x, position.y, [this.body]);
 
-    this.showExpression('idle');
+    this.showMood('klid');
     this.startIdleBobbing();
     this.scheduleBlink();
   }
@@ -69,7 +73,7 @@ export class Mascot {
   react(reaction: MascotReaction, durationMs = 0): void {
     switch (reaction) {
       case 'idle':
-        this.showExpression('idle');
+        this.showMood('klid');
         return;
       case 'joy':
         this.jumpForJoy();
@@ -83,58 +87,56 @@ export class Mascot {
     }
   }
 
-  private createEars(): Phaser.GameObjects.Triangle[] {
-    const ear = (side: number) =>
-      this.scene.add.triangle(
-        side * 26 * UNIT,
-        -52 * UNIT,
-        -14 * UNIT,
-        14 * UNIT,
-        14 * UNIT,
-        14 * UNIT,
-        side * 10 * UNIT,
-        -20 * UNIT,
-        BODY_COLOR,
-      );
-    return [ear(-1), ear(1)];
+  /**
+   * Stará postavička se zmenší a nová vyskočí s radostí. Postavička se vymění
+   * hned, aby ji neodložilo ani rychlé ťukání; animace běží na vnitřním
+   * kontejneru, který reakce na ťuknutí nezastavují.
+   */
+  switchTo(character: CharacterId): void {
+    this.character = character;
+    this.scene.tweens.add({
+      targets: this.body,
+      scale: 0,
+      duration: SWITCH_MS,
+      ease: 'Back.easeIn',
+      onComplete: () => {
+        this.showMood('radost');
+        this.calmDownLater();
+        this.scene.tweens.add({
+          targets: this.body,
+          scale: 1,
+          duration: SWITCH_MS * 1.5,
+          ease: 'Back.easeOut',
+        });
+      },
+    });
   }
 
-  private createFeet(): Phaser.GameObjects.Ellipse[] {
-    const foot = (side: number) =>
-      this.scene.add.ellipse(side * 22 * UNIT, 78 * UNIT, 28 * UNIT, 12 * UNIT, BEAK_COLOR);
-    return [foot(-1), foot(1)];
-  }
+  /**
+   * Ukáže obrázek nálady. Když se obrázek nenačetl, postavička se jen skryje
+   * a hra běží dál.
+   */
+  private showMood(mood: CharacterMood): void {
+    this.mood = mood;
+    const key = characterImageKey(this.character, mood);
 
-  private createOpenEyes(): Phaser.GameObjects.Container {
-    const eye = (side: number) => [
-      this.scene.add.circle(side * 26 * UNIT, -22 * UNIT, 22 * UNIT, EYE_WHITE_COLOR),
-      this.scene.add.circle(side * 24 * UNIT, -20 * UNIT, 10 * UNIT, PUPIL_COLOR),
-    ];
-    return this.scene.add.container(0, 0, [...eye(-1), ...eye(1)]);
-  }
-
-  /** Veselé oči jako obloučky „^ ^“. */
-  private createHappyEyes(): Phaser.GameObjects.Graphics {
-    const graphics = this.scene.add.graphics();
-    graphics.lineStyle(6 * UNIT, PUPIL_COLOR, 1);
-    for (const side of [-1, 1]) {
-      graphics.beginPath();
-      graphics.arc(side * 26 * UNIT, -14 * UNIT, 14 * UNIT, Math.PI * 1.15, Math.PI * 1.85);
-      graphics.strokePath();
+    if (!this.scene.textures.exists(key)) {
+      this.image.setVisible(false);
+      return;
     }
-    return graphics;
+    this.image.setTexture(key).setDisplaySize(MASCOT_SIZE, MASCOT_SIZE).setVisible(true);
   }
 
-  private showExpression(reaction: MascotReaction): void {
-    const happy = mascotExpression(reaction) === 'happy';
-    this.openEyes.setVisible(!happy);
-    this.happyEyes.setVisible(happy);
+  /** Po chvíli vrátí postavičku z radosti nebo povzbuzení do klidu. */
+  private calmDownLater(): void {
+    this.backToCalm?.remove();
+    this.backToCalm = this.scene.time.delayedCall(MOOD_MS, () => this.showMood('klid'));
   }
 
   private startIdleBobbing(): void {
     this.scene.tweens.add({
       targets: this.body,
-      y: 4 * UNIT,
+      y: 4,
       duration: 900,
       yoyo: true,
       repeat: -1,
@@ -144,43 +146,29 @@ export class Mascot {
 
   private scheduleBlink(): void {
     this.scene.time.delayedCall(Phaser.Math.Between(BLINK_MIN_MS, BLINK_MAX_MS), () => {
-      this.scene.tweens.add({
-        targets: this.openEyes,
-        scaleY: 0.1,
-        duration: 80,
-        yoyo: true,
-      });
+      // Mrká jen v klidu, aby nepřerušila radost nebo oslavu.
+      if (this.mood === 'klid') {
+        this.showMood('mrknuti');
+        this.scene.time.delayedCall(BLINK_MS, () => {
+          if (this.mood === 'mrknuti') {
+            this.showMood('klid');
+          }
+        });
+      }
       this.scheduleBlink();
     });
   }
 
-  /** Zastaví předchozí reakci a vrátí sovičku na její místo. */
+  /** Zastaví předchozí pohyb a vrátí postavičku na její místo. */
   private resetPose(): void {
-    this.scene.tweens.killTweensOf([this.outer, this.leftWing, this.rightWing]);
-    this.outer.setPosition(this.home.x, this.home.y).setAngle(0);
-    this.leftWing.setAngle(0);
-    this.rightWing.setAngle(0);
-  }
-
-  private flapWings(times: number): void {
-    for (const [wing, direction] of [
-      [this.leftWing, 1],
-      [this.rightWing, -1],
-    ] as const) {
-      this.scene.tweens.add({
-        targets: wing,
-        angle: direction * 35,
-        duration: 90,
-        yoyo: true,
-        repeat: times * 2 - 1,
-      });
-    }
+    this.backToCalm?.remove();
+    this.scene.tweens.killTweensOf(this.outer);
+    this.outer.setPosition(this.home.x, this.home.y).setAngle(0).setScale(1);
   }
 
   private jumpForJoy(): void {
     this.resetPose();
-    this.showExpression('joy');
-    this.flapWings(2);
+    this.showMood(moodForReaction('joy'));
     this.scene.tweens.add({
       targets: this.outer,
       y: this.home.y - MASCOT_JUMP_HEIGHT,
@@ -188,29 +176,29 @@ export class Mascot {
       yoyo: true,
       ease: 'Quad.easeOut',
     });
-    this.scene.time.delayedCall(JOY_MS, () => this.showExpression('idle'));
+    this.calmDownLater();
   }
 
   private nodEncouragingly(): void {
     this.resetPose();
-    this.showExpression('encourage');
+    this.showMood(moodForReaction('encourage'));
     this.scene.tweens.add({
       targets: this.outer,
-      y: this.home.y + 8 * UNIT,
+      y: this.home.y + 8,
       duration: 140,
       yoyo: true,
       repeat: 1,
       ease: 'Sine.easeInOut',
     });
+    this.calmDownLater();
   }
 
   private dance(durationMs: number): void {
     this.resetPose();
-    this.showExpression('dance');
+    this.showMood(moodForReaction('dance'));
     const stepMs = 220;
     const steps = Math.max(1, Math.floor(durationMs / (stepMs * 2)));
 
-    this.flapWings(steps);
     this.scene.tweens.add({
       targets: this.outer,
       x: { from: this.home.x - MASCOT_DANCE_SWAY, to: this.home.x + MASCOT_DANCE_SWAY },
@@ -221,7 +209,7 @@ export class Mascot {
       ease: 'Sine.easeInOut',
       onComplete: () => {
         this.resetPose();
-        this.showExpression('idle');
+        this.showMood('klid');
       },
     });
   }
