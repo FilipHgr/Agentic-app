@@ -30,8 +30,9 @@ description: Předání hotového úkolu vlastníkovi – kontroly, push, odkaz 
 
 ## 3. Konec sprintu a PR
 
-Sprint končí, když jsou hotové všechny schválené úkoly, nebo když to
-řekne vlastník. Pak hned otevři PR:
+Sprint končí jen tehdy, když to výslovně řekne vlastník. Uzavření sprintu
+ani PR sám nenavrhuj, ani když jsou všechny úkoly hotové. Po pokynu
+vlastníka hned otevři PR:
 
 1. Z `sprint-<číslo>` do `staging`, nikdy do `main`.
 2. Vyplň šablonu `.github/pull_request_template.md`: `Closes #…` pro každý
