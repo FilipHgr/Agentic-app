@@ -1,8 +1,15 @@
 import Phaser from 'phaser';
 
+import { gameSizeFor } from './logic/screenLayout';
 import { GameScene } from './scenes/GameScene';
 
-/** Základní rozlišení 4:3 odpovídá iPadu na šířku, Scale.FIT dopočítá zbytek. */
+/**
+ * Herní plocha má stejný poměr stran jako obrazovka, takže ji Scale.FIT
+ * roztáhne přes celou obrazovku bez prázdných pruhů. Při změně velikosti
+ * okna ji scéna přepočítá (GameScene.fitToWindow).
+ */
+const size = gameSizeFor(window.innerWidth, window.innerHeight);
+
 new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
@@ -10,8 +17,8 @@ new Phaser.Game({
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: 1024,
-    height: 768,
+    width: size.width,
+    height: size.height,
   },
   scene: [GameScene],
 });

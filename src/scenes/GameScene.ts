@@ -16,6 +16,7 @@ import {
   HINT_DOT_SIZE,
   PROBLEM_FONT_SIZE,
   STAR_SIZE,
+  gameSizeFor,
   layoutHintDots,
   layoutScreen,
 } from '../logic/screenLayout';
@@ -49,6 +50,9 @@ const STAR_FLIGHT_MS = 450;
 /** Jak dlouho trvá oslava po zaplnění řady, než přijde nový příklad. */
 const CELEBRATION_MS = 2600;
 
+/** Po změně velikosti okna se chvíli počká, než se hra překreslí (otáčení posílá víc událostí). */
+const RESIZE_DELAY_MS = 150;
+
 const CONFETTI_COUNT = 80;
 const CONFETTI_COLORS = [0xffd54f, 0x81d4fa, 0xff8a80, 0xb9f6ca, 0xffffff, 0xce93d8];
 
@@ -71,6 +75,7 @@ export class GameScene extends Phaser.Scene {
   private mascot: Mascot | undefined;
   private character: CharacterId = FIRST_CHARACTER;
   private readonly sounds = createTonePlayer(createBrowserAudioContext);
+  private pendingResize: Phaser.Time.TimerEvent | undefined;
 
   constructor() {
     super('game');
@@ -85,6 +90,40 @@ export class GameScene extends Phaser.Scene {
     this.createStarRow();
     this.mascot = new Mascot(this, this.layout().mascot, this.character);
     this.startRound();
+    this.followWindowSize();
+  }
+
+  /** Když se změní velikost okna (otočení, lišta prohlížeče), hra se přizpůsobí. */
+  private followWindowSize(): void {
+    const onResize = () => {
+      this.pendingResize?.remove();
+      this.pendingResize = this.time.delayedCall(RESIZE_DELAY_MS, () => this.fitToWindow());
+    };
+    window.addEventListener('resize', onResize);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener('resize', onResize);
+    });
+  }
+
+  private fitToWindow(): void {
+    const size = gameSizeFor(window.innerWidth, window.innerHeight);
+    if (size.width === this.scale.width && size.height === this.scale.height) {
+      return;
+    }
+    this.scale.setGameSize(size.width, size.height);
+    this.relayout();
+  }
+
+  /** Překreslí vše na nová místa; hvězdičky, postavička i rozehraný příklad zůstanou. */
+  private relayout(): void {
+    for (const icon of this.starIcons) {
+      this.tweens.killTweensOf(icon);
+      icon.destroy();
+    }
+    this.createStarRow();
+    this.paintStars();
+    this.mascot?.moveTo(this.layout().mascot);
+    this.drawRound();
   }
 
   private createStarRow(): void {
@@ -110,9 +149,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startRound(): void {
-    this.clearRound();
     this.round = createAnswerRound();
     this.hintIsShown = false;
+    this.drawRound();
+  }
+
+  /** Nakreslí příklad, číselník a případnou nápovědu aktuálního kola. */
+  private drawRound(): void {
+    this.clearRound();
+    if (!this.round) {
+      return;
+    }
 
     const layout = this.layout();
 
@@ -131,6 +178,10 @@ export class GameScene extends Phaser.Scene {
         this.roundObjects.push(this.createAnswerButton(value, slot).container);
       }
     });
+
+    if (this.hintIsShown) {
+      this.drawHint(false);
+    }
   }
 
   private clearRound(): void {
@@ -211,11 +262,23 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.hintIsShown = true;
+    this.drawHint(true);
+  }
+
+  /** Nakreslí tečky nápovědy; při prvním zobrazení naskakují jedna po druhé. */
+  private drawHint(animated: boolean): void {
+    if (!this.round) {
+      return;
+    }
 
     const groups = hintDotGroups(this.round.problem);
     layoutHintDots(groups, this.layout().hint).forEach((dot, index) => {
       const color = HINT_GROUP_COLORS[dot.group % HINT_GROUP_COLORS.length];
       const circle = this.add.circle(dot.x, dot.y, HINT_DOT_SIZE / 2, color);
+      this.roundObjects.push(circle);
+      if (!animated) {
+        return;
+      }
       circle.setScale(0);
       this.tweens.add({
         targets: circle,
@@ -224,7 +287,6 @@ export class GameScene extends Phaser.Scene {
         delay: index * HINT_DOT_DELAY_MS,
         ease: 'Back.easeOut',
       });
-      this.roundObjects.push(circle);
     });
   }
 
@@ -279,6 +341,11 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => {
         flyingStar.destroy();
         this.paintStars();
+        // Po změně velikosti okna mohla být řada hvězdiček nakreslená znovu.
+        if (!targetIcon.active) {
+          onArrived();
+          return;
+        }
         this.tweens.add({
           targets: targetIcon,
           scale: 1.4,
