@@ -14,7 +14,7 @@ export const ANSWER_BUTTON_GAP = 20;
 const BOTTOM_MARGIN = 24;
 
 /** Kde je příklad, poměr k výšce obrazovky. */
-const PROBLEM_HEIGHT_RATIO = 0.2;
+const PROBLEM_HEIGHT_RATIO = 0.24;
 
 /** Kde je střed nápovědy s tečkami, poměr k výšce obrazovky. */
 const HINT_HEIGHT_RATIO = 0.45;
@@ -31,6 +31,15 @@ export const HINT_DOTS_PER_ROW = 5;
 /** Mezera mezi skupinkami navíc k běžné vzdálenosti teček. */
 const HINT_GROUP_GAP = 60;
 
+/** Velikost jedné hvězdičky v řadě nahoře. */
+export const STAR_SIZE = 48;
+
+/** Vzdálenost středů sousedních hvězdiček. */
+const STAR_SPACING = 60;
+
+/** Svislá poloha středu řady hvězdiček. */
+const STARS_Y = 40;
+
 export interface Point {
   readonly x: number;
   readonly y: number;
@@ -44,6 +53,8 @@ export interface ButtonSlot extends Point {
 export interface ScreenLayout {
   readonly problem: Point;
   readonly hint: Point;
+  /** Místa hvězdiček nahoře, zleva doprava. */
+  readonly stars: readonly Point[];
   /** Místa tlačítek ve stejném pořadí, v jakém jsou čísla na číselníku. */
   readonly answerButtons: readonly ButtonSlot[];
 }
@@ -61,13 +72,14 @@ function layoutRow(count: number, centerX: number, y: number): ButtonSlot[] {
 }
 
 /**
- * Nahoře příklad, pod ním místo pro nápovědu a dole číselník ve dvou řadách.
+ * Úplně nahoře hvězdičky, pod nimi příklad, pod ním místo pro nápovědu a dole číselník ve dvou řadách.
  * Horní řada má o tlačítko víc, pokud je počet lichý (0–5 a 6–10).
  */
 export function layoutScreen(
   screenWidth: number,
   screenHeight: number,
   buttonCount: number,
+  starCount = 0,
 ): ScreenLayout {
   const topRowCount = Math.ceil(buttonCount / 2);
   const bottomRowCount = buttonCount - topRowCount;
@@ -79,11 +91,22 @@ export function layoutScreen(
   return {
     problem: { x: centerX, y: screenHeight * PROBLEM_HEIGHT_RATIO },
     hint: { x: centerX, y: screenHeight * HINT_HEIGHT_RATIO },
+    stars: layoutStars(starCount, centerX),
     answerButtons: [
       ...layoutRow(topRowCount, centerX, topRowY),
       ...layoutRow(bottomRowCount, centerX, bottomRowY),
     ],
   };
+}
+
+/** Řada hvězdiček nahoře, vycentrovaná kolem `centerX`. */
+function layoutStars(count: number, centerX: number): Point[] {
+  const firstX = centerX - ((count - 1) * STAR_SPACING) / 2;
+
+  return Array.from({ length: count }, (_, index) => ({
+    x: firstX + index * STAR_SPACING,
+    y: STARS_Y,
+  }));
 }
 
 /** Tečka nápovědy; `group` říká, ke kterému sčítanému číslu patří. */

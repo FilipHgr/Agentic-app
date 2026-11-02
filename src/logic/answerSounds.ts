@@ -5,7 +5,7 @@
 
 import type { TapOutcome } from './answerRound';
 
-export type SoundName = 'correct' | 'wrong';
+export type SoundName = 'correct' | 'wrong' | 'celebration';
 
 /** Jeden tón zvuku. Časy jsou v sekundách od chvíle ťuknutí. */
 export interface Tone {
@@ -28,9 +28,22 @@ const WRONG_TONES: readonly Tone[] = [
   { frequencyHz: 220, startSeconds: 0, durationSeconds: 0.18, volume: 0.2 },
 ];
 
+/** Delší slavnostní melodie po zaplnění řady hvězdiček (asi 2 s). */
+const CELEBRATION_TONES: readonly Tone[] = [
+  { frequencyHz: 523.25, startSeconds: 0, durationSeconds: 0.15, volume: 0.35 },
+  { frequencyHz: 659.25, startSeconds: 0.15, durationSeconds: 0.15, volume: 0.35 },
+  { frequencyHz: 783.99, startSeconds: 0.3, durationSeconds: 0.15, volume: 0.35 },
+  { frequencyHz: 1046.5, startSeconds: 0.45, durationSeconds: 0.3, volume: 0.35 },
+  { frequencyHz: 783.99, startSeconds: 0.8, durationSeconds: 0.15, volume: 0.35 },
+  { frequencyHz: 1046.5, startSeconds: 0.95, durationSeconds: 0.15, volume: 0.35 },
+  { frequencyHz: 1318.51, startSeconds: 1.1, durationSeconds: 0.25, volume: 0.35 },
+  { frequencyHz: 1046.5, startSeconds: 1.4, durationSeconds: 0.6, volume: 0.35 },
+];
+
 export const SOUNDS: Readonly<Record<SoundName, readonly Tone[]>> = {
   correct: CORRECT_TONES,
   wrong: WRONG_TONES,
+  celebration: CELEBRATION_TONES,
 };
 
 /** Vrátí zvuk pro výsledek ťuknutí, nebo `null`, když se nemá ozvat nic. */
