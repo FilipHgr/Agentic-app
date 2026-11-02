@@ -27,14 +27,21 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
 - Testy, lint a build spouštěj vždy přes tyto skripty, ne přímo
   v nastavení GitHub Actions (kvůli případné migraci na GitLab).
 
+## Postup práce
+- Úkoly navrhuje Claude sám jako GitHub issues, vlastník je jen schvaluje.
+  Postup: skill `novy-ukol`. Šablona: `.github/ISSUE_TEMPLATE/user-story.md`.
+- Po dokončení úkolu pošli odkaz na náhled a na konci sprintu otevři PR.
+  Postup: skill `predani-ukolu`. Šablona: `.github/pull_request_template.md`.
+
 ## Git workflow
-- Větev vytvoř ze `staging`: `APP-123-kratky-popis` (ID úkolu z YouTracku).
+- Jeden sprint = jedna větev = jeden PR. Větev `sprint-<číslo>` vytvoř
+  ze `staging`, schválené úkoly v ní dělej postupně, každý jako vlastní
+  commit začínající `#<číslo issue>`.
+- Drobnosti (dokumentace, nastavení, postup práce) dej do větve
+  aktuálního sprintu jako samostatný commit, ne do nové větve.
 - PR otevírej do `staging`, nikdy do `main`.
 - Nepushuj přímo do `staging` ani `main`, nepoužívej force push.
-- Jeden úkol = jedna větev = jeden malý PR. Nesouvisející změny (refaktoring,
-  úklid) nedělej, navrhni je v PR jako nový úkol.
-- V popisu PR uveď ID úkolu, co se změnilo, jak to otestovat a které
-  akceptační kritérium pokrývá který test.
+- Nesouvisející refaktoring nedělej, navrhni ho jako nový úkol.
 
 ## Testování
 - Testy ověřují splnění zadání (user story a akceptační kritéria), ne to,
