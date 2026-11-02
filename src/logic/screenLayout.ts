@@ -22,6 +22,27 @@ export const PROBLEM_FONT_SIZE = 140;
 /** Výška, kterou text příkladu zabere (písmo i s rezervou nad a pod). */
 export const PROBLEM_TEXT_HEIGHT = Math.round(PROBLEM_FONT_SIZE * 1.2);
 
+/**
+ * Šířka nejdelšího příkladu „10 + 0 = ?“ v písmu Arial i s rezervou.
+ * Číslice mají asi 0,56 velikosti písma, celý příklad asi 4,5.
+ */
+export const PROBLEM_MAX_WIDTH = Math.round(PROBLEM_FONT_SIZE * 4.7);
+
+/** Velikost maskota (šířka i výška čtverce, do kterého se vejde). */
+export const MASCOT_SIZE = 160;
+
+/** Jak vysoko maskot vyskočí radostí. */
+export const MASCOT_JUMP_HEIGHT = 30;
+
+/** Jak daleko do stran se maskot pohne při tanci. */
+export const MASCOT_DANCE_SWAY = 12;
+
+/** Odstup maskota od levého okraje obrazovky. */
+const MASCOT_LEFT_MARGIN = 20;
+
+/** O kolik je příklad posunutý doprava od středu, aby se vlevo vešel maskot. */
+const PROBLEM_SHIFT_RIGHT = 40;
+
 /** Kde je střed nápovědy s tečkami, poměr k výšce obrazovky. */
 const HINT_HEIGHT_RATIO = 0.47;
 
@@ -61,6 +82,8 @@ export interface ScreenLayout {
   readonly hint: Point;
   /** Místa hvězdiček nahoře, zleva doprava. */
   readonly stars: readonly Point[];
+  /** Střed maskota vlevo vedle příkladu. */
+  readonly mascot: Point;
   /** Místa tlačítek ve stejném pořadí, v jakém jsou čísla na číselníku. */
   readonly answerButtons: readonly ButtonSlot[];
 }
@@ -95,9 +118,13 @@ export function layoutScreen(
   const centerX = screenWidth / 2;
 
   return {
-    problem: { x: centerX, y: screenHeight * PROBLEM_HEIGHT_RATIO },
+    problem: { x: centerX + PROBLEM_SHIFT_RIGHT, y: screenHeight * PROBLEM_HEIGHT_RATIO },
     hint: { x: centerX, y: screenHeight * HINT_HEIGHT_RATIO },
     stars: layoutStars(starCount, centerX),
+    mascot: {
+      x: MASCOT_LEFT_MARGIN + MASCOT_DANCE_SWAY + MASCOT_SIZE / 2,
+      y: screenHeight * PROBLEM_HEIGHT_RATIO,
+    },
     answerButtons: [
       ...layoutRow(topRowCount, centerX, topRowY),
       ...layoutRow(bottomRowCount, centerX, bottomRowY),

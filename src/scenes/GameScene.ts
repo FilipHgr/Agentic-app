@@ -11,6 +11,7 @@ import {
 } from '../logic/answerRound';
 import type { AnswerRound, TapOutcome } from '../logic/answerRound';
 import { SOUNDS, soundForOutcome } from '../logic/answerSounds';
+import { mascotReactionToTap } from '../logic/mascot';
 import {
   HINT_DOT_SIZE,
   PROBLEM_FONT_SIZE,
@@ -21,6 +22,7 @@ import {
 import type { ButtonSlot, ScreenLayout } from '../logic/screenLayout';
 import { STARS_PER_SET, createStarProgress, startNewStarSet, starsAfterTap } from '../logic/stars';
 import type { StarProgress } from '../logic/stars';
+import { Mascot } from './Mascot';
 
 const BUTTON_COLOR = 0xffffff;
 const BUTTON_CORRECT_COLOR = 0x8be04e;
@@ -64,6 +66,7 @@ export class GameScene extends Phaser.Scene {
   private hintIsShown = false;
   private starProgress: StarProgress = createStarProgress();
   private starIcons: Phaser.GameObjects.Star[] = [];
+  private mascot: Mascot | undefined;
   private readonly sounds = createTonePlayer(createBrowserAudioContext);
 
   constructor() {
@@ -72,6 +75,7 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     this.createStarRow();
+    this.mascot = new Mascot(this, this.layout().mascot);
     this.startRound();
   }
 
@@ -176,6 +180,12 @@ export class GameScene extends Phaser.Scene {
     const stars = starsAfterTap(this.starProgress, result.outcome);
     this.starProgress = stars.progress;
 
+    // Tanec začne až s oslavou, po doletu poslední hvězdičky.
+    const reaction = mascotReactionToTap(result.outcome, stars.setCompleted);
+    if (reaction && reaction !== 'dance') {
+      this.mascot?.react(reaction);
+    }
+
     if (result.outcome === 'correct') {
       this.celebrateCorrectAnswer(button, stars.setCompleted);
     } else if (result.outcome === 'wrong') {
@@ -277,6 +287,7 @@ export class GameScene extends Phaser.Scene {
   private celebrateFullSet(): void {
     this.sounds.play(SOUNDS.celebration);
     this.throwConfetti();
+    this.mascot?.react('dance', CELEBRATION_MS);
 
     this.time.delayedCall(CELEBRATION_MS, () => {
       this.starProgress = startNewStarSet();
