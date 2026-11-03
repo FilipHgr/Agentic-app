@@ -49,7 +49,9 @@
       "Edit(./.github/workflows/**)",
       "Edit(./package.json)",
       "Edit(./.claude/settings.json)",
-      "Edit(./.claude/hooks/**)"
+      "Edit(./.claude/hooks/**)",
+      "Edit(./.claude/agents/**)",
+      "Edit(./.claude/skills/**)"
     ],
     "deny": [
       "Read(./.env)",
