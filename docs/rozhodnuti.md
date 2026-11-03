@@ -38,6 +38,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-03 Psaní odpovědi prstem: bude to volba v nastavení pro rodiče
   (číselník zůstane), rozpoznané číslo dítě před vyhodnocením potvrdí nebo
   přepíše. Rozpoznávání jen v zařízení, bez cizích serverů.
+- 2026-11-03 Sada tahů pro ověření rozpoznávání: nejdřív veřejná sada (např.
+  UCI Pen-Based Digits, CC BY 4.0), vlastní tahy vlastníka později. Úkol psaní
+  prstem zůstává vcelku (nedělit na rozpoznávání a psaní ve hře).
 
 ## Repozitář a prostředí
 
