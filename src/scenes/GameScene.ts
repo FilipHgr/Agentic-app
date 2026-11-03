@@ -15,11 +15,12 @@ import { SOUNDS, soundForOutcome } from '../logic/answerSounds';
 import { mascotReactionToTap } from '../logic/mascot';
 import { STAR_SIZE, layoutHintDots, layoutScreen } from '../logic/screenLayout';
 import type { ButtonSlot, ScreenLayout } from '../logic/screenLayout';
-import { STARS_PER_SET, createStarProgress, startNewStarSet, starsAfterTap } from '../logic/stars';
+import { STARS_PER_SET, startNewStarSet, starsAfterTap } from '../logic/stars';
 import type { StarProgress } from '../logic/stars';
-import { FIRST_CHARACTER, nextCharacter } from '../logic/characters';
+import { nextCharacter } from '../logic/characters';
 import type { CharacterId } from '../logic/characters';
 import type { GameSettings } from '../logic/settings';
+import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { browserStorage, loadSettings, saveSettings } from '../storage/settingsStorage';
 import { Mascot } from './Mascot';
 import { attachSettingsButton } from '../ui/settingsButton';
@@ -72,10 +73,12 @@ export class GameScene extends Phaser.Scene {
   private round: AnswerRound | undefined;
   private roundObjects: Phaser.GameObjects.GameObject[] = [];
   private hintIsShown = false;
-  private starProgress: StarProgress = createStarProgress();
+  // Hvězdičky a postavička přežijí zavření hry (načtou se ze zařízení).
+  private readonly savedProgress = loadProgress(browserStorage());
+  private starProgress: StarProgress = { earned: this.savedProgress.earned };
   private starIcons: Phaser.GameObjects.Star[] = [];
   private mascot: Mascot | undefined;
-  private character: CharacterId = FIRST_CHARACTER;
+  private character: CharacterId = this.savedProgress.character;
   private settings: GameSettings = loadSettings(browserStorage());
   private settingsOpen = false;
   private readonly sounds = createTonePlayer(createBrowserAudioContext);
@@ -91,6 +94,7 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     this.createStarRow();
+    this.paintStars();
     this.mascot = new Mascot(this, this.layout().mascot, this.character);
     // Kolečko je tlačítko stránky v rohu obrazovky, mimo herní plochu.
     const settingsButton = document.getElementById('settings-button');
@@ -98,6 +102,14 @@ export class GameScene extends Phaser.Scene {
       attachSettingsButton(settingsButton, () => this.openSettings());
     }
     this.startRound();
+  }
+
+  /** Uloží hvězdičky a postavičku do zařízení; když to nejde, hra jede dál. */
+  private saveProgress(): void {
+    saveProgress(browserStorage(), {
+      earned: this.starProgress.earned,
+      character: this.character,
+    });
   }
 
   /** Nastavení pro rodiče; po potvrzení se uloží a přijde nový příklad. */
@@ -216,6 +228,9 @@ export class GameScene extends Phaser.Scene {
 
     const stars = starsAfterTap(this.starProgress, result.outcome);
     this.starProgress = stars.progress;
+    if (stars.starEarned) {
+      this.saveProgress();
+    }
 
     // Tanec začne až s oslavou, po doletu poslední hvězdičky.
     const reaction = mascotReactionToTap(result.outcome, stars.setCompleted);
@@ -354,6 +369,7 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(CELEBRATION_MS, () => {
       this.starProgress = startNewStarSet();
       this.character = nextCharacter(this.character);
+      this.saveProgress();
       this.mascot?.switchTo(this.character);
       this.paintStars();
       this.startRound();
