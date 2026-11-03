@@ -1,7 +1,8 @@
 /**
- * Rozmístění hvězdiček, postavičky, příkladu, nápovědy, číselníku a kolečka
- * nastavení na obrazovce. Je tady, a ne ve scéně, aby šlo bez prohlížeče
- * ověřit, že tlačítka jsou dost velká na prst a všechno se vejde.
+ * Rozmístění hvězdiček, postavičky, příkladu, nápovědy a číselníku na herní
+ * ploše. Je tady, a ne ve scéně, aby šlo bez prohlížeče ověřit, že tlačítka
+ * jsou dost velká na prst a všechno se vejde. Kolečko nastavení je mimo herní
+ * plochu, v rohu stránky (index.html, src/ui/settingsButton.ts).
  *
  * Rozložení se mění podle počtu tlačítek číselníku (rozsah z nastavení):
  * 0–5 jedna řada, 0–10 dvě řady, 0–20 tři menší řady a menší nápověda.
@@ -129,15 +130,6 @@ const STAR_SPACING = 80;
 /** Svislá poloha středu řady hvězdiček. */
 const STARS_Y = 46;
 
-/**
- * Plocha ozubeného kolečka nastavení pro prst. Samotné kolečko je nakreslené
- * menší a je až v rohu obrazovky, aby nepůsobilo jako další hvězdička.
- */
-export const SETTINGS_BUTTON_SIZE = 68;
-
-/** Odstup středu kolečka od pravého a horního okraje. */
-const SETTINGS_BUTTON_CORNER_OFFSET = 34;
-
 export interface Point {
   readonly x: number;
   readonly y: number;
@@ -162,8 +154,6 @@ export interface ScreenLayout {
   readonly mascot: Point;
   /** Místa tlačítek ve stejném pořadí, v jakém jsou čísla na číselníku. */
   readonly answerButtons: readonly ButtonSlot[];
-  /** Ozubené kolečko nastavení vpravo nahoře. */
-  readonly settingsButton: ButtonSlot;
 }
 
 /** Vodorovná řada tlačítek se středem `centerX`. */
@@ -231,7 +221,7 @@ function problemFontSizeFor(buttonCount: number): number {
 }
 
 /**
- * Úplně nahoře hvězdičky a vpravo od nich kolečko nastavení, pod nimi
+ * Úplně nahoře hvězdičky, pod nimi
  * vlevo postavička vedle příkladu, pod příkladem nápověda a dole číselník.
  *
  * @param buttonCount Počet tlačítek číselníku (rozsah + 1).
@@ -268,11 +258,6 @@ export function layoutScreen(
       small ? SMALL_ANSWER_BUTTON_SIZE : ANSWER_BUTTON_SIZE,
       small ? SMALL_ANSWER_BUTTON_GAP : ANSWER_BUTTON_GAP,
     ),
-    settingsButton: {
-      x: screenWidth - SETTINGS_BUTTON_CORNER_OFFSET,
-      y: SETTINGS_BUTTON_CORNER_OFFSET,
-      size: SETTINGS_BUTTON_SIZE,
-    },
   };
 }
 

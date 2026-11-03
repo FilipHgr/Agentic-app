@@ -77,9 +77,9 @@ function insideScreen(b: Box): boolean {
   return b.left >= 0 && b.top >= 0 && b.right <= SCREEN_WIDTH && b.bottom <= SCREEN_HEIGHT;
 }
 
-/** Vše na obrazovce kromě nápovědy: postavička i se skokem a tancem, příklad, hvězdičky, kolečko, tlačítka. */
+/** Vše na herní ploše kromě nápovědy: postavička i se skokem a tancem, příklad, hvězdičky, tlačítka. */
 function fixedBoxes(layout: ScreenLayout): Box[] {
-  const { mascot, problem, settingsButton } = layout;
+  const { mascot, problem } = layout;
   return [
     {
       left: mascot.x - MASCOT_SIZE / 2 - MASCOT_DANCE_SWAY,
@@ -88,7 +88,6 @@ function fixedBoxes(layout: ScreenLayout): Box[] {
       bottom: mascot.y + MASCOT_SIZE / 2,
     },
     box(problem.x, problem.y, layout.problemSize.width, layout.problemSize.height),
-    box(settingsButton.x, settingsButton.y, settingsButton.size, settingsButton.size),
     ...layout.stars.map((star) => box(star.x, star.y, STAR_SIZE, STAR_SIZE)),
     ...layout.answerButtons.map((button) => box(button.x, button.y, button.size, button.size)),
   ];
@@ -125,27 +124,6 @@ describe('AC1: nastavení se otevře až po podržení kolečka', () => {
   it('nesmyslná doba držení nastavení neotevře a nespadne', () => {
     expect(isHoldLongEnough(Number.NaN)).toBe(false);
     expect(isHoldLongEnough(-5)).toBe(false);
-  });
-
-  it.each(MAX_NUMBER_OPTIONS)(
-    'při rozsahu do %i je kolečko v pravém horním rohu a dost velké na prst',
-    (max) => {
-      const { settingsButton } = layoutFor(max);
-      const half = settingsButton.size / 2;
-
-      expect(settingsButton.size).toBeGreaterThanOrEqual(64);
-      expect(SCREEN_WIDTH - (settingsButton.x + half)).toBeLessThanOrEqual(4);
-      expect(settingsButton.y - half).toBeLessThanOrEqual(4);
-    },
-  );
-
-  it.each(MAX_NUMBER_OPTIONS)('při rozsahu do %i kolečko nestojí v řadě s hvězdičkami', (max) => {
-    const { settingsButton, stars } = layoutFor(max);
-    const lastStarRight = Math.max(...stars.map((star) => star.x + STAR_SIZE / 2));
-    const starsY = stars[0]?.y ?? 0;
-
-    expect(settingsButton.x - settingsButton.size / 2).toBeGreaterThan(lastStarRight + 40);
-    expect(settingsButton.y).toBeLessThan(starsY);
   });
 });
 

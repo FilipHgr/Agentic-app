@@ -33,10 +33,72 @@
       #game canvas {
         display: block;
       }
+
+      /* Kolečko nastavení pro rodiče: v pravém horním rohu obrazovky, mimo
+         herní plochu. Otevře se až podržením (src/ui/settingsButton.ts). */
+      #settings-button {
+        position: fixed;
+        top: calc(env(safe-area-inset-top, 0px) + 12px);
+        right: calc(env(safe-area-inset-right, 0px) + 12px);
+        z-index: 10;
+        width: 64px;
+        height: 64px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      #settings-button svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      /* Průhlednost celé skupiny, aby se zuby a tělo kolečka nepřekrývaly světleji. */
+      #settings-button .gear {
+        fill: #ffffff;
+        opacity: 0.7;
+      }
+
+      #settings-button .progress {
+        fill: none;
+        stroke: #ffd54f;
+        stroke-width: 5;
+        stroke-linecap: round;
+        stroke-dasharray: 182.2;
+        stroke-dashoffset: 182.2;
+        transform: rotate(-90deg);
+        transform-origin: 50% 50%;
+      }
+
+      #settings-button.is-holding .progress {
+        stroke-dashoffset: 0;
+        transition: stroke-dashoffset 2s linear;
+      }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <button id="settings-button" type="button" aria-label="Nastavení pro rodiče">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <g class="gear">
+          <rect x="27" y="6" width="10" height="14" rx="2" />
+          <rect x="27" y="6" width="10" height="14" rx="2" transform="rotate(45 32 32)" />
+          <rect x="27" y="6" width="10" height="14" rx="2" transform="rotate(90 32 32)" />
+          <rect x="27" y="6" width="10" height="14" rx="2" transform="rotate(135 32 32)" />
+          <rect x="27" y="6" width="10" height="14" rx="2" transform="rotate(180 32 32)" />
+          <rect x="27" y="6" width="10" height="14" rx="2" transform="rotate(225 32 32)" />
+          <rect x="27" y="6" width="10" height="14" rx="2" transform="rotate(270 32 32)" />
+          <rect x="27" y="6" width="10" height="14" rx="2" transform="rotate(315 32 32)" />
+          <circle cx="32" cy="32" r="18" />
+        </g>
+        <circle cx="32" cy="32" r="8" fill="#1f6f43" />
+        <circle class="progress" cx="32" cy="32" r="29" />
+      </svg>
+    </button>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -22,7 +22,7 @@ import type { CharacterId } from '../logic/characters';
 import type { GameSettings } from '../logic/settings';
 import { browserStorage, loadSettings, saveSettings } from '../storage/settingsStorage';
 import { Mascot } from './Mascot';
-import { SettingsButton } from './SettingsButton';
+import { attachSettingsButton } from '../ui/settingsButton';
 import { SettingsPanel } from './SettingsPanel';
 
 const BUTTON_COLOR = 0xffffff;
@@ -92,7 +92,11 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.createStarRow();
     this.mascot = new Mascot(this, this.layout().mascot, this.character);
-    new SettingsButton(this, this.layout().settingsButton, () => this.openSettings());
+    // Kolečko je tlačítko stránky v rohu obrazovky, mimo herní plochu.
+    const settingsButton = document.getElementById('settings-button');
+    if (settingsButton) {
+      attachSettingsButton(settingsButton, () => this.openSettings());
+    }
     this.startRound();
   }
 
