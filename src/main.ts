@@ -6,7 +6,7 @@ import { GameScene } from './scenes/GameScene';
 new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
-  backgroundColor: '#1f4e8c',
+  backgroundColor: '#1f6f43',
   // Chrome na Androidu jinak při podržení prstu otevře nabídku obrázku
   // a podržení kolečka nastavení přeruší.
   disableContextMenu: true,
