@@ -139,7 +139,8 @@ export class GameScene extends Phaser.Scene {
 
   private startRound(): void {
     this.clearRound();
-    this.round = createAnswerRound(this.settings);
+    // Nový příklad nesmí být stejný jako ten z minulého kola (při startu žádný není).
+    this.round = createAnswerRound(this.settings, Math.random, this.round?.problem);
     this.hintIsShown = false;
 
     const layout = this.layout();

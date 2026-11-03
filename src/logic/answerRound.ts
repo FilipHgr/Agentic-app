@@ -41,13 +41,18 @@ export interface TapResult {
   readonly round: AnswerRound;
 }
 
-/** Připraví nové kolo s náhodným příkladem podle nastavení. */
+/**
+ * Připraví nové kolo s náhodným příkladem podle nastavení.
+ *
+ * @param previousProblem Příklad z minulého kola; nový nebude stejný.
+ */
 export function createAnswerRound(
   settings: GameSettings = DEFAULT_SETTINGS,
   random: () => number = Math.random,
+  previousProblem?: Problem,
 ): AnswerRound {
   return {
-    problem: createProblem(settings, random),
+    problem: createProblem(settings, random, previousProblem),
     maxNumber: settings.maxNumber,
     wrongAnswers: 0,
     solved: false,
