@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { MAX_SUM, createProblem, formatProblem, isCorrectAnswer } from '../src/logic/problems';
 import { DEFAULT_SETTINGS } from '../src/logic/settings';
 
+import { seededRandom } from './seededRandom';
+
 /** Vrátí generátor, který postupně vydá zadané hodnoty (pak poslední dokola). */
 function fakeRandom(values: readonly number[]): () => number {
   let index = 0;
@@ -14,7 +16,10 @@ function fakeRandom(values: readonly number[]): () => number {
   };
 }
 
-const MANY_PROBLEMS = Array.from({ length: 500 }, () => createProblem());
+const MANY_PROBLEMS_RANDOM = seededRandom();
+const MANY_PROBLEMS = Array.from({ length: 500 }, () =>
+  createProblem(DEFAULT_SETTINGS, MANY_PROBLEMS_RANDOM),
+);
 
 describe('při výchozím nastavení je náhodný příklad sčítání do 10', () => {
   it('výsledek je součtem obou čísel', () => {

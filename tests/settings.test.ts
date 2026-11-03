@@ -32,6 +32,8 @@ import { STARS_PER_SET } from '../src/logic/stars';
 import { loadSettings, saveSettings } from '../src/storage/settingsStorage';
 import type { KeyValueStorage } from '../src/storage/settingsStorage';
 
+import { seededRandom } from './seededRandom';
+
 const SCREEN_WIDTH = 1024;
 const SCREEN_HEIGHT = 768;
 
@@ -139,7 +141,7 @@ describe('AC2: nastavení nabízí rozsah 5, 10, 20 a +, −, + −', () => {
 
 describe('AC3: po zavření nastavení přijde příklad podle nového nastavení', () => {
   it.each(ALL_SETTINGS)('nové kolo odpovídá nastavení $maxNumber / $operations', (settings) => {
-    const round = createAnswerRound(settings);
+    const round = createAnswerRound(settings, seededRandom());
 
     expect(round.maxNumber).toBe(settings.maxNumber);
     expect(round.problem.result).toBeLessThanOrEqual(settings.maxNumber);
@@ -149,8 +151,9 @@ describe('AC3: po zavření nastavení přijde příklad podle nového nastaven�
 
 describe('AC4: čísla v příkladu i výsledek jsou v rozsahu a nikdy záporná', () => {
   it.each(ALL_SETTINGS)('nastavení $maxNumber / $operations', (settings) => {
+    const random = seededRandom();
     for (let attempt = 0; attempt < 400; attempt += 1) {
-      const problem = createProblem(settings);
+      const problem = createProblem(settings, random);
       for (const value of [problem.first, problem.second, problem.result]) {
         expect(Number.isInteger(value)).toBe(true);
         expect(value).toBeGreaterThanOrEqual(0);
@@ -178,8 +181,9 @@ describe('AC5: odčítání se zobrazí jako „7 − 3 = ?“ a nápověda škr
   });
 
   it('při odčítání je výsledek rozdíl čísel', () => {
+    const random = seededRandom();
     for (let attempt = 0; attempt < 400; attempt += 1) {
-      const problem = createProblem({ maxNumber: 20, operations: 'minus' });
+      const problem = createProblem({ maxNumber: 20, operations: 'minus' }, random);
       expect(problem.operation).toBe('minus');
       expect(problem.result).toBe(problem.first - problem.second);
     }
@@ -217,19 +221,21 @@ describe('AC5: odčítání se zobrazí jako „7 − 3 = ?“ a nápověda škr
 
 describe('AC6: při „+ −“ se sčítání a odčítání střídají', () => {
   it('za mnoho příkladů přijde sčítání i odčítání', () => {
+    const random = seededRandom();
     const operations = new Set(
-      Array.from({ length: 200 }, () => createProblem({ maxNumber: 10, operations: 'mixed' })).map(
-        (problem) => problem.operation,
-      ),
+      Array.from({ length: 200 }, () =>
+        createProblem({ maxNumber: 10, operations: 'mixed' }, random),
+      ).map((problem) => problem.operation),
     );
 
     expect(operations).toEqual(new Set(['plus', 'minus']));
   });
 
   it('při „+“ přijde jen sčítání a při „−“ jen odčítání', () => {
+    const random = seededRandom();
     for (let attempt = 0; attempt < 100; attempt += 1) {
-      expect(createProblem({ maxNumber: 10, operations: 'plus' }).operation).toBe('plus');
-      expect(createProblem({ maxNumber: 10, operations: 'minus' }).operation).toBe('minus');
+      expect(createProblem({ maxNumber: 10, operations: 'plus' }, random).operation).toBe('plus');
+      expect(createProblem({ maxNumber: 10, operations: 'minus' }, random).operation).toBe('minus');
     }
   });
 });
@@ -242,7 +248,7 @@ describe('AC7: číselník odpovídá rozsahu a nic se nepřekrývá', () => {
   });
 
   it('číslo mimo zvolený rozsah se ignoruje', () => {
-    const round = createAnswerRound({ maxNumber: 5, operations: 'plus' });
+    const round = createAnswerRound({ maxNumber: 5, operations: 'plus' }, seededRandom());
 
     expect(tapAnswer(round, 6).outcome).toBe('ignored');
     expect(tapAnswer(round, 20).outcome).toBe('ignored');

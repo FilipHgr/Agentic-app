@@ -6,6 +6,8 @@ import type { Problem } from '../src/logic/problems';
 import { MAX_NUMBER_OPTIONS, OPERATION_OPTIONS } from '../src/logic/settings';
 import type { GameSettings } from '../src/logic/settings';
 
+import { seededRandom } from './seededRandom';
+
 /**
  * Generátor, který dokola vydává zadané hodnoty. Když hodnoty dají při
  * prvním losování určitý příklad, dá ho i každé další losování, takže hra
@@ -198,9 +200,10 @@ describe('AC4: příklad se smí vrátit ob jeden', () => {
     // Rozsah do 5, jen „+“: 21 různých příkladů. Pravidlo nic trvale nevyřazuje.
     const settings: GameSettings = { maxNumber: 5, operations: 'plus' };
     const seen = new Set<string>();
+    const random = seededRandom();
     let previous: Problem | undefined;
     for (let draw = 0; draw < 3000; draw += 1) {
-      const problem = createProblem(settings, Math.random, previous);
+      const problem = createProblem(settings, random, previous);
       seen.add(`${problem.first}+${problem.second}`);
       previous = problem;
     }
@@ -250,9 +253,10 @@ describe('AC6: pravidlo platí pro všech 9 kombinací nastavení', () => {
     const label = `do ${settings.maxNumber}, druh „${settings.operations}“`;
 
     it(`${label}: z 1000 příkladů za sebou nejsou žádné dva po sobě stejné a všechny jsou platné`, () => {
+      const random = seededRandom();
       let previous: Problem | undefined;
       for (let draw = 0; draw < 1000; draw += 1) {
-        const problem = createProblem(settings, Math.random, previous);
+        const problem = createProblem(settings, random, previous);
 
         expectValidProblem(problem, settings.maxNumber);
         if (settings.operations !== 'mixed') {
@@ -279,9 +283,9 @@ describe('AC6: pravidlo platí pro všech 9 kombinací nastavení', () => {
 
 describe('AC7: úplně první příklad nemá předchozí', () => {
   it('první kolo se připraví bez chyby a příklad je z rozsahu', () => {
-    expect(() => createAnswerRound(PLUS_TO_10)).not.toThrow();
+    expect(() => createAnswerRound(PLUS_TO_10, seededRandom())).not.toThrow();
 
-    const round = createAnswerRound(PLUS_TO_10);
+    const round = createAnswerRound(PLUS_TO_10, seededRandom());
     expectValidProblem(round.problem, 10);
   });
 

@@ -16,6 +16,9 @@ import {
   layoutScreen,
 } from '../src/logic/screenLayout';
 import type { ButtonSlot } from '../src/logic/screenLayout';
+import { DEFAULT_SETTINGS } from '../src/logic/settings';
+
+import { seededRandom } from './seededRandom';
 
 const SCREEN_WIDTH = 1024;
 const SCREEN_HEIGHT = 768;
@@ -48,8 +51,9 @@ describe('AC1: číselník má všechna čísla 0 až 10 ve stálém pořadí', 
   });
 
   it('správný výsledek je na číselníku u každého příkladu', () => {
+    const random = seededRandom();
     for (let attempt = 0; attempt < 500; attempt += 1) {
-      const round = createAnswerRound();
+      const round = createAnswerRound(DEFAULT_SETTINGS, random);
       expect(ANSWER_CHOICES).toContain(round.problem.result);
     }
     expect(Math.max(...ANSWER_CHOICES)).toBe(MAX_SUM);
@@ -123,7 +127,7 @@ describe('AC3: správná odpověď ukončí kolo', () => {
   });
 
   it('nové kolo začíná bez chyb a bez nápovědy', () => {
-    const round = createAnswerRound();
+    const round = createAnswerRound(DEFAULT_SETTINGS, seededRandom());
 
     expect(round.solved).toBe(false);
     expect(round.wrongAnswers).toBe(0);
@@ -191,8 +195,9 @@ describe('AC5: po druhé chybě se ukáže nápověda s tečkami', () => {
   });
 
   it('teček je vždy tolik, kolik je výsledek', () => {
+    const random = seededRandom();
     for (let attempt = 0; attempt < 500; attempt += 1) {
-      const { problem } = createAnswerRound();
+      const { problem } = createAnswerRound(DEFAULT_SETTINGS, random);
       const dots = hintDotGroups(problem).reduce((sum, count) => sum + count, 0);
       expect(dots).toBe(problem.result);
     }
