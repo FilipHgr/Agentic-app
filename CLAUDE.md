@@ -12,6 +12,8 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
 - Hra musí být pochopitelná bez čtení návodu, jedna hlavní mechanika.
 - Každá akce má okamžitou zpětnou vazbu (animace, zvuk). Chyba nikdy netrestá.
 - Žádné prvky, které nejsou v zadání: menu, účty, obchod, reklamy, texty navíc.
+  Výjimka: nastavení pro rodiče (rozsah, druh příkladů) za ozubeným kolečkem,
+  které se otevře až po podržení, aby se tam dítě nedostalo omylem.
 - Hra musí běžet plynule i na levnějším tabletu.
 - 
 ## Technologie a příkazy

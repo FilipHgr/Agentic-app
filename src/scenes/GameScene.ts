@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 
 import { createBrowserAudioContext, createTonePlayer } from '../audio/tonePlayer';
-import { formatProblem } from '../logic/addition';
+import { formatProblem } from '../logic/problems';
 import {
-  ANSWER_CHOICES,
+  answerChoices,
   createAnswerRound,
+  hintCrossedOutDots,
   hintDotGroups,
   isHintVisible,
   tapAnswer,
@@ -12,24 +13,29 @@ import {
 import type { AnswerRound, TapOutcome } from '../logic/answerRound';
 import { SOUNDS, soundForOutcome } from '../logic/answerSounds';
 import { mascotReactionToTap } from '../logic/mascot';
-import {
-  HINT_DOT_SIZE,
-  PROBLEM_FONT_SIZE,
-  STAR_SIZE,
-  layoutHintDots,
-  layoutScreen,
-} from '../logic/screenLayout';
+import { STAR_SIZE, layoutHintDots, layoutScreen } from '../logic/screenLayout';
 import type { ButtonSlot, ScreenLayout } from '../logic/screenLayout';
 import { STARS_PER_SET, createStarProgress, startNewStarSet, starsAfterTap } from '../logic/stars';
 import type { StarProgress } from '../logic/stars';
 import { FIRST_CHARACTER, nextCharacter } from '../logic/characters';
 import type { CharacterId } from '../logic/characters';
+import type { GameSettings } from '../logic/settings';
+import { browserStorage, loadSettings, saveSettings } from '../storage/settingsStorage';
 import { Mascot } from './Mascot';
+import { SettingsButton } from './SettingsButton';
+import { SettingsPanel } from './SettingsPanel';
 
 const BUTTON_COLOR = 0xffffff;
 const BUTTON_CORRECT_COLOR = 0x8be04e;
 /** Každé sčítané číslo má tečky jiné barvy, aby šly skupinky rozlišit. */
 const HINT_GROUP_COLORS = [0xffd54f, 0x81d4fa];
+
+/** Odečítané tečky u odčítání jsou šedé a přeškrtnuté. */
+const HINT_CROSSED_OUT_COLOR = 0x9e9e9e;
+const HINT_CROSS_COLOR = 0xffffff;
+
+/** Číslo na tlačítku zabírá asi dvě třetiny jeho výšky. */
+const BUTTON_LABEL_RATIO = 0.64;
 
 /** Tečky naskakují jedna po druhé, aby je dítě mohlo počítat s nimi. */
 const HINT_DOT_DELAY_MS = 120;
@@ -70,6 +76,8 @@ export class GameScene extends Phaser.Scene {
   private starIcons: Phaser.GameObjects.Star[] = [];
   private mascot: Mascot | undefined;
   private character: CharacterId = FIRST_CHARACTER;
+  private settings: GameSettings = loadSettings(browserStorage());
+  private settingsOpen = false;
   private readonly sounds = createTonePlayer(createBrowserAudioContext);
 
   constructor() {
@@ -84,7 +92,23 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.createStarRow();
     this.mascot = new Mascot(this, this.layout().mascot, this.character);
+    new SettingsButton(this, this.layout().settingsButton, () => this.openSettings());
     this.startRound();
+  }
+
+  /** Nastavení pro rodiče; po potvrzení se uloží a přijde nový příklad. */
+  private openSettings(): void {
+    if (this.settingsOpen) {
+      return;
+    }
+    this.settingsOpen = true;
+
+    new SettingsPanel(this, this.settings, (chosen) => {
+      this.settings = chosen;
+      saveSettings(browserStorage(), chosen);
+      this.settingsOpen = false;
+      this.startRound();
+    });
   }
 
   private createStarRow(): void {
@@ -111,7 +135,7 @@ export class GameScene extends Phaser.Scene {
 
   private startRound(): void {
     this.clearRound();
-    this.round = createAnswerRound();
+    this.round = createAnswerRound(this.settings);
     this.hintIsShown = false;
 
     const layout = this.layout();
@@ -119,13 +143,13 @@ export class GameScene extends Phaser.Scene {
     const problemText = this.add
       .text(layout.problem.x, layout.problem.y, formatProblem(this.round.problem), {
         fontFamily: 'Arial, sans-serif',
-        fontSize: `${PROBLEM_FONT_SIZE}px`,
+        fontSize: `${layout.problemFontSize}px`,
         color: '#ffffff',
       })
       .setOrigin(0.5);
     this.roundObjects.push(problemText);
 
-    ANSWER_CHOICES.forEach((value, index) => {
+    answerChoices(this.round.maxNumber).forEach((value, index) => {
       const slot = layout.answerButtons[index];
       if (slot) {
         this.roundObjects.push(this.createAnswerButton(value, slot).container);
@@ -146,7 +170,7 @@ export class GameScene extends Phaser.Scene {
     const label = this.add
       .text(0, 0, String(value), {
         fontFamily: 'Arial, sans-serif',
-        fontSize: '90px',
+        fontSize: `${Math.round(slot.size * BUTTON_LABEL_RATIO)}px`,
         color: BUTTON_TEXT_COLOR,
       })
       .setOrigin(0.5);
@@ -203,7 +227,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private layout(): ScreenLayout {
-    return layoutScreen(this.scale.width, this.scale.height, ANSWER_CHOICES.length, STARS_PER_SET);
+    const maxNumber = this.round?.maxNumber ?? this.settings.maxNumber;
+    return layoutScreen(
+      this.scale.width,
+      this.scale.height,
+      answerChoices(maxNumber).length,
+      STARS_PER_SET,
+    );
   }
 
   private showHintWhenNeeded(): void {
@@ -212,19 +242,38 @@ export class GameScene extends Phaser.Scene {
     }
     this.hintIsShown = true;
 
-    const groups = hintDotGroups(this.round.problem);
-    layoutHintDots(groups, this.layout().hint).forEach((dot, index) => {
-      const color = HINT_GROUP_COLORS[dot.group % HINT_GROUP_COLORS.length];
-      const circle = this.add.circle(dot.x, dot.y, HINT_DOT_SIZE / 2, color);
-      circle.setScale(0);
+    const layout = this.layout();
+    const style = layout.hintStyle;
+    const dots = layoutHintDots(hintDotGroups(this.round.problem), layout.hint, style);
+    const firstCrossedOut = dots.length - hintCrossedOutDots(this.round.problem);
+
+    dots.forEach((dot, index) => {
+      const crossedOut = index >= firstCrossedOut;
+      const color = crossedOut
+        ? HINT_CROSSED_OUT_COLOR
+        : HINT_GROUP_COLORS[dot.group % HINT_GROUP_COLORS.length];
+      const parts: Phaser.GameObjects.Shape[] = [
+        this.add.circle(dot.x, dot.y, style.dotSize / 2, color),
+      ];
+      if (crossedOut) {
+        parts.push(
+          this.add
+            .rectangle(dot.x, dot.y, style.dotSize * 1.25, style.dotSize * 0.14, HINT_CROSS_COLOR)
+            .setAngle(-45),
+        );
+      }
+
+      for (const part of parts) {
+        part.setScale(0);
+        this.roundObjects.push(part);
+      }
       this.tweens.add({
-        targets: circle,
+        targets: parts,
         scale: 1,
         duration: 200,
         delay: index * HINT_DOT_DELAY_MS,
         ease: 'Back.easeOut',
       });
-      this.roundObjects.push(circle);
     });
   }
 

@@ -3,20 +3,26 @@
  * Čistý TypeScript bez Phaseru, scéna jen volá tyto funkce a kreslí výsledek.
  */
 
-import { MAX_SUM, createAdditionProblem, isCorrectAnswer } from './addition';
-import type { AdditionProblem } from './addition';
+import { MAX_SUM, createProblem, isCorrectAnswer } from './problems';
+import type { Problem } from './problems';
+import { DEFAULT_SETTINGS } from './settings';
+import type { GameSettings } from './settings';
 
-/** Čísla na číselníku: vždy všechna od 0 do `MAX_SUM` ve stejném pořadí. */
-export const ANSWER_CHOICES: readonly number[] = Array.from(
-  { length: MAX_SUM + 1 },
-  (_, index) => index,
-);
+/** Čísla na číselníku: všechna od 0 do zvoleného rozsahu, vždy ve stejném pořadí. */
+export function answerChoices(maxNumber: number): number[] {
+  return Array.from({ length: maxNumber + 1 }, (_, index) => index);
+}
+
+/** Číselník při výchozím nastavení (0–10). */
+export const ANSWER_CHOICES: readonly number[] = answerChoices(MAX_SUM);
 
 /** Po kolika špatných odpovědích se ukáže nápověda s tečkami. */
 export const WRONG_ANSWERS_BEFORE_HINT = 2;
 
 export interface AnswerRound {
-  readonly problem: AdditionProblem;
+  readonly problem: Problem;
+  /** Nejvyšší číslo na číselníku v tomto kole (zvolený rozsah). */
+  readonly maxNumber: number;
   /** Kolikrát hráč u tohoto příkladu ťukl na špatné číslo. */
   readonly wrongAnswers: number;
   /** Hráč už ťukl na správné číslo, kolo je u konce. */
@@ -35,10 +41,14 @@ export interface TapResult {
   readonly round: AnswerRound;
 }
 
-/** Připraví nové kolo s náhodným příkladem. */
-export function createAnswerRound(random: () => number = Math.random): AnswerRound {
+/** Připraví nové kolo s náhodným příkladem podle nastavení. */
+export function createAnswerRound(
+  settings: GameSettings = DEFAULT_SETTINGS,
+  random: () => number = Math.random,
+): AnswerRound {
   return {
-    problem: createAdditionProblem(random),
+    problem: createProblem(settings, random),
+    maxNumber: settings.maxNumber,
     wrongAnswers: 0,
     solved: false,
   };
@@ -46,7 +56,7 @@ export function createAnswerRound(random: () => number = Math.random): AnswerRou
 
 /** Vyhodnotí ťuknutí na číslo z číselníku a vrátí nový stav kola. */
 export function tapAnswer(round: AnswerRound, tappedNumber: number): TapResult {
-  if (round.solved || !ANSWER_CHOICES.includes(tappedNumber)) {
+  if (round.solved || !answerChoices(round.maxNumber).includes(tappedNumber)) {
     return { outcome: 'ignored', round };
   }
 
@@ -66,9 +76,17 @@ export function isHintVisible(round: AnswerRound): boolean {
 }
 
 /**
- * Skupinky teček pro nápovědu: jedna skupinka za každé sčítané číslo,
- * nula skupinku nemá. Například 3 + 4 → [3, 4], 5 + 0 → [5], 0 + 0 → [].
+ * Skupinky teček pro nápovědu, nula skupinku nemá.
+ * Sčítání: skupinka za každé sčítané číslo, 3 + 4 → [3, 4], 5 + 0 → [5], 0 + 0 → [].
+ * Odčítání: jedna skupinka za první číslo, 7 − 3 → [7]; odečítané tečky
+ * jsou její poslední tečky (viz `hintCrossedOutDots`).
  */
-export function hintDotGroups(problem: AdditionProblem): number[] {
-  return [problem.first, problem.second].filter((count) => count > 0);
+export function hintDotGroups(problem: Problem): number[] {
+  const counts = problem.operation === 'plus' ? [problem.first, problem.second] : [problem.first];
+  return counts.filter((count) => count > 0);
+}
+
+/** Kolik posledních teček nápovědy je přeškrtnutých: u odčítání odečítané číslo, jinak žádná. */
+export function hintCrossedOutDots(problem: Problem): number {
+  return problem.operation === 'minus' ? problem.second : 0;
 }

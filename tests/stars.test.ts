@@ -25,7 +25,12 @@ const LAYOUT = layoutScreen(SCREEN_WIDTH, SCREEN_HEIGHT, ANSWER_CHOICES.length, 
 
 /** Kolo s pevným příkladem 3 + 4, aby testy nezávisely na náhodě. */
 function roundThreePlusFour(): AnswerRound {
-  return { problem: { first: 3, second: 4, result: 7 }, wrongAnswers: 0, solved: false };
+  return {
+    problem: { first: 3, second: 4, operation: 'plus', result: 7 },
+    maxNumber: 10,
+    wrongAnswers: 0,
+    solved: false,
+  };
 }
 
 /** Hvězdičky po řadě výsledků ťuknutí. */

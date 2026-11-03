@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_SUM } from '../src/logic/addition';
+import { MAX_SUM } from '../src/logic/problems';
 import {
   ANSWER_CHOICES,
   createAnswerRound,
@@ -25,7 +25,12 @@ const LAYOUT = layoutScreen(SCREEN_WIDTH, SCREEN_HEIGHT, ANSWER_CHOICES.length);
 
 /** Kolo s pevným příkladem 3 + 4, aby testy ťukání nezávisely na náhodě. */
 function roundThreePlusFour(): AnswerRound {
-  return { problem: { first: 3, second: 4, result: 7 }, wrongAnswers: 0, solved: false };
+  return {
+    problem: { first: 3, second: 4, operation: 'plus', result: 7 },
+    maxNumber: 10,
+    wrongAnswers: 0,
+    solved: false,
+  };
 }
 
 /** Postupně ťukne na zadaná čísla a vrátí výsledný stav kola. */
@@ -182,7 +187,7 @@ describe('AC5: po druhé chybě se ukáže nápověda s tečkami', () => {
   });
 
   it('příklad 3 + 4 má skupinky 3 a 4 tečky', () => {
-    expect(hintDotGroups({ first: 3, second: 4, result: 7 })).toEqual([3, 4]);
+    expect(hintDotGroups({ first: 3, second: 4, operation: 'plus', result: 7 })).toEqual([3, 4]);
   });
 
   it('teček je vždy tolik, kolik je výsledek', () => {
@@ -242,7 +247,7 @@ describe('AC5: po druhé chybě se ukáže nápověda s tečkami', () => {
 
     for (let first = 0; first <= MAX_SUM; first += 1) {
       for (let second = 0; first + second <= MAX_SUM; second += 1) {
-        const groups = hintDotGroups({ first, second, result: first + second });
+        const groups = hintDotGroups({ first, second, operation: 'plus', result: first + second });
         for (const dot of layoutHintDots(groups, LAYOUT.hint)) {
           expect(dot.x - radius).toBeGreaterThanOrEqual(0);
           expect(dot.x + radius).toBeLessThanOrEqual(SCREEN_WIDTH);
@@ -256,7 +261,7 @@ describe('AC5: po druhé chybě se ukáže nápověda s tečkami', () => {
   it('u každého příkladu se tečky navzájem nepřekrývají', () => {
     for (let first = 0; first <= MAX_SUM; first += 1) {
       for (let second = 0; first + second <= MAX_SUM; second += 1) {
-        const groups = hintDotGroups({ first, second, result: first + second });
+        const groups = hintDotGroups({ first, second, operation: 'plus', result: first + second });
         const dots = layoutHintDots(groups, LAYOUT.hint);
         for (const [index, a] of dots.entries()) {
           for (const b of dots.slice(index + 1)) {
@@ -270,15 +275,15 @@ describe('AC5: po druhé chybě se ukáže nápověda s tečkami', () => {
 
 describe('AC6: příklady s nulou mají správnou nápovědu', () => {
   it('5 + 0 má jen jednu skupinku s 5 tečkami', () => {
-    expect(hintDotGroups({ first: 5, second: 0, result: 5 })).toEqual([5]);
+    expect(hintDotGroups({ first: 5, second: 0, operation: 'plus', result: 5 })).toEqual([5]);
   });
 
   it('0 + 6 má jen jednu skupinku s 6 tečkami', () => {
-    expect(hintDotGroups({ first: 0, second: 6, result: 6 })).toEqual([6]);
+    expect(hintDotGroups({ first: 0, second: 6, operation: 'plus', result: 6 })).toEqual([6]);
   });
 
   it('0 + 0 nemá žádné tečky a rozložení nespadne', () => {
-    const groups = hintDotGroups({ first: 0, second: 0, result: 0 });
+    const groups = hintDotGroups({ first: 0, second: 0, operation: 'plus', result: 0 });
 
     expect(groups).toEqual([]);
     expect(layoutHintDots(groups, LAYOUT.hint)).toEqual([]);

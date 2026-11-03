@@ -47,7 +47,12 @@ function squareBox(x: number, y: number, size: number): Box {
 
 /** Kolo s pevným příkladem 3 + 4, aby testy nezávisely na náhodě. */
 function roundThreePlusFour(): AnswerRound {
-  return { problem: { first: 3, second: 4, result: 7 }, wrongAnswers: 0, solved: false };
+  return {
+    problem: { first: 3, second: 4, operation: 'plus', result: 7 },
+    maxNumber: 10,
+    wrongAnswers: 0,
+    solved: false,
+  };
 }
 
 describe('AC1: postavička je vlevo vedle příkladu a nic nepřekrývá', () => {

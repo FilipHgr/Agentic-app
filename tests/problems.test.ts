@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  MAX_SUM,
-  createAdditionProblem,
-  formatProblem,
-  isCorrectAnswer,
-} from '../src/logic/addition';
+import { MAX_SUM, createProblem, formatProblem, isCorrectAnswer } from '../src/logic/problems';
+import { DEFAULT_SETTINGS } from '../src/logic/settings';
 
 /** Vrátí generátor, který postupně vydá zadané hodnoty (pak poslední dokola). */
 function fakeRandom(values: readonly number[]): () => number {
@@ -18,9 +14,9 @@ function fakeRandom(values: readonly number[]): () => number {
   };
 }
 
-const MANY_PROBLEMS = Array.from({ length: 500 }, () => createAdditionProblem());
+const MANY_PROBLEMS = Array.from({ length: 500 }, () => createProblem());
 
-describe('náhodný příklad na sčítání do 10', () => {
+describe('při výchozím nastavení je náhodný příklad sčítání do 10', () => {
   it('výsledek je součtem obou čísel', () => {
     for (const problem of MANY_PROBLEMS) {
       expect(problem.result).toBe(problem.first + problem.second);
@@ -49,24 +45,24 @@ describe('náhodný příklad na sčítání do 10', () => {
   });
 
   it('nejmenší možný příklad je 0 + 0', () => {
-    const problem = createAdditionProblem(fakeRandom([0, 0]));
+    const problem = createProblem(DEFAULT_SETTINGS, fakeRandom([0, 0]));
 
-    expect(problem).toEqual({ first: 0, second: 0, result: 0 });
+    expect(problem).toEqual({ first: 0, second: 0, operation: 'plus', result: 0 });
   });
 
   it('největší možný příklad má součet deset', () => {
-    const problem = createAdditionProblem(fakeRandom([0.999999, 0.999999]));
+    const problem = createProblem(DEFAULT_SETTINGS, fakeRandom([0.999999, 0.999999]));
 
     expect(problem.result).toBe(MAX_SUM);
   });
 
   it('příklad se hráči zobrazí jako „3 + 4 = ?“', () => {
-    expect(formatProblem({ first: 3, second: 4, result: 7 })).toBe('3 + 4 = ?');
+    expect(formatProblem({ first: 3, second: 4, operation: 'plus', result: 7 })).toBe('3 + 4 = ?');
   });
 });
 
 describe('vyhodnocení odpovědi', () => {
-  const problem = { first: 3, second: 4, result: 7 } as const;
+  const problem = { first: 3, second: 4, operation: 'plus', result: 7 } as const;
 
   it('správná odpověď je uznána', () => {
     expect(isCorrectAnswer(problem, 7)).toBe(true);
