@@ -6,7 +6,8 @@ description: Předání hotového úkolu vlastníkovi – push, odkaz na náhled
 # Předání úkolu
 
 Kontroly kódu (testy, review, bezpečnost, UX) proběhly už před commitem
-ve skillu `novy-ukol`. Tady se jen předává.
+ve skillu `novy-ukol`. Tady se jen předává. Výsledky agentů ber vždy
+z komentářů v issue (`gh issue view <číslo> --comments`), ne z paměti.
 
 ## 1. Push a náhled
 
@@ -25,6 +26,7 @@ ve skillu `novy-ukol`. Tady se jen předává.
    - nevyřešená DOPORUČENÍ od kontrolních agentů, každé jednou větou.
 5. Pokud kontrola „Workers Builds“ selže nebo náhled nejde ověřit, řekni
    to na rovinu.
+6. Vyprázdni soubor `.claude/state/aktualni-ukol`. Úkol je předaný.
 
 ## 2. Konec sprintu a PR
 

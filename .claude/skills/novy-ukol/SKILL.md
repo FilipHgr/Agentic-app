@@ -50,22 +50,31 @@ Po schválení:
 
 ## 3. Práce na úkolu
 
+Výsledek každého subagenta ulož hned jako komentář do issue
+(`gh issue comment <číslo> --body-file -`), nadpis „Výsledek: <agent>“.
+Kontext se může kdykoli zkomprimovat a z issue se po komprimaci
+výsledky automaticky načtou zpět. Co není v issue, může se ztratit.
+
 1. Pokud běží sprint (větev `sprint-<číslo>` ještě není sloučená),
    pokračuj v ní. Jinak vytvoř novou větev `sprint-<další číslo>`
    ze `staging`.
-2. **Testy napřed:** zavolej subagenta `test-writer` s číslem issue.
+2. Do souboru `.claude/state/aktualni-ukol` zapiš číslo issue
+   (jen číslo). Podle něj hook po komprimaci najde rozpracovaný úkol.
+3. **Testy napřed:** zavolej subagenta `test-writer` s číslem issue
+   a výsledek ulož do issue.
    - Když vrátí PROBLÉMY V ZADÁNÍ, zastav se a zeptej se vlastníka.
    - Jeho NAVRŽENÉ ROZHRANÍ použij při implementaci.
-3. **Implementace:** dělej, dokud neprojdou všechny testy. Testy od
+4. **Implementace:** dělej, dokud neprojdou všechny testy. Testy od
    `test-writer` neupravuj, aby prošly. Když je test podle tebe špatně,
    řekni proč a nech ho opravit subagentem `test-writer`.
-4. **Kontroly:** zavolej s číslem issue subagenty `reviewer`,
+5. **Kontroly:** zavolej s číslem issue subagenty `reviewer`,
    `security-auditor` a (pokud se měnilo cokoli v `src/scenes/` nebo
-   vzhled) `ux-checker`.
-   - Opravuj jen BLOKUJÍCÍ nálezy. DOPORUČENÍ si poznamenej pro předání.
-   - Po opravách zavolej znovu jen ty agenty, kteří vrátili VRÁTIT.
+   vzhled) `ux-checker`. Každý výsledek ulož do issue.
+   - Opravuj jen BLOKUJÍCÍ nálezy. DOPORUČENÍ zůstanou v komentářích.
+   - Po opravách zavolej znovu jen ty agenty, kteří vrátili VRÁTIT,
+     a nový výsledek také ulož.
    - Když po dvou kolech oprav pořád něco blokuje, nepokračuj a napiš
      vlastníkovi, co a proč.
-5. **Commit:** jeden commit za úkol, zpráva začíná `#<číslo issue>`.
+6. **Commit:** jeden commit za úkol, zpráva začíná `#<číslo issue>`.
    Testy a lint před commitem kontroluje hook.
-6. Pokračuj skillem `predani-ukolu`.
+7. Pokračuj skillem `predani-ukolu`.
