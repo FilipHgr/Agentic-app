@@ -53,13 +53,15 @@ Po schválení:
 Výsledek každého subagenta ulož hned jako komentář do issue
 (`gh issue comment <číslo> --body-file -`), nadpis „Výsledek: <agent>“.
 Kontext se může kdykoli zkomprimovat a z issue se po komprimaci
-výsledky automaticky načtou zpět. Co není v issue, může se ztratit.
+výsledky automaticky načtou zpět, stejně jako v nové session. Co není v issue, může se ztratit.
 
 1. Pokud běží sprint (větev `sprint-<číslo>` ještě není sloučená),
    pokračuj v ní. Jinak vytvoř novou větev `sprint-<další číslo>`
    ze `staging`.
-2. Do souboru `.claude/state/aktualni-ukol` zapiš číslo issue
-   (jen číslo). Podle něj hook po komprimaci najde rozpracovaný úkol.
+2. Změň štítek issue ze „schváleno“ na „rozpracováno“
+   (`gh issue edit <číslo> --remove-label schváleno --add-label rozpracováno`).
+   Podle něj hook v nové session i po komprimaci najde rozpracovaný úkol.
+   Rozpracovaný smí být vždy jen jeden úkol.
 3. **Testy napřed:** zavolej subagenta `test-writer` s číslem issue
    a výsledek ulož do issue.
    - Když vrátí PROBLÉMY V ZADÁNÍ, zastav se a zeptej se vlastníka.

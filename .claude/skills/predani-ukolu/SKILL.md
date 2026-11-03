@@ -26,7 +26,8 @@ z komentářů v issue (`gh issue view <číslo> --comments`), ne z paměti.
    - nevyřešená DOPORUČENÍ od kontrolních agentů, každé jednou větou.
 5. Pokud kontrola „Workers Builds“ selže nebo náhled nejde ověřit, řekni
    to na rovinu.
-6. Vyprázdni soubor `.claude/state/aktualni-ukol`. Úkol je předaný.
+6. Změň štítek issue z „rozpracováno“ na „předáno“
+   (`gh issue edit <číslo> --remove-label rozpracováno --add-label předáno`).
 
 ## 2. Konec sprintu a PR
 

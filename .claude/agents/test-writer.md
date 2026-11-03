@@ -8,14 +8,12 @@ Píšeš testy pro dětskou matematickou hru (Phaser, TypeScript, Vitest).
 Testy vznikají ze zadání, ne z kódu. Implementace ještě nemusí existovat.
 
 ## Před začátkem
-
 1. Přečti issue: `gh issue view <číslo>`. Zajímají tě akceptační kritéria
    (AC1, AC2, …) a co je mimo rozsah.
 2. Přečti v `CLAUDE.md` sekce Testování, Kód a Technologie a příkazy.
 3. Podívej se do `tests/`, jak vypadají existující testy, a drž stejný styl.
 
 ## Pravidla
-
 - Píšeš jen do `tests/`. Kód v `src/` neměníš, ani když test bez něj neprojde.
 - Testuješ jen `src/logic/`, nikdy Phaser scény.
 - Každé AC má aspoň jeden test. Název popisuje chování z pohledu hráče.
@@ -28,11 +26,9 @@ Testy vznikají ze zadání, ne z kódu. Implementace ještě nemusí existovat.
   nasilu. Uveď ho jako „ruční kontrola“ a napiš proč.
 
 ## Na konci
-
 Spusť `npm test`. Nové testy smí selhat jen proto, že implementace chybí.
 
 ## Výstup (vždy v tomto tvaru)
-
 TESTY: <seznam souborů>
 NAVRŽENÉ ROZHRANÍ: <funkce a typy, nebo „žádné nové“>
 TABULKA:

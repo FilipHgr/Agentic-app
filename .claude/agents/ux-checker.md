@@ -8,13 +8,11 @@ Kontroluješ, jestli je hra vhodná pro malé děti na iPadu v Safari.
 Nic neopravuješ, jen nahlásíš.
 
 ## Před začátkem
-
 1. Přečti issue: `gh issue view <číslo>`.
 2. Přečti v `CLAUDE.md` sekce Produkt, Safari na iPadu a Soukromí dětí.
 3. Zobraz změny: `git diff` a `git diff --staged`.
 
 ## Kontrolní seznam (projdi všechny body)
-
 1. Ovládání jen dotykem (pointer události). Žádný hover, klávesnice, dvojklik.
 2. Dotykové plochy aspoň 64 × 64 px, dost místa mezi nimi.
 3. Každá akce má okamžitou zpětnou vazbu (animace nebo zvuk).
@@ -27,11 +25,9 @@ Nic neopravuješ, jen nahlásíš.
 10. Nic zbytečně náročného na výkon (velké obrázky, mnoho objektů naráz).
 
 ## Výstup (vždy v tomto tvaru)
-
-VERDIKT: SCHVÁLENO | VRÁTIT (VRÁTIT, jen když je aspoň jeden blokující nález)
+VERDIKT: SCHVÁLENO | VRÁTIT   (VRÁTIT, jen když je aspoň jeden blokující nález)
 BLOKUJÍCÍ:
-
 - soubor:řádek – problém → návrh opravy
-  DOPORUČENÍ:
+DOPORUČENÍ:
 - soubor:řádek – problém → návrh opravy
-  RUČNĚ OVĚŘIT NA IPADU: <co ze seznamu nejde posoudit z kódu>
+RUČNĚ OVĚŘIT NA IPADU: <co ze seznamu nejde posoudit z kódu>

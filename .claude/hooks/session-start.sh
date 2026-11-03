@@ -13,24 +13,31 @@ fi
 
 echo "Aktuální větev: $(git branch --show-current)"
 
-# Rozpracovaný úkol: číslo issue zapisuje skill novy-ukol
-state_file=".claude/state/aktualni-ukol"
-if [ ! -s "$state_file" ]; then
+# Sprintové větve na GitHubu (nová session začíná na výchozí větvi)
+git fetch --quiet origin 2> /dev/null
+sprint_branches=$(git branch -r --list 'origin/sprint-*' 2> /dev/null | tr -d ' ')
+if [ -n "$sprint_branches" ]; then
+  echo "Sprintové větve: $sprint_branches"
+fi
+
+# Rozpracovaný úkol = otevřené issue se štítkem „rozpracováno“
+if ! issue=$(gh issue list --label "rozpracováno" --state open --json number --jq '.[0].number' 2> /dev/null); then
+  echo "Nepodařilo se zjistit rozpracovaný úkol, spusť: gh issue list --label rozpracováno"
   exit 0
 fi
 
-issue=$(tr -dc '0-9' < "$state_file")
 if [ -z "$issue" ]; then
   exit 0
 fi
 
 echo ""
 echo "ROZPRACOVANÝ ÚKOL: #$issue"
-echo "Pokračuj podle skillu novy-ukol (sekce 3) a predani-ukolu."
-echo "Výsledky agentů, které už proběhly, jsou v komentářích níže, neopakuj je."
+echo "Přepni se do jeho sprintové větve a pokračuj podle skillu novy-ukol"
+echo "(sekce 3) a predani-ukolu. Výsledky agentů, které už proběhly, jsou"
+echo "v komentářích níže, neopakuj je."
 echo ""
 
-if issue_text=$(gh issue view "$issue" --comments 2>/dev/null); then
+if issue_text=$(gh issue view "$issue" --comments 2> /dev/null); then
   echo "$issue_text" | tail -n 200
 else
   echo "Issue se nepodařilo načíst, spusť: gh issue view $issue --comments"
