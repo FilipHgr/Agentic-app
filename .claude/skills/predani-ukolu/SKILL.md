@@ -8,6 +8,7 @@ description: Předání hotového úkolu vlastníkovi – push, odkaz na náhled
 Kontroly kódu (testy, review, bezpečnost, UX) proběhly už před commitem
 ve skillu `novy-ukol`. Tady se jen předává. Výsledky agentů ber vždy
 z komentářů v issue (`gh issue view <číslo> --comments`), ne z paměti.
+Když `gh` nefunguje (cloud), použij místo něj GitHub nástroje.
 
 ## 1. Push a náhled
 
@@ -23,7 +24,9 @@ z komentářů v issue (`gh issue view <číslo> --comments`), ne z paměti.
    - tabulku: akceptační kritérium → test (z výstupu `test-writer`),
    - co má zkontrolovat na iPadu: RUČNÍ KONTROLA od `test-writer`
      a RUČNĚ OVĚŘIT NA IPADU od `ux-checker`,
-   - nevyřešená DOPORUČENÍ od kontrolních agentů, každé jednou větou.
+   - nevyřešená DOPORUČENÍ od kontrolních agentů, každé jednou větou,
+   - snímky obrazovky ze složky `snimky/` (iPad na šířku, telefon na
+     výšku), když se měnil vzhled. Pokud nevznikly ve WebKitu, napiš to.
 5. Pokud kontrola „Workers Builds“ selže nebo náhled nejde ověřit, řekni
    to na rovinu.
 6. Změň štítek issue z „rozpracováno“ na „předáno“

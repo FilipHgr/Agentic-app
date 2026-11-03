@@ -10,6 +10,8 @@ Testy vznikají ze zadání, ne z kódu. Implementace ještě nemusí existovat.
 ## Před začátkem
 1. Přečti issue: `gh issue view <číslo>`. Zajímají tě akceptační kritéria
    (AC1, AC2, …) a co je mimo rozsah.
+   Když `gh` nefunguje (třeba v cloudu), použij text issue ze zadání.
+   Když ho v zadání nemáš, napiš to do výstupu a skonči.
 2. Přečti v `CLAUDE.md` sekce Testování, Kód a Technologie a příkazy.
 3. Podívej se do `tests/`, jak vypadají existující testy, a drž stejný styl.
 

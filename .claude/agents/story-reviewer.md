@@ -11,6 +11,7 @@ nepsal. Nic nepřepisuješ, jen nahlásíš.
 1. Přečti v `CLAUDE.md` sekce Produkt, Safari na iPadu, Soukromí dětí
    a Testování.
 2. Projdi issues: `gh issue list --state all --limit 50`.
+   Když `gh` nefunguje (třeba v cloudu), použij seznam issues ze zadání.
 3. Podívej se, co hra už umí: `src/logic/`, `tests/`.
 
 ## Kontrolní seznam (projdi všechny body)

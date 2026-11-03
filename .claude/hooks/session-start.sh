@@ -22,7 +22,9 @@ fi
 
 # Rozpracovaný úkol = otevřené issue se štítkem „rozpracováno“
 if ! issue=$(gh issue list --label "rozpracováno" --state open --json number --jq '.[0].number' 2> /dev/null); then
-  echo "Nepodařilo se zjistit rozpracovaný úkol, spusť: gh issue list --label rozpracováno"
+  echo "Nepodařilo se zjistit rozpracovaný úkol přes gh."
+  echo "Když gh nefunguje (třeba v cloudu), najdi GitHub nástroji otevřené issue"
+  echo "se štítkem „rozpracováno“ a načti jeho komentáře, než budeš pokračovat."
   exit 0
 fi
 
@@ -40,7 +42,7 @@ echo ""
 if issue_text=$(gh issue view "$issue" --comments 2> /dev/null); then
   echo "$issue_text" | tail -n 200
 else
-  echo "Issue se nepodařilo načíst, spusť: gh issue view $issue --comments"
+  echo "Issue se nepodařilo načíst přes gh, načti #$issue i s komentáři GitHub nástroji."
 fi
 
 exit 0

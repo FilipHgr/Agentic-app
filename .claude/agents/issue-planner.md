@@ -13,6 +13,7 @@ vracíš návrh, který ještě projde kontrolou.
 2. Zjisti, co hra už umí: `src/logic/`, `src/scenes/`, `tests/`.
 3. Projdi issues: `gh issue list --state all --limit 50`.
    Nic nezdvojuj a navazuj na to, co je hotové nebo rozpracované.
+   Když `gh` nefunguje (třeba v cloudu), použij seznam issues ze zadání.
 4. Přečti šablonu `.github/ISSUE_TEMPLATE/user-story.md`.
 5. Když dostaneš připomínky ke staršímu návrhu, zapracuj všechny.
 

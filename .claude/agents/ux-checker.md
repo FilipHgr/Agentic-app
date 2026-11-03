@@ -9,6 +9,8 @@ Nic neopravuješ, jen nahlásíš.
 
 ## Před začátkem
 1. Přečti issue: `gh issue view <číslo>`.
+   Když `gh` nefunguje (třeba v cloudu), použij text issue ze zadání.
+   Když ho v zadání nemáš, napiš to do výstupu a skonči.
 2. Přečti v `CLAUDE.md` sekce Produkt, Safari na iPadu a Soukromí dětí.
 3. Zobraz změny: `git diff` a `git diff --staged`.
 
