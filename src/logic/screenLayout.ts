@@ -38,16 +38,51 @@ export function problemTextHeight(fontSize: number): number {
   return Math.round(fontSize * 1.2);
 }
 
+/** Šířky znaků v písmu Arial jako část velikosti písma. */
+const DIGIT_WIDTH = 0.56;
+const SPACE_WIDTH = 0.28;
+const SIGN_WIDTH = 0.59;
+
+/** Rezerva navíc k odhadu šířky, aby se text vešel i s drobnou odchylkou písma. */
+const WIDTH_RESERVE = 1.03;
+
+function digitCount(value: number): number {
+  return String(value).length;
+}
+
 /**
- * Šířka nejdelšího příkladu v písmu Arial i s rezervou. Číslice mají asi
- * 0,56 velikosti písma: „5 − 5 = ?“ zabere asi 4 velikosti písma,
- * „10 − 10 = ?“ nebo „20 − 10 = ?“ asi 5,06.
+ * Nejvíc číslic, které má vyřešený příklad v rozsahu do `maxNumber`
+ * (obě čísla i výsledek, sčítání i odčítání). Například do 20 je to
+ * „10 + 10 = 20“ se šesti číslicemi.
+ */
+function mostDigitsInSolvedProblem(maxNumber: number): number {
+  let most = 0;
+  for (let first = 0; first <= maxNumber; first += 1) {
+    for (let second = 0; second <= maxNumber; second += 1) {
+      const sum = first + second;
+      const difference = first - second;
+      const digits = digitCount(first) + digitCount(second);
+      if (sum <= maxNumber) {
+        most = Math.max(most, digits + digitCount(sum));
+      }
+      if (difference >= 0) {
+        most = Math.max(most, digits + digitCount(difference));
+      }
+    }
+  }
+  return most;
+}
+
+/**
+ * Šířka nejdelšího vyřešeného příkladu (třeba „10 + 10 = 20“) v písmu Arial
+ * i s rezervou. Příklad má čtyři mezery a dvě znaménka.
  *
  * @param maxNumber Největší číslo, které se v příkladu může objevit.
  */
 export function problemMaxWidth(fontSize: number, maxNumber = 10): number {
-  const widthInFontSizes = maxNumber >= 10 ? 5.1 : 4.1;
-  return Math.round(fontSize * widthInFontSizes);
+  const digits = mostDigitsInSolvedProblem(maxNumber);
+  const widthInFontSizes = digits * DIGIT_WIDTH + 4 * SPACE_WIDTH + 2 * SIGN_WIDTH;
+  return Math.round(fontSize * widthInFontSizes * WIDTH_RESERVE);
 }
 
 /** Výška textu příkladu při největším písmu (horní odhad pro všechny rozsahy). */

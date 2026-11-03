@@ -3,7 +3,7 @@
  * Čistý TypeScript bez Phaseru, scéna jen volá tyto funkce a kreslí výsledek.
  */
 
-import { MAX_SUM, createProblem, isCorrectAnswer } from './problems';
+import { MAX_SUM, createProblem, formatEquation, isCorrectAnswer } from './problems';
 import type { Problem } from './problems';
 import { DEFAULT_SETTINGS } from './settings';
 import type { GameSettings } from './settings';
@@ -94,4 +94,29 @@ export function hintDotGroups(problem: Problem): number[] {
 /** Kolik posledních teček nápovědy je přeškrtnutých: u odčítání odečítané číslo, jinak žádná. */
 export function hintCrossedOutDots(problem: Problem): number {
   return problem.operation === 'minus' ? problem.second : 0;
+}
+
+/** Text příkladu rozdělený tak, aby šla odpověď vykreslit zvlášť (zeleně). */
+export interface ProblemText {
+  /** Levá strana i s rovnítkem, například „3 + 4 =“. */
+  readonly equation: string;
+  /** „?“, dokud příklad není vyřešený, potom výsledek, například „7“. */
+  readonly answer: string;
+  /** Výsledek je ukázaný (příklad je vyřešený). */
+  readonly answerRevealed: boolean;
+}
+
+/** Co je v příkladu vidět: otazník, nebo po správné odpovědi výsledek. */
+export function problemText(round: AnswerRound): ProblemText {
+  return {
+    equation: formatEquation(round.problem),
+    answer: round.solved ? String(round.problem.result) : '?',
+    answerRevealed: round.solved,
+  };
+}
+
+/** Celý text příkladu, například „3 + 4 = ?“ a po vyřešení „3 + 4 = 7“. */
+export function formatRoundProblem(round: AnswerRound): string {
+  const text = problemText(round);
+  return `${text.equation} ${text.answer}`;
 }

@@ -113,8 +113,13 @@ export function isCorrectAnswer(problem: Problem, answer: unknown): boolean {
   return answer === problem.result;
 }
 
+/** Levá strana příkladu i s rovnítkem, například „3 + 4 =“ nebo „7 − 3 =“. */
+export function formatEquation(problem: Problem): string {
+  const sign = problem.operation === 'plus' ? '+' : '−';
+  return `${problem.first} ${sign} ${problem.second} =`;
+}
+
 /** Text příkladu pro vykreslení, například „3 + 4 = ?“ nebo „7 − 3 = ?“. */
 export function formatProblem(problem: Problem): string {
-  const sign = problem.operation === 'plus' ? '+' : '−';
-  return `${problem.first} ${sign} ${problem.second} = ?`;
+  return `${formatEquation(problem)} ?`;
 }

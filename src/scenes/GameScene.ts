@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 
 import { createBrowserAudioContext, createTonePlayer } from '../audio/tonePlayer';
-import { formatProblem } from '../logic/problems';
 import {
   answerChoices,
   createAnswerRound,
+  problemText,
   hintCrossedOutDots,
   hintDotGroups,
   isHintVisible,
@@ -43,6 +43,13 @@ const HINT_DOT_DELAY_MS = 120;
 const BUTTON_TEXT_COLOR = '#1f6f43';
 const BUTTON_CORNER_RADIUS = 24;
 
+/** Výsledek v příkladu po správné odpovědi: zelený jako správné tlačítko. */
+const ANSWER_REVEALED_COLOR = '#8be04e';
+const PROBLEM_TEXT_COLOR = '#ffffff';
+
+/** Mezera mezi rovnítkem a odpovědí jako část velikosti písma (šířka mezery v Arialu). */
+const ANSWER_GAP_RATIO = 0.28;
+
 /** Jak dlouho se po správné odpovědi čeká na nový příklad. */
 const NEXT_PROBLEM_DELAY_MS = 800;
 
@@ -72,6 +79,8 @@ interface AnswerButton {
 export class GameScene extends Phaser.Scene {
   private round: AnswerRound | undefined;
   private roundObjects: Phaser.GameObjects.GameObject[] = [];
+  private problemEquation: Phaser.GameObjects.Text | undefined;
+  private problemAnswer: Phaser.GameObjects.Text | undefined;
   private hintIsShown = false;
   // Hvězdičky a postavička přežijí zavření hry (načtou se ze zařízení).
   private readonly savedProgress = loadProgress(browserStorage());
@@ -157,20 +166,63 @@ export class GameScene extends Phaser.Scene {
 
     const layout = this.layout();
 
-    const problemText = this.add
-      .text(layout.problem.x, layout.problem.y, formatProblem(this.round.problem), {
-        fontFamily: 'Arial, sans-serif',
-        fontSize: `${layout.problemFontSize}px`,
-        color: '#ffffff',
-      })
-      .setOrigin(0.5);
-    this.roundObjects.push(problemText);
+    this.drawProblem(layout);
 
     answerChoices(this.round.maxNumber).forEach((value, index) => {
       const slot = layout.answerButtons[index];
       if (slot) {
         this.roundObjects.push(this.createAnswerButton(value, slot).container);
       }
+    });
+  }
+
+  /** Příklad ze dvou částí: bílá levá strana „3 + 4 =“ a odpověď „?“, později výsledek. */
+  private drawProblem(layout: ScreenLayout): void {
+    if (!this.round) {
+      return;
+    }
+    const text = problemText(this.round);
+    const style = {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: `${layout.problemFontSize}px`,
+      color: PROBLEM_TEXT_COLOR,
+    };
+
+    this.problemEquation = this.add
+      .text(0, layout.problem.y, text.equation, style)
+      .setOrigin(0, 0.5);
+    this.problemAnswer = this.add.text(0, layout.problem.y, text.answer, style).setOrigin(0.5);
+    this.roundObjects.push(this.problemEquation, this.problemAnswer);
+    this.centerProblem(layout);
+  }
+
+  /** Vycentruje celý příklad; odpověď může po vyřešení změnit šířku. */
+  private centerProblem(layout: ScreenLayout): void {
+    if (!this.problemEquation || !this.problemAnswer) {
+      return;
+    }
+    const gap = layout.problemFontSize * ANSWER_GAP_RATIO;
+    const totalWidth = this.problemEquation.width + gap + this.problemAnswer.width;
+    const left = layout.problem.x - totalWidth / 2;
+
+    this.problemEquation.x = left;
+    this.problemAnswer.x = left + this.problemEquation.width + gap + this.problemAnswer.width / 2;
+  }
+
+  /** Po správné odpovědi se místo „?“ ukáže zelený výsledek a jednou poskočí. */
+  private revealAnswer(): void {
+    if (!this.round || !this.problemAnswer) {
+      return;
+    }
+    const text = problemText(this.round);
+    this.problemAnswer.setText(text.answer).setColor(ANSWER_REVEALED_COLOR);
+    this.centerProblem(this.layout());
+    this.tweens.add({
+      targets: this.problemAnswer,
+      scale: 1.25,
+      duration: 150,
+      yoyo: true,
+      ease: 'Quad.easeOut',
     });
   }
 
@@ -306,6 +358,7 @@ export class GameScene extends Phaser.Scene {
 
   private celebrateCorrectAnswer(button: AnswerButton, setCompleted: boolean): void {
     this.paintButton(button, BUTTON_CORRECT_COLOR);
+    this.revealAnswer();
     this.tweens.add({
       targets: button.container,
       scale: 1.2,
