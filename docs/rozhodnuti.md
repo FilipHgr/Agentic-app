@@ -35,6 +35,10 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
+- 2026-11-03 Psaní odpovědi prstem: bude to volba v nastavení pro rodiče
+  (číselník zůstane), rozpoznané číslo dítě před vyhodnocením potvrdí nebo
+  přepíše. Rozpoznávání jen v zařízení, bez cizích serverů.
+
 ## Repozitář a prostředí
 
 - 2026-11-03 Soubory agentů v `.claude/agents/` se neformátují Prettierem,
