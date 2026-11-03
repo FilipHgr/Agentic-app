@@ -88,3 +88,20 @@ výsledky automaticky načtou zpět, stejně jako v nové session. Co není v is
 6. **Commit:** jeden commit za úkol, zpráva začíná `#<číslo issue>`.
    Testy a lint před commitem kontroluje hook.
 7. Pokračuj skillem `predani-ukolu`.
+
+## 4. Připomínky k předanému úkolu
+
+Když vlastník po předání chce úpravu hotového úkolu (velikost, poloha,
+barva, drobná změna chování), jde to rychlou cestou bez `issue-planner`
+a `story-reviewer`. Nová funkce je vždy nový úkol (sekce 1).
+
+1. Do issue napiš komentář, co vlastník chce změnit. Když se tím mění
+   akceptační kritérium, napiš jeho nové znění.
+2. Když se mění chování, které hlídají testy, nech testy upravit
+   subagenta `test-writer` podle nového znění. Testy sám neupravuj.
+3. Uprav kód, aby prošly všechny testy.
+4. Zavolej jen `reviewer` a výsledek ulož do issue. Když se měnil
+   vzhled, udělej snímky obrazovky a prohlédni si je.
+5. Commit ve větvi sprintu, zpráva začíná `#<číslo issue>`.
+6. Pošli vlastníkovi odkaz na náhled, co se změnilo a snímky.
+   Štítek zůstává „předáno“.

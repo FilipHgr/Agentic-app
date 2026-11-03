@@ -21,6 +21,8 @@ Testy vznikají ze zadání, ne z kódu. Implementace ještě nemusí existovat.
 - Každé AC má aspoň jeden test. Název popisuje chování z pohledu hráče.
 - Testuj chování přes veřejné funkce, ne vnitřní detaily.
 - Pokryj okrajové případy uvedené v issue.
+- Testy musí dopadnout pokaždé stejně. Kde logika losuje, předej jí
+  vlastní generátor s pevnou řadou čísel (seed), nikdy `Math.random`.
 - Když logika pro AC ještě neexistuje, navrhni rozhraní (název funkce,
   vstup, výstup) tak, jak by ho hráčovo chování potřebovalo, a napiš ho
   do výstupu, aby podle něj šla udělat implementace.
