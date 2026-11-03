@@ -48,7 +48,8 @@
       "Bash(rm *)",
       "Edit(./.github/workflows/**)",
       "Edit(./package.json)",
-      "Edit(./.claude/settings.json)"
+      "Edit(./.claude/settings.json)",
+      "Edit(./.claude/hooks/**)"
     ],
     "deny": [
       "Read(./.env)",
@@ -65,6 +66,54 @@
       "Bash(gh pr merge *)",
       "Bash(curl *)",
       "Bash(wget *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh\"",
+            "timeout": 300
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-bash.sh\"",
+            "timeout": 300
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-and-lint.sh\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-before-stop.sh\"",
+            "timeout": 300
+          }
+        ]
+      }
     ]
   }
 }
