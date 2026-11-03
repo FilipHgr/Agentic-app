@@ -22,20 +22,6 @@ function randomIntUpTo(max: number, random: () => number): number {
   return Math.min(Math.floor(random() * (max + 1)), max);
 }
 
-/** Sčítání: obě čísla nezáporná a součet nejvýš `max`. */
-function createAddition(max: number, random: () => number): Problem {
-  const first = randomIntUpTo(max, random);
-  const second = randomIntUpTo(max - first, random);
-  return { first, second, operation: 'plus', result: first + second };
-}
-
-/** Odčítání: první číslo nejvýš `max`, odečítá se nejvýš tolik, aby výsledek nebyl záporný. */
-function createSubtraction(max: number, random: () => number): Problem {
-  const first = randomIntUpTo(max, random);
-  const second = randomIntUpTo(first, random);
-  return { first, second, operation: 'minus', result: first - second };
-}
-
 /** Vybere druh příkladu podle nastavení; při „+ −“ náhodně. */
 function pickOperation(settings: GameSettings, random: () => number): Operation {
   switch (settings.operations) {
@@ -53,38 +39,44 @@ export function isSameProblem(a: Problem, b: Problem): boolean {
   return a.first === b.first && a.operation === b.operation && a.second === b.second;
 }
 
-/** Všechny příklady, které nastavení dovoluje. */
-function allProblems(settings: GameSettings): Problem[] {
-  const max = settings.maxNumber;
-  const problems: Problem[] = [];
+/**
+ * Jak velká část příkladů smí mít nulu. Příklady s nulou („8 + 0“, „6 − 6“)
+ * dítě nic nenaučí, ale úplně zmizet nemají. Cíl je nejvýš 1 z 10.
+ */
+const ZERO_SHARE = 0.08;
 
+/** Příklad s nulou: nula je v zadání nebo ve výsledku. */
+export function hasZero(problem: Problem): boolean {
+  return problem.first === 0 || problem.second === 0 || problem.result === 0;
+}
+
+/** Všechny příklady daného druhu do rozsahu `max`. */
+function problemsOf(operation: Operation, max: number): Problem[] {
+  const problems: Problem[] = [];
   for (let first = 0; first <= max; first += 1) {
-    if (settings.operations !== 'minus') {
+    if (operation === 'plus') {
       for (let second = 0; first + second <= max; second += 1) {
-        problems.push({ first, second, operation: 'plus', result: first + second });
+        problems.push({ first, second, operation, result: first + second });
       }
-    }
-    if (settings.operations !== 'plus') {
+    } else {
       for (let second = 0; second <= first; second += 1) {
-        problems.push({ first, second, operation: 'minus', result: first - second });
+        problems.push({ first, second, operation, result: first - second });
       }
     }
   }
   return problems;
 }
 
-/** Jeden náhodný příklad podle nastavení, bez ohledu na předchozí. */
-function drawProblem(settings: GameSettings, random: () => number): Problem {
-  return pickOperation(settings, random) === 'plus'
-    ? createAddition(settings.maxNumber, random)
-    : createSubtraction(settings.maxNumber, random);
+/** Náhodná položka seznamu; seznam nesmí být prázdný. */
+function pickFrom<T>(items: readonly T[], random: () => number): T | undefined {
+  return items[randomIntUpTo(items.length - 1, random)];
 }
 
 /**
  * Vylosuje příklad podle nastavení. Všechna čísla i výsledek jsou celá,
- * nezáporná a nejvýš zvolený rozsah. Nový příklad není stejný jako
- * `previous`: když ho losování dá, vybere se náhodně jiný povolený
- * příklad, takže se hra nezasekne ani při pořád stejném losování.
+ * nezáporná a nejvýš zvolený rozsah. Příklad s nulou přijde jen asi
+ * v `ZERO_SHARE` případů. Nový příklad není stejný jako `previous`.
+ * Losování vždy skončí, i když generátor vrací pořád stejné číslo.
  *
  * @param random Generátor v rozsahu [0, 1), ve testech lze podvrhnout.
  * @param previous Příklad, který byl na obrazovce těsně předtím.
@@ -94,13 +86,18 @@ export function createProblem(
   random: () => number = Math.random,
   previous?: Problem,
 ): Problem {
-  const drawn = drawProblem(settings, random);
-  if (!previous || !isSameProblem(drawn, previous)) {
-    return drawn;
-  }
+  const operation = pickOperation(settings, random);
+  const candidates = problemsOf(operation, settings.maxNumber).filter(
+    (problem) => !previous || !isSameProblem(problem, previous),
+  );
+  const withZero = candidates.filter(hasZero);
+  const withoutZero = candidates.filter((problem) => !hasZero(problem));
 
-  const others = allProblems(settings).filter((problem) => !isSameProblem(problem, previous));
-  return others[randomIntUpTo(others.length - 1, random)] ?? drawn;
+  const wantZero = withoutZero.length === 0 || (withZero.length > 0 && random() < ZERO_SHARE);
+  const pool = wantZero ? withZero : withoutZero;
+
+  // Rozsah 5 a víc vždy dává několik příkladů, záloha je jen pojistka.
+  return pickFrom(pool, random) ?? { first: 1, second: 1, operation: 'plus', result: 2 };
 }
 
 /**

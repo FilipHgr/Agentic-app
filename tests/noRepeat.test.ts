@@ -8,21 +8,6 @@ import type { GameSettings } from '../src/logic/settings';
 
 import { seededRandom } from './seededRandom';
 
-/**
- * Generátor, který dokola vydává zadané hodnoty. Když hodnoty dají při
- * prvním losování určitý příklad, dá ho i každé další losování, takže hra
- * musí „stejný příklad“ odmítnout jinak než jen opakovaným losováním.
- */
-function cycleRandom(values: readonly number[]): () => number {
-  let index = 0;
-
-  return () => {
-    const value = values[index % values.length] ?? 0;
-    index += 1;
-    return value;
-  };
-}
-
 function plus(first: number, second: number): Problem {
   return { first, second, operation: 'plus', result: first + second };
 }
@@ -51,58 +36,73 @@ const PLUS_TO_10: GameSettings = { maxNumber: 10, operations: 'plus' };
 const PLUS_TO_20: GameSettings = { maxNumber: 20, operations: 'plus' };
 const MIXED_TO_10: GameSettings = { maxNumber: 10, operations: 'mixed' };
 
-/** Losování, které při sčítání do 10 dá pořád „3 + 4“. */
-const ALWAYS_3_PLUS_4_TO_10 = [0.3, 0.5];
-/** Losování, které při sčítání do 10 dá pořád „4 + 3“. */
-const ALWAYS_4_PLUS_3_TO_10 = [0.4, 0.5];
-/** Losování, které při sčítání do 10 dá pořád „2 + 1“. */
-const ALWAYS_2_PLUS_1_TO_10 = [0.2, 0.2];
-/** Losování, které při sčítání do 20 dá pořád „3 + 4“. */
-const ALWAYS_3_PLUS_4_TO_20 = [0.15, 0.25];
-/** Losování, které při „+ −“ do 10 dá pořád „3 + 4“ (nejdřív znaménko). */
-const ALWAYS_3_PLUS_4_MIXED_TO_10 = [0, 0.3, 0.5];
-/** Losování, které při „+ −“ do 10 dá pořád „5 + 0“. */
-const ALWAYS_5_PLUS_0_MIXED_TO_10 = [0, 0.5, 0];
-/** Losování, které při „+ −“ do 10 dá pořád „5 − 0“. */
-const ALWAYS_5_MINUS_0_MIXED_TO_10 = [0.9, 0.5, 0];
+/** Kolik losování nebo seedů testy nejvýš projdou, než příklad prohlásí za nemožný. */
+const SEARCH_LIMIT = 20000;
+
+/**
+ * Najde seed, se kterým `createProblem` bez předchozího příkladu dá právě
+ * `target`. Testy tak nespoléhají na to, jaký příklad dá konkrétní řada
+ * náhodných čísel, jen na to, že takové losování existuje.
+ */
+function seedThatGives(settings: GameSettings, target: Problem): number | undefined {
+  for (let seed = 1; seed <= SEARCH_LIMIT; seed += 1) {
+    if (isSameProblem(createProblem(settings, seededRandom(seed)), target)) {
+      return seed;
+    }
+  }
+  return undefined;
+}
+
+/** Může po příkladu `previous` (nebo na začátku hry) přijít `target`? */
+function canComeNext(
+  settings: GameSettings,
+  target: Problem,
+  previous: Problem | undefined,
+): boolean {
+  const random = seededRandom();
+  for (let draw = 0; draw < SEARCH_LIMIT; draw += 1) {
+    if (isSameProblem(createProblem(settings, random, previous), target)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Číslo z číselníku, které není výsledkem příkladu. */
+function wrongAnswerFor(problem: Problem, offset: number): number {
+  return (problem.result + offset) % 11;
+}
 
 describe('podvržené losování opravdu dává zamýšlené příklady', () => {
   it('bez předchozího příkladu vyjdou přesně příklady, se kterými testy počítají', () => {
-    expect(createProblem(PLUS_TO_10, cycleRandom(ALWAYS_3_PLUS_4_TO_10))).toEqual(plus(3, 4));
-    expect(createProblem(PLUS_TO_10, cycleRandom(ALWAYS_4_PLUS_3_TO_10))).toEqual(plus(4, 3));
-    expect(createProblem(PLUS_TO_10, cycleRandom(ALWAYS_2_PLUS_1_TO_10))).toEqual(plus(2, 1));
-    expect(createProblem(PLUS_TO_20, cycleRandom(ALWAYS_3_PLUS_4_TO_20))).toEqual(plus(3, 4));
-    expect(createProblem(MIXED_TO_10, cycleRandom(ALWAYS_3_PLUS_4_MIXED_TO_10))).toEqual(
-      plus(3, 4),
-    );
-    expect(createProblem(MIXED_TO_10, cycleRandom(ALWAYS_5_PLUS_0_MIXED_TO_10))).toEqual(
-      plus(5, 0),
-    );
-    expect(createProblem(MIXED_TO_10, cycleRandom(ALWAYS_5_MINUS_0_MIXED_TO_10))).toEqual(
-      minus(5, 0),
-    );
+    // Každý příklad, se kterým testy níž počítají, musí jít vylosovat.
+    expect(seedThatGives(PLUS_TO_10, plus(3, 4))).toBeDefined();
+    expect(seedThatGives(PLUS_TO_10, plus(4, 3))).toBeDefined();
+    expect(seedThatGives(PLUS_TO_10, plus(2, 1))).toBeDefined();
+    expect(seedThatGives(PLUS_TO_10, plus(3, 3))).toBeDefined();
+    expect(seedThatGives(PLUS_TO_20, plus(3, 4))).toBeDefined();
+    expect(seedThatGives(MIXED_TO_10, plus(3, 4))).toBeDefined();
+    expect(seedThatGives(MIXED_TO_10, plus(5, 0))).toBeDefined();
+    expect(seedThatGives(MIXED_TO_10, minus(5, 0))).toBeDefined();
   });
 });
 
 describe('AC1: po správné odpovědi přijde jiný příklad', () => {
   it('i když by losování znovu dalo vyřešený příklad, hra ukáže jiný', () => {
-    const solvedRound = tapAnswer(
-      createAnswerRound(PLUS_TO_10, cycleRandom(ALWAYS_3_PLUS_4_TO_10)),
-      7,
-    );
+    const seed = seedThatGives(PLUS_TO_10, plus(3, 4));
+    expect(seed).toBeDefined();
+
+    const solvedRound = tapAnswer(createAnswerRound(PLUS_TO_10, seededRandom(seed)), 7);
     expect(solvedRound.outcome).toBe('correct');
 
-    const nextRound = createAnswerRound(
-      PLUS_TO_10,
-      cycleRandom(ALWAYS_3_PLUS_4_TO_10),
-      solvedRound.round.problem,
-    );
+    // Stejná řada čísel by bez předchozího příkladu dala znovu „3 + 4“.
+    const nextRound = createAnswerRound(PLUS_TO_10, seededRandom(seed), solvedRound.round.problem);
 
     expect(isSameProblem(nextRound.problem, plus(3, 4))).toBe(false);
   });
 
   it('nový příklad je pořád platný příklad z rozsahu a kolo začíná od nuly', () => {
-    const nextRound = createAnswerRound(PLUS_TO_10, cycleRandom(ALWAYS_3_PLUS_4_TO_10), plus(3, 4));
+    const nextRound = createAnswerRound(PLUS_TO_10, seededRandom(), plus(3, 4));
 
     expectValidProblem(nextRound.problem, 10);
     expect(nextRound.problem.operation).toBe('plus');
@@ -124,12 +124,16 @@ describe('AC1: po správné odpovědi přijde jiný příklad', () => {
 
 describe('AC2: po potvrzení nastavení přijde jiný příklad, než byl před ním', () => {
   it('rozsah do 10 → do 20 a „+“: místo „3 + 4“ hra ukáže jiný příklad', () => {
-    const beforeSettings = createAnswerRound(PLUS_TO_10, cycleRandom(ALWAYS_3_PLUS_4_TO_10));
+    const seedBefore = seedThatGives(PLUS_TO_10, plus(3, 4));
+    const beforeSettings = createAnswerRound(PLUS_TO_10, seededRandom(seedBefore));
     expect(beforeSettings.problem).toEqual(plus(3, 4));
 
+    // Řada čísel, která by do 20 bez předchozího příkladu dala také „3 + 4“.
+    const seedAfter = seedThatGives(PLUS_TO_20, plus(3, 4));
+    expect(seedAfter).toBeDefined();
     const afterSettings = createAnswerRound(
       PLUS_TO_20,
-      cycleRandom(ALWAYS_3_PLUS_4_TO_20),
+      seededRandom(seedAfter),
       beforeSettings.problem,
     );
 
@@ -140,11 +144,9 @@ describe('AC2: po potvrzení nastavení přijde jiný příklad, než byl před 
   });
 
   it('změna druhu na „+ −“: místo „3 + 4“ hra ukáže jiný příklad', () => {
-    const afterSettings = createAnswerRound(
-      MIXED_TO_10,
-      cycleRandom(ALWAYS_3_PLUS_4_MIXED_TO_10),
-      plus(3, 4),
-    );
+    const seed = seedThatGives(MIXED_TO_10, plus(3, 4));
+    expect(seed).toBeDefined();
+    const afterSettings = createAnswerRound(MIXED_TO_10, seededRandom(seed), plus(3, 4));
 
     expect(isSameProblem(afterSettings.problem, plus(3, 4))).toBe(false);
     expectValidProblem(afterSettings.problem, 10);
@@ -152,7 +154,7 @@ describe('AC2: po potvrzení nastavení přijde jiný příklad, než byl před 
 
   it('když předchozí příklad do nového rozsahu nepatří, hra normálně pokračuje', () => {
     const smallRange: GameSettings = { maxNumber: 5, operations: 'minus' };
-    const round = createAnswerRound(smallRange, cycleRandom([0.5, 0.5]), plus(12, 7));
+    const round = createAnswerRound(smallRange, seededRandom(), plus(12, 7));
 
     expectValidProblem(round.problem, 5);
     expect(round.problem.operation).toBe('minus');
@@ -161,39 +163,48 @@ describe('AC2: po potvrzení nastavení přijde jiný příklad, než byl před 
 
 describe('AC3: prohozená čísla nebo jiné znaménko jsou jiný příklad', () => {
   it('po „3 + 4“ smí hned přijít „4 + 3“', () => {
-    const next = createProblem(PLUS_TO_10, cycleRandom(ALWAYS_4_PLUS_3_TO_10), plus(3, 4));
-
-    expect(next).toEqual(plus(4, 3));
+    expect(canComeNext(PLUS_TO_10, plus(4, 3), plus(3, 4))).toBe(true);
   });
 
   it('po „5 + 0“ smí hned přijít „5 − 0“', () => {
-    const next = createProblem(MIXED_TO_10, cycleRandom(ALWAYS_5_MINUS_0_MIXED_TO_10), plus(5, 0));
-
-    expect(next).toEqual(minus(5, 0));
+    expect(canComeNext(MIXED_TO_10, minus(5, 0), plus(5, 0))).toBe(true);
   });
 
   it('po „5 − 0“ smí hned přijít „5 + 0“', () => {
-    const next = createProblem(MIXED_TO_10, cycleRandom(ALWAYS_5_PLUS_0_MIXED_TO_10), minus(5, 0));
-
-    expect(next).toEqual(plus(5, 0));
+    expect(canComeNext(MIXED_TO_10, plus(5, 0), minus(5, 0))).toBe(true);
   });
 
   it('nové kolo po „3 + 4“ ukáže vylosované „4 + 3“ beze změny', () => {
-    const round = createAnswerRound(PLUS_TO_10, cycleRandom(ALWAYS_4_PLUS_3_TO_10), plus(3, 4));
+    const random = seededRandom();
+    let shownFourPlusThree = false;
+    for (let draw = 0; draw < SEARCH_LIMIT && !shownFourPlusThree; draw += 1) {
+      const round = createAnswerRound(PLUS_TO_10, random, plus(3, 4));
+      shownFourPlusThree = isSameProblem(round.problem, plus(4, 3));
+    }
 
-    expect(round.problem).toEqual(plus(4, 3));
+    expect(shownFourPlusThree).toBe(true);
   });
 });
 
 describe('AC4: příklad se smí vrátit ob jeden', () => {
   it('pořadí „2 + 1“, „3 + 3“, „2 + 1“ je povolené', () => {
-    const first = createProblem(PLUS_TO_10, cycleRandom(ALWAYS_2_PLUS_1_TO_10));
-    const second = createProblem(PLUS_TO_10, cycleRandom([0.3, 0.4]), first);
-    const third = createProblem(PLUS_TO_10, cycleRandom(ALWAYS_2_PLUS_1_TO_10), second);
+    expect(canComeNext(PLUS_TO_10, plus(2, 1), undefined)).toBe(true);
+    expect(canComeNext(PLUS_TO_10, plus(3, 3), plus(2, 1))).toBe(true);
+    expect(canComeNext(PLUS_TO_10, plus(2, 1), plus(3, 3))).toBe(true);
+  });
 
-    expect(first).toEqual(plus(2, 1));
-    expect(second).toEqual(plus(3, 3));
-    expect(third).toEqual(plus(2, 1));
+  it('při běžné hře se příklad občas vrátí ob jeden', () => {
+    const random = seededRandom();
+    const problems: Problem[] = [];
+    for (let draw = 0; draw < 3000; draw += 1) {
+      problems.push(createProblem({ maxNumber: 5, operations: 'plus' }, random, problems.at(-1)));
+    }
+
+    const returnsAfterOne = problems.some((problem, index) => {
+      const twoBefore = problems[index - 2];
+      return twoBefore !== undefined && isSameProblem(problem, twoBefore);
+    });
+    expect(returnsAfterOne).toBe(true);
   });
 
   it('každý příklad z rozsahu se dřív nebo později znovu objeví', () => {
@@ -214,27 +225,26 @@ describe('AC4: příklad se smí vrátit ob jeden', () => {
 
 describe('AC5: po špatné odpovědi zůstává stejný příklad', () => {
   it('špatné ťuknutí příklad nemění, dokud ho dítě nevyřeší', () => {
-    const round = createAnswerRound(PLUS_TO_10, cycleRandom(ALWAYS_3_PLUS_4_TO_10));
-    const afterFirstMistake = tapAnswer(round, 2);
-    const afterSecondMistake = tapAnswer(afterFirstMistake.round, 9);
+    const round = createAnswerRound(PLUS_TO_10, seededRandom());
+    const afterFirstMistake = tapAnswer(round, wrongAnswerFor(round.problem, 1));
+    const afterSecondMistake = tapAnswer(afterFirstMistake.round, wrongAnswerFor(round.problem, 5));
 
     expect(afterFirstMistake.outcome).toBe('wrong');
     expect(afterSecondMistake.outcome).toBe('wrong');
-    expect(afterSecondMistake.round.problem).toEqual(plus(3, 4));
+    expect(afterSecondMistake.round.problem).toEqual(round.problem);
   });
 
   it('až po vyřešení přijde nový příklad a ten se od vyřešeného liší', () => {
-    const round = createAnswerRound(PLUS_TO_10, cycleRandom(ALWAYS_3_PLUS_4_TO_10));
+    const seed = seedThatGives(PLUS_TO_10, plus(3, 4));
+    expect(seed).toBeDefined();
+    const round = createAnswerRound(PLUS_TO_10, seededRandom(seed));
     const afterMistake = tapAnswer(round, 2).round;
     const solved = tapAnswer(afterMistake, 7);
     expect(solved.outcome).toBe('correct');
     expect(solved.round.problem).toEqual(plus(3, 4));
 
-    const nextRound = createAnswerRound(
-      PLUS_TO_10,
-      cycleRandom(ALWAYS_3_PLUS_4_TO_10),
-      solved.round.problem,
-    );
+    // Stejná řada čísel by bez předchozího příkladu dala znovu „3 + 4“.
+    const nextRound = createAnswerRound(PLUS_TO_10, seededRandom(seed), solved.round.problem);
 
     expect(isSameProblem(nextRound.problem, plus(3, 4))).toBe(false);
   });
@@ -290,14 +300,18 @@ describe('AC7: úplně první příklad nemá předchozí', () => {
   });
 
   it('prvním příkladem může být kterýkoli příklad, i „0 + 0“', () => {
-    const round = createAnswerRound(PLUS_TO_10, () => 0, undefined);
+    const seed = seedThatGives(PLUS_TO_10, plus(0, 0));
+    expect(seed).toBeDefined();
 
+    const round = createAnswerRound(PLUS_TO_10, seededRandom(seed), undefined);
     expect(round.problem).toEqual(plus(0, 0));
   });
 
   it('prvním příkladem může být i „3 + 4“, nic se nevyřazuje', () => {
-    const round = createAnswerRound(PLUS_TO_10, cycleRandom(ALWAYS_3_PLUS_4_TO_10));
+    const seed = seedThatGives(PLUS_TO_10, plus(3, 4));
+    expect(seed).toBeDefined();
 
+    const round = createAnswerRound(PLUS_TO_10, seededRandom(seed));
     expect(round.problem).toEqual(plus(3, 4));
   });
 });
