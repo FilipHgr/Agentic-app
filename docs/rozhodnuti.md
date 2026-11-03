@@ -1,0 +1,44 @@
+# Deník rozhodnutí
+
+Rozhodnutí vlastníka z chatu, která nejsou zapsaná jinde (v issue, v `CLAUDE.md`
+ani ve skills). Každá session ho čte přes `CLAUDE.md`. Nové rozhodnutí přidej
+jako jeden řádek s datem a případně číslem issue, nic nemaž. Když rozhodnutí
+změní starší, napiš nové a u starého doplň „(nahrazeno)“.
+
+## Spolupráce
+
+- 2026-11-02 Úkoly se nevedou v YouTracku, ale v GitHub issues. Navrhuje je
+  Claude, vlastník je schvaluje „ok“ v chatu.
+- 2026-11-02 Uzavření sprintu a otevření PR Claude nenavrhuje, dělá je jen na
+  výslovný pokyn vlastníka.
+- 2026-11-03 Odpovídej stručně.
+- 2026-11-03 Vlastník hru zkouší i na telefonu (iPhone se Safari, Samsung
+  s Chromem), nejen na iPadu.
+
+## Hra
+
+- 2026-11-02 Odpověď se zadává číselníkem 0 až zvolený rozsah, ne výběrem ze
+  tří čísel. Ze tří čísel šlo výsledek uhodnout (#30).
+- 2026-11-02 Nápověda s tečkami se ukáže po 2. chybě. Tečky jsou velké, po pěti
+  v řadě a každé číslo má svou barvu (#30).
+- 2026-11-02 Hvězdička se dává za každý vyřešený příklad, i s nápovědou. Po
+  deseti přijde oslava (#31).
+- 2026-11-02 Sovička se ruší. Hlavní postavičky jsou Hvězdík, Robík
+  a Plamínek, střídají se po každé oslavě a začíná Hvězdík (#33).
+- 2026-11-03 Hra na celou obrazovku a rozložení na výšku: implementace se
+  vlastníkovi nelíbila, vráceno a odloženo (#34). Znovu nenavrhovat bez
+  upřesnění od vlastníka.
+- 2026-11-03 Automatická obtížnost zamítnuta (#35). Místo ní je nastavení pro
+  rodiče (#36).
+- 2026-11-03 Nastavení pro rodiče: kolečko v pravém horním rohu celé
+  obrazovky (mimo herní plochu), velikost 76 px, otevře se podržením 2 s (#36).
+- 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
+  neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
+
+## Repozitář a prostředí
+
+- 2026-11-03 Soubory agentů v `.claude/agents/` se neformátují Prettierem,
+  zůstávají přesně v podobě od vlastníka (`.prettierignore`).
+- 2026-11-03 V cloudu funguje `gh` jen na vyhledávání a adresy `*.workers.dev`
+  jsou blokované. Issues se tam čtou přes GitHub nástroje a náhled ověřuje
+  vlastník.

@@ -48,6 +48,9 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
 - Po dokončení úkolu pošli odkaz na náhled, na konci sprintu otevři PR.
   Postup: skill `predani-ukolu`.
 - Úkol je hotový, až když projde `npm test`, `npm run lint` i `npm run build`.
+- Rozhodnutí vlastníka z chatu, která nejsou v issue ani tady, zapiš hned
+  jedním řádkem do `docs/rozhodnuti.md` a commitni jako drobnost.
+  Deník: @docs/rozhodnuti.md
 
 ## Git
 - Jeden sprint = jedna větev `sprint-<číslo>` ze `staging` = jeden PR do `staging`.
