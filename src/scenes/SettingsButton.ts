@@ -31,13 +31,15 @@ export class SettingsButton {
       .setInteractive();
 
     this.container.on('pointerdown', () => this.startHold());
-    this.container.on('pointerup', () => this.cancelHold());
-    this.container.on('pointerout', () => this.cancelHold());
+    // Puštění prstu kdekoli podržení ukončí. Malé ujetí prstu mimo kolečko
+    // (na telefonu snadné) podržení nepřeruší.
+    scene.input.on(Phaser.Input.Events.POINTER_UP, () => this.cancelHold());
+    scene.input.on(Phaser.Input.Events.GAME_OUT, () => this.cancelHold());
   }
 
   private drawGear(): Phaser.GameObjects.Graphics {
-    const outer = this.slot.size * 0.36;
-    const inner = this.slot.size * 0.27;
+    const outer = this.slot.size * 0.34;
+    const inner = this.slot.size * 0.25;
     const points: Phaser.Math.Vector2[] = [];
 
     for (let step = 0; step < GEAR_TEETH * 4; step += 1) {
@@ -48,10 +50,10 @@ export class SettingsButton {
 
     return this.scene.add
       .graphics()
-      .fillStyle(GEAR_COLOR, 0.85)
+      .fillStyle(GEAR_COLOR, 0.7)
       .fillPoints(points, true)
       .fillStyle(GEAR_HOLE_COLOR, 1)
-      .fillCircle(0, 0, this.slot.size * 0.12);
+      .fillCircle(0, 0, this.slot.size * 0.11);
   }
 
   private startHold(): void {
@@ -86,7 +88,7 @@ export class SettingsButton {
       .clear()
       .lineStyle(8, PROGRESS_COLOR, 1)
       .beginPath()
-      .arc(0, 0, this.slot.size * 0.46, start, start + done * Math.PI * 2)
+      .arc(0, 0, this.slot.size * 0.44, start, start + done * Math.PI * 2)
       .strokePath();
   }
 

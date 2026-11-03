@@ -127,12 +127,25 @@ describe('AC1: nastavení se otevře až po podržení kolečka', () => {
     expect(isHoldLongEnough(-5)).toBe(false);
   });
 
-  it.each(MAX_NUMBER_OPTIONS)('při rozsahu do %i je kolečko vpravo nahoře a aspoň 80 px', (max) => {
-    const { settingsButton } = layoutFor(max);
+  it.each(MAX_NUMBER_OPTIONS)(
+    'při rozsahu do %i je kolečko v pravém horním rohu a dost velké na prst',
+    (max) => {
+      const { settingsButton } = layoutFor(max);
+      const half = settingsButton.size / 2;
 
-    expect(settingsButton.size).toBeGreaterThanOrEqual(80);
-    expect(settingsButton.x).toBeGreaterThan(SCREEN_WIDTH * 0.85);
-    expect(settingsButton.y).toBeLessThan(SCREEN_HEIGHT * 0.15);
+      expect(settingsButton.size).toBeGreaterThanOrEqual(64);
+      expect(SCREEN_WIDTH - (settingsButton.x + half)).toBeLessThanOrEqual(4);
+      expect(settingsButton.y - half).toBeLessThanOrEqual(4);
+    },
+  );
+
+  it.each(MAX_NUMBER_OPTIONS)('při rozsahu do %i kolečko nestojí v řadě s hvězdičkami', (max) => {
+    const { settingsButton, stars } = layoutFor(max);
+    const lastStarRight = Math.max(...stars.map((star) => star.x + STAR_SIZE / 2));
+    const starsY = stars[0]?.y ?? 0;
+
+    expect(settingsButton.x - settingsButton.size / 2).toBeGreaterThan(lastStarRight + 40);
+    expect(settingsButton.y).toBeLessThan(starsY);
   });
 });
 

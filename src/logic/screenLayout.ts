@@ -129,11 +129,14 @@ const STAR_SPACING = 80;
 /** Svislá poloha středu řady hvězdiček. */
 const STARS_Y = 46;
 
-/** Velikost ozubeného kolečka nastavení vpravo nahoře. */
-export const SETTINGS_BUTTON_SIZE = 80;
+/**
+ * Plocha ozubeného kolečka nastavení pro prst. Samotné kolečko je nakreslené
+ * menší a je až v rohu obrazovky, aby nepůsobilo jako další hvězdička.
+ */
+export const SETTINGS_BUTTON_SIZE = 68;
 
-/** Odstup kolečka nastavení od pravého okraje. */
-const SETTINGS_BUTTON_MARGIN = 16;
+/** Odstup středu kolečka od pravého a horního okraje. */
+const SETTINGS_BUTTON_CORNER_OFFSET = 34;
 
 export interface Point {
   readonly x: number;
@@ -266,8 +269,8 @@ export function layoutScreen(
       small ? SMALL_ANSWER_BUTTON_GAP : ANSWER_BUTTON_GAP,
     ),
     settingsButton: {
-      x: screenWidth - SETTINGS_BUTTON_MARGIN - SETTINGS_BUTTON_SIZE / 2,
-      y: STARS_Y,
+      x: screenWidth - SETTINGS_BUTTON_CORNER_OFFSET,
+      y: SETTINGS_BUTTON_CORNER_OFFSET,
       size: SETTINGS_BUTTON_SIZE,
     },
   };
