@@ -71,7 +71,11 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   s vlastním rozložením. Na telefonu jsou dnes moc malé hvězdičky, moc velké
   kolečko nastavení a malá plocha na psaní. Tím se otevírá odložené #34.
 - 2026-11-04 Na telefonu na šířku má číselník do 10 tvar 4 × 3 a tečky
-  nápovědy zůstávají po pěti v řadě jako na iPadu (#54, #30).
+  nápovědy zůstávají po pěti v řadě jako na iPadu (#54, #30). (číselník 4 × 3 nahrazen)
+- 2026-11-04 Telefon na šířku podle návrhu V2: nahoře hvězdičky, uprostřed
+  postavička s příkladem, dole přes šířku číselník (do 10 jako 6 + 5). Tečky
+  nápovědy vedle příkladu, po pěti v řadě. Výjimka z 64 px: ťukací plocha
+  tečky na telefonu smí mít 48 px, jinak se nevejde (#54, #43).
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
