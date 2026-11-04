@@ -282,13 +282,13 @@ interface KeypadSpec {
   readonly gap: number;
 }
 
-/** Do 5: 3 × 2 velká tlačítka, do 10: 6 + 5 jako na iPadu, do 20: 3 řady po 7. */
+/** Do 5: 3 × 2 velká tlačítka, do 10: 4 × 3 (0–3, 4–7, 8–10), do 20: 3 řady po 7. */
 function keypadSpecFor(buttonCount: number): KeypadSpec {
   if (buttonCount <= 6) {
     return { columns: 3, buttonSize: 80, gap: 12 };
   }
   if (buttonCount <= 11) {
-    return { columns: 6, buttonSize: 64, gap: 8 };
+    return { columns: 4, buttonSize: 64, gap: 8 };
   }
   return { columns: 7, buttonSize: 64, gap: 8 };
 }
@@ -299,17 +299,49 @@ interface HintDotSpec {
   readonly dotSize: number;
   readonly groupGap: number;
   readonly maxColumns: number;
+  /** Po pěti v řadě jako v #30, jen poslední řada skupinky smí být kratší. */
+  readonly fullRows: boolean;
+  /** Okraj pod nápovědou. Buňka tečky je větší než tečka, takže okraj má i bez něj. */
+  readonly bottomMargin: number;
+  /** Nejmenší šířka nápovědy vedle dvou okének na psaní. */
+  readonly minWidthBesideBoxes: number;
 }
 
 function hintDotSpecFor(maxNumber: number): HintDotSpec {
   if (maxNumber <= 5) {
-    return { cell: 72, dotSize: 56, groupGap: 16, maxColumns: 5 };
+    return {
+      cell: 72,
+      dotSize: 56,
+      groupGap: 16,
+      maxColumns: 5,
+      fullRows: false,
+      bottomMargin: EDGE_MARGIN,
+      minWidthBesideBoxes: 0,
+    };
   }
   if (maxNumber <= 10) {
-    return { cell: 64, dotSize: 44, groupGap: 16, maxColumns: 5 };
+    // Skupinky pod sebou (třeba 6 + 4) mají 3 řady a mezeru: na 744×296
+    // se vejdou jen bez okraje pod nápovědou. Vedle okének je místo na 5 teček.
+    return {
+      cell: 64,
+      dotSize: 44,
+      groupGap: 16,
+      maxColumns: 5,
+      fullRows: true,
+      bottomMargin: 0,
+      minWidthBesideBoxes: 5 * 64,
+    };
   }
-  // Do 20 se na tečky neťuká (#43), stačí menší.
-  return { cell: 30, dotSize: 24, groupGap: 12, maxColumns: 10 };
+  // Do 20 se na tečky neťuká (#43), stačí menší. Vedle okének 4 + 4 sloupce.
+  return {
+    cell: 30,
+    dotSize: 24,
+    groupGap: 12,
+    maxColumns: 10,
+    fullRows: false,
+    bottomMargin: EDGE_MARGIN,
+    minWidthBesideBoxes: 4 * 64 + 16,
+  };
 }
 
 /** Okénka na psaní a tlačítka smazání a ✓ vpravo od nich. */
@@ -318,12 +350,6 @@ const TWO_BOX_MAX_SIDE = 200;
 const TWO_BOX_GAP = 12;
 const WRITING_BUTTON_SIZE = 72;
 const WRITING_BUTTON_GAP = 12;
-
-/**
- * Nejmenší šířka nápovědy vedle dvou okének: čtyři sloupce teček do 10
- * ve třech řadách a mezera mezi skupinkami (třeba 3 + 7 jako 1 + 3 sloupce).
- */
-const HINT_MIN_WIDTH = 4 * 64 + 16;
 
 /** Číslo ve spočítané tečce jako část průměru tečky. */
 const DOT_NUMBER_RATIO = 0.6;
@@ -432,12 +458,13 @@ function phoneCommonParts(
       left: units(EDGE_MARGIN),
       top: units(GEAR_CORNER_SIZE),
       right: units(controlsLeft - EDGE_MARGIN),
-      bottom: units(free.height - EDGE_MARGIN),
+      bottom: units(free.height - dots.bottomMargin),
     },
     hintGrid: {
       cell: units(dots.cell),
       groupGap: units(dots.groupGap),
       maxColumns: dots.maxColumns,
+      fullRows: dots.fullRows,
     },
   };
 }
@@ -491,14 +518,14 @@ export function layoutPhoneScreen(
 }
 
 /** Strana okénka: co nejvíc pod horní pruh, u dvou okének s místem pro nápovědu vlevo. */
-function writingBoxSide(free: GameSize, twoBoxes: boolean): number {
+function writingBoxSide(free: GameSize, maxNumber: MaxNumber): number {
   const heightLeft = free.height - GEAR_CORNER_SIZE - EDGE_MARGIN;
-  if (!twoBoxes) {
+  if (writingBoxCount(maxNumber) === 1) {
     return Math.min(SINGLE_BOX_MAX_SIDE, heightLeft);
   }
   const fixedWidth =
     EDGE_MARGIN +
-    HINT_MIN_WIDTH +
+    hintDotSpecFor(maxNumber).minWidthBesideBoxes +
     EDGE_MARGIN +
     TWO_BOX_GAP +
     WRITING_BUTTON_GAP +
@@ -518,7 +545,7 @@ export function layoutPhoneWritingScreen(
 ): PhoneWritingLayout {
   const free = cssSizeOf(area);
   const twoBoxes = writingBoxCount(maxNumber) === 2;
-  const side = writingBoxSide(free, twoBoxes);
+  const side = writingBoxSide(free, maxNumber);
   const buttonsX = free.width - EDGE_MARGIN - WRITING_BUTTON_SIZE / 2;
   const boxesRight = free.width - EDGE_MARGIN - WRITING_BUTTON_SIZE - WRITING_BUTTON_GAP;
   const centerY = free.height - EDGE_MARGIN - side / 2;

@@ -490,6 +490,73 @@ describe('AC2: rozložení na telefonu na šířku', () => {
   );
 });
 
+/** Hodnoty rozdělené do řad podle svislé souřadnice, řady shora dolů. */
+function rowsByY<T extends { readonly y: number }>(items: readonly T[]): T[][] {
+  const rows: T[][] = [];
+  for (const item of [...items].sort((a, b) => a.y - b.y)) {
+    const lastRow = rows[rows.length - 1];
+    const lastY = lastRow?.[0]?.y;
+    if (lastRow && lastY !== undefined && Math.abs(item.y - lastY) < TOLERANCE) {
+      lastRow.push(item);
+    } else {
+      rows.push([item]);
+    }
+  }
+  return rows;
+}
+
+/** Úprava po předání (poslední komentář #54): číselník do 10 a tečky po pěti v řadě. */
+describe('AC1 a AC2 po úpravě: číselník do 10 a tečky nápovědy na telefonu', () => {
+  const KEYPAD_10_ROWS = [
+    [0, 1, 2, 3],
+    [4, 5, 6, 7],
+    [8, 9, 10],
+  ];
+  const DOTS_PER_ROW = 5;
+
+  it.each(PHONE_WINDOWS)(
+    '$name: číselník do 10 má 3 řady s čísly 0–3, 4–7 a 8–10 zleva doprava',
+    (window) => {
+      const variant = phoneVariant(window, 10, 'číselník');
+      const buttons = (variant.layout as PhoneScreenLayout).answerButtons.map((slot, number) => ({
+        number,
+        x: slot.x,
+        y: slot.y,
+      }));
+      const rows = rowsByY(buttons).map((row) =>
+        [...row].sort((a, b) => a.x - b.x).map((button) => button.number),
+      );
+
+      expect(rows, label(variant)).toEqual(KEYPAD_10_ROWS);
+    },
+  );
+
+  it.each(PHONE_WINDOWS)(
+    '$name, rozsah 10: tečky nápovědy jsou u každého příkladu po pěti v řadě, jen poslední řada smí mít méně',
+    (window) => {
+      for (const mode of MODES) {
+        const variant = phoneVariant(window, 10, mode);
+
+        for (const problem of problemsWithDots(10)) {
+          const dots = hintFor(variant, problem);
+          const groups = new Set(dots.map((dot) => dot.group));
+
+          for (const group of groups) {
+            const where = label(variant, `, nápověda ${problemName(problem)}, skupinka ${group}`);
+            const counts = rowsByY(dots.filter((dot) => dot.group === group)).map(
+              (row) => row.length,
+            );
+            counts.slice(0, -1).forEach((count) => {
+              expect(count, where).toBe(DOTS_PER_ROW);
+            });
+            expect(counts[counts.length - 1], where).toBeLessThanOrEqual(DOTS_PER_ROW);
+          }
+        }
+      }
+    },
+  );
+});
+
 describe('AC3: hvězdičky, postavička a příklad jsou na telefonu dobře vidět', () => {
   it.each(ALL_VARIANTS)(
     '%s, rozsah %i (%s): hvězdička má aspoň 24 px a všech deset je v jedné řadě',

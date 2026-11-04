@@ -1,8 +1,9 @@
 /**
  * Rozmístění teček nápovědy na telefonu (#54). Na telefonu je pro
- * nápovědu jen obdélník vlevo od ovládání, a tak se tvar každé skupinky
- * (počet sloupců a řad) volí zvlášť, aby se všechny skupinky vešly vedle
- * sebe. Když to nejde, jsou skupinky pod sebou. Každá tečka má vlastní
+ * nápovědu jen obdélník vlevo od ovládání. Tečky jsou buď po pěti v řadě
+ * jako v #30 (do 10), nebo se tvar každé skupinky (počet sloupců a řad)
+ * volí zvlášť, aby se všechny skupinky vešly vedle sebe (do 5 a do 20).
+ * Když to nejde, jsou skupinky pod sebou. Každá tečka má vlastní
  * čtvercovou buňku, takže se tečky ani jejich plochy pro prst nepřekrývají.
  * Čistý TypeScript bez Phaseru.
  */
@@ -22,6 +23,11 @@ export interface HintGrid {
   readonly cell: number;
   readonly groupGap: number;
   readonly maxColumns: number;
+  /**
+   * Každá řada skupinky má plných `maxColumns` teček a jen poslední smí
+   * být kratší (po pěti jako v #30). Jinak se řady volí podle místa.
+   */
+  readonly fullRows: boolean;
 }
 
 interface GroupShape {
@@ -82,15 +88,20 @@ function gapsBetween(groupCount: number, grid: HintGrid): number {
   return (groupCount - 1) * grid.groupGap;
 }
 
+/** Po pěti v řadě: skupinky vedle sebe, a když se nevejdou, pod sebou. */
+function fullRowOptions(groups: readonly number[], grid: HintGrid): Arrangement[] {
+  const shapes = groups.map((count) => shapeForColumns(count, grid.maxColumns));
+  return [
+    { shapes, stacked: false },
+    { shapes, stacked: true },
+  ];
+}
+
 /**
  * Možnosti rozmístění od nejplošší: skupinky vedle sebe v 1, 2, 3… řadách,
  * nakonec skupinky pod sebou s tolika sloupci, kolik se vejde.
  */
-function arrangementOptions(
-  groups: readonly number[],
-  region: Region,
-  grid: HintGrid,
-): Arrangement[] {
+function flexibleOptions(groups: readonly number[], region: Region, grid: HintGrid): Arrangement[] {
   const options: Arrangement[] = [];
   const mostRows = Math.max(...groups);
   for (let rows = 1; rows <= mostRows; rows += 1) {
@@ -169,7 +180,9 @@ export function arrangeHintDots(
   if (visibleGroups.length === 0) {
     return [];
   }
-  const options = arrangementOptions(visibleGroups, region, grid);
+  const options = grid.fullRows
+    ? fullRowOptions(visibleGroups, grid)
+    : flexibleOptions(visibleGroups, region, grid);
   const chosen = options.find((option) => fitsIn(option, region, grid));
   const stackedFallback = options[options.length - 1];
   const arrangement = chosen ?? stackedFallback;
