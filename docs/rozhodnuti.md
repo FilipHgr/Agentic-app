@@ -17,7 +17,8 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-04 Noční práce: večer vlastník schválí 2–3 issues (u vzhledu po
   obrázcích), Claude je v noci udělá celé včetně kontrol, commitu a pushe do
   sprintu. Otázku, kterou musí rozhodnout vlastník, Claude neodhaduje, úkol
-  odloží a pokračuje dalším. Ráno shrnutí s náhledem.
+  odloží a pokračuje dalším. Ráno shrnutí s náhledem. Vlastník vstává v 7:00
+  (čas Praha), shrnutí má být připravené do té doby.
 - 2026-11-04 Číselník do 20 na telefonu na výšku je 5 × 5 (#56).
 
 ## Hra
