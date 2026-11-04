@@ -17,6 +17,7 @@ import {
   shownDigit,
   startStroke,
   updateWriting,
+  withRecognizer,
   writtenStrokes,
 } from './writingRound';
 import type { DigitRecognizer, WritingRound } from './writingRound';
@@ -37,11 +38,14 @@ export interface TwoBoxConfirmResult {
   readonly round: TwoBoxRound;
 }
 
-/** Nové kolo s oběma okénky prázdnými. `area` je velikost jednoho okénka. */
+/**
+ * Nové kolo s oběma okénky prázdnými. `area` je velikost jednoho okénka.
+ * Bez rozpoznávání (ještě se stahuje, #58) zápis v okénkách počká.
+ */
 export function createTwoBoxRound(
   answer: AnswerRound,
   area: WritingAreaSize,
-  recognize?: DigitRecognizer,
+  recognize: DigitRecognizer | null = null,
 ): TwoBoxRound {
   return {
     answer,
@@ -49,6 +53,23 @@ export function createTwoBoxRound(
     ones: createWritingRound(answer, area, recognize),
     activeBox: null,
   };
+}
+
+/** Rozpoznávání se stáhlo: obě okénka ho dostanou, rozepsaný zápis zůstane. */
+export function boxesWithRecognizer(round: TwoBoxRound, recognize: DigitRecognizer): TwoBoxRound {
+  return {
+    ...round,
+    tens: withRecognizer(round.tens, recognize),
+    ones: withRecognizer(round.ones, recognize),
+  };
+}
+
+/**
+ * Rozpoznávání se nepodařilo stáhnout (#58): okénka se vymění za číselník.
+ * Příklad, rozsah i dosavadní chyby zůstanou, zápis zmizí.
+ */
+export function switchToKeypad(round: TwoBoxRound): AnswerRound {
+  return { ...round.answer, solved: false };
 }
 
 /** Prst se dotkl okénka `box`: jeho číslice zmizí, druhé okénko zůstane. */

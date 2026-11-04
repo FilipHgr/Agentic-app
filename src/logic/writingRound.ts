@@ -2,10 +2,11 @@
  * Kolo s odpovědí psanou prstem (#41): tahy, čekání na rozpoznání,
  * ukázaná číslice, potvrzení ✓ a odmítnutý zápis. Čas se předává jako
  * číslo v ms, takže logika nepotřebuje skutečné časovače. Čistý TypeScript.
+ * Rozpoznávání se stahuje na pozadí (#58): dokud není, kolo má místo něj
+ * `null`, zápis zůstane vidět a počká, ✓ nejde stisknout.
  */
 
 import type { AnswerRound, TapOutcome } from './answerRound';
-import { recognizeDigit } from './digitRecognition';
 import type { Stroke, WritingAreaSize } from './digitRecognition';
 import { isCorrectAnswer } from './problems';
 
@@ -20,7 +21,8 @@ export type DigitRecognizer = (strokes: readonly Stroke[], area: WritingAreaSize
 export interface WritingRound {
   readonly answer: AnswerRound;
   readonly area: WritingAreaSize;
-  readonly recognize: DigitRecognizer;
+  /** Stažené rozpoznávání; `null`, dokud se nestáhne (#58). */
+  readonly recognize: DigitRecognizer | null;
   /** Dopsané tahy současného zápisu. */
   readonly strokes: readonly Stroke[];
   /** Dítě má prst na ploše. */
@@ -40,11 +42,11 @@ export interface ConfirmResult {
   readonly round: WritingRound;
 }
 
-/** Nové kolo s prázdnou plochou na psaní. */
+/** Nové kolo s prázdnou plochou na psaní; `recognize` je `null`, dokud se nestáhne. */
 export function createWritingRound(
   answer: AnswerRound,
   area: WritingAreaSize,
-  recognize: DigitRecognizer = recognizeDigit,
+  recognize: DigitRecognizer | null,
 ): WritingRound {
   return {
     answer,
@@ -57,6 +59,11 @@ export function createWritingRound(
     fading: [],
     fadingSinceMs: 0,
   };
+}
+
+/** Rozpoznávání se stáhlo: čekající zápis se rozpozná při dalším posunu v čase. */
+export function withRecognizer(round: WritingRound, recognize: DigitRecognizer): WritingRound {
+  return { ...round, recognize };
 }
 
 /** Prst se dotkl plochy: dokud je dole, nic se nerozpoznává. */
@@ -75,10 +82,13 @@ export function finishStroke(round: WritingRound, stroke: Stroke, nowMs: number)
   };
 }
 
-/** Posune kolo v čase: rozpozná čekající zápis a nechá zmizet vybledlý. */
+/**
+ * Posune kolo v čase: rozpozná čekající zápis a nechá zmizet vybledlý.
+ * Bez staženého rozpoznávání zápis čeká dál, bez časového limitu.
+ */
 export function updateWriting(round: WritingRound, nowMs: number): WritingRound {
   const current = dropFinishedFade(round, nowMs);
-  if (!isRecognitionDue(current, nowMs)) {
+  if (current.recognize === null || !isRecognitionDue(current, nowMs)) {
     return current;
   }
 

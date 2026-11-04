@@ -206,18 +206,18 @@ describe('AC6: prázdné okénko, ✓ a špatná odpověď ve vysokém okénku j
   }
 
   it('✓ u prázdného okénka nic neudělá a nepočítá se jako chyba', () => {
-    const single = confirmWriting(createWritingRound(round, box));
+    const single = confirmWriting(createWritingRound(round, box, recognizeDigit));
     expect(single.outcome).toBe('ignored');
     expect(single.round.answer.wrongAnswers).toBe(0);
 
-    const two = confirmBoxes(createTwoBoxRound(round, box));
+    const two = confirmBoxes(createTwoBoxRound(round, box, recognizeDigit));
     expect(two.outcome).toBe('ignored');
     expect(two.round.answer.wrongAnswers).toBe(0);
   });
 
   it('po špatné odpovědi se okénko vyprázdní a hvězdička se nevezme', () => {
     const { stroke, digit } = wrongDigitStroke();
-    let writing = createWritingRound(round, box);
+    let writing = createWritingRound(round, box, recognizeDigit);
     writing = startStroke(writing, 0);
     writing = finishStroke(writing, stroke, 100);
     writing = updateWriting(writing, 100 + RECOGNITION_DELAY_MS);

@@ -13,6 +13,7 @@ import type { Stroke, StrokePoint } from '../logic/digitRecognition';
 import type { DeviceWritingLayout } from '../logic/deviceLayout';
 import type { ButtonSlot, WritingAreaSlot } from '../logic/screenLayout';
 import {
+  boxesWithRecognizer,
   boxFadingStrokes,
   boxStrokes,
   canConfirmBoxes,
@@ -26,6 +27,7 @@ import {
 } from '../logic/twoBoxWriting';
 import type { TwoBoxConfirmResult, TwoBoxRound, WritingBox } from '../logic/twoBoxWriting';
 import { REJECTED_FADE_MS } from '../logic/writingRound';
+import type { DigitRecognizer } from '../logic/writingRound';
 
 /** Barvy jsou ve světlém vzhledu (#52) v `src/logic/theme.ts`. */
 const AREA_COLOR = colorNumber(WRITING_PAD_STYLE.background);
@@ -89,18 +91,21 @@ export class WritingPad {
   private readonly detailScale: number;
 
   /**
+   * @param recognize Stažené rozpoznávání; `null`, dokud se stahuje (#58), zápis pak počká.
    * @param initialRound Stav okének po změně velikosti okna (#54); jinak prázdná okénka.
    */
   constructor(
     private readonly scene: Phaser.Scene,
     layout: DeviceWritingLayout,
     answer: AnswerRound,
+    recognize: DigitRecognizer | null,
     private readonly events: WritingPadEvents,
     initialRound?: TwoBoxRound,
   ) {
     const [first] = layout.writingAreas;
     const size = { width: first?.width ?? 0, height: first?.height ?? 0 };
-    this.round = initialRound ?? createTwoBoxRound(answer, size);
+    const round = initialRound ?? createTwoBoxRound(answer, size, recognize);
+    this.round = recognize === null ? round : boxesWithRecognizer(round, recognize);
     this.detailScale = layout.detailScale;
     this.brush = scene.make.graphics({}, false);
 
@@ -123,6 +128,11 @@ export class WritingPad {
   update(nowMs: number): void {
     this.round = updateBoxes(this.round, nowMs);
     this.syncWithRound();
+  }
+
+  /** Rozpoznávání se stáhlo (#58): rozepsaný zápis se rozpozná při dalším snímku. */
+  useRecognizer(recognize: DigitRecognizer): void {
+    this.round = boxesWithRecognizer(this.round, recognize);
   }
 
   /** Po správné odpovědi se už nepíše, jen se čeká na nový příklad. */

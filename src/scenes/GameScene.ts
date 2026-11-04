@@ -18,9 +18,13 @@ import { STARS_PER_SET, startNewStarSet, starsAfterTap } from '../logic/stars';
 import type { StarProgress } from '../logic/stars';
 import { nextCharacter } from '../logic/characters';
 import type { CharacterId } from '../logic/characters';
-import type { GameSettings } from '../logic/settings';
+import { createRecognizerLoading, loadDigitRecognizer } from '../logic/recognizerLoading';
+import type { RecognizerLoadStatus } from '../logic/recognizerLoading';
+import { isWritingActive } from '../logic/settings';
+import type { AnswerInput, GameSettings } from '../logic/settings';
 import type { ConfirmedSettings } from '../logic/settingsSession';
 import type { GameProgress } from '../logic/progress';
+import { switchToKeypad } from '../logic/twoBoxWriting';
 import type { TwoBoxConfirmResult, TwoBoxRound } from '../logic/twoBoxWriting';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { browserStorage, loadSettingsState, saveSettings } from '../storage/settingsStorage';
@@ -49,6 +53,7 @@ const CELEBRATION_MS = 2600;
  * Části obrazovky kreslí samostatné soubory vedle (#57): `RoundView`
  * (příklad, číselník, okénka, nápověda), `StarRow`, `Confetti`
  * a `ParentPanels` (nastavení a průvodce).
+ * Rozpoznávání psaní se stahuje na pozadí až po prvním příkladu (#58).
  */
 export class GameScene extends Phaser.Scene {
   private round: AnswerRound | undefined;
@@ -64,12 +69,23 @@ export class GameScene extends Phaser.Scene {
   private character: CharacterId = this.savedProgress.character;
   private readonly settingsState = loadSettingsState(browserStorage());
   private settings: GameSettings = this.settingsState.settings;
+  /** Stahování rozpoznávání psaní na pozadí (#58). */
+  private readonly recognizerLoading = createRecognizerLoading(loadDigitRecognizer);
+  /**
+   * Čím dítě odpovídá v rozehraném příkladu. Rozhodne se u nového příkladu
+   * (psaní jen se staženým nebo stahovaným rozpoznáváním) a uprostřed
+   * příkladu se změní jen na číselník, když stahování selže.
+   */
+  private roundInput: AnswerInput | undefined;
   private readonly panels = new ParentPanels(this, this.settingsState.firstLaunch, {
     settings: () => this.settings,
     progress: () => this.currentProgress(),
     useSettings: (chosen) => {
       this.settings = chosen;
       saveSettings(browserStorage(), chosen);
+      if (isWritingActive(chosen)) {
+        this.recognizerLoading.writingEnabled();
+      }
     },
     // Oslava se pod panelem nedohrává, dokončí ji až potvrzení (#45 AC8).
     onSettingsOpening: () => this.stopCelebration(),
@@ -79,7 +95,7 @@ export class GameScene extends Phaser.Scene {
   /** Spočítaná rozložení podle plochy, rozsahu a nápovědy. */
   private readonly layouts = new SceneLayouts(() => ({
     gameArea: this.gameArea,
-    settings: this.settings,
+    settings: this.shownSettings(),
     round: this.round,
     hintIsShown: this.hintIsShown,
   }));
@@ -107,9 +123,13 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.gameArea = this.readGameArea();
     this.registry.events.on(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
-      this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this),
+    const stopWatchingRecognizer = this.recognizerLoading.onChange((status) =>
+      this.onRecognizerStatus(status),
     );
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
+      stopWatchingRecognizer();
+    });
     this.starRow.create();
     this.starRow.paint();
     const layout = this.layouts.scenery();
@@ -125,6 +145,36 @@ export class GameScene extends Phaser.Scene {
       this.panels.openSetupGuide();
     } else {
       this.startRound();
+    }
+  }
+
+  /** Nastavení, jak se má rozehraný příklad ukázat: s číselníkem, nebo s okénky. */
+  private shownSettings(): GameSettings {
+    if (this.roundInput === undefined) {
+      return this.settings;
+    }
+    return { ...this.settings, answerInput: this.roundInput };
+  }
+
+  /**
+   * Rozpoznávání se stáhlo: okénka ho dostanou a rozepsaný zápis se rozpozná.
+   * Stahování selhalo: okénka se v tomto příkladu vymění za číselník
+   * a dosavadní chyby zůstanou (#58 AC5). Uložené nastavení se nemění.
+   */
+  private onRecognizerStatus(status: RecognizerLoadStatus): void {
+    const pad = this.view.writingPad;
+    if (!pad) {
+      return;
+    }
+    const recognizer = this.recognizerLoading.recognizer();
+    if (status === 'ready' && recognizer !== null) {
+      pad.useRecognizer(recognizer);
+    } else if (status === 'failed' && !pad.state.answer.solved) {
+      this.round = switchToKeypad(pad.state);
+      this.roundInput = 'keypad';
+      // Příklad se nakreslí znovu s „?“ a s číselníkem místo okének.
+      this.view.clear();
+      this.relayoutRound(false);
     }
   }
 
@@ -172,7 +222,7 @@ export class GameScene extends Phaser.Scene {
   private playState(round: AnswerRound, writing: TwoBoxRound | null): PlayState {
     return {
       round,
-      settings: this.settings,
+      settings: this.shownSettings(),
       progress: this.currentProgress(),
       counting: this.dotCounting,
       writing,
@@ -233,8 +283,13 @@ export class GameScene extends Phaser.Scene {
     this.round = createAnswerRound(this.settings, Math.random, this.round?.problem);
     this.hintIsShown = false;
     this.dotCounting = startDotCounting(this.round.problem);
+    this.roundInput = this.recognizerLoading.answerInput(this.settings);
     this.placeMascotAfterSettings();
     this.drawRound();
+    // Stahování rozpoznávání nesmí zdržet první obrázek: začne po vykreslení (#58 AC2).
+    this.game.events.once(Phaser.Core.Events.POST_RENDER, () =>
+      this.recognizerLoading.problemDrawn(),
+    );
   }
 
   /**
@@ -258,7 +313,8 @@ export class GameScene extends Phaser.Scene {
     }
     const drawing = {
       round: this.round,
-      settings: this.settings,
+      settings: this.shownSettings(),
+      recognizer: this.recognizerLoading.recognizer(),
       hintIsShown: this.hintIsShown,
       counting: this.dotCounting,
     };

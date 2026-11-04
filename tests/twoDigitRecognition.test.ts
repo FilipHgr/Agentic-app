@@ -61,7 +61,7 @@ function emptyRound(area: WritingAreaSize): TwoBoxRound {
     wrongAnswers: 0,
     solved: false,
   };
-  return createTwoBoxRound(answer, area);
+  return createTwoBoxRound(answer, area, recognizeDigit);
 }
 
 /** Dítě položí prst do okénka v `startMs`, napíše tah a za 300 ms prst zvedne. */

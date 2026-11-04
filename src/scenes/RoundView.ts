@@ -7,6 +7,7 @@ import type { DotCounting } from '../logic/dotCounting';
 import { isWritingActive } from '../logic/settings';
 import type { GameSettings } from '../logic/settings';
 import type { TwoBoxConfirmResult, TwoBoxRound } from '../logic/twoBoxWriting';
+import type { DigitRecognizer } from '../logic/writingRound';
 import { createAnswerButton, paintAnswerButton } from './AnswerButton';
 import type { AnswerButton } from './AnswerButton';
 import { drawHintDots, showDotCounted } from './HintDots';
@@ -30,7 +31,10 @@ export interface RoundViewEvents {
 /** Co je potřeba k nakreslení rozehraného kola. */
 export interface RoundDrawing {
   readonly round: AnswerRound;
+  /** Nastavení, jak se má kolo ukázat (psaní jen se staženým nebo stahovaným rozpoznáváním, #58). */
   readonly settings: GameSettings;
+  /** Stažené rozpoznávání pro okénka; `null`, dokud se stahuje. */
+  readonly recognizer: DigitRecognizer | null;
   readonly hintIsShown: boolean;
   readonly counting: DotCounting;
 }
@@ -84,7 +88,7 @@ export class RoundView {
     this.objects.push(...this.problem.draw(round, this.layouts.scenery()));
 
     if (isWritingActive(drawing.settings)) {
-      this.createWritingPad(round, writingState);
+      this.createWritingPad(round, drawing.recognizer, writingState);
     } else {
       this.createKeypad(layout, round);
     }
@@ -150,11 +154,16 @@ export class RoundView {
   }
 
   /** Místo číselníku okénka na psaní: při rozsahu 5 jedno, při 10 a 20 dvě (#42). */
-  private createWritingPad(round: AnswerRound, writingState?: TwoBoxRound): void {
+  private createWritingPad(
+    round: AnswerRound,
+    recognizer: DigitRecognizer | null,
+    writingState?: TwoBoxRound,
+  ): void {
     this.pad = new WritingPad(
       this.scene,
       this.layouts.writing(),
       round,
+      recognizer,
       {
         onNumberChanged: (number) => this.events.onNumberWritten(number),
         onConfirmed: (result) => this.events.onWritingConfirmed(result),
