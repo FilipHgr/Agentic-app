@@ -86,6 +86,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-04 Telefon na výšku podle návrhu P2: nahoře hvězdičky, postavička
   vedle příkladu, tečky nápovědy pod příkladem, dole číselník ve 3 sloupcích
   (velká tlačítka u palce), při psaní dvě okénka vedle sebe a pod nimi smazat a ✓.
+- 2026-11-04 Nastavení a průvodce na telefonu podle obrázků S: na šířku řady
+  vlevo s popisky, ✓ (u průvodce rada a tlačítka) vpravo; na výšku řady pod
+  sebou jako na iPadu, ✓ nebo tlačítka průvodce dole u palce.
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
