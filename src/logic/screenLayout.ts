@@ -18,9 +18,13 @@ export const ANSWER_BUTTON_SIZE = 140;
 /** Strana tlačítka s číslem při rozsahu do 20 (21 tlačítek ve třech řadách). */
 export const SMALL_ANSWER_BUTTON_SIZE = 116;
 
-/** Mezera mezi tlačítky, aby se netrefilo vedlejší. */
-export const ANSWER_BUTTON_GAP = 20;
-const SMALL_ANSWER_BUTTON_GAP = 14;
+/** Vodorovná mezera mezi tlačítky v řadě, aby se netrefilo vedlejší (svislá je ANSWER_ROW_GAP). */
+export const ANSWER_BUTTON_GAP = 24;
+const SMALL_ANSWER_BUTTON_GAP = 20;
+
+/** Svislá mezera mezi řadami číselníku; větší by ubrala místo nápovědě (#44, #46). */
+const ANSWER_ROW_GAP = 20;
+const SMALL_ANSWER_ROW_GAP = 14;
 
 /** Víc tlačítek než tolik se nevejde do dvou běžných řad. */
 const MAX_BUTTONS_IN_TWO_ROWS = 11;
@@ -256,9 +260,10 @@ function layoutKeypad(
   screenHeight: number,
   size: number,
   gap: number,
+  rowGap: number,
 ): ButtonSlot[] {
   const rows = keypadRows(buttonCount);
-  const rowStep = size + gap;
+  const rowStep = size + rowGap;
   const lastRowY = screenHeight - BOTTOM_MARGIN - size / 2;
   const firstRowY = lastRowY - (rows.length - 1) * rowStep;
 
@@ -312,6 +317,7 @@ export function layoutScreen(
       screenHeight,
       small ? SMALL_ANSWER_BUTTON_SIZE : ANSWER_BUTTON_SIZE,
       small ? SMALL_ANSWER_BUTTON_GAP : ANSWER_BUTTON_GAP,
+      small ? SMALL_ANSWER_ROW_GAP : ANSWER_ROW_GAP,
     ),
   };
 }
@@ -391,10 +397,10 @@ export const WRITING_AREA_SIZE = 320;
 export const TWO_BOX_AREA_SIZE = 280;
 
 /** Mezera mezi okénkem desítek a jednotek. */
-const TWO_BOX_GAP = 24;
+const TWO_BOX_GAP = 32;
 
 /** Velikost tlačítek ✓ a smazání vedle okének. */
-export const WRITING_BUTTON_SIZE = 120;
+export const WRITING_BUTTON_SIZE = ANSWER_BUTTON_SIZE;
 
 /** Mezera mezi okénky a tlačítky. */
 const WRITING_BUTTON_GAP = 48;

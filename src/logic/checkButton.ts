@@ -1,5 +1,5 @@
 /**
- * Jednotný vzhled tlačítek ✓ (#45, #46): stejná zelená, zaoblení i tloušťka
+ * Jednotný vzhled tlačítek (#45, #46): stejná zelená, zaoblení i tloušťka
  * fajfky podle velikosti tlačítka. Čistý TypeScript bez Phaseru.
  */
 
@@ -17,7 +17,12 @@ export interface CheckButtonStyle {
   readonly tickWidth: number;
 }
 
+/** Zaoblení rohu tlačítka o straně `size`, na celé px (#46): 140 → 25, 116 → 21. */
+export function buttonCornerRadius(size: number): number {
+  return Math.round(size * CORNER_RADIUS_RATIO);
+}
+
 /** Zaoblení a tloušťka fajfky pro tlačítko ✓ o straně `size`. */
 export function checkButtonStyle(size: number): CheckButtonStyle {
-  return { cornerRadius: size * CORNER_RADIUS_RATIO, tickWidth: size * TICK_WIDTH_RATIO };
+  return { cornerRadius: buttonCornerRadius(size), tickWidth: size * TICK_WIDTH_RATIO };
 }

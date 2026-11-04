@@ -12,6 +12,7 @@ import {
 } from '../logic/answerRound';
 import type { AnswerRound, TapOutcome } from '../logic/answerRound';
 import { SOUNDS, soundForOutcome } from '../logic/answerSounds';
+import { CHECK_BUTTON_COLOR, buttonCornerRadius } from '../logic/checkButton';
 import { canCountDots, countDot, countingTone, startDotCounting } from '../logic/dotCounting';
 import type { DotCounting } from '../logic/dotCounting';
 import { mascotReactionToTap } from '../logic/mascot';
@@ -46,7 +47,6 @@ import { SettingsPanel } from './SettingsPanel';
 import { WritingPad } from './WritingPad';
 
 const BUTTON_COLOR = 0xffffff;
-const BUTTON_CORRECT_COLOR = 0x8be04e;
 /** Každé sčítané číslo má tečky jiné barvy, aby šly skupinky rozlišit. */
 const HINT_GROUP_COLORS = [0xffd54f, 0x81d4fa];
 
@@ -66,7 +66,6 @@ const DOT_NUMBER_FONT_SIZE = 30;
 /** Tečky naskakují jedna po druhé, aby je dítě mohlo počítat s nimi. */
 const HINT_DOT_DELAY_MS = 120;
 const BUTTON_TEXT_COLOR = '#1f6f43';
-const BUTTON_CORNER_RADIUS = 24;
 
 /** Výsledek v příkladu po správné odpovědi: zelený jako správné tlačítko. */
 const ANSWER_REVEALED_COLOR = '#8be04e';
@@ -416,7 +415,7 @@ export class GameScene extends Phaser.Scene {
     button.background
       .clear()
       .fillStyle(color, 1)
-      .fillRoundedRect(-half, -half, button.size, button.size, BUTTON_CORNER_RADIUS);
+      .fillRoundedRect(-half, -half, button.size, button.size, buttonCornerRadius(button.size));
   }
 
   private onAnswerTapped(button: AnswerButton): void {
@@ -582,7 +581,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Správné tlačítko zezelená a poskočí. */
   private highlightCorrectButton(button: AnswerButton): void {
-    this.paintButton(button, BUTTON_CORRECT_COLOR);
+    this.paintButton(button, CHECK_BUTTON_COLOR);
     this.tweens.add({
       targets: button.container,
       scale: 1.2,

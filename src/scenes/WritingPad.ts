@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import type { AnswerRound } from '../logic/answerRound';
+import { CHECK_BUTTON_COLOR, buttonCornerRadius, checkButtonStyle } from '../logic/checkButton';
 import type { Stroke, StrokePoint } from '../logic/digitRecognition';
 import type { ButtonSlot, WritingAreaSlot, WritingLayout } from '../logic/screenLayout';
 import {
@@ -24,10 +25,8 @@ const AREA_CORNER_RADIUS = 28;
 const INK_COLOR = 0xffffff;
 const INK_WIDTH = 16;
 
-const CONFIRM_COLOR = 0x8be04e;
 const CLEAR_COLOR = 0xffffff;
 const CLEAR_ICON_COLOR = 0x1f6f43;
-const BUTTON_CORNER_RADIUS = 28;
 
 /** ✓ bez rozpoznané číslice je pobledlé, aby bylo vidět, že ještě nejde. */
 const DISABLED_ALPHA = 0.35;
@@ -307,13 +306,14 @@ export class WritingPad {
 
   private createConfirmButton(slot: ButtonSlot): Phaser.GameObjects.Container {
     const half = slot.size / 2;
+    const checkStyle = checkButtonStyle(slot.size);
     const background = this.scene.add.graphics();
     background
-      .fillStyle(CONFIRM_COLOR, 1)
-      .fillRoundedRect(-half, -half, slot.size, slot.size, BUTTON_CORNER_RADIUS);
+      .fillStyle(CHECK_BUTTON_COLOR, 1)
+      .fillRoundedRect(-half, -half, slot.size, slot.size, checkStyle.cornerRadius);
     const tick = this.scene.add.graphics();
     tick
-      .lineStyle(slot.size * 0.13, 0xffffff, 1)
+      .lineStyle(checkStyle.tickWidth, 0xffffff, 1)
       .beginPath()
       .moveTo(-slot.size * 0.27, 0)
       .lineTo(-slot.size * 0.07, slot.size * 0.2)
@@ -331,7 +331,7 @@ export class WritingPad {
     const background = this.scene.add.graphics();
     background
       .fillStyle(CLEAR_COLOR, 1)
-      .fillRoundedRect(-half, -half, slot.size, slot.size, BUTTON_CORNER_RADIUS);
+      .fillRoundedRect(-half, -half, slot.size, slot.size, buttonCornerRadius(slot.size));
 
     // Mazací klávesa: pětiúhelník se šipkou doleva a křížkem uvnitř.
     const unit = slot.size / 120;
