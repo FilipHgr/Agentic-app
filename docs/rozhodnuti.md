@@ -57,6 +57,12 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-04 Dabing rozdělen na dva úkoly: nejdřív skript s texty pro
   mluvení, pak přehrávání. Nahrávky se mají načítat postupně (lazy loading),
   aby se stahování rozložilo v čase.
+- 2026-11-04 Průvodce na 1. kroku zatím nemluví sám (Safari pustí zvuk až po
+  dotyku). Vyřeší to budoucí úvodní menu s výběrem her: menu a hry musí být
+  jedna stránka, aby ťuknutí v menu odemklo zvuk. Pak průvodce promluví hned
+  (#51). Menu je výjimka z „žádné menu“ v CLAUDE.md, až ho vlastník zadá.
+- 2026-11-04 Psaní prstem při rozsahu do 10 má dál dvě okénka (kvůli výsledku
+  10), vlastník to nechává (#42).
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
