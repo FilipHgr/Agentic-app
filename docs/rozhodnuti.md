@@ -51,6 +51,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   Nahrávky mp3 jsou předem v repozitáři, hra je nikde nestahuje. Všechny
   vytvoří najednou skript přes ElevenLabs, který vlastník spustí u sebe
   se svým klíčem.
+- 2026-11-04 Dabing rozdělen na dva úkoly: nejdřív skript s texty pro
+  mluvení, pak přehrávání. Nahrávky se mají načítat postupně (lazy loading),
+  aby se stahování rozložilo v čase.
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
