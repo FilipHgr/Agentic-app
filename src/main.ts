@@ -10,6 +10,8 @@ new Phaser.Game({
   // Chrome na Androidu jinak při podržení prstu otevře nabídku obrázku
   // a podržení kolečka nastavení přeruší.
   disableContextMenu: true,
+  // Dva prsty najednou: dítě smí ťuknout na dvě tečky nápovědy současně (#43).
+  input: { activePointers: 2 },
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,

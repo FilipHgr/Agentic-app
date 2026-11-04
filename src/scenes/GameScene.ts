@@ -12,14 +12,17 @@ import {
 } from '../logic/answerRound';
 import type { AnswerRound, TapOutcome } from '../logic/answerRound';
 import { SOUNDS, soundForOutcome } from '../logic/answerSounds';
+import { canCountDots, countDot, countingTone, startDotCounting } from '../logic/dotCounting';
+import type { DotCounting } from '../logic/dotCounting';
 import { mascotReactionToTap } from '../logic/mascot';
 import {
   STAR_SIZE,
+  hintDotHitArea,
   layoutHintDots,
   layoutScreen,
   layoutWritingScreen,
 } from '../logic/screenLayout';
-import type { ButtonSlot, ScreenLayout } from '../logic/screenLayout';
+import type { ButtonSlot, HintDot, ScreenLayout } from '../logic/screenLayout';
 import { STARS_PER_SET, startNewStarSet, starsAfterTap } from '../logic/stars';
 import type { StarProgress } from '../logic/stars';
 import { nextCharacter } from '../logic/characters';
@@ -45,6 +48,12 @@ const HINT_CROSS_COLOR = 0xffffff;
 
 /** Číslo na tlačítku zabírá asi dvě třetiny jeho výšky. */
 const BUTTON_LABEL_RATIO = 0.64;
+
+/** Spočítaná tečka dostane bílý okraj a tmavé číslo, které je vidět na žluté i modré. */
+const DOT_COUNTED_RING_COLOR = 0xffffff;
+const DOT_COUNTED_RING_WIDTH = 6;
+const DOT_NUMBER_COLOR = '#0f3d24';
+const DOT_NUMBER_FONT_SIZE = 30;
 
 /** Tečky naskakují jedna po druhé, aby je dítě mohlo počítat s nimi. */
 const HINT_DOT_DELAY_MS = 120;
@@ -99,6 +108,10 @@ export class GameScene extends Phaser.Scene {
   private problemEquation: Phaser.GameObjects.Text | undefined;
   private problemAnswer: Phaser.GameObjects.Text | undefined;
   private hintIsShown = false;
+  /** Prst, který právě drží tlačítko číselníku; další prsty se nepočítají. */
+  private keypadPointerId: number | undefined;
+  /** Které tečky nápovědy už dítě spočítalo ťuknutím (#43). */
+  private dotCounting: DotCounting = { numbers: [] };
   /** Plocha na psaní, když dítě odpovídá psaním (#41); jinak číselník. */
   private writingPad: WritingPad | undefined;
   // Hvězdičky a postavička přežijí zavření hry (načtou se ze zařízení).
@@ -129,6 +142,14 @@ export class GameScene extends Phaser.Scene {
     if (settingsButton) {
       attachSettingsButton(settingsButton, () => this.openSettings());
     }
+    // Prst puštěný i mimo hrací plochu číselník uvolní, aby se nezasekl.
+    const releaseKeypad = (pointer: Phaser.Input.Pointer): void => {
+      if (pointer.id === this.keypadPointerId) {
+        this.keypadPointerId = undefined;
+      }
+    };
+    this.input.on('pointerup', releaseKeypad);
+    this.input.on('pointerupoutside', releaseKeypad);
     this.startRound();
   }
 
@@ -186,6 +207,7 @@ export class GameScene extends Phaser.Scene {
     // Nový příklad nesmí být stejný jako ten z minulého kola (při startu žádný není).
     this.round = createAnswerRound(this.settings, Math.random, this.round?.problem);
     this.hintIsShown = false;
+    this.dotCounting = startDotCounting(this.round.problem);
 
     const layout = this.layout();
 
@@ -324,7 +346,14 @@ export class GameScene extends Phaser.Scene {
 
     this.paintButton(button, BUTTON_COLOR);
     container.setSize(slot.size, slot.size).setInteractive();
-    container.on('pointerdown', () => this.onAnswerTapped(button));
+    container.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // Číselník bere jen jeden prst: dva prsty (třeba dlaň) nesmí dát dvě odpovědi.
+      if (this.keypadPointerId !== undefined && this.keypadPointerId !== pointer.id) {
+        return;
+      }
+      this.keypadPointerId = pointer.id;
+      this.onAnswerTapped(button);
+    });
 
     return button;
   }
@@ -409,9 +438,8 @@ export class GameScene extends Phaser.Scene {
       const color = crossedOut
         ? HINT_CROSSED_OUT_COLOR
         : HINT_GROUP_COLORS[dot.group % HINT_GROUP_COLORS.length];
-      const parts: Phaser.GameObjects.Shape[] = [
-        this.add.circle(dot.x, dot.y, style.dotSize / 2, color),
-      ];
+      const circle = this.add.circle(dot.x, dot.y, style.dotSize / 2, color);
+      const parts: Phaser.GameObjects.Shape[] = [circle];
       if (crossedOut) {
         parts.push(
           this.add
@@ -431,6 +459,52 @@ export class GameScene extends Phaser.Scene {
         delay: index * HINT_DOT_DELAY_MS,
         ease: 'Back.easeOut',
       });
+
+      // Na tečku jde ťuknout hned, i když ještě naskakuje (#43).
+      if (this.round && canCountDots(this.round.maxNumber)) {
+        this.addDotHitZone(dot, index, circle);
+      }
+    });
+  }
+
+  /** Neviditelná plocha 64 px kolem tečky, aby se na ni dalo ťuknout prstem. */
+  private addDotHitZone(dot: HintDot, index: number, circle: Phaser.GameObjects.Arc): void {
+    const area = hintDotHitArea(dot);
+    const zone = this.add.zone(area.x, area.y, area.size, area.size).setInteractive();
+    zone.on('pointerdown', () => this.onDotTapped(index, circle));
+    this.roundObjects.push(zone);
+  }
+
+  /** Ťuknutá tečka se rozsvítí, ukáže pořadové číslo a zazní o tón výš. */
+  private onDotTapped(index: number, circle: Phaser.GameObjects.Arc): void {
+    if (!this.round) {
+      return;
+    }
+    const result = countDot(this.round, this.dotCounting, index);
+    this.dotCounting = result.counting;
+    if (result.countedNumber === null) {
+      return;
+    }
+
+    this.sounds.play([countingTone(result.countedNumber)]);
+    // Tečka, která ještě naskakovala, hned doskočí, aby se do ní číslo vešlo.
+    this.tweens.killTweensOf(circle);
+    circle.setScale(1);
+    circle.setStrokeStyle(DOT_COUNTED_RING_WIDTH, DOT_COUNTED_RING_COLOR);
+    const label = this.add
+      .text(circle.x, circle.y, String(result.countedNumber), {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: `${DOT_NUMBER_FONT_SIZE}px`,
+        fontStyle: 'bold',
+        color: DOT_NUMBER_COLOR,
+      })
+      .setOrigin(0.5);
+    this.roundObjects.push(label);
+    this.tweens.add({
+      targets: [circle, label],
+      scale: { from: 1, to: 1.2 },
+      duration: 100,
+      yoyo: true,
     });
   }
 

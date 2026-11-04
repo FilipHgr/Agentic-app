@@ -462,3 +462,20 @@ export function writingAreaAt(layout: WritingLayout, point: Point): WritingBox |
   }
   return layout.writingAreas.length === 2 && index === 0 ? 'tens' : 'ones';
 }
+
+/** Plocha pro ťuknutí na tečku nápovědy (#43): aspoň 64 px, i když je tečka menší. */
+export const HINT_DOT_HIT_SIZE = 64;
+
+/** Čtvercová plocha pro ťuknutí se středem v tečce. */
+export function hintDotHitArea(dot: HintDot): ButtonSlot {
+  return { x: dot.x, y: dot.y, size: HINT_DOT_HIT_SIZE };
+}
+
+/** Index tečky, do jejíž plochy dotyk padl, nebo `null`, když žádné. */
+export function hintDotAt(dots: readonly HintDot[], point: Point): number | null {
+  const index = dots.findIndex((dot) => {
+    const half = hintDotHitArea(dot).size / 2;
+    return Math.abs(point.x - dot.x) <= half && Math.abs(point.y - dot.y) <= half;
+  });
+  return index < 0 ? null : index;
+}

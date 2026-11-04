@@ -6,7 +6,8 @@
  *   node tools/screenshots/take.mjs [složka]
  *
  * Udělá snímky na iPadu na šířku a na telefonu na výšku v pěti stavech:
- * začátek hry, nápověda po dvou chybách, otevřené nastavení pro rodiče,
+ * začátek hry, nápověda po dvou chybách, počítání teček ťukáním,
+ * otevřené nastavení pro rodiče,
  * okénka na psaní (#41, #42) a rozpoznané napsané číslo.
  * Použije WebKit (jako Safari), když je k dispozici, jinak Chromium a řekne to.
  * Playwright není závislost projektu, musí být nainstalovaný v systému.
@@ -117,6 +118,14 @@ async function shootDevice(browser, url, device) {
   await tapGame(page, BUTTON_ZERO);
   await page.waitForTimeout(2500);
   await page.screenshot({ path: join(outputDir, `${device.name}-2-napoveda.png`) });
+
+  // Počítání teček ťukáním (#43): pár ťuknutí do řady teček nápovědy.
+  for (let x = 300; x <= 620; x += 64) {
+    await tapGame(page, { x, y: 345 });
+    await page.waitForTimeout(150);
+  }
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: join(outputDir, `${device.name}-2b-pocitani.png`) });
 
   const gear = await page.locator('#settings-button').boundingBox();
   await page.mouse.move(gear.x + gear.width / 2, gear.y + gear.height / 2);
