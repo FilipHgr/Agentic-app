@@ -183,14 +183,14 @@ describe('jeden příkaz vytvoří nahrávky přes ElevenLabs (#50 AC2)', () => 
     }
   });
 
-  it('se scénářem průvodce vytvoří 11 nahrávek, jednu na každou větu', async () => {
+  it('se scénářem průvodce vytvoří 4 nahrávky, jednu na každou větu', async () => {
     const files = memoryFiles();
     const server = alwaysMp3();
     const sentences = voiceSentences();
     const { result } = await runScript(files, server, { sentences });
     expect(result.ok).toBe(true);
     expect(files.recordings()).toEqual(sentences.map((sentence) => `${sentence.id}.mp3`).sort());
-    expect(server.calls).toHaveLength(11);
+    expect(server.calls).toHaveLength(4);
   });
 
   describe('bez klíče skript vypíše českou zprávu a nic nezmění', () => {

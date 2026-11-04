@@ -5,9 +5,9 @@
  */
 
 import type { SettingsRowKind } from './settingsLayout';
-import type { Grade, GuideStep } from './setupGuide';
+import type { GuideStep } from './setupGuide';
 
-export type GuideLineId = 'question' | 'summary' | `${SettingsRowKind}.${Grade}`;
+export type GuideLineId = SettingsRowKind | 'summary';
 
 export interface GuideLine {
   readonly id: GuideLineId;
@@ -16,54 +16,31 @@ export interface GuideLine {
   readonly lines: readonly [string, string];
 }
 
-const MAX_NUMBER_EXPLANATION = 'Největší číslo, které se v příkladech objeví.';
-const OPERATIONS_EXPLANATION = 'Sčítání, odčítání, nebo obojí zamíchané.';
-const ANSWER_INPUT_EXPLANATION = 'S číselníkem dítě ťuká na čísla, s tužkou píše prstem.';
-
-/** Věty podle tabulky v #50, ve stejném pořadí. */
+/** Věty podle scénáře v #50 (po zrušení otázky na třídu), ve stejném pořadí. */
 const LINES: Record<GuideLineId, Omit<GuideLine, 'id'>> = {
-  question: {
+  maxNumber: {
     step: 1,
-    lines: ['Do které třídy dítě chodí?', 'Podle odpovědi hru předvyplníme. Odpověď se neukládá.'],
+    lines: [
+      'Největší číslo, které se v příkladech objeví.',
+      'Školka do pěti, první třída do deseti, pak do dvaceti.',
+    ],
   },
-  'maxNumber.preschool': {
+  operations: {
     step: 2,
-    lines: [MAX_NUMBER_EXPLANATION, 'Doporučujeme do pěti. Dítě to spočítá na prstech ruky.'],
+    lines: [
+      'Sčítání, odčítání, nebo obojí zamíchané.',
+      'Začněte sčítáním. Obojí, až dítě zvládne odčítat.',
+    ],
   },
-  'maxNumber.firstGrade': {
-    step: 2,
-    lines: [MAX_NUMBER_EXPLANATION, 'Doporučujeme do deseti, ve druhém pololetí do dvaceti.'],
-  },
-  'maxNumber.secondGradeOrHigher': {
-    step: 2,
-    lines: [MAX_NUMBER_EXPLANATION, 'Doporučujeme do dvaceti. Procvičí přechod přes desítku.'],
-  },
-  'operations.preschool': {
+  answerInput: {
     step: 3,
-    lines: [OPERATIONS_EXPLANATION, 'Doporučujeme sčítání. Pro malé děti je nejsnazší.'],
-  },
-  'operations.firstGrade': {
-    step: 3,
-    lines: [OPERATIONS_EXPLANATION, 'Doporučujeme obojí. V první třídě se učí současně.'],
-  },
-  'operations.secondGradeOrHigher': {
-    step: 3,
-    lines: [OPERATIONS_EXPLANATION, 'Doporučujeme obojí. Dítě musí sledovat znaménko.'],
-  },
-  'answerInput.preschool': {
-    step: 4,
-    lines: [ANSWER_INPUT_EXPLANATION, 'Doporučujeme číselník. Psát číslice se dítě teprve učí.'],
-  },
-  'answerInput.firstGrade': {
-    step: 4,
-    lines: [ANSWER_INPUT_EXPLANATION, 'Doporučujeme číselník. Tužku, až zvládne psát číslice.'],
-  },
-  'answerInput.secondGradeOrHigher': {
-    step: 4,
-    lines: [ANSWER_INPUT_EXPLANATION, 'Doporučujeme tužku. Dítě si procvičí i psaní číslic.'],
+    lines: [
+      'S číselníkem dítě ťuká na čísla, s tužkou píše prstem.',
+      'Tužku zvolte, až dítě umí psát všechny číslice.',
+    ],
   },
   summary: {
-    step: 5,
+    step: 4,
     lines: [
       'Hotovo. Volby můžete ještě změnit ťuknutím.',
       'Později je změníte podržením kolečka vpravo nahoře.',

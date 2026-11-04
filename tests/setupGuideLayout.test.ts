@@ -4,14 +4,14 @@ import { CHECK_BUTTON_COLOR } from '../src/logic/checkButton';
 import { SETTINGS_LABEL_COLOR, layoutSettingsPanel } from '../src/logic/settingsLayout';
 import type { SettingsRowKind } from '../src/logic/settingsLayout';
 import { GUIDE_SCRIPT } from '../src/logic/guideScript';
-import { GRADE_OPTIONS, GUIDE_COLORS, GUIDE_TEXTS, layoutGuideStep } from '../src/logic/setupGuide';
+import { GUIDE_COLORS, GUIDE_TEXTS, layoutGuideStep } from '../src/logic/setupGuide';
 import type { GuideStep } from '../src/logic/setupGuide';
 
 /**
  * Testy k #49 AC5 (rozložení a čitelnost průvodce) na herní ploše
- * 1024 × 768: pásy textu a tlačítek, rámeček kolem zvýrazněné řady,
- * krok 1 s otázkou, velikost dotykových ploch, délky textů a kontrast
- * počítaný podle WCAG z barev. Že se text v Safari ani v Chromu neořízne,
+ * 1024 × 768 ve znění bez otázky na třídu: kroky 1–3 jsou řady, krok 4
+ * shrnutí. Pásy textu a tlačítek, rámeček kolem zvýrazněné řady, velikost
+ * dotykových ploch, délky textů a kontrast počítaný podle WCAG z barev. Že se text v Safari ani v Chromu neořízne,
  * je čitelný na iPadu, iPhonu na šířku a Samsungu a rámeček je dobře
  * vidět, se kontroluje ručně.
  */
@@ -23,12 +23,12 @@ const MAX_LINE_CHARACTERS = 56;
 const MAX_BUTTON_CHARACTERS = 14;
 const MIN_CONTRAST = 7;
 
-const STEPS: readonly GuideStep[] = [1, 2, 3, 4, 5];
-const ROW_STEPS: readonly GuideStep[] = [2, 3, 4, 5];
-const FOCUSED_ROW: Record<2 | 3 | 4, SettingsRowKind> = {
-  2: 'maxNumber',
-  3: 'operations',
-  4: 'answerInput',
+const STEPS: readonly GuideStep[] = [1, 2, 3, 4];
+const SUMMARY_STEP: GuideStep = 4;
+const FOCUSED_ROW: Record<1 | 2 | 3, SettingsRowKind> = {
+  1: 'maxNumber',
+  2: 'operations',
+  3: 'answerInput',
 };
 
 interface Box {
@@ -131,7 +131,7 @@ function rowContentBox(kind: SettingsRowKind): Box {
   return row.options.map(centeredBox).reduce(union, centeredBox(row.label));
 }
 
-/** Popisky a volby všech řad z #47, jak je průvodce ukazuje na krocích 2–5. */
+/** Popisky a volby všech řad z #47, jak je průvodce ukazuje na všech krocích. */
 function panelBoxes(): Box[] {
   return panel.rows.flatMap((row) => [centeredBox(row.label), ...row.options.map(centeredBox)]);
 }
@@ -139,32 +139,22 @@ function panelBoxes(): Box[] {
 /** Všechny prvky kroku kromě rámečku (ten je jen obrys). */
 function solidBoxes(step: GuideStep): Box[] {
   const layout = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-  const own = [
-    layout.heading,
-    layout.subheading,
-    layout.message,
-    layout.back,
-    layout.indicator,
-    layout.right,
-    ...layout.answers,
-  ]
+  const own = [layout.message, layout.back, layout.indicator, layout.right]
     .filter((slot) => slot !== null)
     .map(centeredBox);
-  return step === 1 ? own : [...own, ...panelBoxes()];
+  return [...own, ...panelBoxes()];
 }
 
-/** Dotykové plochy kroku: odpovědi, tlačítka a na krocích 2–5 volby řad. */
+/** Dotykové plochy kroku: tlačítka a volby řad. */
 function touchBoxes(step: GuideStep): Box[] {
   const layout = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-  const buttons = [layout.back, layout.right, ...layout.answers]
-    .filter((slot) => slot !== null)
-    .map(centeredBox);
+  const buttons = [layout.back, layout.right].filter((slot) => slot !== null).map(centeredBox);
   const options = panel.rows.flatMap((row) => row.options.map(centeredBox));
-  return step === 1 ? buttons : [...buttons, ...options];
+  return [...buttons, ...options];
 }
 
-describe('pás textu na krocích 2–5 (#49 AC5)', () => {
-  for (const step of ROW_STEPS) {
+describe('pás textu na všech krocích 1–4 (#49 AC5)', () => {
+  for (const step of STEPS) {
     it(`na kroku ${step} je text v pásu x 24–1000, y 590–662: dva řádky po 36 px, písmo 28 px`, () => {
       const { message } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
       expect(message).not.toBeNull();
@@ -187,17 +177,13 @@ describe('pás textu na krocích 2–5 (#49 AC5)', () => {
   it('pás textu začíná 28 px pod poslední řadou z #47', () => {
     const lastRowBottom = rowContentBox('answerInput').bottom;
     expect(lastRowBottom).toBe(562);
-    const { message } = layoutGuideStep(2, SCREEN_WIDTH, SCREEN_HEIGHT);
+    const { message } = layoutGuideStep(1, SCREEN_WIDTH, SCREEN_HEIGHT);
     expect(message && centeredBox(message).top - lastRowBottom).toBe(28);
-  });
-
-  it('na kroku 1 pás s textem pod řadami není', () => {
-    expect(layoutGuideStep(1, SCREEN_WIDTH, SCREEN_HEIGHT).message).toBeNull();
   });
 });
 
 describe('pás tlačítek y 680–752 (#49 AC5)', () => {
-  for (const step of ROW_STEPS) {
+  for (const step of [2, 3, 4] as const) {
     it(`na kroku ${step} je „Zpět“ v x 24–264, výška 72 px, písmo 32 px`, () => {
       const { back } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
       expect(back).not.toBeNull();
@@ -222,8 +208,10 @@ describe('pás tlačítek y 680–752 (#49 AC5)', () => {
     });
   }
 
-  it('na kroku 1 „Zpět“ není', () => {
-    expect(layoutGuideStep(1, SCREEN_WIDTH, SCREEN_HEIGHT).back).toBeNull();
+  it('na kroku 1 „Zpět“ není, pravé tlačítko je na stejném místě jako na kroku 2', () => {
+    const step1 = layoutGuideStep(1, SCREEN_WIDTH, SCREEN_HEIGHT);
+    expect(step1.back).toBeNull();
+    expect(step1.right).toEqual(layoutGuideStep(2, SCREEN_WIDTH, SCREEN_HEIGHT).right);
   });
 
   it('ukazatel kroku nepřekrývá žádné tlačítko, takže ťuknutí na něj nic nespustí', () => {
@@ -263,13 +251,13 @@ describe('pás tlačítek y 680–752 (#49 AC5)', () => {
 });
 
 describe('rámeček kolem zvýrazněné řady (#49 AC5)', () => {
-  const expectedFrames: Record<2 | 3 | 4, Box> = {
-    2: { left: 134, right: 890, top: 4, bottom: 190 },
-    3: { left: 134, right: 890, top: 194, bottom: 380 },
-    4: { left: 264, right: 760, top: 384, bottom: 570 },
+  const expectedFrames: Record<1 | 2 | 3, Box> = {
+    1: { left: 134, right: 890, top: 4, bottom: 190 },
+    2: { left: 134, right: 890, top: 194, bottom: 380 },
+    3: { left: 264, right: 760, top: 384, bottom: 570 },
   };
 
-  for (const step of [2, 3, 4] as const) {
+  for (const step of [1, 2, 3] as const) {
     it(`na kroku ${step} má rámeček vnější hranu ${JSON.stringify(expectedFrames[step])}`, () => {
       const { frame } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
       expect(frame).not.toBeNull();
@@ -301,55 +289,8 @@ describe('rámeček kolem zvýrazněné řady (#49 AC5)', () => {
     });
   }
 
-  it('na kroku 1 a na shrnutí rámeček není', () => {
-    expect(layoutGuideStep(1, SCREEN_WIDTH, SCREEN_HEIGHT).frame).toBeNull();
-    expect(layoutGuideStep(5, SCREEN_WIDTH, SCREEN_HEIGHT).frame).toBeNull();
-  });
-});
-
-describe('krok 1 s otázkou (#49 AC5)', () => {
-  const step1 = layoutGuideStep(1, SCREEN_WIDTH, SCREEN_HEIGHT);
-
-  it('nadpis leží v y 96–140 na středu plochy, písmo 36 px', () => {
-    expect(step1.heading).not.toBeNull();
-    if (step1.heading === null) return;
-    const box = centeredBox(step1.heading);
-    expect([box.top, box.bottom]).toEqual([96, 140]);
-    expect(step1.heading.x).toBe(SCREEN_WIDTH / 2);
-    expect(step1.heading.fontSize).toBe(36);
-  });
-
-  it('podnadpis leží v y 156–192 na středu plochy, písmo 28 px', () => {
-    expect(step1.subheading).not.toBeNull();
-    if (step1.subheading === null) return;
-    const box = centeredBox(step1.subheading);
-    expect([box.top, box.bottom]).toEqual([156, 192]);
-    expect(step1.subheading.x).toBe(SCREEN_WIDTH / 2);
-    expect(step1.subheading.fontSize).toBe(28);
-  });
-
-  it('tři odpovědi 280 × 160 px leží v y 264–424 a x 52–332, 372–652 a 692–972', () => {
-    expect(step1.answers.map(centeredBox)).toEqual([
-      { left: 52, right: 332, top: 264, bottom: 424 },
-      { left: 372, right: 652, top: 264, bottom: 424 },
-      { left: 692, right: 972, top: 264, bottom: 424 },
-    ]);
-  });
-
-  it('odpovědi jsou zleva Školka, 1. třída, 2. třída a výš, písmo 32 px', () => {
-    expect(step1.answers.map((slot) => slot.grade)).toEqual([...GRADE_OPTIONS]);
-    for (const slot of step1.answers) {
-      expect(slot.fontSize).toBe(32);
-    }
-  });
-
-  it('na ostatních krocích odpovědi, nadpis ani podnadpis nejsou', () => {
-    for (const step of ROW_STEPS) {
-      const layout = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      expect(layout.answers, String(step)).toEqual([]);
-      expect(layout.heading, String(step)).toBeNull();
-      expect(layout.subheading, String(step)).toBeNull();
-    }
+  it('na shrnutí rámeček není', () => {
+    expect(layoutGuideStep(SUMMARY_STEP, SCREEN_WIDTH, SCREEN_HEIGHT).frame).toBeNull();
   });
 });
 
@@ -392,46 +333,35 @@ describe('nic se nepřekrývá a vše je dost velké na prst (#49 AC5)', () => {
     });
     for (const step of STEPS) {
       const layout = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      const buttons = [layout.back, layout.right, ...layout.answers].filter(
-        (slot) => slot !== null,
-      );
+      const buttons = [layout.back, layout.right].filter((slot) => slot !== null);
       for (const button of buttons) {
         expect(overlaps(centeredBox(button), confirm), String(step)).toBe(false);
       }
     }
   });
 
-  it('text se do svého pásu vejde: řádky po 36 px a písmo menší než výška pásu', () => {
-    const step1 = layoutGuideStep(1, SCREEN_WIDTH, SCREEN_HEIGHT);
-    for (const slot of [step1.heading, step1.subheading]) {
-      if (slot === null) throw new Error('na kroku 1 chybí nadpis nebo podnadpis');
-      expect(slot.fontSize).toBeLessThanOrEqual(slot.height);
+  it('text se do svého pásu vejde: dva řádky po 36 px a písmo menší než řádek', () => {
+    for (const step of STEPS) {
+      const { message } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
+      expect(message && message.lineCount * message.lineHeight, String(step)).toBe(message?.height);
+      expect(message?.fontSize ?? Infinity).toBeLessThanOrEqual(message?.lineHeight ?? 0);
     }
-    const { message } = layoutGuideStep(2, SCREEN_WIDTH, SCREEN_HEIGHT);
-    expect(message && message.lineCount * message.lineHeight).toBe(message?.height);
   });
 });
 
 describe('délky textů (#49 AC5, věty podle scénáře z #50)', () => {
-  const lines: string[] = [
-    GUIDE_TEXTS.question,
-    GUIDE_TEXTS.questionNote,
-    ...GUIDE_SCRIPT.flatMap((line) => [...line.lines]),
-  ];
-  const buttonLabels: string[] = [
-    ...Object.values(GUIDE_TEXTS.buttons),
-    ...GRADE_OPTIONS.map((grade) => GUIDE_TEXTS.grades[grade]),
-  ];
+  const lines: string[] = GUIDE_SCRIPT.flatMap((line) => [...line.lines]);
+  const buttonLabels: string[] = Object.values(GUIDE_TEXTS.buttons);
 
   it('každý řádek textu má nejvýš 56 znaků', () => {
-    expect(lines.length).toBe(2 + 11 * 2);
+    expect(lines.length).toBe(4 * 2);
     for (const line of lines) {
       expect([...line].length, line).toBeLessThanOrEqual(MAX_LINE_CHARACTERS);
     }
   });
 
   it('každý popisek tlačítka má nejvýš 14 znaků', () => {
-    expect(buttonLabels.length).toBe(4 + 3);
+    expect(buttonLabels.length).toBe(3);
     for (const label of buttonLabels) {
       expect([...label].length, label).toBeLessThanOrEqual(MAX_BUTTON_CHARACTERS);
     }
@@ -445,10 +375,9 @@ describe('délky textů (#49 AC5, věty podle scénáře z #50)', () => {
 });
 
 describe('kontrast tlačítek průvodce podle WCAG (#49 AC5)', () => {
-  it('písmo tlačítek je #0f3d24, pozadí bílé, vybraná odpověď žlutá, „Začít hrát“ zelené', () => {
+  it('písmo tlačítek je #0f3d24, pozadí bílé a „Začít hrát“ zelené', () => {
     expect(GUIDE_COLORS.buttonText).toBe('#0f3d24');
     expect(GUIDE_COLORS.buttonBackground).toBe('#ffffff');
-    expect(GUIDE_COLORS.selectedAnswerBackground).toBe('#ffd54f');
     expect(GUIDE_COLORS.startPlayingBackground).toBe('#8be04e');
   });
 
@@ -458,8 +387,7 @@ describe('kontrast tlačítek průvodce podle WCAG (#49 AC5)', () => {
   });
 
   const pairs: readonly [string, () => string, number][] = [
-    ['odpověď a „Zpět“, „Přeskočit“, „Další“ na bílé', () => GUIDE_COLORS.buttonBackground, 12.3],
-    ['vybraná odpověď na žluté', () => GUIDE_COLORS.selectedAnswerBackground, 8.7],
+    ['„Zpět“ a „Další“ na bílé', () => GUIDE_COLORS.buttonBackground, 12.3],
     ['„Začít hrát“ na zelené', () => GUIDE_COLORS.startPlayingBackground, 7.5],
   ];
 

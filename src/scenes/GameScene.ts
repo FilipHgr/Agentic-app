@@ -184,7 +184,6 @@ export class GameScene extends Phaser.Scene {
 
   override update(time: number): void {
     this.writingPad?.update(time);
-    this.setupGuide?.update(time);
   }
 
   /** Uloží hvězdičky a postavičku do zařízení; když to nejde, hra jede dál. */

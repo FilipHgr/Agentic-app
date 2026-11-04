@@ -1,6 +1,6 @@
 /**
- * Průvodce nastavením pro rodiče při prvním spuštění (#49): otázka na třídu,
- * předvyplnění, tři kroky po řadách nastavení s radami a shrnutí. Čistý
+ * Průvodce nastavením pro rodiče při prvním spuštění (#49): tři kroky po
+ * řadách nastavení s radami a shrnutí, předvyplněné výchozí volby. Čistý
  * TypeScript bez Phaseru; čas se předává jako číslo v ms.
  */
 
@@ -13,36 +13,16 @@ import type { SettingsRow, SettingsRowKind } from './settingsLayout';
 import { CLOSED_SETTINGS, openSettings, pageAppearance } from './settingsSession';
 import type { LaunchState, PageAppearance, SelectedOptions } from './settingsSession';
 
-/** Odpovědi na úvodní otázku, zleva doprava. Odpověď se nikam neukládá. */
-export const GRADE_OPTIONS = ['preschool', 'firstGrade', 'secondGradeOrHigher'] as const;
-export type Grade = (typeof GRADE_OPTIONS)[number];
-
-/** Krok 1 otázka, 2–4 řady nastavení, 5 shrnutí. */
-export type GuideStep = 1 | 2 | 3 | 4 | 5;
-const LAST_STEP: GuideStep = 5;
-
-/** Jak dlouho je vybraná odpověď žlutě vidět, než průvodce přejde dál. */
-export const ANSWER_HIGHLIGHT_MS = 300;
+/** Kroky 1–3 jsou řady nastavení, 4 shrnutí (#49, bez otázky na třídu). */
+export type GuideStep = 1 | 2 | 3 | 4;
+const LAST_STEP: GuideStep = 4;
 
 /** Pojistka: „Začít hrát“ po zobrazení shrnutí chvíli nereaguje (dvojí ťuknutí na „Další“). */
 export const START_PLAYING_GUARD_MS = 500;
 
-/** Doporučené nastavení podle třídy (#49 AC2). */
-export const GRADE_PRESETS: Record<Grade, Required<GameSettings>> = {
-  preschool: { maxNumber: 5, operations: 'plus', answerInput: 'keypad' },
-  firstGrade: { maxNumber: 10, operations: 'mixed', answerInput: 'keypad' },
-  secondGradeOrHigher: { maxNumber: 20, operations: 'mixed', answerInput: 'writing' },
-};
-
-/** Úvodní otázka a poznámka pod ní ze scénáře (#50). */
-const [QUESTION, QUESTION_NOTE] = scriptLines('question');
-
-/** Texty průvodce pro rodiče; věty k namluvení jsou ve scénáři `guideScript.ts`. */
+/** Texty tlačítek; věty pod řadami jsou ve scénáři `guideScript.ts` (#50). */
 export const GUIDE_TEXTS = {
-  question: QUESTION,
-  questionNote: QUESTION_NOTE,
-  grades: { preschool: 'Školka', firstGrade: '1. třída', secondGradeOrHigher: '2. třída a výš' },
-  buttons: { back: 'Zpět', next: 'Další', skip: 'Přeskočit', startPlaying: 'Začít hrát' },
+  buttons: { back: 'Zpět', next: 'Další', startPlaying: 'Začít hrát' },
 } as const;
 
 /** Barvy průvodce; písmo tlačítek má na všech pozadích kontrast aspoň 7 : 1. */
@@ -50,106 +30,52 @@ export const GUIDE_COLORS = {
   text: '#cfe8d6',
   buttonText: '#0f3d24',
   buttonBackground: '#ffffff',
-  selectedAnswerBackground: '#ffd54f',
   startPlayingBackground: '#8be04e',
   frame: '#cfe8d6',
 } as const;
 
 export interface GuideState {
   readonly step: GuideStep;
-  /** Odpověď z kroku 1, nebo `null`, když ještě žádná není (i po „Přeskočit“). */
-  readonly grade: Grade | null;
   readonly choice: Required<GameSettings>;
-  /** Kdy průvodce po vybrané odpovědi přejde na krok 2; `null`, když nic nečeká. */
-  readonly advanceAtMs: number | null;
-  /** Na shrnutí se přišlo přes „Přeskočit“ (Zpět pak vede na krok 1). */
-  readonly cameBySkip: boolean;
   /** Kdy se naposledy zobrazilo shrnutí (pro pojistku „Začít hrát“). */
   readonly summaryShownAtMs: number | null;
 }
 
-/** Která řada nastavení patří ke kroku 2–4. */
+/** Která řada nastavení patří ke kroku 1–3. */
 const ROW_OF_STEP: Partial<Record<GuideStep, SettingsRowKind>> = {
-  2: 'maxNumber',
-  3: 'operations',
-  4: 'answerInput',
+  1: 'maxNumber',
+  2: 'operations',
+  3: 'answerInput',
 };
 
-/** Začátek průvodce: krok 1 bez odpovědi, výchozí 10 / + / 123. */
+/** Začátek průvodce: řada „Do kolika“, předvyplněno 10 / + / 123. */
 export function startGuide(): GuideState {
   return {
     step: 1,
-    grade: null,
     choice: { ...DEFAULT_SETTINGS, answerInput: answerInputOf(DEFAULT_SETTINGS) },
-    advanceAtMs: null,
-    cameBySkip: false,
     summaryShownAtMs: null,
   };
 }
 
-function isWaitingForAnswer(state: GuideState): boolean {
-  return state.advanceAtMs !== null;
-}
-
-/**
- * Ťuknutí na odpověď (krok 1). Jiná odpověď předvyplní všechny řady, stejná
- * nechá změny rodiče. Za `ANSWER_HIGHLIGHT_MS` průvodce přejde na krok 2.
- */
-export function chooseGrade(state: GuideState, grade: Grade, nowMs: number): GuideState {
-  if (state.step !== 1 || isWaitingForAnswer(state)) {
+/** „Další“: o jeden krok, nejdál na shrnutí. */
+export function next(state: GuideState, nowMs: number): GuideState {
+  if (state.step === LAST_STEP) {
     return state;
   }
-  const choice = grade === state.grade ? state.choice : GRADE_PRESETS[grade];
-  return { ...state, grade, choice, advanceAtMs: nowMs + ANSWER_HIGHLIGHT_MS, cameBySkip: false };
-}
-
-/** Posune průvodce v čase: po zvýraznění odpovědi přejde na krok 2. */
-export function tickGuide(state: GuideState, nowMs: number): GuideState {
-  if (state.advanceAtMs === null || nowMs < state.advanceAtMs) {
-    return state;
-  }
-  return { ...state, step: 2, advanceAtMs: null };
-}
-
-function goToStep(state: GuideState, step: GuideStep, nowMs: number): GuideState {
+  const step = (state.step + 1) as GuideStep;
   const summaryShownAtMs = step === LAST_STEP ? nowMs : state.summaryShownAtMs;
   return { ...state, step, summaryShownAtMs };
 }
 
-/** „Další“: o jeden krok, nejdál na shrnutí. Na kroku 1 jen s vybranou odpovědí. */
-export function next(state: GuideState, nowMs: number): GuideState {
-  if (isWaitingForAnswer(state) || state.step === LAST_STEP) {
-    return state;
-  }
-  if (state.step === 1 && state.grade === null) {
-    return state;
-  }
-  return goToStep(state, (state.step + 1) as GuideStep, nowMs);
-}
-
-/** „Zpět“: o krok zpět; ze shrnutí po „Přeskočit“ na krok 1 bez odpovědi. */
+/** „Zpět“: o krok zpět; na kroku 1 nic. */
 export function back(state: GuideState): GuideState {
   if (state.step === 1) {
     return state;
   }
-  if (state.step === LAST_STEP && state.cameBySkip) {
-    return { ...state, step: 1, grade: null };
-  }
   return { ...state, step: (state.step - 1) as GuideStep };
 }
 
-/** „Přeskočit“ (jen krok 1 bez odpovědi): rovnou na shrnutí, volby beze změny. */
-export function skip(state: GuideState, nowMs: number): GuideState {
-  if (state.step !== 1 || state.grade !== null || isWaitingForAnswer(state)) {
-    return state;
-  }
-  return { ...goToStep(state, LAST_STEP, nowMs), cameBySkip: true };
-}
-
-/**
- * Ťuknutí na volbu. V krocích 2–4 jen ve zvýrazněné řadě, na shrnutí
- * kdekoli, na kroku 1 nikde.
- */
+/** Ťuknutí na volbu: v krocích 1–3 jen ve zvýrazněné řadě, na shrnutí kdekoli. */
 export function chooseOption(state: GuideState, change: Partial<GameSettings>): GuideState {
   if (state.step === LAST_STEP) {
     return { ...state, choice: { ...state.choice, ...change } };
@@ -169,10 +95,6 @@ export function guideStep(state: GuideState): GuideStep {
   return state.step;
 }
 
-export function selectedGrade(state: GuideState): Grade | null {
-  return state.grade;
-}
-
 /** Vybrané volby, jak je kreslí řady nastavení. */
 export function guideSelection(state: GuideState): SelectedOptions {
   return { ...state.choice };
@@ -182,28 +104,18 @@ export function stepIndicatorText(state: GuideState): string {
   return `${state.step} / ${LAST_STEP}`;
 }
 
-/** Pravé tlačítko: „Přeskočit“ na kroku 1 bez odpovědi, „Začít hrát“ na shrnutí, jinak „Další“. */
-export function rightButton(state: GuideState): 'skip' | 'next' | 'startPlaying' {
-  if (state.step === LAST_STEP) {
-    return 'startPlaying';
-  }
-  return state.step === 1 && state.grade === null ? 'skip' : 'next';
+/** Pravé tlačítko: „Začít hrát“ na shrnutí, jinak „Další“. */
+export function rightButton(state: GuideState): 'next' | 'startPlaying' {
+  return state.step === LAST_STEP ? 'startPlaying' : 'next';
 }
 
 export function hasBackButton(state: GuideState): boolean {
   return state.step !== 1;
 }
 
-/** Dva řádky pod řadami ze scénáře: vysvětlení a rada (kroky 2–4), nebo shrnutí (krok 5). */
-export function guideMessage(state: GuideState): readonly [string, string] | null {
-  if (state.step === LAST_STEP) {
-    return scriptLines('summary');
-  }
-  const row = ROW_OF_STEP[state.step];
-  if (row === undefined || state.grade === null) {
-    return null;
-  }
-  return scriptLines(`${row}.${state.grade}`);
+/** Dva řádky pod řadami ze scénáře: vysvětlení a rada (kroky 1–3), nebo shrnutí. */
+export function guideMessage(state: GuideState): readonly [string, string] {
+  return scriptLines(ROW_OF_STEP[state.step] ?? 'summary');
 }
 
 export interface GuideRowStyle {
@@ -213,14 +125,11 @@ export interface GuideRowStyle {
   readonly tappable: boolean;
 }
 
-/** Ztlumená řada v krocích 2–4. */
+/** Ztlumená řada v krocích 1–3. */
 const DIMMED_ROW_OPACITY = 0.3;
 
 /** Jak vypadá řada nastavení v daném kroku průvodce. */
 export function guideRowStyle(state: GuideState, kind: SettingsRowKind): GuideRowStyle {
-  if (state.step === 1) {
-    return { visible: false, opacity: 0, framed: false, tappable: false };
-  }
   if (state.step === LAST_STEP) {
     return { visible: true, opacity: 1, framed: false, tappable: true };
   }
@@ -277,10 +186,6 @@ export interface GuideSlot extends Point {
   readonly fontSize: number;
 }
 
-export interface GuideAnswerSlot extends GuideSlot {
-  readonly grade: Grade;
-}
-
 export interface GuideMessageSlot extends GuideSlot {
   readonly lineCount: 2;
   readonly lineHeight: number;
@@ -298,10 +203,7 @@ export interface GuideFrame extends Point {
 }
 
 export interface GuideLayout {
-  readonly heading: GuideSlot | null;
-  readonly subheading: GuideSlot | null;
-  readonly answers: readonly GuideAnswerSlot[];
-  readonly message: GuideMessageSlot | null;
+  readonly message: GuideMessageSlot;
   readonly back: GuideSlot | null;
   readonly indicator: GuideSlot & { readonly color: string };
   readonly right: GuideSlot;
@@ -319,16 +221,6 @@ const INDICATOR_FONT_SIZE = 28;
 const MESSAGE_TOP = 590;
 const MESSAGE_LINE_HEIGHT = 36;
 const MESSAGE_FONT_SIZE = 28;
-
-const HEADING = { top: 96, bottom: 140, fontSize: 36 };
-const SUBHEADING = { top: 156, bottom: 192, fontSize: 28 };
-const TEXT_BLOCK_WIDTH = 800;
-
-const ANSWER_WIDTH = 280;
-const ANSWER_HEIGHT = 160;
-const ANSWER_GAP = 40;
-const ANSWER_TOP = 264;
-const ANSWER_FONT_SIZE = 32;
 
 /** Rámeček zvýrazněné řady: 8 px vně popisku a řady, čára 4 px. */
 const FRAME_PADDING = 8;
@@ -370,62 +262,32 @@ function frameAround(row: SettingsRow): GuideFrame {
   };
 }
 
-/** Odpovědi vedle sebe na středu plochy. */
-function layoutAnswers(width: number): GuideAnswerSlot[] {
-  const rowWidth = GRADE_OPTIONS.length * ANSWER_WIDTH + (GRADE_OPTIONS.length - 1) * ANSWER_GAP;
-  const firstLeft = (width - rowWidth) / 2;
-  return GRADE_OPTIONS.map((grade, index) => {
-    const left = firstLeft + index * (ANSWER_WIDTH + ANSWER_GAP);
-    return {
-      ...slotFromEdges(
-        left,
-        left + ANSWER_WIDTH,
-        ANSWER_TOP,
-        ANSWER_TOP + ANSWER_HEIGHT,
-        ANSWER_FONT_SIZE,
-      ),
-      grade,
-    };
-  });
-}
-
 /** Rozložení jednoho kroku průvodce. */
 export function layoutGuideStep(step: GuideStep, width: number, height: number): GuideLayout {
   const centerX = width / 2;
-  const isQuestion = step === 1;
+  const isFirstStep = step === 1;
   const focusedKind = ROW_OF_STEP[step];
   const focusedRow = layoutSettingsPanel(width, height).rows.find(
     (row) => row.kind === focusedKind,
   );
   const buttonBottom = BUTTON_TOP + BUTTON_HEIGHT;
-  const textLeft = centerX - TEXT_BLOCK_WIDTH / 2;
-  const textRight = centerX + TEXT_BLOCK_WIDTH / 2;
 
   return {
-    heading: isQuestion
-      ? slotFromEdges(textLeft, textRight, HEADING.top, HEADING.bottom, HEADING.fontSize)
-      : null,
-    subheading: isQuestion
-      ? slotFromEdges(textLeft, textRight, SUBHEADING.top, SUBHEADING.bottom, SUBHEADING.fontSize)
-      : null,
-    answers: isQuestion ? layoutAnswers(width) : [],
-    message: isQuestion
-      ? null
-      : {
-          ...slotFromEdges(
-            EDGE_MARGIN,
-            width - EDGE_MARGIN,
-            MESSAGE_TOP,
-            MESSAGE_TOP + 2 * MESSAGE_LINE_HEIGHT,
-            MESSAGE_FONT_SIZE,
-          ),
-          lineCount: 2,
-          lineHeight: MESSAGE_LINE_HEIGHT,
-          align: 'center',
-          color: GUIDE_COLORS.text,
-          background: null,
-        },
-    back: isQuestion
+    message: {
+      ...slotFromEdges(
+        EDGE_MARGIN,
+        width - EDGE_MARGIN,
+        MESSAGE_TOP,
+        MESSAGE_TOP + 2 * MESSAGE_LINE_HEIGHT,
+        MESSAGE_FONT_SIZE,
+      ),
+      lineCount: 2,
+      lineHeight: MESSAGE_LINE_HEIGHT,
+      align: 'center',
+      color: GUIDE_COLORS.text,
+      background: null,
+    },
+    back: isFirstStep
       ? null
       : slotFromEdges(
           EDGE_MARGIN,

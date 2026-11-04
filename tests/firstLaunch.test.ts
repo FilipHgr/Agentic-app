@@ -16,7 +16,6 @@ import {
 import type { LaunchState } from '../src/logic/settingsSession';
 import {
   canOpenSettingsByHold,
-  chooseGrade,
   chooseOption,
   finishGuide,
   guideAtStart,
@@ -25,9 +24,6 @@ import {
   guideStep,
   launchAfterGuide,
   next,
-  selectedGrade,
-  skip,
-  tickGuide,
 } from '../src/logic/setupGuide';
 import type { GuideState } from '../src/logic/setupGuide';
 import { loadProgress, saveProgress } from '../src/storage/progressStorage';
@@ -40,15 +36,16 @@ import { SETTINGS_KEY, brokenStorage, memoryStorage, readOnlyStorage } from './s
  * místo nastavení s nápovědou otevře průvodce (#49 AC1), uložení po „Začít
  * hrát“ a další spuštění (#48 AC4, #49 AC4), otevření kolečkem bez průvodce
  * (#48 AC5, #49 AC6) a okrajové případy (#48 AC6, #49 AC6). Nápověda vedle ✓
- * z #48 AC2 a AC3 už neplatí, nahradil ji průvodce (#49). Samotné kroky
- * průvodce jsou v `setupGuide.test.ts`.
+ * z #48 AC2 a AC3 už neplatí, nahradil ji průvodce (#49). Průvodce je ve
+ * znění bez otázky na třídu: začíná řadou „Do kolika“ a shrnutí je krok 4.
+ * Samotné kroky průvodce jsou v `setupGuide.test.ts`.
  */
 
-const HIGHLIGHT_MS = 300;
 const START_LOCK_MS = 500;
 const T0 = 50_000;
+const SUMMARY_STEP = 4;
 
-/** Výchozí volby, které rodič při prvním spuštění uvidí po „Přeskočit“: „10“, „+“ a „123“. */
+/** Výchozí volby, které průvodce při prvním spuštění předvyplní: „10“, „+“ a „123“. */
 const FIRST_LAUNCH_CHOICE = { maxNumber: 10, operations: 'plus', answerInput: 'keypad' } as const;
 
 const PROGRESS_MID_SET: GameProgress = { earned: 4, character: nextCharacter(FIRST_CHARACTER) };
@@ -76,9 +73,9 @@ function guideOf(page: Page): GuideState {
   return page.guide;
 }
 
-/** Rodič odpoví na otázku, projde všechny kroky až na shrnutí a počká na pojistku. */
+/** Rodič projde „Další“ všechny kroky až na shrnutí a tam případně volby změní. */
 function walkToSummary(guide: GuideState, change: Partial<GameSettings> = {}): GuideState {
-  let state = tickGuide(chooseGrade(guide, 'firstGrade', T0), T0 + HIGHLIGHT_MS);
+  let state = guide;
   for (let tap = 0; tap < 3; tap += 1) {
     state = next(state, T0 + 1000);
   }
@@ -168,7 +165,10 @@ describe('při prvním spuštění se otevře průvodce (#49 AC1)', () => {
   it('při prvním spuštění se místo prvního příkladu otevře průvodce na kroku 1', () => {
     const guide = guideOf(loadPage(memoryStorage()));
     expect(guideStep(guide)).toBe(1);
-    expect(selectedGrade(guide)).toBeNull();
+  });
+
+  it('průvodce při prvním spuštění předvyplní „10“, „+“ a „123“', () => {
+    expect(guideSelection(guideOf(loadPage(memoryStorage())))).toEqual(FIRST_LAUNCH_CHOICE);
   });
 
   it('při každém druhu prvního spuštění začne průvodce na kroku 1', () => {
@@ -186,19 +186,20 @@ describe('při prvním spuštění se otevře průvodce (#49 AC1)', () => {
     }
   });
 
-  it('po „Přeskočit“ je vybráno „10“, „+“ a „123“, i když byla část záznamu platná', () => {
+  it('předvyplněné je „10“, „+“ a „123“, i když byla část záznamu platná', () => {
     const partlyValid = [
       '{"maxNumber":5,"operations":"krat","answerInput":"writing"}',
       '{"maxNumber":7,"operations":"minus","answerInput":"writing"}',
       '{"maxNumber":20,"answerInput":"writing"}',
     ];
     for (const saved of partlyValid) {
-      const summary = skip(guideOf(loadPage(memoryStorage(saved))), T0);
-      expect(guideSelection(summary), saved).toEqual(FIRST_LAUNCH_CHOICE);
+      const guide = guideOf(loadPage(memoryStorage(saved)));
+      expect(guideSelection(guide), saved).toEqual(FIRST_LAUNCH_CHOICE);
+      expect(guideSelection(walkToSummary(guide)), saved).toEqual(FIRST_LAUNCH_CHOICE);
     }
   });
 
-  it('odpověď na třídu se nikam neuloží, uloží se jen nastavení', () => {
+  it('průvodce uloží jen nastavení, nic dalšího', () => {
     const storage = memoryStorage();
     const page = loadPage(storage);
     tapStartPlaying(page, walkToSummary(guideOf(page)), storage);
@@ -217,18 +218,18 @@ describe('po „Začít hrát“ se nastavení uloží a příště začne hra p
 
     expect(result.saved).toBe(true);
     expect(isFirstLaunch(storage.data.get(SETTINGS_KEY))).toBe(false);
-    expect(parseSettings(storage.data.get(SETTINGS_KEY))).toEqual({
-      maxNumber: 10,
-      operations: 'mixed',
-      answerInput: 'keypad',
-    });
+    expect(parseSettings(storage.data.get(SETTINGS_KEY))).toEqual(FIRST_LAUNCH_CHOICE);
   });
 
-  it('po „Přeskočit“ a „Začít hrát“ se uloží výchozí 10 / + / 123', () => {
+  it('volba změněná v kroku průvodce se po „Začít hrát“ uloží', () => {
     const storage = memoryStorage();
     const page = loadPage(storage);
-    tapStartPlaying(page, skip(guideOf(page), T0 + 1000), storage);
-    expect(parseSettings(storage.data.get(SETTINGS_KEY))).toEqual(FIRST_LAUNCH_CHOICE);
+    const step1 = chooseOption(guideOf(page), { maxNumber: 5 });
+    tapStartPlaying(page, walkToSummary(step1), storage);
+    expect(parseSettings(storage.data.get(SETTINGS_KEY))).toEqual({
+      ...FIRST_LAUNCH_CHOICE,
+      maxNumber: 5,
+    });
   });
 
   it('první příklad přijde podle voleb z průvodce', () => {
@@ -248,7 +249,7 @@ describe('po „Začít hrát“ se nastavení uloží a příště začne hra p
     expect(nextPage.guide).toBeNull();
     expect(nextPage.settings).toEqual({
       maxNumber: 10,
-      operations: 'mixed',
+      operations: 'plus',
       answerInput: 'writing',
     });
   });
@@ -264,8 +265,9 @@ describe('po „Začít hrát“ se nastavení uloží a příště začne hra p
 
   it('dokud pojistka 500 ms běží, nic se neuloží', () => {
     const storage = memoryStorage();
-    const summary = skip(guideOf(loadPage(storage)), T0);
-    expect(finishGuide(summary, T0 + START_LOCK_MS - 1)).toBeNull();
+    const summary = walkToSummary(guideOf(loadPage(storage)));
+    expect(guideStep(summary)).toBe(SUMMARY_STEP);
+    expect(finishGuide(summary, T0 + 1000 + START_LOCK_MS - 1)).toBeNull();
     expect(storage.data.size).toBe(0);
   });
 });
@@ -299,17 +301,15 @@ describe('nastavení otevřené kolečkem je bez průvodce (#48 AC5, #49 AC6)', 
 describe('okrajové případy prvního spuštění (#48 AC6, #49 AC6)', () => {
   it('když se stránka zavře uprostřed průvodce, nic se neuloží a příště začne od kroku 1', () => {
     const storage = memoryStorage();
-    let guide = guideOf(loadPage(storage));
-    guide = tickGuide(chooseGrade(guide, 'secondGradeOrHigher', T0), T0 + HIGHLIGHT_MS);
-    guide = chooseOption(next(guide, T0 + 1000), { operations: 'plus' });
-    expect(guideStep(guide)).toBe(3);
+    let guide = chooseOption(guideOf(loadPage(storage)), { maxNumber: 20 });
+    guide = chooseOption(next(guide, T0 + 1000), { operations: 'minus' });
+    expect(guideStep(guide)).toBe(2);
     // Stránka se zavře nebo obnoví, „Začít hrát“ nepřišlo.
 
     expect(storage.data.size).toBe(0);
     const again = guideOf(loadPage(storage));
     expect(guideStep(again)).toBe(1);
-    expect(selectedGrade(again)).toBeNull();
-    expect(guideSelection(skip(again, T0))).toEqual(FIRST_LAUNCH_CHOICE);
+    expect(guideSelection(again)).toEqual(FIRST_LAUNCH_CHOICE);
   });
 
   it('když se stránka zavře na shrnutí před „Začít hrát“, příště začne průvodce znovu', () => {

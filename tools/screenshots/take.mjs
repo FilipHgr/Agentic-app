@@ -29,8 +29,7 @@ const GAME_HEIGHT = 768;
 /** Tlačítko 0 na číselníku 0–10 (výchozí nastavení) v herních souřadnicích. */
 const BUTTON_ZERO = { x: 112, y: 514 };
 
-/** Průvodce (#49): odpověď „1. třída“ a pravé tlačítko (Další / Začít hrát). */
-const GUIDE_FIRST_GRADE = { x: 512, y: 344 };
+/** Průvodce (#49): pravé tlačítko (Další / Začít hrát). */
 const GUIDE_RIGHT_BUTTON = { x: 880, y: 716 };
 
 /** Volba „psaní“ a ✓ v nastavení pro rodiče (rozložení z #47). */
@@ -115,9 +114,6 @@ async function shootDevice(browser, url, device) {
   await page.goto(url);
   await page.waitForTimeout(1500);
   // Nový prohlížeč nemá uložené nastavení: průvodce nastavením (#49).
-  await page.screenshot({ path: join(outputDir, `${device.name}-0a-pruvodce-otazka.png`) });
-  await tapGame(page, GUIDE_FIRST_GRADE);
-  await page.waitForTimeout(500);
   await page.screenshot({ path: join(outputDir, `${device.name}-0b-pruvodce-rozsah.png`) });
   await tapGame(page, GUIDE_RIGHT_BUTTON);
   await page.waitForTimeout(300);

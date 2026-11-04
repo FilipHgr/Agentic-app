@@ -7,7 +7,6 @@ import {
   GUIDE_COLORS,
   GUIDE_TEXTS,
   back,
-  chooseGrade,
   chooseOption,
   finishGuide,
   guideMessage,
@@ -17,13 +16,10 @@ import {
   layoutGuideStep,
   next,
   rightButton,
-  selectedGrade,
-  skip,
   startGuide,
   stepIndicatorText,
-  tickGuide,
 } from '../logic/setupGuide';
-import type { Grade, GuideLayout, GuideSlot, GuideState } from '../logic/setupGuide';
+import type { GuideLayout, GuideSlot, GuideState } from '../logic/setupGuide';
 import { PANEL_DEPTH, PANEL_FADE_MS, SETTINGS_BACKDROP_COLOR } from './SettingsPanel';
 import { SettingsRows } from './SettingsRows';
 
@@ -40,8 +36,8 @@ interface GuideButton {
 }
 
 /**
- * Průvodce nastavením při prvním spuštění (#49): otázka na třídu, tři kroky
- * po řadách s radami a shrnutí s „Začít hrát“. O krocích a volbách rozhoduje
+ * Průvodce nastavením při prvním spuštění (#49): tři kroky po řadách
+ * s radami a shrnutí s „Začít hrát“. O krocích a volbách rozhoduje
  * `src/logic/setupGuide.ts`, panel je jen kreslí.
  */
 export class SetupGuidePanel {
@@ -58,22 +54,18 @@ export class SetupGuidePanel {
   private readonly container: Phaser.GameObjects.Container;
   private readonly rows: SettingsRows;
   private readonly frame: Phaser.GameObjects.Graphics;
-  private readonly heading: Phaser.GameObjects.Text;
-  private readonly subheading: Phaser.GameObjects.Text;
-  private readonly answers: { grade: Grade; button: GuideButton }[] = [];
   private readonly message: Phaser.GameObjects.Text;
   private readonly indicator: Phaser.GameObjects.Text;
   private readonly backButton: GuideButton;
   private readonly rightButton: GuideButton;
-  private renderedState: GuideState | undefined;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly onFinish: (settings: GameSettings) => void,
   ) {
     const { width, height } = scene.scale;
-    const questionLayout = layoutGuideStep(1, width, height);
-    const rowsLayout = layoutGuideStep(2, width, height);
+    const firstLayout = layoutGuideStep(1, width, height);
+    const stepWithBackLayout = layoutGuideStep(2, width, height);
 
     // Neprůhledné pozadí zachytí ťuknutí mimo ovládání průvodce.
     const backdrop = scene.add
@@ -93,40 +85,19 @@ export class SetupGuidePanel {
     this.frame = scene.add.graphics();
     this.container.add(this.frame);
 
-    this.heading = this.addText(questionLayout.heading, GUIDE_TEXTS.question);
-    this.subheading = this.addText(questionLayout.subheading, GUIDE_TEXTS.questionNote);
-    questionLayout.answers.forEach((slot) => {
-      const button = this.addButton(slot, GUIDE_TEXTS.grades[slot.grade], () =>
-        this.onGradeTapped(slot.grade),
-      );
-      this.answers.push({ grade: slot.grade, button });
-    });
-
-    this.message = this.addText(rowsLayout.message, '');
+    this.message = this.addText(stepWithBackLayout.message, '');
     this.message.setLineSpacing(
-      (rowsLayout.message?.lineHeight ?? 0) - (rowsLayout.message?.fontSize ?? 0),
+      stepWithBackLayout.message.lineHeight - stepWithBackLayout.message.fontSize,
     );
-    this.indicator = this.addText(rowsLayout.indicator, '');
-    const backSlot = rowsLayout.back ?? rowsLayout.right;
+    this.indicator = this.addText(stepWithBackLayout.indicator, '');
+    // Zpět je jen na krocích 2–4, proto jeho místo bereme z kroku 2.
+    const backSlot = stepWithBackLayout.back ?? stepWithBackLayout.right;
     this.backButton = this.addButton(backSlot, GUIDE_TEXTS.buttons.back, () => this.onBack());
-    this.rightButton = this.addButton(rowsLayout.right, '', () => this.onRight());
+    this.rightButton = this.addButton(firstLayout.right, '', () => this.onRight());
 
     this.render();
     this.container.setAlpha(0);
     scene.tweens.add({ targets: this.container, alpha: 1, duration: PANEL_FADE_MS });
-  }
-
-  /** Volá scéna každý snímek: po zvýraznění odpovědi průvodce sám přejde dál. */
-  update(nowMs: number): void {
-    this.state = tickGuide(this.state, nowMs);
-    if (this.state !== this.renderedState) {
-      this.render();
-    }
-  }
-
-  private onGradeTapped(grade: Grade): void {
-    this.state = chooseGrade(this.state, grade, this.scene.time.now);
-    this.render();
   }
 
   private onBack(): void {
@@ -137,9 +108,6 @@ export class SetupGuidePanel {
   private onRight(): void {
     const now = this.scene.time.now;
     switch (rightButton(this.state)) {
-      case 'skip':
-        this.state = skip(this.state, now);
-        break;
       case 'next':
         this.state = next(this.state, now);
         break;
@@ -158,22 +126,9 @@ export class SetupGuidePanel {
 
   /** Překreslí krok podle stavu z logiky. */
   private render(): void {
-    this.renderedState = this.state;
     const { width, height } = this.scene.scale;
     const step = this.state.step;
     const layout = layoutGuideStep(step, width, height);
-    const isQuestion = step === 1;
-
-    this.heading.setVisible(isQuestion);
-    this.subheading.setVisible(isQuestion);
-    const chosen = selectedGrade(this.state);
-    for (const { grade, button } of this.answers) {
-      button.container.setVisible(isQuestion);
-      this.paintButton(
-        button,
-        grade === chosen ? GUIDE_COLORS.selectedAnswerBackground : GUIDE_COLORS.buttonBackground,
-      );
-    }
 
     for (const kind of ROW_KINDS) {
       const style = guideRowStyle(this.state, kind);
@@ -182,8 +137,7 @@ export class SetupGuidePanel {
     this.rows.repaint();
     this.drawFrame(layout);
 
-    const message = guideMessage(this.state);
-    this.message.setVisible(message !== null).setText(message ? message.join('\n') : '');
+    this.message.setText(guideMessage(this.state).join('\n'));
     this.indicator.setText(stepIndicatorText(this.state));
 
     this.backButton.container.setVisible(hasBackButton(this.state));
@@ -217,15 +171,15 @@ export class SetupGuidePanel {
       );
   }
 
-  /** Text pro rodiče na středu slotu; bez slotu se nevykreslí nic. */
-  private addText(slot: GuideSlot | null, text: string): Phaser.GameObjects.Text {
+  /** Text pro rodiče na středu slotu. */
+  private addText(slot: GuideSlot, text: string): Phaser.GameObjects.Text {
     const object = this.scene.add
-      .text(slot?.x ?? 0, slot?.y ?? 0, text, {
+      .text(slot.x, slot.y, text, {
         fontFamily: 'Arial, sans-serif',
-        fontSize: `${slot?.fontSize ?? 28}px`,
+        fontSize: `${slot.fontSize}px`,
         color: GUIDE_COLORS.text,
         align: 'center',
-        wordWrap: { width: slot?.width ?? 0 },
+        wordWrap: { width: slot.width },
       })
       .setOrigin(0.5);
     this.container.add(object);
