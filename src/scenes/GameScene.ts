@@ -29,13 +29,13 @@ import { countDot, countingTone, startDotCounting } from '../logic/dotCounting';
 import type { DotCounting } from '../logic/dotCounting';
 import {
   hintMovesLayout,
-  isPortraitLayout,
   isTwoBoxRound,
   gameAreaFor,
   layoutDeviceHint,
   layoutDeviceScreen,
   layoutDeviceWritingScreen,
   playStateAfterResize,
+  sceneryLayoutFor,
 } from '../logic/deviceLayout';
 import type {
   DeviceScreenLayout,
@@ -445,14 +445,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Na telefonu na výšku závisí místo a velikost postavičky na nastavení
-   * (rozsah, druh příkladů, psaní, #56). Po jeho změně se postavička
-   * přesune; jinak zůstane, jak je, a rozběhnutá radost se nepřeruší.
+   * Na telefonu závisí místo a velikost postavičky na nastavení (rozsah,
+   * druh příkladů, psaní, #54, #56) a na šířku i na nápovědě. Po změně se
+   * postavička přesune; jinak zůstane, jak je, a rozběhnutá radost se nepřeruší.
    */
   private placeMascotAfterSettings(): void {
     const layout = this.sceneryLayout();
     const look = mascotLookOf(layout);
-    if (isPortraitLayout(layout) && this.mascot && !this.mascot.isPlacedAt(layout.mascot, look)) {
+    const isPhone = layout.device === 'phone';
+    if (isPhone && this.mascot && !this.mascot.isPlacedAt(layout.mascot, look)) {
       this.mascot.moveTo(layout.mascot, look);
     }
   }
@@ -763,12 +764,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Rozložení pro hvězdičky, postavičku a příklad. Na telefonu na výšku
-   * (#56) se psaní může rozvrhnout jinak než číselník, proto se bere
-   * rozložení se skutečným ovládáním; jinde jako dřív rozložení s číselníkem.
+   * Rozložení pro hvězdičky, postavičku a příklad. Na telefonu (na šířku
+   * i na výšku) rozložení se skutečným ovládáním, jinde jako dřív
+   * s číselníkem (viz `sceneryLayoutFor`).
    */
   private sceneryLayout(): DeviceScreenLayout | DeviceWritingLayout {
-    return this.gameArea.mode === 'phonePortrait' ? this.answerLayout() : this.layout();
+    return sceneryLayoutFor(this.gameArea.mode, this.layout(), this.answerLayout());
   }
 
   private showHintWhenNeeded(): void {

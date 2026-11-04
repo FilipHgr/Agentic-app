@@ -455,6 +455,21 @@ export function hintMovesLayout(layout: DeviceScreenLayout | DeviceWritingLayout
   return layout.device === 'phone' && !isPortraitLayout(layout);
 }
 
+/**
+ * Rozložení, ze kterého se kreslí hvězdičky, postavička a příklad. Na
+ * telefonu (na šířku #54 i na výšku #56) se psaní rozvrhne jinak než
+ * číselník, proto se bere rozložení se skutečným ovládáním `answerLayout`,
+ * aby příklad ani postavička nezasahovaly do okének a teček nápovědy. Na
+ * iPadu a ve zmenšeném zobrazení zůstává rozložení s číselníkem.
+ */
+export function sceneryLayoutFor(
+  mode: LayoutMode,
+  keypadLayout: DeviceScreenLayout,
+  answerLayout: DeviceScreenLayout | DeviceWritingLayout,
+): DeviceScreenLayout | DeviceWritingLayout {
+  return isPhoneMode(mode) ? answerLayout : keypadLayout;
+}
+
 /** Kde a jak zmenšený je panel nastavení a průvodce (navržené na 1024 × 768). */
 export interface PanelPlacement {
   readonly scale: number;
