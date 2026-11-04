@@ -110,3 +110,28 @@ export function parseSettings(saved: string | null | undefined): GameSettings {
     ? { ...settings, answerInput: record.answerInput }
     : settings;
 }
+
+/**
+ * První spuštění (#48): uložené nastavení chybí, je prázdné, není JSON, není
+ * objekt, nebo nemá platný rozsah a druh příkladů. Chybějící nebo neznámý
+ * způsob odpovědi první spuštění není (bere se jako číselník).
+ */
+export function isFirstLaunch(saved: string | null | undefined): boolean {
+  if (typeof saved !== 'string' || saved === '') {
+    return true;
+  }
+
+  let data: unknown;
+  try {
+    data = JSON.parse(saved);
+  } catch {
+    // Nečitelný záznam je stejný případ jako chybějící.
+    return true;
+  }
+
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return true;
+  }
+  const record = data as Record<string, unknown>;
+  return !(isMaxNumber(record.maxNumber) && isOperationMode(record.operations));
+}

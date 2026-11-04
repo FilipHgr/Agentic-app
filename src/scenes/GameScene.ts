@@ -33,13 +33,19 @@ import type { GameSettings } from '../logic/settings';
 import {
   CLOSED_SETTINGS,
   confirmSettings,
+  createLaunchState,
+  isSettingsOpen,
+  launchAfterConfirm,
   openSettings,
   pageAppearance,
+  sessionAtStart,
+  showsHelp,
 } from '../logic/settingsSession';
+import type { LaunchState } from '../logic/settingsSession';
 import type { GameProgress } from '../logic/progress';
 import type { TwoBoxConfirmResult } from '../logic/twoBoxWriting';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
-import { browserStorage, loadSettings, saveSettings } from '../storage/settingsStorage';
+import { browserStorage, loadSettingsState, saveSettings } from '../storage/settingsStorage';
 import { Mascot } from './Mascot';
 import { applyPageAppearance } from '../ui/pageAppearance';
 import { attachSettingsButton } from '../ui/settingsButton';
@@ -127,7 +133,10 @@ export class GameScene extends Phaser.Scene {
   private starIcons: Phaser.GameObjects.Star[] = [];
   private mascot: Mascot | undefined;
   private character: CharacterId = this.savedProgress.character;
-  private settings: GameSettings = loadSettings(browserStorage());
+  private readonly settingsState = loadSettingsState(browserStorage());
+  private settings: GameSettings = this.settingsState.settings;
+  /** Při prvním spuštění se nastavení otevře samo s nápovědou (#48). */
+  private launch: LaunchState = createLaunchState(this.settingsState.firstLaunch);
   private settingsOpen = false;
   /** Naplánované dokončení oslavy; nastavení ho může přerušit (#45). */
   private celebrationTimer: Phaser.Time.TimerEvent | undefined;
@@ -160,7 +169,13 @@ export class GameScene extends Phaser.Scene {
     };
     this.input.on('pointerup', releaseKeypad);
     this.input.on('pointerupoutside', releaseKeypad);
-    this.startRound();
+    // První spuštění: místo prvního příkladu nastavení s nápovědou pro rodiče.
+    const atStart = sessionAtStart(this.launch, this.settings);
+    if (isSettingsOpen(atStart)) {
+      this.openSettings({ withHelp: showsHelp(atStart) });
+    } else {
+      this.startRound();
+    }
   }
 
   override update(time: number): void {
@@ -180,7 +195,7 @@ export class GameScene extends Phaser.Scene {
    * Stránka kolem ztmavne a kolečko se ztlumí (#45). Druhé podržení kolečka
    * při otevřeném nastavení nic neudělá.
    */
-  private openSettings(): void {
+  private openSettings(options: { readonly withHelp?: boolean } = {}): void {
     if (this.settingsOpen) {
       return;
     }
@@ -188,10 +203,12 @@ export class GameScene extends Phaser.Scene {
     // Oslava se pod panelem nedohrává, dokončí ji až potvrzení (#45 AC8).
     this.stopCelebration();
     const settingsButton = document.getElementById('settings-button');
-    const session = openSettings(CLOSED_SETTINGS, this.settings);
+    const session = openSettings(CLOSED_SETTINGS, this.settings, options);
     applyPageAppearance(pageAppearance(session), settingsButton);
 
-    new SettingsPanel(this, this.settings, (chosen) => {
+    new SettingsPanel(this, session, (chosen) => {
+      // Po ✓ se nastavení v témže načtení samo znovu neotevře, ani po restartu scény.
+      this.launch = launchAfterConfirm(this.launch);
       const result = confirmSettings(chosen, this.settings, {
         earned: this.starProgress.earned,
         character: this.character,

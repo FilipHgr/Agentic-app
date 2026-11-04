@@ -2,14 +2,14 @@ import Phaser from 'phaser';
 
 import { CHECK_BUTTON_COLOR, checkButtonStyle } from '../logic/checkButton';
 import type { ButtonSlot } from '../logic/screenLayout';
-import { PENCIL_ICON, SETTINGS_LABEL_COLOR, layoutSettingsPanel } from '../logic/settingsLayout';
-import type { SettingsOptionSlot, SettingsRowLabel } from '../logic/settingsLayout';
 import {
-  CLOSED_SETTINGS,
-  chooseOption,
-  openSettings,
-  selectedOptions,
-} from '../logic/settingsSession';
+  PENCIL_ICON,
+  SETTINGS_LABEL_COLOR,
+  layoutFirstLaunchHelp,
+  layoutSettingsPanel,
+} from '../logic/settingsLayout';
+import type { HelpTextBlock, SettingsOptionSlot, SettingsRowLabel } from '../logic/settingsLayout';
+import { chooseOption, selectedOptions, showsHelp } from '../logic/settingsSession';
 import type { SettingsSession } from '../logic/settingsSession';
 import type { AnswerInput, GameSettings, MaxNumber, OperationMode } from '../logic/settings';
 
@@ -53,10 +53,10 @@ export class SettingsPanel {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    current: GameSettings,
+    session: SettingsSession,
     private readonly onConfirm: (session: SettingsSession) => void,
   ) {
-    this.session = openSettings(CLOSED_SETTINGS, current);
+    this.session = session;
     const { width, height } = scene.scale;
     const layout = layoutSettingsPanel(width, height);
 
@@ -84,10 +84,32 @@ export class SettingsPanel {
       this.addOption(slot, ANSWER_INPUT_LABELS[answerInput], { answerInput });
     }
     this.addConfirmButton(layout.confirm);
+    if (showsHelp(session)) {
+      const help = layoutFirstLaunchHelp(width, height);
+      this.addHelpBlock(help.left);
+      this.addHelpBlock(help.right);
+    }
     this.repaint();
 
     this.container.setAlpha(0);
     scene.tweens.add({ targets: this.container, alpha: 1, duration: PANEL_FADE_MS });
+  }
+
+  /** Blok nápovědy při prvním spuštění (#48): jen text zarovnaný k ✓. */
+  private addHelpBlock(block: HelpTextBlock): void {
+    const anchorX = block.align === 'right' ? block.x + block.width / 2 : block.x - block.width / 2;
+    const text = this.scene.add
+      .text(anchorX, block.y, block.lines.join('\n'), {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: `${block.fontSize}px`,
+        color: block.color,
+        align: block.align,
+        lineSpacing: block.lineHeight - block.fontSize,
+        // Delší text se zalomí uvnitř bloku a nepřeteče přes ✓ ani okraj.
+        wordWrap: { width: block.width },
+      })
+      .setOrigin(block.align === 'right' ? 1 : 0, 0.5);
+    this.container.add(text);
   }
 
   /** Popisek řady pro rodiče (#47): jen text, na ťuknutí nereaguje. */

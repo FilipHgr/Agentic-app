@@ -136,3 +136,63 @@ function layoutRow(
     value,
   }));
 }
+
+/** Blok textu nápovědy pro rodiče (#48); `x` a `y` je střed obdélníku. */
+export interface HelpTextBlock extends Point {
+  readonly width: number;
+  readonly height: number;
+  readonly lines: readonly string[];
+  /** Zarovnání řádků v bloku: oba bloky jsou zarovnané k ✓. */
+  readonly align: 'left' | 'right';
+  readonly fontSize: number;
+  readonly lineHeight: number;
+  readonly color: string;
+}
+
+export interface FirstLaunchHelpLayout {
+  readonly left: HelpTextBlock;
+  readonly right: HelpTextBlock;
+}
+
+const HELP_LEFT_LINES = ['Nastavte hru pro dítě.'];
+const HELP_RIGHT_LINES = ['Později se sem vrátíte', 'podržením kolečka', 'vpravo nahoře.'];
+const HELP_LINE_HEIGHT = 36;
+const HELP_EDGE_MARGIN = 24;
+const HELP_CONFIRM_GAP = 40;
+
+/**
+ * Nápověda při prvním spuštění: dva bloky po stranách ✓, svisle na jeho
+ * středu, 40 px od ✓ a 24 px od okraje plochy.
+ */
+export function layoutFirstLaunchHelp(width: number, height: number): FirstLaunchHelpLayout {
+  const { confirm } = layoutSettingsPanel(width, height);
+  const confirmLeft = confirm.x - confirm.size / 2;
+  const confirmRight = confirm.x + confirm.size / 2;
+
+  const block = (
+    left: number,
+    right: number,
+    lines: readonly string[],
+    align: 'left' | 'right',
+  ): HelpTextBlock => ({
+    x: (left + right) / 2,
+    y: confirm.y,
+    width: right - left,
+    height: lines.length * HELP_LINE_HEIGHT,
+    lines,
+    align,
+    fontSize: LABEL_FONT_SIZE,
+    lineHeight: HELP_LINE_HEIGHT,
+    color: SETTINGS_LABEL_COLOR,
+  });
+
+  return {
+    left: block(HELP_EDGE_MARGIN, confirmLeft - HELP_CONFIRM_GAP, HELP_LEFT_LINES, 'right'),
+    right: block(
+      confirmRight + HELP_CONFIRM_GAP,
+      width - HELP_EDGE_MARGIN,
+      HELP_RIGHT_LINES,
+      'left',
+    ),
+  };
+}

@@ -5,8 +5,8 @@
  * Spuštění z kořene repa (po `npm run build`):
  *   node tools/screenshots/take.mjs [složka]
  *
- * Udělá snímky na iPadu na šířku a na telefonu na výšku v pěti stavech:
- * začátek hry, nápověda po dvou chybách, počítání teček ťukáním,
+ * Udělá snímky na iPadu na šířku a na telefonu na výšku v těchto stavech:
+ * první spuštění s nápovědou, začátek hry, nápověda po dvou chybách, počítání teček ťukáním,
  * otevřené nastavení pro rodiče,
  * okénka na psaní (#41, #42) a rozpoznané napsané číslo.
  * Použije WebKit (jako Safari), když je k dispozici, jinak Chromium a řekne to.
@@ -29,9 +29,9 @@ const GAME_HEIGHT = 768;
 /** Tlačítko 0 na číselníku 0–10 (výchozí nastavení) v herních souřadnicích. */
 const BUTTON_ZERO = { x: 112, y: 514 };
 
-/** Volba „psaní“ a ✓ v nastavení pro rodiče. */
-const SETTINGS_WRITING = { x: 642, y: 461 };
-const SETTINGS_CONFIRM = { x: 512, y: 660 };
+/** Volba „psaní“ a ✓ v nastavení pro rodiče (rozložení z #47). */
+const SETTINGS_WRITING = { x: 642, y: 497 };
+const SETTINGS_CONFIRM = { x: 512, y: 669 };
 
 /**
  * Číslo 17 napsané do dvou okének při rozsahu 10 (#42): jednička do okénka
@@ -110,6 +110,10 @@ async function shootDevice(browser, url, device) {
 
   await page.goto(url);
   await page.waitForTimeout(1500);
+  // Nový prohlížeč nemá uložené nastavení: první spuštění s nápovědou (#48).
+  await page.screenshot({ path: join(outputDir, `${device.name}-0-prvni-spusteni.png`) });
+  await tapGame(page, SETTINGS_CONFIRM);
+  await page.waitForTimeout(600);
   await page.screenshot({ path: join(outputDir, `${device.name}-1-zacatek.png`) });
 
   // Dvě chyby za sebou ukážou nápovědu (výjimka: příklad s výsledkem 0).
