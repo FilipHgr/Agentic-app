@@ -49,3 +49,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-03 V cloudu funguje `gh` jen na vyhledávání a adresy `*.workers.dev`
   jsou blokované. Issues se tam čtou přes GitHub nástroje a náhled ověřuje
   vlastník.
+- 2026-11-04 Pravidla „ask“ v `.claude/settings.json` zrušena, vlastníka
+  obtěžovaly dotazy na povolení. Pravidla „deny“ (hlavní větve, force push,
+  deploy, `.env`) zůstávají.

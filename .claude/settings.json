@@ -42,20 +42,6 @@
       "Bash(gh pr create *)",
       "Bash(gh pr checks *)"
     ],
-    "ask": [
-      "Bash(npm install *)",
-      "Bash(npm uninstall *)",
-      "Bash(git push *)",
-      "Bash(git reset *)",
-      "Bash(git rebase *)",
-      "Bash(rm *)",
-      "Edit(./.github/workflows/**)",
-      "Edit(./package.json)",
-      "Edit(./.claude/settings.json)",
-      "Edit(./.claude/hooks/**)",
-      "Edit(./.claude/agents/**)",
-      "Edit(./.claude/skills/**)"
-    ],
     "deny": [
       "Read(./.env)",
       "Read(./.env.*)",
