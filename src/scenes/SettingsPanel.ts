@@ -37,10 +37,6 @@ const ANSWER_INPUT_LABELS: Record<AnswerInput, string> = { keypad: '123', writin
 const ROW_Y = [0.16, 0.38, 0.6] as const;
 const CONFIRM_Y = 0.86;
 
-/** Poznámka pro rodiče pod volbou psaní (dítě nastavení neotevře). */
-const WRITING_NOTE = 'Psaní zatím jen do 10';
-const NOTE_COLOR = '#ffffff';
-
 interface OptionButton {
   readonly background: Phaser.GameObjects.Graphics;
   readonly isSelected: () => boolean;
@@ -85,7 +81,7 @@ export class SettingsPanel {
         select: () => (this.choice = { ...this.choice, operations }),
       })),
     );
-    const answerRow = this.addOptionRow(
+    this.addOptionRow(
       height * ROW_Y[2],
       ANSWER_INPUT_OPTIONS.map((answerInput) => ({
         label: ANSWER_INPUT_LABELS[answerInput],
@@ -93,10 +89,6 @@ export class SettingsPanel {
         select: () => (this.choice = { ...this.choice, answerInput }),
       })),
     );
-    const writingX = answerRow[ANSWER_INPUT_OPTIONS.indexOf('writing')];
-    if (writingX !== undefined) {
-      this.addNote(writingX, height * ROW_Y[2] + OPTION_HEIGHT / 2 + 24, WRITING_NOTE);
-    }
     this.addConfirmButton(width / 2, height * CONFIRM_Y);
     this.repaint();
 
@@ -104,11 +96,11 @@ export class SettingsPanel {
     scene.tweens.add({ targets: this.container, alpha: 1, duration: 150 });
   }
 
-  /** Řada voleb vycentrovaná na obrazovce; vrátí vodorovné středy tlačítek. */
+  /** Řada voleb vycentrovaná na obrazovce. */
   private addOptionRow(
     y: number,
     items: { label: string; isSelected: () => boolean; select: () => void }[],
-  ): number[] {
+  ): void {
     const rowWidth = items.length * OPTION_WIDTH + (items.length - 1) * OPTION_GAP;
     const firstX = this.scene.scale.width / 2 - rowWidth / 2 + OPTION_WIDTH / 2;
 
@@ -136,15 +128,6 @@ export class SettingsPanel {
       this.options.push({ background, isSelected: item.isSelected });
       this.container.add(button);
     });
-
-    return items.map((_, index) => firstX + index * (OPTION_WIDTH + OPTION_GAP));
-  }
-
-  private addNote(x: number, y: number, text: string): void {
-    const note = this.scene.add
-      .text(x, y, text, { fontFamily: 'Arial, sans-serif', fontSize: '24px', color: NOTE_COLOR })
-      .setOrigin(0.5);
-    this.container.add(note);
   }
 
   private addConfirmButton(x: number, y: number): void {

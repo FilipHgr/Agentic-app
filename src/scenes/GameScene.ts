@@ -26,7 +26,7 @@ import { nextCharacter } from '../logic/characters';
 import type { CharacterId } from '../logic/characters';
 import { isWritingActive } from '../logic/settings';
 import type { GameSettings } from '../logic/settings';
-import type { ConfirmResult } from '../logic/writingRound';
+import type { TwoBoxConfirmResult } from '../logic/twoBoxWriting';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { browserStorage, loadSettings, saveSettings } from '../storage/settingsStorage';
 import { Mascot } from './Mascot';
@@ -204,35 +204,34 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  /** Místo číselníku plocha na psaní; psaní je jen při rozsahu 5 a 10. */
+  /** Místo číselníku okénka na psaní: při rozsahu 5 jedno, při 10 a 20 dvě (#42). */
   private createWritingPad(round: AnswerRound): void {
-    const maxNumber = round.maxNumber === 5 ? 5 : 10;
     const layout = layoutWritingScreen(
       this.scale.width,
       this.scale.height,
-      maxNumber,
+      this.settings.maxNumber,
       STARS_PER_SET,
     );
     this.writingPad = new WritingPad(this, layout, round, {
-      onDigitChanged: (digit) => this.showWrittenDigit(digit),
+      onNumberChanged: (number) => this.showWrittenNumber(number),
       onConfirmed: (result) => this.onWritingConfirmed(result),
     });
   }
 
-  /** Rozpoznaná číslice se ukáže žlutě místo „?“, dokud ji dítě nepotvrdí. */
-  private showWrittenDigit(digit: number | null): void {
+  /** Rozpoznané číslo se ukáže žlutě místo „?“, dokud ho dítě nepotvrdí. */
+  private showWrittenNumber(number: number | null): void {
     if (!this.round || this.round.solved || !this.problemAnswer) {
       return;
     }
-    if (digit === null) {
+    if (number === null) {
       this.problemAnswer.setText(problemText(this.round).answer).setColor(PROBLEM_TEXT_COLOR);
     } else {
-      this.problemAnswer.setText(String(digit)).setColor(ANSWER_WRITTEN_COLOR);
+      this.problemAnswer.setText(String(number)).setColor(ANSWER_WRITTEN_COLOR);
     }
     this.centerProblem(this.layout());
   }
 
-  private onWritingConfirmed(result: ConfirmResult): void {
+  private onWritingConfirmed(result: TwoBoxConfirmResult): void {
     const pad = this.writingPad;
     if (!pad) {
       return;
@@ -240,7 +239,7 @@ export class GameScene extends Phaser.Scene {
     this.round = result.round.answer;
     this.applyOutcome(result.outcome, pad.confirmPosition, {
       onCorrect: () => pad.lock(),
-      onWrong: () => this.showWrittenDigit(null),
+      onWrong: () => this.showWrittenNumber(null),
     });
   }
 

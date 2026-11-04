@@ -3,7 +3,7 @@
  * bez Phaseru, aby šel tento soubor testovat bez prohlížeče.
  */
 
-import { DEFAULT_SETTINGS, MAX_WRITTEN_RESULT, isWritingActive } from './settings';
+import { DEFAULT_SETTINGS } from './settings';
 import type { GameSettings, Operation } from './settings';
 
 /** Výchozí rozsah: žádné číslo v příkladu ani výsledek nepřekročí tuto hodnotu. */
@@ -76,7 +76,6 @@ function pickFrom<T>(items: readonly T[], random: () => number): T | undefined {
  * Vylosuje příklad podle nastavení. Všechna čísla i výsledek jsou celá,
  * nezáporná a nejvýš zvolený rozsah. Příklad s nulou přijde jen asi
  * v `ZERO_SHARE` případů. Nový příklad není stejný jako `previous`.
- * Při psaní (#41) je výsledek nejvýš 9, aby šel napsat jednou číslicí.
  * Losování vždy skončí, i když generátor vrací pořád stejné číslo.
  *
  * @param random Generátor v rozsahu [0, 1), ve testech lze podvrhnout.
@@ -88,9 +87,8 @@ export function createProblem(
   previous?: Problem,
 ): Problem {
   const operation = pickOperation(settings, random);
-  const maxResult = isWritingActive(settings) ? MAX_WRITTEN_RESULT : settings.maxNumber;
   const candidates = problemsOf(operation, settings.maxNumber).filter(
-    (problem) => problem.result <= maxResult && (!previous || !isSameProblem(problem, previous)),
+    (problem) => !previous || !isSameProblem(problem, previous),
   );
   const withZero = candidates.filter(hasZero);
   const withoutZero = candidates.filter((problem) => !hasZero(problem));

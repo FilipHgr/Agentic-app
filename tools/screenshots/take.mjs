@@ -7,7 +7,7 @@
  *
  * Udělá snímky na iPadu na šířku a na telefonu na výšku v pěti stavech:
  * začátek hry, nápověda po dvou chybách, otevřené nastavení pro rodiče,
- * plocha na psaní (#41) a rozpoznaná napsaná číslice.
+ * okénka na psaní (#41, #42) a rozpoznané napsané číslo.
  * Použije WebKit (jako Safari), když je k dispozici, jinak Chromium a řekne to.
  * Playwright není závislost projektu, musí být nainstalovaný v systému.
  */
@@ -32,11 +32,19 @@ const BUTTON_ZERO = { x: 112, y: 514 };
 const SETTINGS_WRITING = { x: 642, y: 461 };
 const SETTINGS_CONFIRM = { x: 512, y: 660 };
 
-/** Sedmička napsaná přes plochu na psaní (levý horní roh plochy je 352, 424). */
+/**
+ * Číslo 17 napsané do dvou okének při rozsahu 10 (#42): jednička do okénka
+ * desítek (střed 360, 604), sedmička do okénka jednotek (střed 664, 604).
+ */
+const ONE = [
+  { x: 340, y: 500 },
+  { x: 370, y: 470 },
+  { x: 370, y: 720 },
+];
 const SEVEN = [
-  { x: 402, y: 474 },
-  { x: 622, y: 474 },
-  { x: 472, y: 714 },
+  { x: 574, y: 514 },
+  { x: 754, y: 514 },
+  { x: 614, y: 704 },
 ];
 
 const DEVICES = [
@@ -124,6 +132,7 @@ async function shootDevice(browser, url, device) {
   await page.waitForTimeout(600);
   await page.screenshot({ path: join(outputDir, `${device.name}-4-psani.png`) });
 
+  await drawGame(page, ONE);
   await drawGame(page, SEVEN);
   await page.waitForTimeout(1300);
   await page.screenshot({ path: join(outputDir, `${device.name}-5-psani-cislice.png`) });

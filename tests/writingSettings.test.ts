@@ -10,6 +10,7 @@ import {
   isWritingActive,
   parseSettings,
   serializeSettings,
+  writingBoxCount,
 } from '../src/logic/settings';
 import type { AnswerInput, GameSettings, MaxNumber, Operation } from '../src/logic/settings';
 import { loadSettings, saveSettings } from '../src/storage/settingsStorage';
@@ -18,9 +19,10 @@ import type { KeyValueStorage } from '../src/storage/settingsStorage';
 import { seededRandom } from './seededRandom';
 
 /**
- * Testy k #41 (psaní odpovědi prstem): volba v nastavení pro rodiče (AC1)
- * a příklady s výsledkem 0–9 při psaní (AC6). Měřítka #37 a #39 platí dál,
- * testy jsou obdobou `noRepeat.test.ts` a `fewerZeros.test.ts`.
+ * Testy k #41 a #42 (psaní odpovědi prstem): volba v nastavení pro rodiče
+ * (#41 AC1), psaní ve všech rozsazích (#42 AC1) a při psaní stejné příklady
+ * jako s číselníkem (#42 AC5, dřív #41 AC6 jen 0–9). Měřítka #37 a #39 platí
+ * dál, testy jsou obdobou `noRepeat.test.ts` a `fewerZeros.test.ts`.
  */
 
 /** Kolik příkladů se v jednom měření vylosuje. */
@@ -33,13 +35,10 @@ const MAX_ZERO_SHARE = 0.15;
 const MIN_OPERATION_SHARE = 0.4;
 const MAX_OPERATION_SHARE = 0.6;
 
-/** Nejvyšší výsledek, který jde napsat jednou číslicí. */
-const MAX_WRITTEN_RESULT = 9;
+/** Rozsahy, ve kterých se odpovídá psaním: od #42 všechny. */
+const WRITING_RANGES: MaxNumber[] = [5, 10, 20];
 
-/** Rozsahy, ve kterých se odpovídá psaním. */
-const WRITING_RANGES: MaxNumber[] = [5, 10];
-
-/** Všechny kombinace rozsahu 5 a 10 s „+“, „−“ i „+ −“ se zapnutým psaním. */
+/** Všechny kombinace rozsahu 5, 10 a 20 s „+“, „−“ i „+ −“ se zapnutým psaním. */
 const WRITING_SETTINGS: GameSettings[] = WRITING_RANGES.flatMap((maxNumber) =>
   OPERATION_OPTIONS.map((operations) => withInput({ maxNumber, operations }, 'writing')),
 );
@@ -189,16 +188,69 @@ describe('AC1: rodič přepíná mezi číselníkem a psaním a volba se pamatuj
   });
 });
 
-describe('AC6: při psaní dává hra jen příklady s výsledkem 0–9', () => {
-  it('kombinací rozsahu 5 a 10 s „+“, „−“ a „+ −“ je šest', () => {
-    expect(WRITING_SETTINGS).toHaveLength(6);
+describe('#42 AC1: psaní funguje při rozsahu 5, 10 i 20', () => {
+  it('se zapnutým psaním se píše ve všech rozsazích a se všemi druhy příkladů', () => {
+    expect(WRITING_SETTINGS).toHaveLength(9);
+    for (const settings of WRITING_SETTINGS) {
+      expect(isWritingActive(settings), label(settings)).toBe(true);
+    }
+  });
+
+  it('s číselníkem se nepíše v žádném rozsahu', () => {
+    for (const maxNumber of [5, 10, 20] as const) {
+      for (const operations of OPERATION_OPTIONS) {
+        expect(isWritingActive(withInput({ maxNumber, operations }, 'keypad'))).toBe(false);
+      }
+    }
+  });
+
+  it('starší uložené nastavení „psaní + rozsah 20“ teď znamená psaní', () => {
+    for (const operations of OPERATION_OPTIONS) {
+      const loaded = parseSettings(
+        `{"maxNumber":20,"operations":"${operations}","answerInput":"writing"}`,
+      );
+
+      expect(loaded.maxNumber).toBe(20);
+      expect(answerInputOf(loaded)).toBe('writing');
+      expect(isWritingActive(loaded)).toBe(true);
+    }
+  });
+
+  it('psaní zůstane zapnuté, i když rodič přepíná rozsah 5, 10 a 20', () => {
+    const storage = memoryStorage();
+    saveSettings(storage, withInput({ maxNumber: 20, operations: 'plus' }, 'writing'));
+
+    for (const maxNumber of [20, 5, 10, 20] as const) {
+      saveSettings(storage, { ...loadSettings(storage), maxNumber });
+      const loaded = loadSettings(storage);
+
+      expect(loaded.maxNumber).toBe(maxNumber);
+      expect(isWritingActive(loaded)).toBe(true);
+    }
+  });
+
+  it('při rozsahu 10 a 20 má dítě dvě okénka, při rozsahu 5 jedno', () => {
+    expect(writingBoxCount(5)).toBe(1);
+    expect(writingBoxCount(10)).toBe(2);
+    expect(writingBoxCount(20)).toBe(2);
+  });
+});
+
+describe('#42 AC5: při psaní dává hra stejné příklady jako s číselníkem', () => {
+  it('kombinací rozsahu 5, 10 a 20 s „+“, „−“ a „+ −“ je devět', () => {
+    expect(WRITING_SETTINGS).toHaveLength(9);
   });
 
   for (const settings of WRITING_SETTINGS) {
-    it(`${label(settings)}: všech 1000 příkladů má výsledek 0–9 a čísla z rozsahu`, () => {
+    it(`${label(settings)}: se stejnou náhodou přijdou stejné příklady jako s číselníkem`, () => {
+      const keypad = withInput(settings, 'keypad');
+
+      expect(playInARow(settings)).toEqual(playInARow(keypad));
+    });
+
+    it(`${label(settings)}: všech 1000 příkladů má čísla i výsledek 0 až rozsah`, () => {
       for (const problem of playInARow(settings)) {
         expectValidProblem(problem, settings.maxNumber);
-        expect(problem.result).toBeLessThanOrEqual(MAX_WRITTEN_RESULT);
       }
     });
 
@@ -241,72 +293,36 @@ describe('AC6: při psaní dává hra jen příklady s výsledkem 0–9', () => 
       const results = new Set(problems.map((problem) => problem.result));
 
       expect(problems.some(hasZero)).toBe(true);
-      expect(results.size).toBeGreaterThanOrEqual(Math.min(settings.maxNumber, 9) - 1);
+      expect(results.size).toBeGreaterThanOrEqual(settings.maxNumber - 1);
     });
   }
 
-  it('psaní do 10: přijdou i výsledky 8 a 9, jen 10 ne', () => {
+  it('psaní do 10: přijde i výsledek 10', () => {
     const results = new Set(
       playInARow(withInput({ maxNumber: 10, operations: 'mixed' }, 'writing')).map(
         (problem) => problem.result,
       ),
     );
 
-    expect(results.has(8)).toBe(true);
     expect(results.has(9)).toBe(true);
-    expect(results.has(10)).toBe(false);
+    expect(results.has(10)).toBe(true);
   });
 
-  it('s číselníkem do 10 zůstává i výsledek 10', () => {
-    const results = playInARow(withInput({ maxNumber: 10, operations: 'plus' }, 'keypad')).map(
-      (problem) => problem.result,
+  it('psaní do 20: přijdou všechny výsledky 10 až 20', () => {
+    const results = new Set(
+      playInARow(withInput({ maxNumber: 20, operations: 'plus' }, 'writing')).map(
+        (problem) => problem.result,
+      ),
     );
 
-    expect(results).toContain(10);
-  });
-
-  it('psaní je zapnuté při rozsahu 5 a 10', () => {
-    for (const settings of WRITING_SETTINGS) {
-      expect(isWritingActive(settings)).toBe(true);
+    for (let result = 10; result <= 20; result += 1) {
+      expect(results.has(result), `výsledek ${result}`).toBe(true);
     }
   });
 
-  it('s číselníkem se nepíše v žádném rozsahu', () => {
-    for (const maxNumber of [5, 10, 20] as const) {
-      for (const operations of OPERATION_OPTIONS) {
-        expect(isWritingActive(withInput({ maxNumber, operations }, 'keypad'))).toBe(false);
-      }
-    }
-  });
-
-  it('při rozsahu 20 se odpovídá číselníkem i se zapnutým psaním', () => {
-    for (const operations of OPERATION_OPTIONS) {
-      expect(isWritingActive(withInput({ maxNumber: 20, operations }, 'writing'))).toBe(false);
-    }
-  });
-
-  it('při rozsahu 20 se zapnutým psaním přijdou i výsledky nad 9 jako s číselníkem', () => {
-    const problems = playInARow(withInput({ maxNumber: 20, operations: 'plus' }, 'writing'));
-
-    expect(problems.some((problem) => problem.result > MAX_WRITTEN_RESULT)).toBe(true);
-    for (const problem of problems) {
-      expectValidProblem(problem, 20);
-    }
-  });
-
-  it('po přepnutí z rozsahu 20 zpět na 5 nebo 10 se psaní vrátí', () => {
-    const storage = memoryStorage();
-    saveSettings(storage, withInput({ maxNumber: 20, operations: 'plus' }, 'writing'));
-    const at20 = loadSettings(storage);
-
-    expect(isWritingActive(at20)).toBe(false);
-    expect(answerInputOf(at20)).toBe('writing');
-
-    for (const maxNumber of WRITING_RANGES) {
-      const back: GameSettings = { ...at20, maxNumber };
-      saveSettings(storage, back);
-
-      expect(isWritingActive(loadSettings(storage))).toBe(true);
+  it('psaní do 5: výsledky zůstávají 0–5', () => {
+    for (const problem of playInARow(withInput({ maxNumber: 5, operations: 'mixed' }, 'writing'))) {
+      expect(problem.result).toBeLessThanOrEqual(5);
     }
   });
 });

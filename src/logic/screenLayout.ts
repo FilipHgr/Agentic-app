@@ -8,6 +8,10 @@
  * 0–5 jedna řada, 0–10 dvě řady, 0–20 tři menší řady a menší nápověda.
  */
 
+import { writingBoxCount } from './settings';
+import type { MaxNumber } from './settings';
+import type { WritingBox } from './twoBoxWriting';
+
 /** Strana tlačítka s číslem při rozsahu do 5 a do 10. */
 export const ANSWER_BUTTON_SIZE = 140;
 
@@ -364,38 +368,48 @@ export function layoutHintDots(
   return dots;
 }
 
-/** Strana čtvercové plochy na psaní (#41). */
+/** Strana jediného okénka na psaní při rozsahu 5 (#41). */
 export const WRITING_AREA_SIZE = 320;
 
-/** Velikost tlačítek ✓ a smazání vedle plochy na psaní. */
+/** Strana každého ze dvou okének (desítky a jednotky) při rozsahu 10 a 20 (#42). */
+export const TWO_BOX_AREA_SIZE = 280;
+
+/** Mezera mezi okénkem desítek a jednotek. */
+const TWO_BOX_GAP = 24;
+
+/** Velikost tlačítek ✓ a smazání vedle okének. */
 export const WRITING_BUTTON_SIZE = 120;
 
-/** Mezera mezi plochou na psaní a tlačítky. */
+/** Mezera mezi okénky a tlačítky. */
 const WRITING_BUTTON_GAP = 48;
 
-/** Plocha na psaní; `x` a `y` je její střed. */
+/** Při dvou okénkách je místa méně, tlačítka jsou blíž. */
+const TWO_BOX_BUTTON_GAP = 32;
+
+/** Okénko na psaní; `x` a `y` je jeho střed. */
 export interface WritingAreaSlot extends Point {
   readonly width: number;
   readonly height: number;
 }
 
 export interface WritingLayout extends Omit<ScreenLayout, 'answerButtons'> {
-  readonly writingArea: WritingAreaSlot;
-  /** ✓ vpravo od plochy. */
+  /** Při rozsahu 5 jedno okénko, při 10 a 20 desítky (vlevo) a jednotky (vpravo). */
+  readonly writingAreas: readonly WritingAreaSlot[];
+  /** ✓ vpravo od okének. */
   readonly confirmButton: ButtonSlot;
-  /** Smazání vlevo od plochy. */
+  /** Smazání vlevo od okének. */
   readonly clearButton: ButtonSlot;
 }
 
 /**
  * Rozložení při psaní: nahoře stejné jako s číselníkem (hvězdičky,
- * postavička, příklad, nápověda), dole místo číselníku plocha na psaní,
- * vlevo od ní smazání a vpravo ✓.
+ * postavička, příklad, nápověda), dole místo číselníku okénka na psaní,
+ * vlevo od nich smazání a vpravo ✓.
  */
 export function layoutWritingScreen(
   screenWidth: number,
   screenHeight: number,
-  maxNumber: 5 | 10,
+  maxNumber: MaxNumber,
   starCount = 0,
 ): WritingLayout {
   const keypadLayout = layoutScreen(screenWidth, screenHeight, maxNumber + 1, starCount);
@@ -408,19 +422,43 @@ export function layoutWritingScreen(
     stars: keypadLayout.stars,
     mascot: keypadLayout.mascot,
   };
+  const twoBoxes = writingBoxCount(maxNumber) === 2;
+  const side = twoBoxes ? TWO_BOX_AREA_SIZE : WRITING_AREA_SIZE;
   const centerX = screenWidth / 2;
-  const centerY = screenHeight - BOTTOM_MARGIN - WRITING_AREA_SIZE / 2;
-  const buttonOffset = WRITING_AREA_SIZE / 2 + WRITING_BUTTON_GAP + WRITING_BUTTON_SIZE / 2;
+  const centerY = screenHeight - BOTTOM_MARGIN - side / 2;
+  const boxesWidth = twoBoxes ? side * 2 + TWO_BOX_GAP : side;
+  const buttonGap = twoBoxes ? TWO_BOX_BUTTON_GAP : WRITING_BUTTON_GAP;
+  const buttonOffset = boxesWidth / 2 + buttonGap + WRITING_BUTTON_SIZE / 2;
+  const boxOffset = (side + TWO_BOX_GAP) / 2;
+
+  const writingAreas = twoBoxes
+    ? [centerX - boxOffset, centerX + boxOffset].map((x) => ({
+        x,
+        y: centerY,
+        width: side,
+        height: side,
+      }))
+    : [{ x: centerX, y: centerY, width: side, height: side }];
 
   return {
     ...top,
-    writingArea: {
-      x: centerX,
-      y: centerY,
-      width: WRITING_AREA_SIZE,
-      height: WRITING_AREA_SIZE,
-    },
+    writingAreas,
     confirmButton: { x: centerX + buttonOffset, y: centerY, size: WRITING_BUTTON_SIZE },
     clearButton: { x: centerX - buttonOffset, y: centerY, size: WRITING_BUTTON_SIZE },
   };
+}
+
+/**
+ * Ve kterém okénku dotyk začal. Při jednom okénku jsou to jednotky.
+ * Dotyk v mezeře mezi okénky nebo mimo ně vrátí `null`.
+ */
+export function writingAreaAt(layout: WritingLayout, point: Point): WritingBox | null {
+  const index = layout.writingAreas.findIndex(
+    (area) =>
+      Math.abs(point.x - area.x) <= area.width / 2 && Math.abs(point.y - area.y) <= area.height / 2,
+  );
+  if (index < 0) {
+    return null;
+  }
+  return layout.writingAreas.length === 2 && index === 0 ? 'tens' : 'ones';
 }

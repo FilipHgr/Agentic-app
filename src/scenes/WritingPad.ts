@@ -2,21 +2,21 @@ import Phaser from 'phaser';
 
 import type { AnswerRound } from '../logic/answerRound';
 import type { Stroke, StrokePoint } from '../logic/digitRecognition';
-import type { ButtonSlot, WritingLayout } from '../logic/screenLayout';
+import type { ButtonSlot, WritingAreaSlot, WritingLayout } from '../logic/screenLayout';
 import {
-  REJECTED_FADE_MS,
-  canConfirm,
-  clearWriting,
-  confirmWriting,
-  createWritingRound,
-  fadingStrokes,
-  finishStroke,
-  shownDigit,
-  startStroke,
-  updateWriting,
-  writtenStrokes,
-} from '../logic/writingRound';
-import type { ConfirmResult, WritingRound } from '../logic/writingRound';
+  boxFadingStrokes,
+  boxStrokes,
+  canConfirmBoxes,
+  clearBoxes,
+  confirmBoxes,
+  createTwoBoxRound,
+  finishBoxStroke,
+  shownNumber,
+  startBoxStroke,
+  updateBoxes,
+} from '../logic/twoBoxWriting';
+import type { TwoBoxConfirmResult, TwoBoxRound, WritingBox } from '../logic/twoBoxWriting';
+import { REJECTED_FADE_MS } from '../logic/writingRound';
 
 const AREA_COLOR = 0x175a36;
 const AREA_BORDER_COLOR = 0xffffff;
@@ -36,80 +36,71 @@ const DISABLED_ALPHA = 0.35;
 const MIN_POINT_DISTANCE = 3;
 
 export interface WritingPadEvents {
-  /** Změnila se rozpoznaná číslice (`null` = žádná). */
-  readonly onDigitChanged: (digit: number | null) => void;
+  /** Změnilo se rozpoznané číslo (`null` = žádné). */
+  readonly onNumberChanged: (number: number | null) => void;
   /** Dítě ťuklo na ✓ a odpověď se vyhodnotila. */
-  readonly onConfirmed: (result: ConfirmResult) => void;
+  readonly onConfirmed: (result: TwoBoxConfirmResult) => void;
+}
+
+/** Jedno okénko na obrazovce: pozadí, napsané tahy a blednoucí odmítnutý zápis. */
+interface BoxView {
+  readonly box: WritingBox;
+  readonly slot: WritingAreaSlot;
+  readonly container: Phaser.GameObjects.Container;
+  /** Napsané tahy: kreslí se jednou do textury, ne znovu každý snímek. */
+  readonly ink: Phaser.GameObjects.RenderTexture;
+  readonly fadingInk: Phaser.GameObjects.Graphics;
+  lastFading: readonly Stroke[];
 }
 
 /**
- * Plocha na psaní s tlačítky smazání a ✓. Kreslí tahy pod prstem a předává
- * je logice ve `writingRound.ts`; o rozpoznání a správnosti nerozhoduje.
+ * Okénka na psaní (jedno při rozsahu 5, desítky a jednotky při 10 a 20)
+ * s tlačítky smazání a ✓. Kreslí tahy pod prstem a předává je logice
+ * v `twoBoxWriting.ts`; o rozpoznání a správnosti nerozhoduje.
  */
 export class WritingPad {
-  private round: WritingRound;
+  private round: TwoBoxRound;
   private readonly objects: Phaser.GameObjects.GameObject[] = [];
-  private readonly area: Phaser.GameObjects.Container;
-  /** Napsané tahy: kreslí se jednou do textury, ne znovu každý snímek. */
-  private readonly ink: Phaser.GameObjects.RenderTexture;
-  /** Štětec, kterým se nové úseky tahu kreslí do `ink`; sám není vidět. */
+  private readonly views: BoxView[];
+  /** Štětec, kterým se nové úseky tahu kreslí do textur; sám není vidět. */
   private readonly brush: Phaser.GameObjects.Graphics;
-  private readonly fadingInk: Phaser.GameObjects.Graphics;
   private readonly confirmButton: Phaser.GameObjects.Container;
   private currentStroke: StrokePoint[] | undefined;
+  private activeView: BoxView | undefined;
   private activePointerId: number | undefined;
-  private lastDigit: number | null = null;
-  private lastFading: readonly Stroke[] = [];
+  private lastNumber: number | null = null;
+  private couldConfirm = false;
   private locked = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly layout: WritingLayout,
+    layout: WritingLayout,
     answer: AnswerRound,
     private readonly events: WritingPadEvents,
   ) {
-    const slot = layout.writingArea;
-    this.round = createWritingRound(answer, { width: slot.width, height: slot.height });
-
-    const background = scene.add.graphics();
-    background
-      .fillStyle(AREA_COLOR, 1)
-      .fillRoundedRect(
-        -slot.width / 2,
-        -slot.height / 2,
-        slot.width,
-        slot.height,
-        AREA_CORNER_RADIUS,
-      )
-      .lineStyle(4, AREA_BORDER_COLOR, 0.6)
-      .strokeRoundedRect(
-        -slot.width / 2,
-        -slot.height / 2,
-        slot.width,
-        slot.height,
-        AREA_CORNER_RADIUS,
-      );
-    this.fadingInk = scene.add.graphics();
-    this.ink = scene.add
-      .renderTexture(-slot.width / 2, -slot.height / 2, slot.width, slot.height)
-      .setOrigin(0, 0);
+    const [first] = layout.writingAreas;
+    const size = { width: first?.width ?? 0, height: first?.height ?? 0 };
+    this.round = createTwoBoxRound(answer, size);
     this.brush = scene.make.graphics({}, false);
-    this.area = scene.add.container(slot.x, slot.y, [background, this.fadingInk, this.ink]);
-    this.area.setSize(slot.width, slot.height).setInteractive();
-    this.area.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.onPointerDown(pointer));
+
+    // Jediné okénko jsou jednotky, dvě okénka jsou desítky a jednotky.
+    const boxes: WritingBox[] = layout.writingAreas.length === 2 ? ['tens', 'ones'] : ['ones'];
+    this.views = layout.writingAreas.map((slot, index) =>
+      this.createBoxView(boxes[index] ?? 'ones', slot),
+    );
     scene.input.on('pointermove', this.onPointerMove, this);
     scene.input.on('pointerup', this.onPointerUp, this);
     scene.input.on('pointerupoutside', this.onPointerUp, this);
 
     this.confirmButton = this.createConfirmButton(layout.confirmButton);
     const clearButton = this.createClearButton(layout.clearButton);
-    this.objects.push(this.area, this.confirmButton, clearButton);
+    this.objects.push(...this.views.map((view) => view.container), this.confirmButton, clearButton);
     this.paintConfirmButton();
   }
 
-  /** Volá scéna každý snímek: rozpozná zápis po 1 s a nechá zmizet odmítnutý. */
+  /** Volá scéna každý snímek: rozpozná okénka po 1 s a nechá zmizet odmítnutý zápis. */
   update(nowMs: number): void {
-    this.round = updateWriting(this.round, nowMs);
+    this.round = updateBoxes(this.round, nowMs);
     this.syncWithRound();
   }
 
@@ -128,7 +119,9 @@ export class WritingPad {
     this.scene.input.off('pointermove', this.onPointerMove, this);
     this.scene.input.off('pointerup', this.onPointerUp, this);
     this.scene.input.off('pointerupoutside', this.onPointerUp, this);
-    this.scene.tweens.killTweensOf(this.fadingInk);
+    for (const view of this.views) {
+      this.scene.tweens.killTweensOf(view.fadingInk);
+    }
     this.brush.destroy();
     for (const object of this.objects) {
       this.scene.tweens.killTweensOf(object);
@@ -136,22 +129,56 @@ export class WritingPad {
     }
   }
 
-  private onPointerDown(pointer: Phaser.Input.Pointer): void {
+  private createBoxView(box: WritingBox, slot: WritingAreaSlot): BoxView {
+    const background = this.scene.add.graphics();
+    background
+      .fillStyle(AREA_COLOR, 1)
+      .fillRoundedRect(
+        -slot.width / 2,
+        -slot.height / 2,
+        slot.width,
+        slot.height,
+        AREA_CORNER_RADIUS,
+      )
+      .lineStyle(4, AREA_BORDER_COLOR, 0.6)
+      .strokeRoundedRect(
+        -slot.width / 2,
+        -slot.height / 2,
+        slot.width,
+        slot.height,
+        AREA_CORNER_RADIUS,
+      );
+    const fadingInk = this.scene.add.graphics();
+    const ink = this.scene.add
+      .renderTexture(-slot.width / 2, -slot.height / 2, slot.width, slot.height)
+      .setOrigin(0, 0);
+    const container = this.scene.add.container(slot.x, slot.y, [background, fadingInk, ink]);
+    const view: BoxView = { box, slot, container, ink, fadingInk, lastFading: [] };
+    container.setSize(slot.width, slot.height).setInteractive();
+    container.on('pointerdown', (pointer: Phaser.Input.Pointer) =>
+      this.onPointerDown(view, pointer),
+    );
+    return view;
+  }
+
+  private onPointerDown(view: BoxView, pointer: Phaser.Input.Pointer): void {
     if (this.locked || this.activePointerId !== undefined) {
       return;
     }
     this.activePointerId = pointer.id;
-    this.round = startStroke(this.round, this.scene.time.now);
-    this.currentStroke = [this.toAreaPoint(pointer)];
+    this.activeView = view;
+    this.round = startBoxStroke(this.round, view.box, this.scene.time.now);
+    this.currentStroke = [this.toBoxPoint(view, pointer)];
     this.syncWithRound();
-    this.drawInk();
+    this.drawInk(view);
   }
 
   private onPointerMove(pointer: Phaser.Input.Pointer): void {
-    if (pointer.id !== this.activePointerId || !this.currentStroke) {
+    const view = this.activeView;
+    if (pointer.id !== this.activePointerId || !this.currentStroke || !view) {
       return;
     }
-    const point = this.toAreaPoint(pointer);
+    const point = this.toBoxPoint(view, pointer);
     const last = this.currentStroke[this.currentStroke.length - 1];
     if (last && Math.hypot(point.x - last.x, point.y - last.y) < MIN_POINT_DISTANCE) {
       return;
@@ -159,26 +186,28 @@ export class WritingPad {
     this.currentStroke.push(point);
     // Jen nový úsek, celý zápis se nepřekresluje.
     if (last) {
-      this.paintStrokes([[last, point]]);
+      this.paintStrokes(view, [[last, point]]);
     }
   }
 
   private onPointerUp(pointer: Phaser.Input.Pointer): void {
-    if (pointer.id !== this.activePointerId || !this.currentStroke) {
+    const view = this.activeView;
+    if (pointer.id !== this.activePointerId || !this.currentStroke || !view) {
       return;
     }
-    this.round = finishStroke(this.round, this.currentStroke, this.scene.time.now);
+    this.round = finishBoxStroke(this.round, this.currentStroke, this.scene.time.now);
     this.currentStroke = undefined;
     this.activePointerId = undefined;
-    this.drawInk();
+    this.activeView = undefined;
+    this.drawInk(view);
   }
 
   /**
-   * Bod prstu v souřadnicích plochy: levý horní roh je 0, 0. Prst mimo
-   * plochu se přitáhne k jejímu okraji, takže tah nepřeleze přes tlačítka.
+   * Bod prstu v souřadnicích okénka: levý horní roh je 0, 0. Tah patří
+   * okénku, ve kterém začal; prst mimo něj se přitáhne k jeho okraji.
    */
-  private toAreaPoint(pointer: Phaser.Input.Pointer): StrokePoint {
-    const slot = this.layout.writingArea;
+  private toBoxPoint(view: BoxView, pointer: Phaser.Input.Pointer): StrokePoint {
+    const slot = view.slot;
     const x = pointer.worldX - (slot.x - slot.width / 2);
     const y = pointer.worldY - (slot.y - slot.height / 2);
     return {
@@ -187,65 +216,69 @@ export class WritingPad {
     };
   }
 
-  /** Překreslí ukázanou číslici, ✓ a odmítnutý zápis podle stavu logiky. */
+  /** Překreslí ukázané číslo, ✓ a odmítnuté zápisy podle stavu logiky. */
   private syncWithRound(): void {
-    const digit = shownDigit(this.round);
-    if (digit !== this.lastDigit) {
-      this.lastDigit = digit;
-      this.paintConfirmButton();
-      this.events.onDigitChanged(digit);
-      if (digit !== null) {
-        this.scene.tweens.add({
-          targets: this.confirmButton,
-          scale: 1.12,
-          duration: 140,
-          yoyo: true,
-        });
-      }
+    this.paintConfirmButton();
+    // ✓ poskočí, jakmile jde potvrdit (žluté číslo se může ukázat dřív).
+    const canConfirm = !this.locked && canConfirmBoxes(this.round);
+    if (canConfirm && !this.couldConfirm) {
+      this.scene.tweens.add({
+        targets: this.confirmButton,
+        scale: 1.12,
+        duration: 140,
+        yoyo: true,
+      });
+    }
+    this.couldConfirm = canConfirm;
+    const number = shownNumber(this.round);
+    if (number !== this.lastNumber) {
+      this.lastNumber = number;
+      this.events.onNumberChanged(number);
     }
 
-    const fading = fadingStrokes(this.round);
-    if (fading !== this.lastFading) {
-      this.lastFading = fading;
-      if (fading.length > 0) {
-        this.startFading(fading);
+    for (const view of this.views) {
+      const fading = boxFadingStrokes(this.round, view.box);
+      if (fading !== view.lastFading) {
+        view.lastFading = fading;
+        if (fading.length > 0) {
+          this.startFading(view, fading);
+        }
+        this.drawInk(view);
       }
-      this.drawInk();
     }
   }
 
-  /** Odmítnutý zápis vybledne a zmizí (jinak než zatřesení po chybě). */
-  private startFading(strokes: readonly Stroke[]): void {
-    this.scene.tweens.killTweensOf(this.fadingInk);
-    this.fadingInk.clear().setAlpha(1);
-    const slot = this.layout.writingArea;
-    this.drawStrokes(this.fadingInk, strokes, -slot.width / 2, -slot.height / 2);
+  /** Odmítnutý zápis v okénku vybledne a zmizí (jinak než zatřesení po chybě). */
+  private startFading(view: BoxView, strokes: readonly Stroke[]): void {
+    this.scene.tweens.killTweensOf(view.fadingInk);
+    view.fadingInk.clear().setAlpha(1);
+    this.drawStrokes(view.fadingInk, strokes, -view.slot.width / 2, -view.slot.height / 2);
     this.scene.tweens.add({
-      targets: this.fadingInk,
+      targets: view.fadingInk,
       alpha: 0,
       duration: REJECTED_FADE_MS,
       ease: 'Quad.easeIn',
-      onComplete: () => this.fadingInk.clear(),
+      onComplete: () => view.fadingInk.clear(),
     });
   }
 
-  /** Překreslí celý zápis (po smazání, odmítnutí nebo konci tahu). */
-  private drawInk(): void {
-    this.ink.clear();
-    const strokes = this.currentStroke
-      ? [...writtenStrokes(this.round), this.currentStroke]
-      : writtenStrokes(this.round);
-    this.paintStrokes(strokes);
+  /** Překreslí celý zápis okénka (po smazání, odmítnutí nebo konci tahu). */
+  private drawInk(view: BoxView): void {
+    view.ink.clear();
+    const written = boxStrokes(this.round, view.box);
+    const strokes =
+      this.currentStroke && this.activeView === view ? [...written, this.currentStroke] : written;
+    this.paintStrokes(view, strokes);
   }
 
-  /** Domaluje tahy do textury zápisu. */
-  private paintStrokes(strokes: readonly Stroke[]): void {
+  /** Domaluje tahy do textury okénka. */
+  private paintStrokes(view: BoxView, strokes: readonly Stroke[]): void {
     this.brush.clear();
     this.drawStrokes(this.brush, strokes, 0, 0);
-    this.ink.draw(this.brush);
+    view.ink.draw(this.brush);
   }
 
-  /** Tahy v souřadnicích plochy, posunuté o `left`, `top`. */
+  /** Tahy v souřadnicích okénka, posunuté o `left`, `top`. */
   private drawStrokes(
     graphics: Phaser.GameObjects.Graphics,
     strokes: readonly Stroke[],
@@ -329,48 +362,55 @@ export class WritingPad {
     if (this.locked) {
       return;
     }
-    this.round = clearWriting(this.round);
+    this.round = clearBoxes(this.round);
     this.currentStroke = undefined;
     this.activePointerId = undefined;
+    this.activeView = undefined;
     this.syncWithRound();
-    this.drawInk();
+    this.redrawAll();
   }
 
   private onConfirmTapped(): void {
-    if (this.locked || !canConfirm(this.round)) {
+    if (this.locked || !canConfirmBoxes(this.round)) {
       // Nedá se potvrdit: ✓ jen kývne, aby dítě vidělo, že ťuknutí dorazilo.
       this.scene.tweens.add({ targets: this.confirmButton, angle: 8, duration: 60, yoyo: true });
       return;
     }
 
-    const result = confirmWriting(this.round);
+    const result = confirmBoxes(this.round);
     this.round = result.round;
     if (result.outcome === 'wrong') {
-      // Logika zápis už smazala; na obrazovce se ještě zatřese a pak zmizí.
-      this.shakeArea(() => this.drawInk());
+      // Logika okénka už vyprázdnila; na obrazovce se ještě zatřesou a pak zmizí.
+      this.shakeBoxes(() => this.redrawAll());
     }
     this.events.onConfirmed(result);
   }
 
-  private shakeArea(onDone: () => void): void {
-    const homeX = this.layout.writingArea.x;
-    this.scene.tweens.killTweensOf(this.area);
-    this.area.x = homeX;
+  private redrawAll(): void {
+    for (const view of this.views) {
+      this.drawInk(view);
+    }
+  }
+
+  private shakeBoxes(onDone: () => void): void {
+    const containers = this.views.map((view) => view.container);
+    this.scene.tweens.killTweensOf(containers);
+    this.views.forEach((view) => (view.container.x = view.slot.x));
     this.scene.tweens.add({
-      targets: this.area,
-      x: homeX + 14,
+      targets: containers,
+      x: '+=14',
       duration: 50,
       yoyo: true,
       repeat: 3,
       onComplete: () => {
-        this.area.x = homeX;
+        this.views.forEach((view) => (view.container.x = view.slot.x));
         onDone();
       },
     });
   }
 
   private paintConfirmButton(): void {
-    const enabled = !this.locked && canConfirm(this.round);
+    const enabled = !this.locked && canConfirmBoxes(this.round);
     this.confirmButton.setAlpha(enabled ? 1 : DISABLED_ALPHA);
   }
 }

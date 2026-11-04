@@ -41,20 +41,23 @@ export function isHoldLongEnough(heldMs: number): boolean {
   return Number.isFinite(heldMs) && heldMs >= HOLD_TO_OPEN_SETTINGS_MS;
 }
 
-/** Rozsahy, ve kterých jde výsledek napsat jednou číslicí. Při 20 zůstává číselník. */
-const WRITING_MAX_NUMBERS: readonly MaxNumber[] = [5, 10];
-
-/** Nejvyšší výsledek, který jde napsat jednou číslicí. */
-export const MAX_WRITTEN_RESULT = 9;
-
 /** Způsob odpovědi zvolený rodičem; bez volby číselník. */
 export function answerInputOf(settings: GameSettings): AnswerInput {
   return isAnswerInput(settings.answerInput) ? settings.answerInput : 'keypad';
 }
 
-/** Odpovídá dítě teď psaním? Jen když ho rodič zvolil a rozsah je 5 nebo 10. */
+/** Odpovídá dítě teď psaním? Když ho rodič zvolil, v každém rozsahu (#42). */
 export function isWritingActive(settings: GameSettings): boolean {
-  return answerInputOf(settings) === 'writing' && WRITING_MAX_NUMBERS.includes(settings.maxNumber);
+  return answerInputOf(settings) === 'writing';
+}
+
+/**
+ * Kolik okének na psaní dítě má: při rozsahu 5 jedno, při 10 a 20 dvě
+ * (desítky a jednotky), i když je výsledek jednociferný, aby rozložení
+ * výsledek neprozradilo.
+ */
+export function writingBoxCount(maxNumber: MaxNumber): 1 | 2 {
+  return maxNumber === 5 ? 1 : 2;
 }
 
 function isAnswerInput(value: unknown): value is AnswerInput {
