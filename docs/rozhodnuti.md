@@ -78,6 +78,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   tečky na telefonu smí mít 48 px, jinak se nevejde (#54, #43).
 - 2026-11-04 Psaní do 5 na nejnižších telefonech: okénko smí mít 180 px místo
   200 px, rozložení zůstane jednotné (příklad pod hvězdičkami) (#54).
+- 2026-11-04 Telefon na výšku podle návrhu P2: nahoře hvězdičky, postavička
+  vedle příkladu, tečky nápovědy pod příkladem, dole číselník ve 3 sloupcích
+  (velká tlačítka u palce), při psaní dvě okénka vedle sebe a pod nimi smazat a ✓.
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
