@@ -24,6 +24,8 @@ import {
 } from '../logic/setupGuide';
 import type { GuideLayout, GuideSlot, GuideState } from '../logic/setupGuide';
 import { FONT_FAMILY, GUIDE_STYLE, colorNumber } from '../logic/theme';
+import type { GameSize } from '../logic/deviceLayout';
+import { PANEL_HEIGHT, PANEL_WIDTH, fitPanel } from './panelFit';
 import { PANEL_DEPTH, PANEL_FADE_MS, SETTINGS_BACKDROP_COLOR } from './SettingsPanel';
 import { SettingsRows } from './SettingsRows';
 
@@ -76,6 +78,7 @@ export class SetupGuidePanel {
     this.guideState = value;
   }
   private readonly container: Phaser.GameObjects.Container;
+  private readonly backdrop: Phaser.GameObjects.Rectangle;
   private readonly rows: SettingsRows;
   private readonly frame: Phaser.GameObjects.Graphics;
   private readonly message: Phaser.GameObjects.Text;
@@ -105,7 +108,9 @@ export class SetupGuidePanel {
     private readonly scene: Phaser.Scene,
     private readonly onFinish: (settings: GameSettings) => void,
   ) {
-    const { width, height } = scene.scale;
+    // Průvodce má vlastní plochu 1024 × 768, na telefonu se celý zmenší (#54).
+    const width = PANEL_WIDTH;
+    const height = PANEL_HEIGHT;
     const firstLayout = layoutGuideStep(1, width, height);
     const stepWithBackLayout = layoutGuideStep(2, width, height);
 
@@ -113,6 +118,7 @@ export class SetupGuidePanel {
     const backdrop = scene.add
       .rectangle(width / 2, height / 2, width, height, SETTINGS_BACKDROP_COLOR, 1)
       .setInteractive();
+    this.backdrop = backdrop;
     this.container = scene.add.container(0, 0, [backdrop]).setDepth(PANEL_DEPTH);
 
     this.rows = new SettingsRows(
@@ -155,9 +161,15 @@ export class SetupGuidePanel {
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.removeListeners());
 
     this.render();
+    this.fitTo({ width: scene.scale.width, height: scene.scale.height });
     this.sendVoice({ kind: 'opened' });
     this.container.setAlpha(0);
     scene.tweens.add({ targets: this.container, alpha: 1, duration: PANEL_FADE_MS });
+  }
+
+  /** Po změně velikosti okna se průvodce znovu vejde na herní plochu. */
+  fitTo(area: GameSize): void {
+    fitPanel(this.container, this.backdrop, area);
   }
 
   private onBack(): void {
@@ -260,9 +272,8 @@ export class SetupGuidePanel {
 
   /** Překreslí krok podle stavu z logiky. */
   private render(): void {
-    const { width, height } = this.scene.scale;
     const step = this.state.step;
-    const layout = layoutGuideStep(step, width, height);
+    const layout = layoutGuideStep(step, PANEL_WIDTH, PANEL_HEIGHT);
 
     for (const kind of ROW_KINDS) {
       const style = guideRowStyle(this.state, kind);

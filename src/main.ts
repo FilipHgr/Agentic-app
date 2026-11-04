@@ -1,10 +1,28 @@
 import Phaser from 'phaser';
 
+import { gameAreaFor } from './logic/deviceLayout';
 import { PAGE_BACKGROUND } from './logic/theme';
 import { GameScene } from './scenes/GameScene';
+import {
+  GAME_AREA_KEY,
+  hasSameLayout,
+  placeGameParent,
+  readViewport,
+  watchViewport,
+} from './ui/viewport';
 
-/** Základní rozlišení 4:3 odpovídá iPadu na šířku, Scale.FIT dopočítá zbytek. */
-new Phaser.Game({
+const parent = document.getElementById('game');
+let area = gameAreaFor(readViewport());
+if (parent) {
+  placeGameParent(parent, area);
+}
+
+/**
+ * Herní plocha podle okna (#54): na iPadu a v ostatních oknech pevně
+ * 1024 × 768, na telefonu na šířku přes celou volnou plochu. Scale.FIT
+ * ji do prvku s hrou zmenší a vycentruje.
+ */
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: PAGE_BACKGROUND,
@@ -16,8 +34,31 @@ new Phaser.Game({
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: 1024,
-    height: 768,
+    width: area.width,
+    height: area.height,
   },
   scene: [GameScene],
+});
+game.registry.set(GAME_AREA_KEY, area);
+
+/**
+ * Po otočení nebo změně lišty prohlížeče se herní plocha přepočítá. Scéna
+ * se překreslí jen při jiném rozložení, jinak se plocha jen posune.
+ */
+watchViewport(() => {
+  const next = gameAreaFor(readViewport());
+  const layoutChanged = !hasSameLayout(next, area);
+  area = next;
+  if (parent) {
+    placeGameParent(parent, area);
+  }
+  // Phaser si velikost prvku s hrou jinak přečte až později a hru by zmenšil podle staré.
+  game.scale.getParentBounds();
+  if (!layoutChanged) {
+    game.scale.refresh();
+    return;
+  }
+  game.scale.setGameSize(area.width, area.height);
+  // Scéna poslouchá změnu v registru a překreslí se podle nové plochy.
+  game.registry.set(GAME_AREA_KEY, area);
 });

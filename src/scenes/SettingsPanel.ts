@@ -2,10 +2,12 @@ import Phaser from 'phaser';
 
 import { CHECK_BUTTON_COLOR, checkButtonStyle } from '../logic/checkButton';
 import { CONFIRM_BUTTON_STYLE, SETTINGS_PANEL_STYLE, colorNumber } from '../logic/theme';
+import type { GameSize } from '../logic/deviceLayout';
 import type { ButtonSlot } from '../logic/screenLayout';
 import { layoutSettingsPanel } from '../logic/settingsLayout';
 import { chooseOption, selectedOptions } from '../logic/settingsSession';
 import type { SettingsSession } from '../logic/settingsSession';
+import { PANEL_HEIGHT, PANEL_WIDTH, fitPanel } from './panelFit';
 import { SettingsRows } from './SettingsRows';
 
 /** Pozadí panelu je stejné jako hra (#53). */
@@ -24,7 +26,13 @@ export const PANEL_DEPTH = 100;
  */
 export class SettingsPanel {
   private readonly container: Phaser.GameObjects.Container;
+  private readonly backdrop: Phaser.GameObjects.Rectangle;
   private session: SettingsSession;
+
+  /** Rozehrané volby; zůstanou i po otočení telefonu (#54). */
+  get currentSession(): SettingsSession {
+    return this.session;
+  }
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -32,7 +40,9 @@ export class SettingsPanel {
     private readonly onConfirm: (session: SettingsSession) => void,
   ) {
     this.session = session;
-    const { width, height } = scene.scale;
+    // Panel má vlastní plochu 1024 × 768, na telefonu se celý zmenší (#54).
+    const width = PANEL_WIDTH;
+    const height = PANEL_HEIGHT;
     const layout = layoutSettingsPanel(width, height);
 
     // Neprůhledné pozadí stejné barvy jako stránka (#45) zachytí všechna
@@ -47,6 +57,7 @@ export class SettingsPanel {
         SETTINGS_PANEL_STYLE.backgroundAlpha,
       )
       .setInteractive();
+    this.backdrop = backdrop;
     this.container = scene.add.container(0, 0, [backdrop]).setDepth(PANEL_DEPTH);
 
     new SettingsRows(
@@ -59,9 +70,15 @@ export class SettingsPanel {
       },
     );
     this.addConfirmButton(layout.confirm);
+    this.fitTo({ width: scene.scale.width, height: scene.scale.height });
 
     this.container.setAlpha(0);
     scene.tweens.add({ targets: this.container, alpha: 1, duration: PANEL_FADE_MS });
+  }
+
+  /** Po změně velikosti okna se panel znovu vejde na herní plochu. */
+  fitTo(area: GameSize): void {
+    fitPanel(this.container, this.backdrop, area);
   }
 
   private addConfirmButton(slot: ButtonSlot): void {

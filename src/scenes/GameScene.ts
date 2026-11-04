@@ -27,15 +27,23 @@ import {
 import type { AnswerButtonState } from '../logic/theme';
 import { canCountDots, countDot, countingTone, startDotCounting } from '../logic/dotCounting';
 import type { DotCounting } from '../logic/dotCounting';
-import { mascotReactionToTap } from '../logic/mascot';
 import {
-  STAR_SIZE,
-  hintDotHitArea,
-  layoutHint,
-  layoutScreen,
-  layoutWritingScreen,
-} from '../logic/screenLayout';
-import type { ButtonSlot, HintDot, ScreenLayout, WritingLayout } from '../logic/screenLayout';
+  isTwoBoxRound,
+  gameAreaFor,
+  layoutDeviceHint,
+  layoutDeviceScreen,
+  layoutDeviceWritingScreen,
+  playStateAfterResize,
+} from '../logic/deviceLayout';
+import type {
+  DeviceScreenLayout,
+  DeviceSizes,
+  DeviceWritingLayout,
+  GameArea,
+  PlayState,
+} from '../logic/deviceLayout';
+import { mascotReactionToTap } from '../logic/mascot';
+import type { ButtonSlot, HintDot } from '../logic/screenLayout';
 import { STARS_PER_SET, startNewStarSet, starsAfterTap } from '../logic/stars';
 import type { StarProgress } from '../logic/stars';
 import { nextCharacter } from '../logic/characters';
@@ -57,12 +65,14 @@ import {
 } from '../logic/setupGuide';
 import type { LaunchState } from '../logic/settingsSession';
 import type { GameProgress } from '../logic/progress';
-import type { TwoBoxConfirmResult } from '../logic/twoBoxWriting';
+import type { TwoBoxConfirmResult, TwoBoxRound } from '../logic/twoBoxWriting';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { browserStorage, loadSettingsState, saveSettings } from '../storage/settingsStorage';
 import { Mascot } from './Mascot';
+import type { MascotLook } from './Mascot';
 import { applyPageAppearance } from '../ui/pageAppearance';
 import { attachSettingsButton } from '../ui/settingsButton';
+import { GAME_AREA_KEY } from '../ui/viewport';
 import { SettingsPanel } from './SettingsPanel';
 import { SetupGuidePanel } from './SetupGuidePanel';
 import { WritingPad } from './WritingPad';
@@ -81,7 +91,6 @@ const BUTTON_LABEL_RATIO = 0.64;
 const DOT_COUNTED_RING_COLOR = colorNumber(HINT_DOT_STYLE.countedRingColor);
 const DOT_COUNTED_RING_WIDTH = 6;
 const DOT_NUMBER_COLOR = HINT_DOT_STYLE.countedNumberColor;
-const DOT_NUMBER_FONT_SIZE = 30;
 
 /** Tečky naskakují jedna po druhé, aby je dítě mohlo počítat s nimi. */
 const HINT_DOT_DELAY_MS = 120;
@@ -110,6 +119,15 @@ const STAR_FLIGHT_MS = 450;
 const CELEBRATION_MS = 2600;
 
 const CONFETTI_COUNT = 80;
+/** Velikost konfet, odkud padají a jak daleko uletí do strany (na iPadu). */
+const CONFETTI_WIDTH = 14;
+const CONFETTI_HEIGHT = 22;
+const CONFETTI_START_Y = -20;
+const CONFETTI_DRIFT = 120;
+const CONFETTI_END_MARGIN = 30;
+
+/** O kolik se tlačítko zatřese po špatné odpovědi (na iPadu). */
+const BUTTON_SHAKE_DISTANCE = 14;
 /** Konfety v barvách, které jsou na světlém pozadí vidět (#53). */
 const CONFETTI_COLOR_NUMBERS = CONFETTI_COLORS.map(colorNumber);
 
@@ -127,11 +145,28 @@ interface AnswerButton {
   readonly size: number;
   /** Vodorovná poloha, kam se tlačítko vrací po zatřesení. */
   readonly homeX: number;
+  /** Tloušťka okraje a zatřesení proti iPadu (#54). */
+  readonly detailScale: number;
 }
 
-/** Scéna jen kreslí kolo a animuje; o správnosti rozhoduje logika v src/logic. */
+/** Velikost postavičky a jejích pohybů z rozložení. */
+function mascotLookOf(sizes: DeviceSizes): MascotLook {
+  return {
+    size: sizes.mascotSize,
+    jumpHeight: sizes.mascotJumpHeight,
+    danceSway: sizes.mascotDanceSway,
+  };
+}
+
+/**
+ * Scéna jen kreslí kolo a animuje; o správnosti rozhoduje logika v src/logic.
+ * Rozložení se bere podle herní plochy (iPad, nebo telefon na šířku, #54)
+ * a při otočení telefonu se překreslí bez nového příkladu.
+ */
 export class GameScene extends Phaser.Scene {
   private round: AnswerRound | undefined;
+  /** Herní plocha podle okna; nastavuje ji src/main.ts do registru. */
+  private gameArea: GameArea = gameAreaFor(undefined);
   private roundObjects: Phaser.GameObjects.GameObject[] = [];
   private problemEquation: Phaser.GameObjects.Text | undefined;
   private problemAnswer: Phaser.GameObjects.Text | undefined;
@@ -153,6 +188,8 @@ export class GameScene extends Phaser.Scene {
   /** Při prvním spuštění se místo příkladu otevře průvodce nastavením (#49). */
   private launch: LaunchState = createLaunchState(this.settingsState.firstLaunch);
   private settingsOpen = false;
+  /** Otevřené nastavení pro rodiče, aby šlo po otočení telefonu zmenšit (#54). */
+  private settingsPanel: SettingsPanel | undefined;
   /** Průvodce nastavením při prvním spuštění (#49), když je otevřený. */
   private setupGuide: SetupGuidePanel | undefined;
   /** Naplánované dokončení oslavy; nastavení ho může přerušit (#45). */
@@ -170,9 +207,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.gameArea = this.readGameArea();
+    this.registry.events.on(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
+      this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this),
+    );
     this.createStarRow();
     this.paintStars();
-    this.mascot = new Mascot(this, this.layout().mascot, this.character);
+    const layout = this.layout();
+    this.mascot = new Mascot(this, layout.mascot, mascotLookOf(layout), this.character);
     // Kolečko je tlačítko stránky v rohu obrazovky, mimo herní plochu.
     const settingsButton = document.getElementById('settings-button');
     if (settingsButton) {
@@ -192,6 +235,60 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.startRound();
     }
+  }
+
+  /** Herní plocha z registru; dokud tam není, dnešní 1024 × 768. */
+  private readGameArea(): GameArea {
+    const stored: unknown = this.registry.get(GAME_AREA_KEY);
+    return isGameArea(stored) ? stored : gameAreaFor(undefined);
+  }
+
+  /**
+   * Otočení telefonu nebo změna lišty (AC7): všechno se překreslí podle
+   * nové plochy. Příklad, chyby, nápověda, hvězdičky, postavička i otevřené
+   * nastavení nebo průvodce zůstanou; rozepsané tahy v okénkách se smažou.
+   */
+  private onGameAreaChanged(): void {
+    this.gameArea = this.readGameArea();
+    const layout = this.layout();
+    this.redrawStars();
+    this.mascot?.moveTo(layout.mascot, mascotLookOf(layout));
+    this.redrawRound();
+    const size = { width: this.gameArea.width, height: this.gameArea.height };
+    this.settingsPanel?.fitTo(size);
+    this.setupGuide?.fitTo(size);
+  }
+
+  /** Překreslí rozehrané kolo bez nového příkladu a bez započtení odpovědi. */
+  private redrawRound(): void {
+    if (!this.round) {
+      return;
+    }
+    const writing = this.writingPad?.state ?? null;
+    const after = playStateAfterResize(this.playState(this.round, writing), this.writingBoxSize());
+    this.clearRound();
+    this.drawRound(
+      after.writing !== null && isTwoBoxRound(after.writing) ? after.writing : undefined,
+    );
+  }
+
+  /** Rozehraný stav pro přepočet po změně velikosti okna. */
+  private playState(round: AnswerRound, writing: TwoBoxRound | null): PlayState {
+    return {
+      round,
+      settings: this.settings,
+      progress: { earned: this.starProgress.earned, character: this.character },
+      counting: this.dotCounting,
+      writing,
+      settingsSession: this.settingsPanel?.currentSession ?? CLOSED_SETTINGS,
+      guide: this.setupGuide?.state ?? null,
+    };
+  }
+
+  /** Velikost jednoho okénka na psaní v současném rozložení. */
+  private writingBoxSize(): { width: number; height: number } {
+    const [first] = this.writingLayout().writingAreas;
+    return { width: first?.width ?? 0, height: first?.height ?? 0 };
   }
 
   override update(time: number): void {
@@ -241,7 +338,8 @@ export class GameScene extends Phaser.Scene {
     const session = openSettings(CLOSED_SETTINGS, this.settings);
     applyPageAppearance(pageAppearance(session), settingsButton);
 
-    new SettingsPanel(this, session, (chosen) => {
+    this.settingsPanel = new SettingsPanel(this, session, (chosen) => {
+      this.settingsPanel = undefined;
       const result = confirmSettings(chosen, this.settings, {
         earned: this.starProgress.earned,
         character: this.character,
@@ -287,8 +385,19 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
+  /** Řada hvězdiček na novém místě a v nové velikosti, rozsvícená jako předtím. */
+  private redrawStars(): void {
+    for (const icon of this.starIcons) {
+      this.tweens.killTweensOf(icon);
+      icon.destroy();
+    }
+    this.createStarRow();
+    this.paintStars();
+  }
+
   private createStarShape(x: number, y: number, color: number): Phaser.GameObjects.Star {
-    return this.add.star(x, y, 5, STAR_SIZE * 0.25, STAR_SIZE / 2, color);
+    const size = this.layout().starSize;
+    return this.add.star(x, y, 5, size * 0.25, size / 2, color);
   }
 
   /** Rozsvítí tolik hvězdiček zleva, kolik jich hráč v řadě získal. */
@@ -303,7 +412,10 @@ export class GameScene extends Phaser.Scene {
       if (look.outlineColor === null) {
         icon.setStrokeStyle();
       } else {
-        icon.setStrokeStyle(look.outlineWidth, colorNumber(look.outlineColor));
+        icon.setStrokeStyle(
+          look.outlineWidth * this.layout().detailScale,
+          colorNumber(look.outlineColor),
+        );
       }
     });
   }
@@ -314,36 +426,62 @@ export class GameScene extends Phaser.Scene {
     this.round = createAnswerRound(this.settings, Math.random, this.round?.problem);
     this.hintIsShown = false;
     this.dotCounting = startDotCounting(this.round.problem);
+    this.drawRound();
+  }
 
+  /**
+   * Nakreslí rozehrané kolo: příklad, číselník nebo okénka a nápovědu,
+   * pokud už je vidět (po změně velikosti okna hned, bez naskakování).
+   *
+   * @param writingState Stav okének po změně velikosti okna; jinak prázdná okénka.
+   */
+  private drawRound(writingState?: TwoBoxRound): void {
+    if (!this.round) {
+      return;
+    }
     const layout = this.layout();
-
     this.drawProblem(layout);
 
     if (isWritingActive(this.settings)) {
-      this.createWritingPad(this.round);
-      return;
+      this.createWritingPad(this.round, writingState);
+    } else {
+      this.createKeypad(layout, this.round);
     }
+    if (this.hintIsShown) {
+      this.drawHint(false);
+    }
+  }
 
-    answerChoices(this.round.maxNumber).forEach((value, index) => {
+  /** Číselník; po vyřešení (čeká se na další příklad) je správné tlačítko zelené. */
+  private createKeypad(layout: DeviceScreenLayout, round: AnswerRound): void {
+    answerChoices(round.maxNumber).forEach((value, index) => {
       const slot = layout.answerButtons[index];
-      if (slot) {
-        this.roundObjects.push(this.createAnswerButton(value, slot).container);
+      if (!slot) {
+        return;
       }
+      const button = this.createAnswerButton(value, slot, layout.detailScale);
+      if (round.solved && value === round.problem.result) {
+        this.paintButton(button, 'correct');
+      }
+      this.roundObjects.push(button.container);
     });
   }
 
   /** Místo číselníku okénka na psaní: při rozsahu 5 jedno, při 10 a 20 dvě (#42). */
-  private createWritingPad(round: AnswerRound): void {
-    const layout = layoutWritingScreen(
-      this.scale.width,
-      this.scale.height,
-      this.settings.maxNumber,
-      STARS_PER_SET,
+  private createWritingPad(round: AnswerRound, writingState?: TwoBoxRound): void {
+    this.writingPad = new WritingPad(
+      this,
+      this.writingLayout(),
+      round,
+      {
+        onNumberChanged: (number) => this.showWrittenNumber(number),
+        onConfirmed: (result) => this.onWritingConfirmed(result),
+      },
+      writingState,
     );
-    this.writingPad = new WritingPad(this, layout, round, {
-      onNumberChanged: (number) => this.showWrittenNumber(number),
-      onConfirmed: (result) => this.onWritingConfirmed(result),
-    });
+    if (round.solved) {
+      this.writingPad.lock();
+    }
   }
 
   /** Rozpoznané číslo se ukáže žlutě místo „?“, dokud ho dítě nepotvrdí. */
@@ -372,7 +510,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Příklad ze dvou částí: bílá levá strana „3 + 4 =“ a odpověď „?“, později výsledek. */
-  private drawProblem(layout: ScreenLayout): void {
+  private drawProblem(layout: DeviceScreenLayout): void {
     if (!this.round) {
       return;
     }
@@ -387,15 +525,16 @@ export class GameScene extends Phaser.Scene {
     this.problemEquation = this.add
       .text(0, layout.problem.y, text.equation, style)
       .setOrigin(0, 0.5);
+    const answerColor = text.answerRevealed ? ANSWER_REVEALED_COLOR : QUESTION_MARK_COLOR;
     this.problemAnswer = this.add
-      .text(0, layout.problem.y, text.answer, { ...style, color: QUESTION_MARK_COLOR })
+      .text(0, layout.problem.y, text.answer, { ...style, color: answerColor })
       .setOrigin(0.5);
     this.roundObjects.push(this.problemEquation, this.problemAnswer);
     this.centerProblem(layout);
   }
 
   /** Vycentruje celý příklad; odpověď může po vyřešení změnit šířku. */
-  private centerProblem(layout: ScreenLayout): void {
+  private centerProblem(layout: DeviceScreenLayout): void {
     if (!this.problemEquation || !this.problemAnswer) {
       return;
     }
@@ -434,7 +573,7 @@ export class GameScene extends Phaser.Scene {
     this.roundObjects = [];
   }
 
-  private createAnswerButton(value: number, slot: ButtonSlot): AnswerButton {
+  private createAnswerButton(value: number, slot: ButtonSlot, detailScale: number): AnswerButton {
     const background = this.add.graphics();
     const label = this.add
       .text(0, 0, String(value), {
@@ -453,6 +592,7 @@ export class GameScene extends Phaser.Scene {
       label,
       size: slot.size,
       homeX: slot.x,
+      detailScale,
     };
 
     this.paintButton(button, 'idle');
@@ -475,18 +615,19 @@ export class GameScene extends Phaser.Scene {
     const half = button.size / 2;
     const radius = buttonCornerRadius(button.size);
     // Okraj se kreslí dovnitř tlačítka, aby se nezměnila jeho velikost.
-    const inset = look.borderWidth / 2;
+    const borderWidth = look.borderWidth * button.detailScale;
+    const inset = borderWidth / 2;
 
     button.background
       .clear()
       .fillStyle(colorNumber(look.background), 1)
       .fillRoundedRect(-half, -half, button.size, button.size, radius)
-      .lineStyle(look.borderWidth, colorNumber(look.borderColor), 1)
+      .lineStyle(borderWidth, colorNumber(look.borderColor), 1)
       .strokeRoundedRect(
         -half + inset,
         -half + inset,
-        button.size - look.borderWidth,
-        button.size - look.borderWidth,
+        button.size - borderWidth,
+        button.size - borderWidth,
         radius - inset,
       );
     button.label.setColor(look.digitColor);
@@ -537,27 +678,18 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private layout(): ScreenLayout {
+  private layout(): DeviceScreenLayout {
     const maxNumber = this.round?.maxNumber ?? this.settings.maxNumber;
-    return layoutScreen(
-      this.scale.width,
-      this.scale.height,
-      answerChoices(maxNumber).length,
-      STARS_PER_SET,
-    );
+    return layoutDeviceScreen(this.gameArea, answerChoices(maxNumber).length, STARS_PER_SET);
+  }
+
+  private writingLayout(): DeviceWritingLayout {
+    return layoutDeviceWritingScreen(this.gameArea, this.settings.maxNumber, STARS_PER_SET);
   }
 
   /** Rozložení se skutečným ovládáním: okénka na psaní, nebo číselník. */
-  private answerLayout(): ScreenLayout | WritingLayout {
-    if (!isWritingActive(this.settings)) {
-      return this.layout();
-    }
-    return layoutWritingScreen(
-      this.scale.width,
-      this.scale.height,
-      this.settings.maxNumber,
-      STARS_PER_SET,
-    );
+  private answerLayout(): DeviceScreenLayout | DeviceWritingLayout {
+    return isWritingActive(this.settings) ? this.writingLayout() : this.layout();
   }
 
   private showHintWhenNeeded(): void {
@@ -565,10 +697,20 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.hintIsShown = true;
+    this.drawHint(true);
+  }
 
+  /**
+   * Tečky nápovědy. Nové naskakují jedna po druhé; po změně velikosti okna
+   * (`animate` je false) jsou vidět hned i se spočítanými čísly.
+   */
+  private drawHint(animate: boolean): void {
+    if (!this.round) {
+      return;
+    }
     const layout = this.answerLayout();
     const style = layout.hintStyle;
-    const dots = layoutHint(layout, hintDotGroups(this.round.problem));
+    const dots = layoutDeviceHint(layout, hintDotGroups(this.round.problem));
     const firstCrossedOut = dots.length - hintCrossedOutDots(this.round.problem);
 
     dots.forEach((dot, index) => {
@@ -586,29 +728,44 @@ export class GameScene extends Phaser.Scene {
         );
       }
 
-      for (const part of parts) {
-        part.setScale(0);
-        this.roundObjects.push(part);
+      this.roundObjects.push(...parts);
+      if (animate) {
+        this.popInDot(parts, index);
       }
-      this.tweens.add({
-        targets: parts,
-        scale: 1,
-        duration: 200,
-        delay: index * HINT_DOT_DELAY_MS,
-        ease: 'Back.easeOut',
-      });
 
       // Na tečku jde ťuknout hned, i když ještě naskakuje (#43).
       if (this.round && canCountDots(this.round.maxNumber)) {
-        this.addDotHitZone(dot, index, circle);
+        this.addDotHitZone(dot, index, circle, layout.hintDotHitSize);
+      }
+      const countedNumber = this.dotCounting.numbers[index];
+      if (countedNumber !== null && countedNumber !== undefined) {
+        this.markDotCounted(circle, countedNumber);
       }
     });
   }
 
-  /** Neviditelná plocha 64 px kolem tečky, aby se na ni dalo ťuknout prstem. */
-  private addDotHitZone(dot: HintDot, index: number, circle: Phaser.GameObjects.Arc): void {
-    const area = hintDotHitArea(dot);
-    const zone = this.add.zone(area.x, area.y, area.size, area.size).setInteractive();
+  /** Tečka naskočí se zpožděním podle pořadí. */
+  private popInDot(parts: readonly Phaser.GameObjects.Shape[], index: number): void {
+    for (const part of parts) {
+      part.setScale(0);
+    }
+    this.tweens.add({
+      targets: parts,
+      scale: 1,
+      duration: 200,
+      delay: index * HINT_DOT_DELAY_MS,
+      ease: 'Back.easeOut',
+    });
+  }
+
+  /** Neviditelná plocha aspoň 64 CSS px kolem tečky, aby se na ni dalo ťuknout prstem. */
+  private addDotHitZone(
+    dot: HintDot,
+    index: number,
+    circle: Phaser.GameObjects.Arc,
+    size: number,
+  ): void {
+    const zone = this.add.zone(dot.x, dot.y, size, size).setInteractive();
     zone.on('pointerdown', () => this.onDotTapped(index, circle));
     this.roundObjects.push(zone);
   }
@@ -628,22 +785,29 @@ export class GameScene extends Phaser.Scene {
     // Tečka, která ještě naskakovala, hned doskočí, aby se do ní číslo vešlo.
     this.tweens.killTweensOf(circle);
     circle.setScale(1);
-    circle.setStrokeStyle(DOT_COUNTED_RING_WIDTH, DOT_COUNTED_RING_COLOR);
-    const label = this.add
-      .text(circle.x, circle.y, String(result.countedNumber), {
-        fontFamily: FONT_FAMILY,
-        fontSize: `${DOT_NUMBER_FONT_SIZE}px`,
-        fontStyle: 'bold',
-        color: DOT_NUMBER_COLOR,
-      })
-      .setOrigin(0.5);
-    this.roundObjects.push(label);
+    const label = this.markDotCounted(circle, result.countedNumber);
     this.tweens.add({
       targets: [circle, label],
       scale: { from: 1, to: 1.2 },
       duration: 100,
       yoyo: true,
     });
+  }
+
+  /** Spočítaná tečka: tmavý okraj a pořadové číslo uprostřed. */
+  private markDotCounted(circle: Phaser.GameObjects.Arc, number: number): Phaser.GameObjects.Text {
+    const layout = this.answerLayout();
+    circle.setStrokeStyle(DOT_COUNTED_RING_WIDTH * layout.detailScale, DOT_COUNTED_RING_COLOR);
+    const label = this.add
+      .text(circle.x, circle.y, String(number), {
+        fontFamily: FONT_FAMILY,
+        fontSize: `${layout.dotNumberFontSize}px`,
+        fontStyle: 'bold',
+        color: DOT_NUMBER_COLOR,
+      })
+      .setOrigin(0.5);
+    this.roundObjects.push(label);
+    return label;
   }
 
   private playSoundFor(outcome: TapOutcome): void {
@@ -680,14 +844,18 @@ export class GameScene extends Phaser.Scene {
 
   /** Hvězdička přiletí od tlačítka na své místo v řadě a rozsvítí ho. */
   private flyStarToRow(origin: Origin, onArrived: () => void): void {
-    const targetIcon = this.starIcons[this.starProgress.earned - 1];
+    const targetIndex = this.starProgress.earned - 1;
+    const targetIcon = this.starIcons[targetIndex];
     if (!targetIcon) {
       onArrived();
       return;
     }
 
     const flyingStar = this.createStarShape(origin.x, origin.y, STAR_FILLED_COLOR)
-      .setStrokeStyle(STAR_STYLE.earnedOutlineWidth, colorNumber(STAR_STYLE.earnedOutlineColor))
+      .setStrokeStyle(
+        STAR_STYLE.earnedOutlineWidth * this.layout().detailScale,
+        colorNumber(STAR_STYLE.earnedOutlineColor),
+      )
       .setScale(1.6);
 
     this.tweens.add({
@@ -700,8 +868,9 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => {
         flyingStar.destroy();
         this.paintStars();
+        // Po otočení telefonu je řada hvězdiček nová, bere se hvězdička na stejném místě.
         this.tweens.add({
-          targets: targetIcon,
+          targets: this.starIcons[targetIndex] ?? targetIcon,
           scale: 1.4,
           duration: 120,
           yoyo: true,
@@ -735,20 +904,28 @@ export class GameScene extends Phaser.Scene {
   }
 
   private throwConfetti(): void {
-    const { width, height } = this.scale;
+    const { width, height } = this.gameArea;
+    const detail = this.layout().detailScale;
+    const drift = CONFETTI_DRIFT * detail;
 
     for (let index = 0; index < CONFETTI_COUNT; index += 1) {
       const color = CONFETTI_COLOR_NUMBERS[index % CONFETTI_COLOR_NUMBERS.length];
       const piece = this.add
-        .rectangle(Phaser.Math.Between(0, width), -20, 14, 22, color)
+        .rectangle(
+          Phaser.Math.Between(0, width),
+          CONFETTI_START_Y * detail,
+          CONFETTI_WIDTH * detail,
+          CONFETTI_HEIGHT * detail,
+          color,
+        )
         .setAngle(Phaser.Math.Between(0, 360))
         .setDepth(10);
       this.confettiPieces.push(piece);
 
       this.tweens.add({
         targets: piece,
-        y: height + 30,
-        x: piece.x + Phaser.Math.Between(-120, 120),
+        y: height + CONFETTI_END_MARGIN * detail,
+        x: piece.x + Phaser.Math.Between(-drift, drift),
         angle: piece.angle + Phaser.Math.Between(180, 720),
         duration: Phaser.Math.Between(1500, 2400),
         delay: Phaser.Math.Between(0, 500),
@@ -765,7 +942,7 @@ export class GameScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: button.container,
-      x: button.homeX + 14,
+      x: button.homeX + BUTTON_SHAKE_DISTANCE * button.detailScale,
       duration: 50,
       yoyo: true,
       repeat: 3,
@@ -774,4 +951,18 @@ export class GameScene extends Phaser.Scene {
       },
     });
   }
+}
+
+/** Je hodnota z registru herní plocha? */
+function isGameArea(value: unknown): value is GameArea {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const area = value as Partial<GameArea>;
+  return (
+    typeof area.mode === 'string' &&
+    typeof area.width === 'number' &&
+    typeof area.height === 'number' &&
+    typeof area.scale === 'number'
+  );
 }

@@ -9,8 +9,15 @@ import {
 import type { CharacterId, CharacterMood } from '../logic/characters';
 import { moodForReaction } from '../logic/mascot';
 import type { MascotReaction } from '../logic/mascot';
-import { MASCOT_DANCE_SWAY, MASCOT_JUMP_HEIGHT, MASCOT_SIZE } from '../logic/screenLayout';
+import { MASCOT_SIZE } from '../logic/screenLayout';
 import type { Point } from '../logic/screenLayout';
+
+/** Velikost postavičky a jak výrazně skáče a tančí, z rozložení (#54). */
+export interface MascotLook {
+  readonly size: number;
+  readonly jumpHeight: number;
+  readonly danceSway: number;
+}
 
 /** Obrázky se načtou dvakrát větší, než se zobrazí, aby byly ostré i na Retina displeji. */
 const TEXTURE_SIZE = MASCOT_SIZE * 2;
@@ -26,6 +33,10 @@ const BLINK_MS = 140;
 /** Jak dlouho trvá odskok staré postavičky a přískok nové. */
 const SWITCH_MS = 220;
 
+/** Pohupování v klidu a kývnutí při povzbuzení na iPadu (při velikosti MASCOT_SIZE). */
+const BOB_DISTANCE = 4;
+const NOD_DISTANCE = 8;
+
 /**
  * Postavička vlevo vedle příkladu. Jen se dívá a reaguje, na dotyk nereaguje.
  * Vnější kontejner skáče, tančí a střídá postavičky, vnitřní se pohupuje
@@ -35,7 +46,8 @@ export class Mascot {
   private readonly outer: Phaser.GameObjects.Container;
   private readonly body: Phaser.GameObjects.Container;
   private readonly image: Phaser.GameObjects.Image;
-  private readonly home: Point;
+  private home: Point;
+  private look: MascotLook;
   private character: CharacterId;
   private mood: CharacterMood = 'klid';
   private backToCalm: Phaser.Time.TimerEvent | undefined;
@@ -55,18 +67,34 @@ export class Mascot {
   constructor(
     private readonly scene: Phaser.Scene,
     position: Point,
+    look: MascotLook,
     character: CharacterId,
   ) {
     this.home = position;
+    this.look = look;
     this.character = character;
 
-    this.image = scene.add.image(0, 0, '__MISSING').setDisplaySize(MASCOT_SIZE, MASCOT_SIZE);
+    this.image = scene.add.image(0, 0, '__MISSING').setDisplaySize(look.size, look.size);
     this.body = scene.add.container(0, 0, [this.image]);
     this.outer = scene.add.container(position.x, position.y, [this.body]);
 
     this.showMood('klid');
     this.startIdleBobbing();
     this.scheduleBlink();
+  }
+
+  /**
+   * Nové místo a velikost po změně rozložení (#54). Rozběhnutý pohyb
+   * skončí a postavička stojí v klidu na novém místě; nálada zůstane.
+   */
+  moveTo(position: Point, look: MascotLook): void {
+    this.home = position;
+    this.look = look;
+    this.resetPose();
+    this.scene.tweens.killTweensOf(this.body);
+    this.body.setPosition(0, 0).setScale(1);
+    this.showMood(this.mood);
+    this.startIdleBobbing();
   }
 
   /** Spustí animaci podle reakce z logiky hry. */
@@ -126,7 +154,7 @@ export class Mascot {
       this.image.setVisible(false);
       return;
     }
-    this.image.setTexture(key).setDisplaySize(MASCOT_SIZE, MASCOT_SIZE).setVisible(true);
+    this.image.setTexture(key).setDisplaySize(this.look.size, this.look.size).setVisible(true);
   }
 
   /** Po chvíli vrátí postavičku z radosti nebo povzbuzení do klidu. */
@@ -138,7 +166,7 @@ export class Mascot {
   private startIdleBobbing(): void {
     this.scene.tweens.add({
       targets: this.body,
-      y: 4,
+      y: this.scaled(BOB_DISTANCE),
       duration: 900,
       yoyo: true,
       repeat: -1,
@@ -161,6 +189,11 @@ export class Mascot {
     });
   }
 
+  /** Vzdálenost z iPadu přepočtená na současnou velikost postavičky. */
+  private scaled(distance: number): number {
+    return (distance * this.look.size) / MASCOT_SIZE;
+  }
+
   /** Zastaví předchozí pohyb a vrátí postavičku na její místo. */
   private resetPose(): void {
     this.backToCalm?.remove();
@@ -173,7 +206,7 @@ export class Mascot {
     this.showMood(moodForReaction('joy'));
     this.scene.tweens.add({
       targets: this.outer,
-      y: this.home.y - MASCOT_JUMP_HEIGHT,
+      y: this.home.y - this.look.jumpHeight,
       duration: 180,
       yoyo: true,
       ease: 'Quad.easeOut',
@@ -186,7 +219,7 @@ export class Mascot {
     this.showMood(moodForReaction('encourage'));
     this.scene.tweens.add({
       targets: this.outer,
-      y: this.home.y + 8,
+      y: this.home.y + this.scaled(NOD_DISTANCE),
       duration: 140,
       yoyo: true,
       repeat: 1,
@@ -203,7 +236,10 @@ export class Mascot {
 
     this.scene.tweens.add({
       targets: this.outer,
-      x: { from: this.home.x - MASCOT_DANCE_SWAY, to: this.home.x + MASCOT_DANCE_SWAY },
+      x: {
+        from: this.home.x - this.look.danceSway,
+        to: this.home.x + this.look.danceSway,
+      },
       angle: { from: -8, to: 8 },
       duration: stepMs,
       yoyo: true,

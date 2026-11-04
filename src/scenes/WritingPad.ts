@@ -10,7 +10,8 @@ import {
   colorNumber,
 } from '../logic/theme';
 import type { Stroke, StrokePoint } from '../logic/digitRecognition';
-import type { ButtonSlot, WritingAreaSlot, WritingLayout } from '../logic/screenLayout';
+import type { DeviceWritingLayout } from '../logic/deviceLayout';
+import type { ButtonSlot, WritingAreaSlot } from '../logic/screenLayout';
 import {
   boxFadingStrokes,
   boxStrokes,
@@ -41,6 +42,9 @@ const TICK_COLOR = colorNumber(CONFIRM_BUTTON_STYLE.tickColor);
 
 /** ✓ bez rozpoznané číslice je pobledlé, aby bylo vidět, že ještě nejde. */
 const DISABLED_ALPHA = CONFIRM_BUTTON_STYLE.disabledAlpha;
+
+/** O kolik se okénka zatřesou po špatné odpovědi. */
+const SHAKE_DISTANCE = 14;
 
 /** Body tahu blíž než tohle se nepřidávají (prst se chvěje). */
 const MIN_POINT_DISTANCE = 3;
@@ -81,16 +85,23 @@ export class WritingPad {
   private lastNumber: number | null = null;
   private couldConfirm = false;
   private locked = false;
+  /** Tloušťka čar a okrajů proti iPadu (na telefonu jiné jednotky, #54). */
+  private readonly detailScale: number;
 
+  /**
+   * @param initialRound Stav okének po změně velikosti okna (#54); jinak prázdná okénka.
+   */
   constructor(
     private readonly scene: Phaser.Scene,
-    layout: WritingLayout,
+    layout: DeviceWritingLayout,
     answer: AnswerRound,
     private readonly events: WritingPadEvents,
+    initialRound?: TwoBoxRound,
   ) {
     const [first] = layout.writingAreas;
     const size = { width: first?.width ?? 0, height: first?.height ?? 0 };
-    this.round = createTwoBoxRound(answer, size);
+    this.round = initialRound ?? createTwoBoxRound(answer, size);
+    this.detailScale = layout.detailScale;
     this.brush = scene.make.graphics({}, false);
 
     // Jediné okénko jsou jednotky, dvě okénka jsou desítky a jednotky.
@@ -120,6 +131,11 @@ export class WritingPad {
     this.paintConfirmButton();
   }
 
+  /** Současný stav okének, aby přežil změnu velikosti okna (#54). */
+  get state(): TwoBoxRound {
+    return this.round;
+  }
+
   /** Místo, odkud vyletí hvězdička za správnou odpověď. */
   get confirmPosition(): { x: number; y: number } {
     return { x: this.confirmButton.x, y: this.confirmButton.y };
@@ -140,24 +156,13 @@ export class WritingPad {
   }
 
   private createBoxView(box: WritingBox, slot: WritingAreaSlot): BoxView {
+    const radius = AREA_CORNER_RADIUS * this.detailScale;
     const background = this.scene.add.graphics();
     background
       .fillStyle(AREA_COLOR, 1)
-      .fillRoundedRect(
-        -slot.width / 2,
-        -slot.height / 2,
-        slot.width,
-        slot.height,
-        AREA_CORNER_RADIUS,
-      )
-      .lineStyle(WRITING_PAD_STYLE.borderWidth, AREA_BORDER_COLOR, 1)
-      .strokeRoundedRect(
-        -slot.width / 2,
-        -slot.height / 2,
-        slot.width,
-        slot.height,
-        AREA_CORNER_RADIUS,
-      );
+      .fillRoundedRect(-slot.width / 2, -slot.height / 2, slot.width, slot.height, radius)
+      .lineStyle(WRITING_PAD_STYLE.borderWidth * this.detailScale, AREA_BORDER_COLOR, 1)
+      .strokeRoundedRect(-slot.width / 2, -slot.height / 2, slot.width, slot.height, radius);
     const fadingInk = this.scene.add.graphics();
     const ink = this.scene.add
       .renderTexture(-slot.width / 2, -slot.height / 2, slot.width, slot.height)
@@ -295,7 +300,8 @@ export class WritingPad {
     left: number,
     top: number,
   ): void {
-    graphics.lineStyle(INK_WIDTH, INK_COLOR, 1).fillStyle(INK_COLOR, 1);
+    const inkWidth = INK_WIDTH * this.detailScale;
+    graphics.lineStyle(inkWidth, INK_COLOR, 1).fillStyle(INK_COLOR, 1);
 
     for (const stroke of strokes) {
       const [first, ...rest] = stroke;
@@ -303,14 +309,14 @@ export class WritingPad {
         continue;
       }
       // Kulatá tečka na každém bodě dá hladký tah bez zubatých spojů.
-      graphics.fillCircle(left + first.x, top + first.y, INK_WIDTH / 2);
+      graphics.fillCircle(left + first.x, top + first.y, inkWidth / 2);
       graphics.beginPath().moveTo(left + first.x, top + first.y);
       for (const point of rest) {
         graphics.lineTo(left + point.x, top + point.y);
       }
       graphics.strokePath();
       for (const point of rest) {
-        graphics.fillCircle(left + point.x, top + point.y, INK_WIDTH / 2);
+        graphics.fillCircle(left + point.x, top + point.y, inkWidth / 2);
       }
     }
   }
@@ -341,7 +347,7 @@ export class WritingPad {
     const half = slot.size / 2;
     const background = this.scene.add.graphics();
     const radius = buttonCornerRadius(slot.size);
-    const border = KEYPAD_BUTTON_STYLE.borderWidth;
+    const border = KEYPAD_BUTTON_STYLE.borderWidth * this.detailScale;
     background
       .fillStyle(CLEAR_BACKGROUND, 1)
       .fillRoundedRect(-half, -half, slot.size, slot.size, radius)
@@ -419,7 +425,7 @@ export class WritingPad {
     this.views.forEach((view) => (view.container.x = view.slot.x));
     this.scene.tweens.add({
       targets: containers,
-      x: '+=14',
+      x: `+=${SHAKE_DISTANCE * this.detailScale}`,
       duration: 50,
       yoyo: true,
       repeat: 3,
