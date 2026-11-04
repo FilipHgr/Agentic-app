@@ -46,6 +46,11 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-04 Průvodce schválen jako #49: otázka na třídu (ne věk), 5 kroků
   s radami pro rodiče, u 2. třídy a výš předvyplněná tužka (vědomě, i když
   rozpoznávání dětského písma zatím nikdo neměřil).
+- 2026-11-04 Hlasový dabing průvodce nastavením: dospělý hlas (ne
+  postavička), v průvodci nejde vypnout, texty se upraví pro mluvení.
+  Nahrávky mp3 jsou předem v repozitáři, hra je nikde nestahuje. Všechny
+  vytvoří najednou skript přes ElevenLabs, který vlastník spustí u sebe
+  se svým klíčem.
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
