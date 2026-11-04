@@ -76,7 +76,8 @@
 
       #settings-button.is-holding .progress {
         stroke-dashoffset: 0;
-        transition: stroke-dashoffset 2s linear;
+        /* Musí sedět s HOLD_TO_OPEN_SETTINGS_MS v src/logic/settings.ts. */
+        transition: stroke-dashoffset 1s linear;
       }
     </style>
   </head>

@@ -32,6 +32,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   rodiče (#36).
 - 2026-11-03 Nastavení pro rodiče: kolečko v pravém horním rohu celé
   obrazovky (mimo herní plochu), velikost 76 px, otevře se podržením 2 s (#36).
+  (podržení 2 s nahrazeno)
+- 2026-11-04 Kolečko nastavení se otevře podržením 1 s místo 2 s, 2 s byly
+  pro rodiče moc dlouho (#36).
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 

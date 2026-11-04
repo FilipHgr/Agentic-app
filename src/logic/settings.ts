@@ -34,7 +34,7 @@ export interface GameSettings {
 export const DEFAULT_SETTINGS: GameSettings = { maxNumber: 10, operations: 'plus' };
 
 /** Jak dlouho musí rodič držet ozubené kolečko, aby se nastavení otevřelo. */
-export const HOLD_TO_OPEN_SETTINGS_MS = 2000;
+export const HOLD_TO_OPEN_SETTINGS_MS = 1000;
 
 /** Otevře se nastavení po takto dlouhém držení kolečka? */
 export function isHoldLongEnough(heldMs: number): boolean {

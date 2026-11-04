@@ -108,17 +108,18 @@ function memoryStorage(): KeyValueStorage & { data: Map<string, string> } {
 }
 
 describe('AC1: nastavení se otevře až po podržení kolečka', () => {
-  it('kolečko se musí držet 2 sekundy', () => {
-    expect(HOLD_TO_OPEN_SETTINGS_MS).toBe(2000);
+  it('rodič musí kolečko držet 1 sekundu', () => {
+    expect(HOLD_TO_OPEN_SETTINGS_MS).toBe(1000);
   });
 
-  it('krátké ťuknutí ani kratší držení nastavení neotevře', () => {
-    for (const heldMs of [0, 150, 1000, 1999]) {
+  it('krátké ťuknutí ani držení kratší než 1 sekunda nastavení neotevře', () => {
+    for (const heldMs of [0, 150, 500, 999]) {
       expect(isHoldLongEnough(heldMs)).toBe(false);
     }
   });
 
-  it('podržení 2 sekundy a déle nastavení otevře', () => {
+  it('když rodič podrží kolečko 1 sekundu a déle, nastavení se otevře', () => {
+    expect(isHoldLongEnough(1000)).toBe(true);
     expect(isHoldLongEnough(2000)).toBe(true);
     expect(isHoldLongEnough(3500)).toBe(true);
   });
