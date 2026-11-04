@@ -76,6 +76,8 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   postavička s příkladem, dole přes šířku číselník (do 10 jako 6 + 5). Tečky
   nápovědy vedle příkladu, po pěti v řadě. Výjimka z 64 px: ťukací plocha
   tečky na telefonu smí mít 48 px, jinak se nevejde (#54, #43).
+- 2026-11-04 Psaní do 5 na nejnižších telefonech: okénko smí mít 180 px místo
+  200 px, rozložení zůstane jednotné (příklad pod hvězdičkami) (#54).
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
