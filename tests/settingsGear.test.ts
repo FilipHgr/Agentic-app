@@ -294,7 +294,14 @@ describe('AC3: na iPadu zůstane kolečko jako dnes', () => {
   });
 });
 
-describe('AC4: na telefonu na výšku (a v okně 667×320) je kolečko malé a mimo zmenšenou hru', () => {
+/**
+ * Pro okna na výšku nahrazuje kritérium „kolečko nepřekrývá zmenšenou hru“
+ * #56 (AC1 a AC2): telefon na výšku má herní plochu přes celou volnou plochu
+ * a kolečko je nad ní vpravo nahoře vedle hvězdiček. Že nepřekrývá žádný
+ * prvek hry, hlídá `phonePortraitLayout.test.ts`. Velikost a odsazení
+ * kolečka na výšku zůstávají z #55.
+ */
+describe('AC4: na telefonu na výšku (a v okně 667×320) je kolečko malé', () => {
   for (const window of [...PHONE_PORTRAIT_WINDOWS, IPHONE_SE_LANDSCAPE]) {
     it(`${window.name}: kolečko má 48 × 48 px a plocha pro prst 64 × 64 px`, () => {
       const gear = gearOf(window);
@@ -308,13 +315,13 @@ describe('AC4: na telefonu na výšku (a v okně 667×320) je kolečko malé a m
       expect(hit.top - free.top).toBeCloseTo(PHONE_EDGE_OFFSET, 5);
       expect(free.right - hit.right).toBeCloseTo(PHONE_EDGE_OFFSET, 5);
     });
-
-    it(`${window.name}: plocha pro prst nepřekrývá zmenšenou hru`, () => {
-      const hit = hitBoxOf(window, gearOf(window));
-      const game = gameBoxOf(gameAreaFor(viewportOf(window)));
-      expect(overlaps(hit, game)).toBe(false);
-    });
   }
+
+  it(`${IPHONE_SE_LANDSCAPE.name}: plocha pro prst nepřekrývá zmenšenou hru`, () => {
+    const hit = hitBoxOf(IPHONE_SE_LANDSCAPE, gearOf(IPHONE_SE_LANDSCAPE));
+    const game = gameBoxOf(gameAreaFor(viewportOf(IPHONE_SE_LANDSCAPE)));
+    expect(overlaps(hit, game)).toBe(false);
+  });
 });
 
 describe('AC5: po otočení telefonu nebo změně lišty se kolečko přepočítá', () => {

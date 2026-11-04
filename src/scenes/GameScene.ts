@@ -28,6 +28,8 @@ import type { AnswerButtonState } from '../logic/theme';
 import { countDot, countingTone, startDotCounting } from '../logic/dotCounting';
 import type { DotCounting } from '../logic/dotCounting';
 import {
+  hintMovesLayout,
+  isPortraitLayout,
   isTwoBoxRound,
   gameAreaFor,
   layoutDeviceHint,
@@ -160,8 +162,8 @@ function mascotLookOf(sizes: DeviceSizes): MascotLook {
 
 /**
  * Scéna jen kreslí kolo a animuje; o správnosti rozhoduje logika v src/logic.
- * Rozložení se bere podle herní plochy (iPad, nebo telefon na šířku, #54)
- * a při otočení telefonu se překreslí bez nového příkladu.
+ * Rozložení se bere podle herní plochy (iPad, telefon na šířku #54, nebo
+ * na výšku #56) a při otočení telefonu se překreslí bez nového příkladu.
  */
 export class GameScene extends Phaser.Scene {
   private round: AnswerRound | undefined;
@@ -217,7 +219,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.createStarRow();
     this.paintStars();
-    const layout = this.layout();
+    const layout = this.sceneryLayout();
     this.mascot = new Mascot(this, layout.mascot, mascotLookOf(layout), this.character);
     // Kolečko je tlačítko stránky v rohu obrazovky, mimo herní plochu.
     const settingsButton = document.getElementById('settings-button');
@@ -270,7 +272,7 @@ export class GameScene extends Phaser.Scene {
    * @param animateHint Tečky nápovědy naskočí (nápověda se právě ukázala).
    */
   private relayoutRound(animateHint: boolean): void {
-    const layout = this.layout();
+    const layout = this.sceneryLayout();
     this.mascot?.moveTo(layout.mascot, mascotLookOf(layout));
     if (!this.round) {
       return;
@@ -392,7 +394,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createStarRow(): void {
-    this.starIcons = this.layout().stars.map((slot) =>
+    this.starIcons = this.sceneryLayout().stars.map((slot) =>
       this.createStarShape(slot.x, slot.y, STAR_EMPTY_COLOR),
     );
   }
@@ -408,7 +410,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createStarShape(x: number, y: number, color: number): Phaser.GameObjects.Star {
-    const size = this.layout().starSize;
+    const size = this.sceneryLayout().starSize;
     return this.add.star(x, y, 5, size * 0.25, size / 2, color);
   }
 
@@ -438,7 +440,21 @@ export class GameScene extends Phaser.Scene {
     this.round = createAnswerRound(this.settings, Math.random, this.round?.problem);
     this.hintIsShown = false;
     this.dotCounting = startDotCounting(this.round.problem);
+    this.placeMascotAfterSettings();
     this.drawRound();
+  }
+
+  /**
+   * Na telefonu na výšku závisí místo a velikost postavičky na nastavení
+   * (rozsah, druh příkladů, psaní, #56). Po jeho změně se postavička
+   * přesune; jinak zůstane, jak je, a rozběhnutá radost se nepřeruší.
+   */
+  private placeMascotAfterSettings(): void {
+    const layout = this.sceneryLayout();
+    const look = mascotLookOf(layout);
+    if (isPortraitLayout(layout) && this.mascot && !this.mascot.isPlacedAt(layout.mascot, look)) {
+      this.mascot.moveTo(layout.mascot, look);
+    }
   }
 
   /**
@@ -453,7 +469,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const layout = this.layout();
-    this.drawProblem(layout);
+    this.drawProblem(this.sceneryLayout());
 
     if (isWritingActive(this.settings)) {
       this.createWritingPad(this.round, writingState);
@@ -507,7 +523,7 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.problemAnswer.setText(String(number)).setColor(ANSWER_WRITTEN_COLOR);
     }
-    this.centerProblem(this.layout());
+    this.centerProblem(this.sceneryLayout());
   }
 
   private onWritingConfirmed(result: TwoBoxConfirmResult): void {
@@ -523,7 +539,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Příklad ze dvou částí: bílá levá strana „3 + 4 =“ a odpověď „?“, později výsledek. */
-  private drawProblem(layout: DeviceScreenLayout): void {
+  private drawProblem(layout: DeviceScreenLayout | DeviceWritingLayout): void {
     if (!this.round) {
       return;
     }
@@ -547,7 +563,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Vycentruje celý příklad; odpověď může po vyřešení změnit šířku. */
-  private centerProblem(layout: DeviceScreenLayout): void {
+  private centerProblem(layout: DeviceScreenLayout | DeviceWritingLayout): void {
     if (!this.problemEquation || !this.problemAnswer) {
       return;
     }
@@ -566,7 +582,7 @@ export class GameScene extends Phaser.Scene {
     }
     const text = problemText(this.round);
     this.problemAnswer.setText(text.answer).setColor(ANSWER_REVEALED_COLOR);
-    this.centerProblem(this.layout());
+    this.centerProblem(this.sceneryLayout());
     this.tweens.add({
       targets: this.problemAnswer,
       scale: 1.25,
@@ -705,6 +721,7 @@ export class GameScene extends Phaser.Scene {
       answerChoices(maxNumber).length,
       STARS_PER_SET,
       groups,
+      this.settings.operations,
     );
     this.keypadLayouts.set(key, layout);
     return layout;
@@ -722,6 +739,7 @@ export class GameScene extends Phaser.Scene {
       this.settings.maxNumber,
       STARS_PER_SET,
       groups,
+      this.settings.operations,
     );
     this.writingLayouts.set(key, layout);
     return layout;
@@ -730,7 +748,8 @@ export class GameScene extends Phaser.Scene {
   /** Rozložení telefonu se zkouší z mnoha velikostí, proto se spočítané pamatuje. */
   private layoutKey(input: string, maxNumber: number, groups: readonly number[]): string {
     const { mode, width, height } = this.gameArea;
-    return [input, mode, width, height, maxNumber, groups.join('+')].join('|');
+    const { operations } = this.settings;
+    return [input, mode, width, height, maxNumber, operations, groups.join('+')].join('|');
   }
 
   /** Skupinky teček, pro které má rozložení udělat místo (na telefonu, #54). */
@@ -743,13 +762,23 @@ export class GameScene extends Phaser.Scene {
     return isWritingActive(this.settings) ? this.writingLayout() : this.layout();
   }
 
+  /**
+   * Rozložení pro hvězdičky, postavičku a příklad. Na telefonu na výšku
+   * (#56) se psaní může rozvrhnout jinak než číselník, proto se bere
+   * rozložení se skutečným ovládáním; jinde jako dřív rozložení s číselníkem.
+   */
+  private sceneryLayout(): DeviceScreenLayout | DeviceWritingLayout {
+    return this.gameArea.mode === 'phonePortrait' ? this.answerLayout() : this.layout();
+  }
+
   private showHintWhenNeeded(): void {
     if (!this.round || this.hintIsShown || !isHintVisible(this.round)) {
       return;
     }
     this.hintIsShown = true;
-    if (this.answerLayout().device === 'phone') {
-      // Na telefonu nápověda potřebuje místo: rozložení se přepočítá (V2, #54).
+    if (hintMovesLayout(this.answerLayout())) {
+      // Na telefonu na šířku nápověda potřebuje místo: rozložení se přepočítá (V2, #54).
+      // Na výšku má místo vyhrazené (#56) a nic se neposune.
       this.relayoutRound(true);
       return;
     }

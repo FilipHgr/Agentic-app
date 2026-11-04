@@ -48,6 +48,46 @@ export const PHONE_WINDOWS: readonly TestWindow[] = [
   },
 ];
 
+/** iPhone 13–15 na výšku: výřez 47 px nahoře, lišta domů 34 px dole (#56). */
+export const IPHONE_PORTRAIT_NOTCH: TestSafeArea = { top: 47, right: 0, bottom: 34, left: 0 };
+
+/** iPhone Pro Max na výšku: výřez 59 px nahoře, lišta domů 34 px dole (#56). */
+const IPHONE_PRO_MAX_PORTRAIT_NOTCH: TestSafeArea = { top: 59, right: 0, bottom: 34, left: 0 };
+
+/** Nejmenší okno, které ještě dostane telefonní rozložení na výšku (#56, AC1). */
+export const SMALLEST_PHONE_PORTRAIT: TestWindow = {
+  name: '360×620 nejmenší telefon na výšku',
+  width: 360,
+  height: 620,
+  safeArea: NO_NOTCH,
+};
+
+/** Zkušební okna telefonu na výšku z #56. */
+export const PHONE_PORTRAIT_WINDOWS: readonly TestWindow[] = [
+  {
+    name: '390×844 iPhone 13–15 (výřez 47, lišta 34)',
+    width: 390,
+    height: 844,
+    safeArea: IPHONE_PORTRAIT_NOTCH,
+  },
+  { name: '390×664 iPhone v Safari s lištou', width: 390, height: 664, safeArea: NO_NOTCH },
+  { name: '360×780 Samsung s Chromem', width: 360, height: 780, safeArea: NO_NOTCH },
+  { name: '375×667 iPhone SE', width: 375, height: 667, safeArea: NO_NOTCH },
+  {
+    name: '430×932 iPhone Pro Max (výřez 59, lišta 34)',
+    width: 430,
+    height: 932,
+    safeArea: IPHONE_PRO_MAX_PORTRAIT_NOTCH,
+  },
+  SMALLEST_PHONE_PORTRAIT,
+];
+
+/** Okno těsně pod hranicí šířky 500 px a úzký iPad ve Split View: také telefon na výšku (AC1). */
+export const PHONE_PORTRAIT_EDGE_WINDOWS: readonly TestWindow[] = [
+  { name: '499×932 těsně pod hranicí šířky', width: 499, height: 932, safeArea: NO_NOTCH },
+  { name: '375×1180 úzký iPad (Split View)', width: 375, height: 1180, safeArea: NO_NOTCH },
+];
+
 /** iPad na šířku, jehož rozložení se nesmí změnit (AC5). */
 export const IPAD_WINDOWS: readonly TestWindow[] = [
   { name: 'iPad 1180×820', width: 1180, height: 820, safeArea: NO_NOTCH },

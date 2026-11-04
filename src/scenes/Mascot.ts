@@ -83,6 +83,17 @@ export class Mascot {
     this.scheduleBlink();
   }
 
+  /** Stojí postavička doma na místě `position` a v podobě `look`? */
+  isPlacedAt(position: Point, look: MascotLook): boolean {
+    return (
+      this.home.x === position.x &&
+      this.home.y === position.y &&
+      this.look.size === look.size &&
+      this.look.jumpHeight === look.jumpHeight &&
+      this.look.danceSway === look.danceSway
+    );
+  }
+
   /**
    * Nové místo a velikost po změně rozložení (#54). Rozběhnutý pohyb
    * skončí a postavička stojí v klidu na novém místě; nálada zůstane.

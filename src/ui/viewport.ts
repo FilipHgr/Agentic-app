@@ -1,10 +1,10 @@
 /**
- * Okno prohlížeče pro rozložení podle zařízení (#54): velikost okna,
+ * Okno prohlížeče pro rozložení podle zařízení (#54, #56): velikost okna,
  * výřez a lišta domů z CSS `env(safe-area-inset-*)` a umístění herní
  * plochy na stránce. Rozhodování je v `src/logic/deviceLayout.ts`.
  */
 
-import { safeAreaOrNone } from '../logic/deviceLayout';
+import { isPhoneMode, safeAreaOrNone } from '../logic/deviceLayout';
 import type { GameArea, SafeArea, Viewport } from '../logic/deviceLayout';
 
 /** Klíč v `game.registry`, pod kterým scéna najde aktuální herní plochu. */
@@ -42,7 +42,7 @@ export function readViewport(): Viewport {
  */
 export function placeGameParent(parent: HTMLElement, area: GameArea): void {
   const style = parent.style;
-  if (area.mode === 'phoneLandscape') {
+  if (isPhoneMode(area.mode)) {
     style.left = `${area.offsetX}px`;
     style.top = `${area.offsetY}px`;
     style.width = `${area.width * area.scale}px`;

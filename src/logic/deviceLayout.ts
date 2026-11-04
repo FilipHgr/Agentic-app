@@ -1,8 +1,9 @@
 /**
- * Rozložení podle velikosti okna (#54): telefon na šířku dostane vlastní
- * rozložení s tlačítky aspoň 64 CSS px, iPad dnešní rozložení beze změny
- * a ostatní okna (na výšku, malá nebo nesmyslná) dnešní zmenšené
- * zobrazení. Herní plocha telefonu vyplní okno bez výřezu a lišty domů.
+ * Rozložení podle velikosti okna (#54, #56): telefon na šířku i na výšku
+ * dostane vlastní rozložení s tlačítky aspoň 64 CSS px, iPad dnešní
+ * rozložení beze změny a ostatní okna (iPad na výšku, malá nebo nesmyslná)
+ * dnešní zmenšené zobrazení. Herní plocha telefonu vyplní okno bez výřezu
+ * a lišty domů.
  *
  * Rozložení telefonu se počítá v CSS px (px na skutečném displeji) a na
  * konci převede na herní jednotky; na telefonu jsou 2 herní jednotky na
@@ -14,9 +15,24 @@ import type { AnswerRound } from './answerRound';
 import type { WritingAreaSize } from './digitRecognition';
 import { canCountDots } from './dotCounting';
 import type { DotCounting } from './dotCounting';
-import { DOTS_PER_ROW, visibleGroups } from './phoneHint';
+import { visibleGroups } from './phoneHint';
 import { planPhoneScreen } from './phoneLayout';
-import type { PhonePlan, PhonePlanRequest } from './phoneLayout';
+import type { PhonePlanRequest } from './phoneLayout';
+import {
+  isPortraitLayout,
+  layoutPhonePortraitHint,
+  layoutPhonePortraitScreen,
+  layoutPhonePortraitWritingScreen,
+} from './phonePortraitLayout';
+import {
+  PHONE_UNITS_PER_CSS_PX,
+  areaInUnits,
+  cssSizeOf,
+  dotInUnits,
+  phoneParts,
+  slotInUnits,
+} from './phoneScreenParts';
+import type { PhoneParts } from './phoneScreenParts';
 import type { GameProgress } from './progress';
 import {
   HINT_DOT_HIT_SIZE,
@@ -28,16 +44,8 @@ import {
   layoutScreen,
   layoutWritingScreen,
 } from './screenLayout';
-import type {
-  ButtonSlot,
-  HintDot,
-  HintStyle,
-  Point,
-  ScreenLayout,
-  WritingAreaSlot,
-  WritingLayout,
-} from './screenLayout';
-import type { GameSettings, MaxNumber } from './settings';
+import type { ButtonSlot, HintDot, ScreenLayout, WritingLayout } from './screenLayout';
+import type { GameSettings, MaxNumber, OperationMode } from './settings';
 import type { SettingsSession } from './settingsSession';
 import type { GuideState } from './setupGuide';
 import type { TwoBoxRound } from './twoBoxWriting';
@@ -45,13 +53,25 @@ import { clearWriting } from './writingRound';
 import type { WritingRound } from './writingRound';
 
 export type { Region } from './phoneHint';
+export {
+  isPortraitLayout,
+  layoutPhonePortraitHint,
+  layoutPhonePortraitScreen,
+  layoutPhonePortraitWritingScreen,
+} from './phonePortraitLayout';
+export type {
+  PhonePortraitLayout,
+  PhonePortraitScreenLayout,
+  PhonePortraitWritingLayout,
+  PortraitLayoutSettings,
+} from './phonePortraitLayout';
 
 // ---------------------------------------------------------------------------
 // Okno a herní plocha
 // ---------------------------------------------------------------------------
 
-/** Telefon na šířku, dnešní iPad, nebo dnešní zmenšené zobrazení. */
-export type LayoutMode = 'tablet' | 'phoneLandscape' | 'scaled';
+/** Telefon na šířku nebo na výšku, dnešní iPad, nebo dnešní zmenšené zobrazení. */
+export type LayoutMode = 'tablet' | 'phoneLandscape' | 'phonePortrait' | 'scaled';
 
 /** Výřez a lišta domů v CSS px (`env(safe-area-inset-*)`). */
 export interface SafeArea {
@@ -95,8 +115,11 @@ const TABLET_MIN_WINDOW_HEIGHT = 500;
 const PHONE_MIN_FREE_WIDTH = 744;
 const PHONE_MIN_FREE_HEIGHT = 296;
 
-/** Herní jednotky na 1 CSS px na telefonu. */
-const PHONE_UNITS_PER_CSS_PX = 2;
+/** Okno na výšku užší než 500 px je telefon (širší je iPad, #56). */
+const PORTRAIT_PHONE_MAX_WINDOW_WIDTH = 500;
+/** Nejmenší volná plocha na výšku, kde se rozložení P2 vejde (#56). */
+const PORTRAIT_PHONE_MIN_FREE_WIDTH = 360;
+const PORTRAIT_PHONE_MIN_FREE_HEIGHT = 620;
 
 const NO_SAFE_AREA: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 };
 
@@ -137,11 +160,14 @@ function freeSizeOf(viewport: Viewport): GameSize {
 
 /**
  * Které rozložení okno dostane. Čtverec se bere jako okno na výšku.
- * O iPadu rozhoduje výška celého okna, ne volné plochy (AC5).
+ * O iPadu rozhoduje velikost celého okna, ne volné plochy (#54 AC5).
  */
 export function chooseLayoutMode(viewport: Viewport | undefined): LayoutMode {
-  if (!isValidViewport(viewport) || viewport.width <= viewport.height) {
+  if (!isValidViewport(viewport)) {
     return 'scaled';
+  }
+  if (viewport.width <= viewport.height) {
+    return portraitLayoutMode(viewport);
   }
   if (viewport.height >= TABLET_MIN_WINDOW_HEIGHT) {
     return 'tablet';
@@ -151,11 +177,30 @@ export function chooseLayoutMode(viewport: Viewport | undefined): LayoutMode {
   return phoneFits ? 'phoneLandscape' : 'scaled';
 }
 
+/**
+ * Okno na výšku: telefon (užší než 500 px s dost velkou volnou plochou),
+ * jinak dnešní zmenšené zobrazení. Úzký iPad ve Split View je záměrně
+ * telefon, stejně jako u kolečka (#55).
+ */
+function portraitLayoutMode(viewport: Viewport): LayoutMode {
+  const free = freeSizeOf(viewport);
+  const phoneFits =
+    viewport.width < PORTRAIT_PHONE_MAX_WINDOW_WIDTH &&
+    free.width >= PORTRAIT_PHONE_MIN_FREE_WIDTH &&
+    free.height >= PORTRAIT_PHONE_MIN_FREE_HEIGHT;
+  return phoneFits ? 'phonePortrait' : 'scaled';
+}
+
+/** Je to telefonní rozložení (na šířku nebo na výšku) přes volnou plochu? */
+export function isPhoneMode(mode: LayoutMode): mode is 'phoneLandscape' | 'phonePortrait' {
+  return mode === 'phoneLandscape' || mode === 'phonePortrait';
+}
+
 /** Telefon: herní plocha přesně přes volnou plochu, 2 jednotky na CSS px. */
-function phoneGameArea(viewport: Viewport): GameArea {
+function phoneGameArea(viewport: Viewport, mode: 'phoneLandscape' | 'phonePortrait'): GameArea {
   const free = freeSizeOf(viewport);
   return {
-    mode: 'phoneLandscape',
+    mode,
     // Celé jednotky, aby plátno mělo celé pixely; ubere nejvýš čtvrt CSS px.
     width: Math.floor(free.width * PHONE_UNITS_PER_CSS_PX),
     height: Math.floor(free.height * PHONE_UNITS_PER_CSS_PX),
@@ -188,10 +233,11 @@ function windowSizeOf(viewport: Viewport | undefined): GameSize {
 
 /** Kam a jak velká se herní plocha v okně dá. */
 export function gameAreaFor(viewport: Viewport | undefined): GameArea {
-  if (isValidViewport(viewport) && chooseLayoutMode(viewport) === 'phoneLandscape') {
-    return phoneGameArea(viewport);
+  const mode = chooseLayoutMode(viewport);
+  if (isValidViewport(viewport) && isPhoneMode(mode)) {
+    return phoneGameArea(viewport, mode);
   }
-  return todayGameArea(chooseLayoutMode(viewport), windowSizeOf(viewport));
+  return todayGameArea(mode, windowSizeOf(viewport));
 }
 
 /** Okno bez výřezu, když výřez chybí nebo je nesmyslný. */
@@ -238,14 +284,6 @@ function tabletSizes(maxNumber: number): DeviceSizes {
   };
 }
 
-interface PhoneParts extends DeviceSizes {
-  readonly device: 'phone';
-  /** Tečky nápovědy pro skupinky, se kterými se rozložení počítalo. */
-  readonly hintDots: readonly HintDot[];
-  /** Zadání rozložení v CSS px, aby šla nápověda spočítat i pro jiné skupinky. */
-  readonly request: PhonePlanRequest;
-}
-
 interface TabletParts extends DeviceSizes {
   readonly device: 'tablet';
 }
@@ -259,80 +297,8 @@ export type DeviceScreenLayout = PhoneScreenLayout | TabletScreenLayout;
 export type DeviceWritingLayout = PhoneWritingLayout | TabletWritingLayout;
 
 // ---------------------------------------------------------------------------
-// Telefon na šířku: převod plánu z CSS px na herní jednotky
+// Telefon na šířku (V2, #54); převod na herní jednotky je v `phoneScreenParts.ts`
 // ---------------------------------------------------------------------------
-
-/** Číslo ve spočítané tečce jako část průměru tečky. */
-const DOT_NUMBER_RATIO = 0.6;
-
-function units(cssPx: number): number {
-  return cssPx * PHONE_UNITS_PER_CSS_PX;
-}
-
-function cssSizeOf(area: GameSize): GameSize {
-  return {
-    width: area.width / PHONE_UNITS_PER_CSS_PX,
-    height: area.height / PHONE_UNITS_PER_CSS_PX,
-  };
-}
-
-function pointInUnits(point: Point): Point {
-  return { x: units(point.x), y: units(point.y) };
-}
-
-function dotInUnits(dot: HintDot): HintDot {
-  return { ...pointInUnits(dot), group: dot.group };
-}
-
-function slotInUnits(slot: ButtonSlot): ButtonSlot {
-  return { x: units(slot.x), y: units(slot.y), size: units(slot.size) };
-}
-
-function areaInUnits(area: WritingAreaSlot): WritingAreaSlot {
-  return {
-    x: units(area.x),
-    y: units(area.y),
-    width: units(area.width),
-    height: units(area.height),
-  };
-}
-
-/** Vzhled teček pro scénu; na telefonu jsou vždy po pěti v řadě. */
-function hintStyleOf(plan: PhonePlan): HintStyle {
-  return {
-    dotSize: units(plan.hintDotSize),
-    spacing: units(plan.hintCell),
-    dotsPerRow: DOTS_PER_ROW,
-    fiveGap: 0,
-    groupGap: 0,
-  };
-}
-
-/** Společné části rozložení telefonu v herních jednotkách. */
-function phoneParts(
-  plan: PhonePlan,
-  request: PhonePlanRequest,
-): Omit<ScreenLayout, 'answerButtons'> & PhoneParts {
-  return {
-    device: 'phone',
-    request,
-    problem: pointInUnits(plan.problem),
-    problemFontSize: units(plan.problemFontSize),
-    problemSize: { width: units(plan.problemWidth), height: units(plan.problemHeight) },
-    hintStyle: hintStyleOf(plan),
-    stars: plan.stars.map(pointInUnits),
-    mascot: pointInUnits(plan.mascot),
-    starSize: units(plan.starSize),
-    mascotSize: units(plan.mascotSize),
-    mascotJumpHeight: (units(plan.mascotSize) * MASCOT_JUMP_HEIGHT) / MASCOT_SIZE,
-    mascotDanceSway: (units(plan.mascotSize) * MASCOT_DANCE_SWAY) / MASCOT_SIZE,
-    hintDotHitSize: units(plan.hintCell),
-    hintDotsCountable: plan.hintDotsCountable,
-    dotNumberFontSize: units(Math.round(plan.hintDotSize * DOT_NUMBER_RATIO)),
-    detailScale: PHONE_UNITS_PER_CSS_PX,
-    hintDots: plan.hintDots.map(dotInUnits),
-  };
-}
 
 /**
  * Telefon na šířku s číselníkem (rozložení V2).
@@ -421,14 +387,20 @@ export function layoutPhoneHint(
 
 /**
  * Rozložení s číselníkem pro herní plochu `area` (telefon, nebo dnešní).
- * Na telefonu udělá místo pro nápovědu `hintGroups`; iPad ji nepotřebuje.
+ * Na telefonu na šířku udělá místo pro nápovědu `hintGroups`; na výšku je
+ * místo vyhrazené podle druhu příkladů `operations` a iPad ho nepotřebuje.
  */
 export function layoutDeviceScreen(
   area: GameArea,
   buttonCount: number,
   starCount = 0,
   hintGroups: readonly number[] = [],
+  operations: OperationMode = 'mixed',
 ): DeviceScreenLayout {
+  if (area.mode === 'phonePortrait') {
+    const settings = { maxNumber: maxNumberForButtons(buttonCount), operations };
+    return layoutPhonePortraitScreen(area, settings, starCount);
+  }
   if (area.mode === 'phoneLandscape') {
     return layoutPhoneScreen(area, buttonCount, starCount, hintGroups);
   }
@@ -445,7 +417,11 @@ export function layoutDeviceWritingScreen(
   maxNumber: MaxNumber,
   starCount = 0,
   hintGroups: readonly number[] = [],
+  operations: OperationMode = 'mixed',
 ): DeviceWritingLayout {
+  if (area.mode === 'phonePortrait') {
+    return layoutPhonePortraitWritingScreen(area, { maxNumber, operations }, starCount);
+  }
   if (area.mode === 'phoneLandscape') {
     return layoutPhoneWritingScreen(area, maxNumber, starCount, hintGroups);
   }
@@ -461,10 +437,22 @@ export function layoutDeviceHint(
   layout: DeviceScreenLayout | DeviceWritingLayout,
   groups: readonly number[],
 ): HintDot[] {
+  if (isPortraitLayout(layout)) {
+    return layoutPhonePortraitHint(layout, groups);
+  }
   if (layout.device === 'phone') {
     return layoutPhoneHint(layout, groups);
   }
   return layoutHint(layout, groups);
+}
+
+/**
+ * Posune nápověda rozložení? Na telefonu na šířku ano (#54), proto se po
+ * jejím ukázání rozložení přepočítá. Na výšku má nápověda místo vyhrazené
+ * (#56) a na iPadu má místo vždy.
+ */
+export function hintMovesLayout(layout: DeviceScreenLayout | DeviceWritingLayout): boolean {
+  return layout.device === 'phone' && !isPortraitLayout(layout);
 }
 
 /** Kde a jak zmenšený je panel nastavení a průvodce (navržené na 1024 × 768). */

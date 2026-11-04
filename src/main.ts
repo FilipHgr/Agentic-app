@@ -29,8 +29,8 @@ function placeSettingsGear(viewport: Viewport): void {
 placeSettingsGear(readViewport());
 
 /**
- * Herní plocha podle okna (#54): na iPadu a v ostatních oknech pevně
- * 1024 × 768, na telefonu na šířku přes celou volnou plochu. Scale.FIT
+ * Herní plocha podle okna (#54, #56): na iPadu a v ostatních oknech pevně
+ * 1024 × 768, na telefonu na šířku i na výšku přes celou volnou plochu. Scale.FIT
  * ji do prvku s hrou zmenší a vycentruje.
  */
 const game = new Phaser.Game({

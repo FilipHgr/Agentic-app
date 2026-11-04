@@ -30,8 +30,10 @@ const TEMPLATE_RANGE = 100;
 const NEIGHBOURS = 3;
 
 /**
- * Zápis menší než tato část výšky plochy je tečka nebo čárka, ne číslice.
- * Krátká čárka podle zadání je kratší než desetina výšky.
+ * Zápis menší než tato část kratší strany plochy je tečka nebo čárka, ne
+ * číslice. Krátká čárka podle zadání je kratší než desetina strany. Kratší
+ * strana proto, aby vysoké okénko na telefonu na výšku (#56) nepřestalo
+ * brát číslice, které zabírají stejnou část šířky jako ve čtverci.
  */
 const MIN_SIZE_SHARE = 0.12;
 
@@ -109,7 +111,7 @@ export function recognizeDigit(strokes: readonly Stroke[], area: WritingAreaSize
 
   const bounds = boundsOf(points);
   const size = Math.max(bounds.width, bounds.height);
-  if (!(size >= area.height * MIN_SIZE_SHARE)) {
+  if (!(size >= Math.min(area.width, area.height) * MIN_SIZE_SHARE)) {
     return null;
   }
 
