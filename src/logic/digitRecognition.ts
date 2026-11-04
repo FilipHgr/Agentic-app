@@ -106,8 +106,67 @@ export function recognizeDigit(strokes: readonly Stroke[], area: WritingAreaSize
     return 1;
   }
 
-  const sample = normalize(resample(points, SAMPLE_POINTS), bounds);
-  return closestDigit(sample);
+  // Smyčku na začátku zápisu (devítka, nula) jde začít psát kdekoli.
+  // Zkusí se proto i jiné začátky smyčky a vyhraje nejpodobnější podoba.
+  const variants = loopStartVariants(points, size).map((variant) =>
+    nearestTemplates(normalize(resample(variant, SAMPLE_POINTS), bounds)),
+  );
+  const best = variants.reduce((winner, candidate) =>
+    (candidate[0]?.distance ?? Infinity) < (winner[0]?.distance ?? Infinity) ? candidate : winner,
+  );
+  return digitByVote(best);
+}
+
+/** Smyčka se hledá jen uprostřed zápisu: začátek musí znovu potkat po 25–75 % délky. */
+const LOOP_MIN_SHARE = 0.25;
+const LOOP_MAX_SHARE = 0.75;
+
+/** Jak blízko musí zápis znovu projít začátkem, aby šlo o uzavřenou smyčku (část velikosti). */
+const LOOP_CLOSE_SHARE = 0.2;
+
+/** Kolik různých začátků smyčky se vyzkouší. */
+const LOOP_START_VARIANTS = 8;
+
+/**
+ * Zápis tak, jak ho dítě napsalo, a když začíná uzavřenou smyčkou, tak
+ * i podoby, ve kterých smyčka začíná jinde (zbytek zápisu zůstane stejný).
+ */
+function loopStartVariants(points: readonly StrokePoint[], size: number): StrokePoint[][] {
+  const closing = loopClosingIndex(points, size);
+  if (closing === undefined) {
+    return [[...points]];
+  }
+
+  const loop = points.slice(0, closing);
+  const rest = points.slice(closing);
+  const variants: StrokePoint[][] = [[...points]];
+  for (let variant = 1; variant < LOOP_START_VARIANTS; variant += 1) {
+    const start = Math.round((loop.length * variant) / LOOP_START_VARIANTS);
+    variants.push([...loop.slice(start), ...loop.slice(0, start), ...rest]);
+  }
+  return variants;
+}
+
+/** Index bodu, kde se zápis vrátí ke svému začátku; `undefined`, když smyčku nemá. */
+function loopClosingIndex(points: readonly StrokePoint[], size: number): number | undefined {
+  const lengths = cumulativeLengths(points);
+  const total = lengths[lengths.length - 1] ?? 0;
+  const start = points[0];
+  if (!start || total <= 0) {
+    return undefined;
+  }
+
+  let closest: number | undefined;
+  let closestDistance = size * LOOP_CLOSE_SHARE;
+  points.forEach((point, index) => {
+    const share = (lengths[index] ?? 0) / total;
+    const gap = Math.hypot(point.x - start.x, point.y - start.y);
+    if (share >= LOOP_MIN_SHARE && share <= LOOP_MAX_SHARE && gap < closestDistance) {
+      closest = index;
+      closestDistance = gap;
+    }
+  });
+  return closest;
 }
 
 /** Všechny body všech tahů za sebou, bez nesmyslných souřadnic. */
@@ -169,14 +228,7 @@ function turnsAlong(values: readonly number[], tolerance: number): number {
 
 /** Rozmístí `count` bodů rovnoměrně po délce celého zápisu. */
 function resample(points: readonly StrokePoint[], count: number): StrokePoint[] {
-  const distances = [0];
-  for (let index = 1; index < points.length; index += 1) {
-    const previous = points[index - 1] as StrokePoint;
-    const point = points[index] as StrokePoint;
-    distances.push(
-      (distances[index - 1] ?? 0) + Math.hypot(point.x - previous.x, point.y - previous.y),
-    );
-  }
+  const distances = cumulativeLengths(points);
   const total = distances[distances.length - 1] ?? 0;
 
   const result: StrokePoint[] = [];
@@ -189,6 +241,19 @@ function resample(points: readonly StrokePoint[], count: number): StrokePoint[] 
     result.push(pointAtDistance(points, distances, segment, target));
   }
   return result;
+}
+
+/** Délka zápisu od začátku po každý bod. */
+function cumulativeLengths(points: readonly StrokePoint[]): number[] {
+  const lengths = [0];
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1] as StrokePoint;
+    const point = points[index] as StrokePoint;
+    lengths.push(
+      (lengths[index - 1] ?? 0) + Math.hypot(point.x - previous.x, point.y - previous.y),
+    );
+  }
+  return lengths;
 }
 
 /** Bod ve vzdálenosti `target` od začátku, na úseku končícím bodem `segment`. */
@@ -242,9 +307,14 @@ function distance(a: readonly number[], b: readonly number[]): number {
   return sum;
 }
 
-/** Číslice nejpodobnějších vzorů; při shodě hlasů rozhodne nejbližší vzor. */
-function closestDigit(sample: readonly number[]): number | null {
-  const nearest: { digit: number; distance: number }[] = [];
+interface Neighbour {
+  readonly digit: number;
+  readonly distance: number;
+}
+
+/** Nejpodobnější vzory, seřazené od nejbližšího. */
+function nearestTemplates(sample: readonly number[]): Neighbour[] {
+  const nearest: Neighbour[] = [];
   for (const template of templates()) {
     const templateDistance = distance(sample, template.values);
     if (
@@ -256,7 +326,11 @@ function closestDigit(sample: readonly number[]): number | null {
       nearest.length = Math.min(nearest.length, NEIGHBOURS);
     }
   }
+  return nearest;
+}
 
+/** Číslice podle hlasů nejbližších vzorů; při shodě hlasů rozhodne nejbližší vzor. */
+function digitByVote(nearest: readonly Neighbour[]): number | null {
   const best = nearest[0];
   if (!best || best.distance > MAX_TEMPLATE_DISTANCE) {
     return null;
