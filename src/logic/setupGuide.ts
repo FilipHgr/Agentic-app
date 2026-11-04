@@ -207,6 +207,8 @@ export interface GuideLayout {
   readonly back: GuideSlot | null;
   readonly indicator: GuideSlot & { readonly color: string };
   readonly right: GuideSlot;
+  /** Reproduktor (#51): přehraje větu kroku znovu, na všech krocích stejně. */
+  readonly speaker: Point & { readonly width: number; readonly height: number };
   readonly frame: GuideFrame | null;
 }
 
@@ -217,6 +219,8 @@ const BUTTON_TOP = 680;
 const BUTTON_HEIGHT = 72;
 const BUTTON_FONT_SIZE = 32;
 const INDICATOR_FONT_SIZE = 28;
+/** Reproduktor je čtverec ve spodním pásu, uprostřed mezi Zpět a ukazatelem kroku. */
+const SPEAKER_SIZE = 72;
 
 const MESSAGE_TOP = 590;
 const MESSAGE_LINE_HEIGHT = 36;
@@ -313,6 +317,12 @@ export function layoutGuideStep(step: GuideStep, width: number, height: number):
       buttonBottom,
       BUTTON_FONT_SIZE,
     ),
+    speaker: {
+      x: (EDGE_MARGIN + BUTTON_WIDTH + centerX - INDICATOR_WIDTH / 2) / 2,
+      y: BUTTON_TOP + BUTTON_HEIGHT / 2,
+      width: SPEAKER_SIZE,
+      height: SPEAKER_SIZE,
+    },
     frame: focusedRow ? frameAround(focusedRow) : null,
   };
 }

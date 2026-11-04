@@ -1,6 +1,10 @@
 import Phaser from 'phaser';
 
+import { createBrowserVoiceContext, createVoicePlayer } from '../audio/voicePlayer';
+import type { VoicePlayer } from '../audio/voicePlayer';
 import { buttonCornerRadius } from '../logic/checkButton';
+import { createGuideVoice, handleGuideVoice, speakerPulses } from '../logic/guideVoice';
+import type { GuideVoiceEvent, GuideVoiceState, GuideVoiceTapTarget } from '../logic/guideVoice';
 import type { GameSettings } from '../logic/settings';
 import { layoutSettingsPanel } from '../logic/settingsLayout';
 import {
@@ -25,6 +29,9 @@ import { SettingsRows } from './SettingsRows';
 
 const ROW_KINDS = ['maxNumber', 'operations', 'answerInput'] as const;
 
+/** Jemné pulzování reproduktoru, dokud rodič poprvé neťukne (#51). */
+const SPEAKER_PULSE = { scale: 1.08, durationMs: 600 } as const;
+
 /** Barvy jako čísla pro Phaser Graphics. */
 const toColor = (hex: string): number => Number.parseInt(hex.slice(1), 16);
 
@@ -38,7 +45,8 @@ interface GuideButton {
 /**
  * Průvodce nastavením při prvním spuštění (#49): tři kroky po řadách
  * s radami a shrnutí s „Začít hrát“. O krocích a volbách rozhoduje
- * `src/logic/setupGuide.ts`, panel je jen kreslí.
+ * `src/logic/setupGuide.ts`, o hlasu (#51) `src/logic/guideVoice.ts`;
+ * panel je jen kreslí a předává události.
  */
 export class SetupGuidePanel {
   private guideState: GuideState = startGuide();
@@ -58,6 +66,24 @@ export class SetupGuidePanel {
   private readonly indicator: Phaser.GameObjects.Text;
   private readonly backButton: GuideButton;
   private readonly rightButton: GuideButton;
+  private readonly speakerButton: Phaser.GameObjects.Container;
+  private speakerPulse: Phaser.Tweens.Tween | undefined;
+  private voice: GuideVoiceState = createGuideVoice();
+  private readonly voicePlayer: VoicePlayer;
+  /** Ťuknutí už zpracovalo tlačítko nebo volba; jinak jde o ťuknutí „jinam“. */
+  private tapHandled = false;
+  private readonly onAnyPointerDown = (): void => this.onPointerDownAnywhere();
+  /**
+   * Safari bere jako gesto pro zvuk až zvednutí prstu. Věta spuštěná při
+   * dotyku v pozastaveném zvuku pak zazní, jakmile se zvuk tady zapne.
+   */
+  private readonly onAnyPointerUp = (): void => {
+    if (this.voice.unlocked) {
+      this.voicePlayer.unlock();
+    }
+  };
+  private readonly onVisibilityChange = (): void =>
+    this.sendVoice({ kind: document.hidden ? 'hidden' : 'shown' });
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -80,6 +106,7 @@ export class SetupGuidePanel {
       () => guideSelection(this.state),
       (change) => {
         this.state = chooseOption(this.state, change);
+        this.tapVoice('option');
       },
     );
     this.frame = scene.add.graphics();
@@ -94,8 +121,25 @@ export class SetupGuidePanel {
     const backSlot = stepWithBackLayout.back ?? stepWithBackLayout.right;
     this.backButton = this.addButton(backSlot, GUIDE_TEXTS.buttons.back, () => this.onBack());
     this.rightButton = this.addButton(firstLayout.right, '', () => this.onRight());
+    this.speakerButton = this.addSpeakerButton(firstLayout.speaker);
+
+    // Nahrávky se stahují až s otevřeným průvodcem, jen z vlastních souborů hry.
+    this.voicePlayer = createVoicePlayer({
+      fetch: (url) => window.fetch(url),
+      createContext: createBrowserVoiceContext,
+      events: {
+        onLoaded: (id) => this.sendVoice({ kind: 'loaded', id }),
+        onLoadFailed: (id) => this.sendVoice({ kind: 'loadFailed', id }),
+      },
+    });
+    scene.input.on(Phaser.Input.Events.POINTER_DOWN, this.onAnyPointerDown);
+    scene.input.on(Phaser.Input.Events.POINTER_UP, this.onAnyPointerUp);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    // Kdyby scéna skončila jinak než „Začít hrát“, posluchači nezůstanou viset.
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.removeListeners());
 
     this.render();
+    this.sendVoice({ kind: 'opened' });
     this.container.setAlpha(0);
     scene.tweens.add({ targets: this.container, alpha: 1, duration: PANEL_FADE_MS });
   }
@@ -103,6 +147,7 @@ export class SetupGuidePanel {
   private onBack(): void {
     this.state = back(this.state);
     this.render();
+    this.tapVoice('back');
   }
 
   private onRight(): void {
@@ -110,18 +155,91 @@ export class SetupGuidePanel {
     switch (rightButton(this.state)) {
       case 'next':
         this.state = next(this.state, now);
-        break;
+        this.render();
+        this.tapVoice('next');
+        return;
       case 'startPlaying': {
+        this.tapVoice('startPlaying');
         const settings = finishGuide(this.state, now);
         if (settings) {
-          this.container.destroy();
+          this.close();
           this.onFinish(settings);
-          return;
         }
-        break;
+        return;
       }
     }
-    this.render();
+  }
+
+  /** Po „Začít hrát“: hlas skončí a průvodce zmizí. */
+  private close(): void {
+    this.sendVoice({ kind: 'closed' });
+    this.voicePlayer.dispose();
+    this.removeListeners();
+    this.container.destroy();
+  }
+
+  private removeListeners(): void {
+    this.scene.input.off(Phaser.Input.Events.POINTER_DOWN, this.onAnyPointerDown);
+    this.scene.input.off(Phaser.Input.Events.POINTER_UP, this.onAnyPointerUp);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+  }
+
+  /** Ťuknutí na konkrétní ovládání průvodce. */
+  private tapVoice(target: GuideVoiceTapTarget): void {
+    this.tapHandled = true;
+    this.sendVoice({ kind: 'tapped', target, step: this.state.step });
+  }
+
+  /**
+   * Phaser ohlásí ťuknutí na scénu až po tlačítkách. Co žádné ovládání
+   * nezpracovalo (prázdné místo, ztlumená řada), jen odemkne zvuk.
+   */
+  private onPointerDownAnywhere(): void {
+    if (!this.tapHandled) {
+      this.sendVoice({ kind: 'tapped', target: 'elsewhere', step: this.state.step });
+    }
+    this.tapHandled = false;
+  }
+
+  /** Předá událost hlasu a provede jeho příkazy. */
+  private sendVoice(event: GuideVoiceEvent): void {
+    const result = handleGuideVoice(this.voice, event);
+    this.voice = result.state;
+    for (const command of result.commands) {
+      switch (command.kind) {
+        case 'unlock':
+          this.voicePlayer.unlock();
+          break;
+        case 'load':
+          this.voicePlayer.load(command.id);
+          break;
+        case 'play':
+          this.voicePlayer.play(command.id);
+          break;
+        case 'stop':
+          this.voicePlayer.stop();
+          break;
+      }
+    }
+    this.updateSpeakerPulse();
+  }
+
+  private updateSpeakerPulse(): void {
+    const pulses = speakerPulses(this.voice);
+    if (pulses && this.speakerPulse === undefined) {
+      this.speakerPulse = this.scene.tweens.add({
+        targets: this.speakerButton,
+        scale: SPEAKER_PULSE.scale,
+        duration: SPEAKER_PULSE.durationMs,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    } else if (!pulses && this.speakerPulse !== undefined) {
+      this.speakerPulse.stop();
+      this.speakerPulse = undefined;
+      this.speakerButton.setScale(1);
+    }
   }
 
   /** Překreslí krok podle stavu z logiky. */
@@ -211,6 +329,52 @@ export class SetupGuidePanel {
     });
     this.container.add(container);
     return { container, background, label, slot };
+  }
+
+  /** Reproduktor (#51): bílý čtverec s kreslenou ikonou, bez textu. */
+  private addSpeakerButton(slot: GuideLayout['speaker']): Phaser.GameObjects.Container {
+    const { width, height } = slot;
+    const background = this.scene.add
+      .graphics()
+      .fillStyle(toColor(GUIDE_COLORS.buttonBackground), 1)
+      .fillRoundedRect(-width / 2, -height / 2, width, height, buttonCornerRadius(height));
+    const icon = this.createSpeakerIcon(height);
+    const container = this.scene.add
+      .container(slot.x, slot.y, [background, icon])
+      .setSize(width, height)
+      .setInteractive();
+    container.on('pointerdown', () => {
+      this.tapVoice('speaker');
+      // Rychlé ťukání nevrší animace na sebe.
+      this.scene.tweens.killTweensOf(container);
+      container.setScale(1);
+      this.scene.tweens.add({
+        targets: container,
+        scale: { from: 1, to: 1.08 },
+        duration: 90,
+        yoyo: true,
+      });
+    });
+    this.container.add(container);
+    return container;
+  }
+
+  /** Reproduktor s dvěma vlnkami, kreslený čarou, aby nezávisel na písmu. */
+  private createSpeakerIcon(size: number): Phaser.GameObjects.Graphics {
+    const unit = size / 12;
+    const color = toColor(GUIDE_COLORS.buttonText);
+    const icon = this.scene.add.graphics();
+    icon.fillStyle(color, 1);
+    icon.fillRect(-4 * unit, -1.5 * unit, 2 * unit, 3 * unit);
+    icon.fillTriangle(-2 * unit, -1.5 * unit, 1 * unit, -4 * unit, 1 * unit, 4 * unit);
+    icon.fillTriangle(-2 * unit, -1.5 * unit, -2 * unit, 1.5 * unit, 1 * unit, 4 * unit);
+    icon.lineStyle(unit * 0.8, color, 1);
+    for (const radius of [2.5 * unit, 4.2 * unit]) {
+      icon.beginPath();
+      icon.arc(0.5 * unit, 0, radius, -Math.PI / 4, Math.PI / 4);
+      icon.strokePath();
+    }
+    return icon;
   }
 
   private paintButton(button: GuideButton, color: string): void {
