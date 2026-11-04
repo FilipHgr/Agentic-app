@@ -14,7 +14,7 @@ import {
   MASCOT_JUMP_HEIGHT,
   MASCOT_SIZE,
   STAR_SIZE,
-  layoutHintDots,
+  layoutHint,
   layoutScreen,
 } from '../src/logic/screenLayout';
 import type { ScreenLayout } from '../src/logic/screenLayout';
@@ -292,7 +292,7 @@ describe('AC7: číselník odpovídá rozsahu a nic se nepřekrývá', () => {
     const size = layout.hintStyle.dotSize;
 
     for (const problem of allProblems(max)) {
-      const dots = layoutHintDots(hintDotGroups(problem), layout.hint, layout.hintStyle);
+      const dots = layoutHint(layout, hintDotGroups(problem));
       for (const [index, dot] of dots.entries()) {
         const dotBox = box(dot.x, dot.y, size, size);
         expect(insideScreen(dotBox)).toBe(true);

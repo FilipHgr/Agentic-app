@@ -7,7 +7,7 @@ import {
   MASCOT_JUMP_HEIGHT,
   MASCOT_SIZE,
   STAR_SIZE,
-  layoutHintDots,
+  layoutHint,
   layoutWritingScreen,
   writingAreaAt,
 } from '../src/logic/screenLayout';
@@ -219,7 +219,7 @@ describe('AC7: okénka a tlačítka jsou dost velké na dětský prst', () => {
       const size = layout.hintStyle.dotSize;
 
       for (const problem of allProblems(max)) {
-        for (const dot of layoutHintDots(hintDotGroups(problem), layout.hint, layout.hintStyle)) {
+        for (const dot of layoutHint(layout, hintDotGroups(problem))) {
           const dotBox = box(dot.x, dot.y, size, size);
           expect(insideScreen(dotBox)).toBe(true);
           for (const other of others) {

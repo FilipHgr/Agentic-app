@@ -3,13 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ANSWER_CHOICES, tapAnswer } from '../src/logic/answerRound';
 import type { AnswerRound, TapOutcome } from '../src/logic/answerRound';
 import { SOUNDS, soundLengthSeconds } from '../src/logic/answerSounds';
-import {
-  HINT_DOT_SIZE,
-  PROBLEM_TEXT_HEIGHT,
-  STAR_SIZE,
-  layoutHintDots,
-  layoutScreen,
-} from '../src/logic/screenLayout';
+import { HINT_DOT_SIZE, STAR_SIZE, layoutHint, layoutScreen } from '../src/logic/screenLayout';
 import {
   STARS_PER_SET,
   createStarProgress,
@@ -66,7 +60,7 @@ describe('AC1: nahoře je řada 10 hvězdiček, která nic nepřekrývá', () =>
 
   it('hvězdičky jsou nad příkladem s dostatečnou mezerou', () => {
     const lowestStarBottom = Math.max(...LAYOUT.stars.map((star) => star.y + STAR_SIZE / 2));
-    const problemTop = LAYOUT.problem.y - PROBLEM_TEXT_HEIGHT / 2;
+    const problemTop = LAYOUT.problem.y - LAYOUT.problemSize.height / 2;
 
     expect(problemTop - lowestStarBottom).toBeGreaterThanOrEqual(30);
   });
@@ -76,11 +70,11 @@ describe('AC1: nahoře je řada 10 hvězdiček, která nic nepřekrývá', () =>
   });
 
   it('příklad se stále nepřekrývá s nápovědou ani s číselníkem', () => {
-    const problemBottom = LAYOUT.problem.y + PROBLEM_TEXT_HEIGHT / 2;
+    const problemBottom = LAYOUT.problem.y + LAYOUT.problemSize.height / 2;
     const highestButtonTop = Math.min(
       ...LAYOUT.answerButtons.map((button) => button.y - button.size / 2),
     );
-    const tallestHint = layoutHintDots([10], LAYOUT.hint);
+    const tallestHint = layoutHint(LAYOUT, [10]);
 
     for (const dot of tallestHint) {
       expect(dot.y - HINT_DOT_SIZE / 2).toBeGreaterThan(problemBottom);

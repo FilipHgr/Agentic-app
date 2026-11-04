@@ -18,11 +18,11 @@ import { mascotReactionToTap } from '../logic/mascot';
 import {
   STAR_SIZE,
   hintDotHitArea,
-  layoutHintDots,
+  layoutHint,
   layoutScreen,
   layoutWritingScreen,
 } from '../logic/screenLayout';
-import type { ButtonSlot, HintDot, ScreenLayout } from '../logic/screenLayout';
+import type { ButtonSlot, HintDot, ScreenLayout, WritingLayout } from '../logic/screenLayout';
 import { STARS_PER_SET, startNewStarSet, starsAfterTap } from '../logic/stars';
 import type { StarProgress } from '../logic/stars';
 import { nextCharacter } from '../logic/characters';
@@ -422,15 +422,28 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
+  /** Rozložení se skutečným ovládáním: okénka na psaní, nebo číselník. */
+  private answerLayout(): ScreenLayout | WritingLayout {
+    if (!isWritingActive(this.settings)) {
+      return this.layout();
+    }
+    return layoutWritingScreen(
+      this.scale.width,
+      this.scale.height,
+      this.settings.maxNumber,
+      STARS_PER_SET,
+    );
+  }
+
   private showHintWhenNeeded(): void {
     if (!this.round || this.hintIsShown || !isHintVisible(this.round)) {
       return;
     }
     this.hintIsShown = true;
 
-    const layout = this.layout();
+    const layout = this.answerLayout();
     const style = layout.hintStyle;
-    const dots = layoutHintDots(hintDotGroups(this.round.problem), layout.hint, style);
+    const dots = layoutHint(layout, hintDotGroups(this.round.problem));
     const firstCrossedOut = dots.length - hintCrossedOutDots(this.round.problem);
 
     dots.forEach((dot, index) => {

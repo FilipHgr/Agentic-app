@@ -12,7 +12,7 @@ import {
   PROBLEM_MAX_WIDTH,
   PROBLEM_TEXT_HEIGHT,
   STAR_SIZE,
-  layoutHintDots,
+  layoutHint,
   layoutScreen,
 } from '../src/logic/screenLayout';
 import { STARS_PER_SET } from '../src/logic/stars';
@@ -96,7 +96,7 @@ describe('AC1: postavička je vlevo vedle příkladu a nic nepřekrývá', () =>
 
   it('postavička nepřekrývá nápovědu u žádného příkladu', () => {
     for (const groups of [[10], [5, 5], [9, 1], [1, 9], [4, 6]]) {
-      for (const dot of layoutHintDots(groups, LAYOUT.hint)) {
+      for (const dot of layoutHint(LAYOUT, groups)) {
         expect(overlaps(MASCOT_BOX, squareBox(dot.x, dot.y, HINT_DOT_SIZE))).toBe(false);
       }
     }
