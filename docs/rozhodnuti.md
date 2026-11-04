@@ -63,6 +63,10 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   (#51). Menu je výjimka z „žádné menu“ v CLAUDE.md, až ho vlastník zadá.
 - 2026-11-04 Psaní prstem při rozsahu do 10 má dál dvě okénka (kvůli výsledku
   10), vlastník to nechává (#42).
+- 2026-11-04 Nový vzhled celé hry „Apple style“: světlé pozadí #F5F5F7,
+  systémové písmo (-apple-system), tmavý text #1D1D1F, šedý otazník,
+  plné malé hvězdičky, tlačítka s čísly světle modrá #E5F0FF s okrajem
+  #B8D6FF a modrými tučnými číslicemi #0062CC (varianta A3 z návrhů).
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
