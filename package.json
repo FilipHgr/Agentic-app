@@ -11,7 +11,8 @@
     "lint": "eslint . && prettier --check .",
     "deploy": "npm run build && wrangler deploy",
     "deploy:preview": "npm run build && wrangler preview",
-    "deploy:preview:delete": "wrangler preview delete"
+    "deploy:preview:delete": "wrangler preview delete",
+    "voice": "node tools/voice/make_voice.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

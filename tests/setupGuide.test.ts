@@ -4,7 +4,6 @@ import type { GameSettings } from '../src/logic/settings';
 import type { SettingsRowKind } from '../src/logic/settingsLayout';
 import type { SelectedOptions } from '../src/logic/settingsSession';
 import {
-  ADVICE,
   GRADE_OPTIONS,
   GUIDE_TEXTS,
   back,
@@ -32,7 +31,7 @@ import type { Grade, GuideState } from '../src/logic/setupGuide';
  * Testy k #49 (průvodce nastavením pro rodiče při prvním spuštění): úvodní
  * otázka (AC1), předvyplnění podle odpovědi (AC2), kroky po řadách (AC3),
  * shrnutí, Přeskočit a konec průvodce (AC4) a podržení kolečka během
- * průvodce (AC6). Čas se předává parametrem, testy nečekají. Načtení
+ * průvodce (AC6). Texty jsou podle scénáře z #50 (`guideScript.test.ts`). Čas se předává parametrem, testy nečekají. Načtení
  * a uložení v zařízení je v `firstLaunch.test.ts`, rozložení (AC5)
  * v `setupGuideLayout.test.ts`. Žluté zvýraznění odpovědi, odezva
  * a zvuk (AC7) se kontrolují ručně.
@@ -376,30 +375,25 @@ describe('kroky po řadách: 2 Do kolika, 3 Příklady, 4 Odpověď (#49 AC3)', 
     const explanations: Record<SettingsRowKind, string> = {
       maxNumber: 'Největší číslo, které se v příkladech objeví.',
       operations: 'Sčítání, odčítání, nebo obojí zamíchané.',
-      answerInput: '123: dítě ťuká na čísla. Tužka: píše výsledek prstem.',
+      answerInput: 'S číselníkem dítě ťuká na čísla, s tužkou píše prstem.',
     };
     const advice: Record<Grade, Record<SettingsRowKind, string>> = {
       preschool: {
-        maxNumber: 'Doporučujeme 5. Ve školce dítě počítá na prstech ruky.',
-        operations: 'Doporučujeme +. Přidávání je pro malé děti nejsnazší.',
-        answerInput: 'Doporučujeme 123. Psát číslice se dítě teprve učí.',
+        maxNumber: 'Doporučujeme do pěti. Dítě to spočítá na prstech ruky.',
+        operations: 'Doporučujeme sčítání. Pro malé děti je nejsnazší.',
+        answerInput: 'Doporučujeme číselník. Psát číslice se dítě teprve učí.',
       },
       firstGrade: {
-        maxNumber: 'Doporučujeme 10. Ve 2. pololetí 1. třídy zkuste 20.',
-        operations: 'Doporučujeme + −. V 1. třídě se učí obojí současně.',
-        answerInput: 'Doporučujeme 123. Tužku zvolte, až dítě umí psát 0–9.',
+        maxNumber: 'Doporučujeme do deseti, ve druhém pololetí do dvaceti.',
+        operations: 'Doporučujeme obojí. V první třídě se učí současně.',
+        answerInput: 'Doporučujeme číselník. Tužku, až zvládne psát číslice.',
       },
       secondGradeOrHigher: {
-        maxNumber: 'Doporučujeme 20. Víc hra nemá, procvičí přechod přes 10.',
-        operations: 'Doporučujeme + −. Dítě musí sledovat znaménko.',
+        maxNumber: 'Doporučujeme do dvaceti. Procvičí přechod přes desítku.',
+        operations: 'Doporučujeme obojí. Dítě musí sledovat znaménko.',
         answerInput: 'Doporučujeme tužku. Dítě si procvičí i psaní číslic.',
       },
     };
-
-    it('rady jsou uložené jako data pro každou odpověď a řadu', () => {
-      expect(ADVICE).toEqual(advice);
-      expect(GUIDE_TEXTS.rowExplanations).toEqual(explanations);
-    });
 
     for (const grade of GRADE_OPTIONS) {
       it(`po odpovědi „${GUIDE_TEXTS.grades[grade]}“ ukazuje každý krok dva řádky: co řada dělá a radu`, () => {
@@ -421,7 +415,7 @@ describe('kroky po řadách: 2 Do kolika, 3 Příklady, 4 Odpověď (#49 AC3)', 
     const changed = chooseOption(step2, { maxNumber: 20 });
     expect(guideMessage(changed)).toEqual(before);
     expect(guideMessage(changed)?.[1]).toBe(
-      'Doporučujeme 5. Ve školce dítě počítá na prstech ruky.',
+      'Doporučujeme do pěti. Dítě to spočítá na prstech ruky.',
     );
   });
 
@@ -429,7 +423,7 @@ describe('kroky po řadách: 2 Do kolika, 3 Příklady, 4 Odpověď (#49 AC3)', 
     let guide = back(answer(startGuide(), 'preschool'));
     guide = answer(guide, 'secondGradeOrHigher', T0 + 2000);
     expect(guideMessage(guide)?.[1]).toBe(
-      'Doporučujeme 20. Víc hra nemá, procvičí přechod přes 10.',
+      'Doporučujeme do dvaceti. Procvičí přechod přes desítku.',
     );
   });
 

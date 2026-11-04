@@ -4,6 +4,7 @@
  * TypeScript bez Phaseru; čas se předává jako číslo v ms.
  */
 
+import { scriptLines } from './guideScript';
 import type { Point } from './screenLayout';
 import { DEFAULT_SETTINGS, answerInputOf } from './settings';
 import type { GameSettings } from './settings';
@@ -33,41 +34,16 @@ export const GRADE_PRESETS: Record<Grade, Required<GameSettings>> = {
   secondGradeOrHigher: { maxNumber: 20, operations: 'mixed', answerInput: 'writing' },
 };
 
-/** Texty průvodce pro rodiče. */
+/** Úvodní otázka a poznámka pod ní ze scénáře (#50). */
+const [QUESTION, QUESTION_NOTE] = scriptLines('question');
+
+/** Texty průvodce pro rodiče; věty k namluvení jsou ve scénáři `guideScript.ts`. */
 export const GUIDE_TEXTS = {
-  question: 'Do které třídy dítě chodí?',
-  questionNote: 'Podle odpovědi hru předvyplníme. Odpověď se neukládá.',
+  question: QUESTION,
+  questionNote: QUESTION_NOTE,
   grades: { preschool: 'Školka', firstGrade: '1. třída', secondGradeOrHigher: '2. třída a výš' },
-  rowExplanations: {
-    maxNumber: 'Největší číslo, které se v příkladech objeví.',
-    operations: 'Sčítání, odčítání, nebo obojí zamíchané.',
-    answerInput: '123: dítě ťuká na čísla. Tužka: píše výsledek prstem.',
-  },
-  summary: [
-    'Hotovo. Volby můžete ještě změnit ťuknutím.',
-    'Později je změníte podržením kolečka vpravo nahoře.',
-  ],
   buttons: { back: 'Zpět', next: 'Další', skip: 'Přeskočit', startPlaying: 'Začít hrát' },
 } as const;
-
-/** Rady k řadám podle třídy; jsou to doporučení, ne kontrola volby. */
-export const ADVICE: Record<Grade, Record<SettingsRowKind, string>> = {
-  preschool: {
-    maxNumber: 'Doporučujeme 5. Ve školce dítě počítá na prstech ruky.',
-    operations: 'Doporučujeme +. Přidávání je pro malé děti nejsnazší.',
-    answerInput: 'Doporučujeme 123. Psát číslice se dítě teprve učí.',
-  },
-  firstGrade: {
-    maxNumber: 'Doporučujeme 10. Ve 2. pololetí 1. třídy zkuste 20.',
-    operations: 'Doporučujeme + −. V 1. třídě se učí obojí současně.',
-    answerInput: 'Doporučujeme 123. Tužku zvolte, až dítě umí psát 0–9.',
-  },
-  secondGradeOrHigher: {
-    maxNumber: 'Doporučujeme 20. Víc hra nemá, procvičí přechod přes 10.',
-    operations: 'Doporučujeme + −. Dítě musí sledovat znaménko.',
-    answerInput: 'Doporučujeme tužku. Dítě si procvičí i psaní číslic.',
-  },
-};
 
 /** Barvy průvodce; písmo tlačítek má na všech pozadích kontrast aspoň 7 : 1. */
 export const GUIDE_COLORS = {
@@ -218,16 +194,16 @@ export function hasBackButton(state: GuideState): boolean {
   return state.step !== 1;
 }
 
-/** Dva řádky pod řadami: vysvětlení a rada (kroky 2–4), nebo shrnutí (krok 5). */
+/** Dva řádky pod řadami ze scénáře: vysvětlení a rada (kroky 2–4), nebo shrnutí (krok 5). */
 export function guideMessage(state: GuideState): readonly [string, string] | null {
   if (state.step === LAST_STEP) {
-    return GUIDE_TEXTS.summary;
+    return scriptLines('summary');
   }
   const row = ROW_OF_STEP[state.step];
   if (row === undefined || state.grade === null) {
     return null;
   }
-  return [GUIDE_TEXTS.rowExplanations[row], ADVICE[state.grade][row]];
+  return scriptLines(`${row}.${state.grade}`);
 }
 
 export interface GuideRowStyle {

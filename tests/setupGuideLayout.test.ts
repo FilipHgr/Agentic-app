@@ -3,13 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { CHECK_BUTTON_COLOR } from '../src/logic/checkButton';
 import { SETTINGS_LABEL_COLOR, layoutSettingsPanel } from '../src/logic/settingsLayout';
 import type { SettingsRowKind } from '../src/logic/settingsLayout';
-import {
-  ADVICE,
-  GRADE_OPTIONS,
-  GUIDE_COLORS,
-  GUIDE_TEXTS,
-  layoutGuideStep,
-} from '../src/logic/setupGuide';
+import { GUIDE_SCRIPT } from '../src/logic/guideScript';
+import { GRADE_OPTIONS, GUIDE_COLORS, GUIDE_TEXTS, layoutGuideStep } from '../src/logic/setupGuide';
 import type { GuideStep } from '../src/logic/setupGuide';
 
 /**
@@ -417,13 +412,11 @@ describe('nic se nepřekrývá a vše je dost velké na prst (#49 AC5)', () => {
   });
 });
 
-describe('délky textů (#49 AC5)', () => {
+describe('délky textů (#49 AC5, věty podle scénáře z #50)', () => {
   const lines: string[] = [
     GUIDE_TEXTS.question,
     GUIDE_TEXTS.questionNote,
-    ...Object.values(GUIDE_TEXTS.rowExplanations),
-    ...GUIDE_TEXTS.summary,
-    ...GRADE_OPTIONS.flatMap((grade) => Object.values(ADVICE[grade])),
+    ...GUIDE_SCRIPT.flatMap((line) => [...line.lines]),
   ];
   const buttonLabels: string[] = [
     ...Object.values(GUIDE_TEXTS.buttons),
@@ -431,7 +424,7 @@ describe('délky textů (#49 AC5)', () => {
   ];
 
   it('každý řádek textu má nejvýš 56 znaků', () => {
-    expect(lines.length).toBe(2 + 3 + 2 + 9);
+    expect(lines.length).toBe(2 + 11 * 2);
     for (const line of lines) {
       expect([...line].length, line).toBeLessThanOrEqual(MAX_LINE_CHARACTERS);
     }
