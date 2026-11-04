@@ -45,7 +45,10 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   dobré.“
 - 2026-11-04 Průvodce schválen jako #49: otázka na třídu (ne věk), 5 kroků
   s radami pro rodiče, u 2. třídy a výš předvyplněná tužka (vědomě, i když
-  rozpoznávání dětského písma zatím nikdo neměřil).
+  rozpoznávání dětského písma zatím nikdo neměřil). (otázka na třídu nahrazena)
+- 2026-11-04 Otázka na třídu v průvodci zrušena (vlastník: zbytečná). Průvodce
+  má 4 kroky (tři řady a shrnutí), výchozí nastavení, jednu radu na řadu, bez
+  Přeskočit. Scénář má 4 věty (#49, #50).
 - 2026-11-04 Hlasový dabing průvodce nastavením: dospělý hlas (ne
   postavička), v průvodci nejde vypnout, texty se upraví pro mluvení.
   Nahrávky mp3 jsou předem v repozitáři, hra je nikde nestahuje. Všechny
