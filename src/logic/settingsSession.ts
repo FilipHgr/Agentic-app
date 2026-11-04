@@ -10,13 +10,7 @@ import type { AnswerInput, GameSettings, MaxNumber, OperationMode } from './sett
 import { STARS_PER_SET } from './stars';
 
 export type SettingsSession =
-  | { readonly open: false }
-  | {
-      readonly open: true;
-      readonly choice: GameSettings;
-      /** Nápověda pro rodiče při prvním spuštění (#48). */
-      readonly withHelp: boolean;
-    };
+  { readonly open: false } | { readonly open: true; readonly choice: GameSettings };
 
 export const CLOSED_SETTINGS: SettingsSession = { open: false };
 
@@ -47,44 +41,18 @@ export function isSettingsOpen(session: SettingsSession): boolean {
   return session.open;
 }
 
-/**
- * Otevře nastavení s uloženými volbami. Podržením kolečka bez nápovědy,
- * při prvním spuštění s nápovědou. Už otevřené nemění.
- */
-export function openSettings(
-  session: SettingsSession,
-  saved: GameSettings,
-  options: { readonly withHelp?: boolean } = {},
-): SettingsSession {
-  return session.open
-    ? session
-    : { open: true, choice: saved, withHelp: options.withHelp ?? false };
+/** Podržení kolečka: otevře nastavení s uloženými volbami. Už otevřené nemění. */
+export function openSettings(session: SettingsSession, saved: GameSettings): SettingsSession {
+  return session.open ? session : { open: true, choice: saved };
 }
 
-/** Ukazuje otevřené nastavení nápovědu pro rodiče? */
-export function showsHelp(session: SettingsSession): boolean {
-  return session.open && session.withHelp;
-}
-
-/** Stav jednoho načtení stránky: čeká se ještě na první potvrzení nastavení? */
+/** Stav jednoho načtení stránky: čeká se ještě na první spuštění (průvodce, #48, #49)? */
 export interface LaunchState {
   readonly helpPending: boolean;
 }
 
 export function createLaunchState(firstLaunch: boolean): LaunchState {
   return { helpPending: firstLaunch };
-}
-
-/** Na začátku hry: při prvním spuštění otevřené nastavení s nápovědou, jinak zavřené. */
-export function sessionAtStart(launch: LaunchState, saved: GameSettings): SettingsSession {
-  return launch.helpPending
-    ? openSettings(CLOSED_SETTINGS, saved, { withHelp: true })
-    : CLOSED_SETTINGS;
-}
-
-/** Po ✓ se nastavení v témže načtení stránky samo znovu neotevře. */
-export function launchAfterConfirm(launch: LaunchState): LaunchState {
-  return launch.helpPending ? { helpPending: false } : launch;
 }
 
 /** Ťuknutí na volbu. Při zavřeném nastavení nic nezmění. */

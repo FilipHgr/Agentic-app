@@ -34,13 +34,15 @@ import {
   CLOSED_SETTINGS,
   confirmSettings,
   createLaunchState,
-  isSettingsOpen,
-  launchAfterConfirm,
   openSettings,
   pageAppearance,
-  sessionAtStart,
-  showsHelp,
 } from '../logic/settingsSession';
+import {
+  canOpenSettingsByHold,
+  guideAtStart,
+  guidePageAppearance,
+  launchAfterGuide,
+} from '../logic/setupGuide';
 import type { LaunchState } from '../logic/settingsSession';
 import type { GameProgress } from '../logic/progress';
 import type { TwoBoxConfirmResult } from '../logic/twoBoxWriting';
@@ -50,6 +52,7 @@ import { Mascot } from './Mascot';
 import { applyPageAppearance } from '../ui/pageAppearance';
 import { attachSettingsButton } from '../ui/settingsButton';
 import { SettingsPanel } from './SettingsPanel';
+import { SetupGuidePanel } from './SetupGuidePanel';
 import { WritingPad } from './WritingPad';
 
 const BUTTON_COLOR = 0xffffff;
@@ -135,9 +138,11 @@ export class GameScene extends Phaser.Scene {
   private character: CharacterId = this.savedProgress.character;
   private readonly settingsState = loadSettingsState(browserStorage());
   private settings: GameSettings = this.settingsState.settings;
-  /** Při prvním spuštění se nastavení otevře samo s nápovědou (#48). */
+  /** Při prvním spuštění se místo příkladu otevře průvodce nastavením (#49). */
   private launch: LaunchState = createLaunchState(this.settingsState.firstLaunch);
   private settingsOpen = false;
+  /** Průvodce nastavením při prvním spuštění (#49), když je otevřený. */
+  private setupGuide: SetupGuidePanel | undefined;
   /** Naplánované dokončení oslavy; nastavení ho může přerušit (#45). */
   private celebrationTimer: Phaser.Time.TimerEvent | undefined;
   private confettiPieces: Phaser.GameObjects.Rectangle[] = [];
@@ -169,10 +174,9 @@ export class GameScene extends Phaser.Scene {
     };
     this.input.on('pointerup', releaseKeypad);
     this.input.on('pointerupoutside', releaseKeypad);
-    // První spuštění: místo prvního příkladu nastavení s nápovědou pro rodiče.
-    const atStart = sessionAtStart(this.launch, this.settings);
-    if (isSettingsOpen(atStart)) {
-      this.openSettings({ withHelp: showsHelp(atStart) });
+    // První spuštění: místo prvního příkladu průvodce nastavením pro rodiče (#49).
+    if (guideAtStart(this.launch)) {
+      this.openSetupGuide();
     } else {
       this.startRound();
     }
@@ -180,6 +184,7 @@ export class GameScene extends Phaser.Scene {
 
   override update(time: number): void {
     this.writingPad?.update(time);
+    this.setupGuide?.update(time);
   }
 
   /** Uloží hvězdičky a postavičku do zařízení; když to nejde, hra jede dál. */
@@ -191,24 +196,41 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Průvodce nastavením při prvním spuštění (#49). Během něj podržení kolečka
+   * nic neudělá; po „Začít hrát“ se nastavení uloží a začne první příklad.
+   */
+  private openSetupGuide(): void {
+    this.settingsOpen = true;
+    const settingsButton = document.getElementById('settings-button');
+    applyPageAppearance(guidePageAppearance(), settingsButton);
+    this.setupGuide = new SetupGuidePanel(this, (chosen) => {
+      this.setupGuide = undefined;
+      this.launch = launchAfterGuide(this.launch);
+      this.settings = chosen;
+      saveSettings(browserStorage(), chosen);
+      this.settingsOpen = false;
+      applyPageAppearance(pageAppearance(CLOSED_SETTINGS), settingsButton);
+      this.startRound();
+    });
+  }
+
+  /**
    * Nastavení pro rodiče; po potvrzení se uloží a přijde nový příklad.
    * Stránka kolem ztmavne a kolečko se ztlumí (#45). Druhé podržení kolečka
    * při otevřeném nastavení nic neudělá.
    */
-  private openSettings(options: { readonly withHelp?: boolean } = {}): void {
-    if (this.settingsOpen) {
+  private openSettings(): void {
+    if (this.settingsOpen || !canOpenSettingsByHold(this.setupGuide?.state ?? null)) {
       return;
     }
     this.settingsOpen = true;
     // Oslava se pod panelem nedohrává, dokončí ji až potvrzení (#45 AC8).
     this.stopCelebration();
     const settingsButton = document.getElementById('settings-button');
-    const session = openSettings(CLOSED_SETTINGS, this.settings, options);
+    const session = openSettings(CLOSED_SETTINGS, this.settings);
     applyPageAppearance(pageAppearance(session), settingsButton);
 
     new SettingsPanel(this, session, (chosen) => {
-      // Po ✓ se nastavení v témže načtení samo znovu neotevře, ani po restartu scény.
-      this.launch = launchAfterConfirm(this.launch);
       const result = confirmSettings(chosen, this.settings, {
         earned: this.starProgress.earned,
         character: this.character,

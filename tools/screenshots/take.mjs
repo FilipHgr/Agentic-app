@@ -6,7 +6,7 @@
  *   node tools/screenshots/take.mjs [složka]
  *
  * Udělá snímky na iPadu na šířku a na telefonu na výšku v těchto stavech:
- * první spuštění s nápovědou, začátek hry, nápověda po dvou chybách, počítání teček ťukáním,
+ * průvodce nastavením při prvním spuštění (všechny kroky), začátek hry, nápověda po dvou chybách, počítání teček ťukáním,
  * otevřené nastavení pro rodiče,
  * okénka na psaní (#41, #42) a rozpoznané napsané číslo.
  * Použije WebKit (jako Safari), když je k dispozici, jinak Chromium a řekne to.
@@ -28,6 +28,10 @@ const GAME_HEIGHT = 768;
 
 /** Tlačítko 0 na číselníku 0–10 (výchozí nastavení) v herních souřadnicích. */
 const BUTTON_ZERO = { x: 112, y: 514 };
+
+/** Průvodce (#49): odpověď „1. třída“ a pravé tlačítko (Další / Začít hrát). */
+const GUIDE_FIRST_GRADE = { x: 512, y: 344 };
+const GUIDE_RIGHT_BUTTON = { x: 880, y: 716 };
 
 /** Volba „psaní“ a ✓ v nastavení pro rodiče (rozložení z #47). */
 const SETTINGS_WRITING = { x: 642, y: 497 };
@@ -110,9 +114,21 @@ async function shootDevice(browser, url, device) {
 
   await page.goto(url);
   await page.waitForTimeout(1500);
-  // Nový prohlížeč nemá uložené nastavení: první spuštění s nápovědou (#48).
-  await page.screenshot({ path: join(outputDir, `${device.name}-0-prvni-spusteni.png`) });
-  await tapGame(page, SETTINGS_CONFIRM);
+  // Nový prohlížeč nemá uložené nastavení: průvodce nastavením (#49).
+  await page.screenshot({ path: join(outputDir, `${device.name}-0a-pruvodce-otazka.png`) });
+  await tapGame(page, GUIDE_FIRST_GRADE);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: join(outputDir, `${device.name}-0b-pruvodce-rozsah.png`) });
+  await tapGame(page, GUIDE_RIGHT_BUTTON);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: join(outputDir, `${device.name}-0c-pruvodce-priklady.png`) });
+  await tapGame(page, GUIDE_RIGHT_BUTTON);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: join(outputDir, `${device.name}-0d-pruvodce-odpoved.png`) });
+  await tapGame(page, GUIDE_RIGHT_BUTTON);
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: join(outputDir, `${device.name}-0e-pruvodce-shrnuti.png`) });
+  await tapGame(page, GUIDE_RIGHT_BUTTON);
   await page.waitForTimeout(600);
   await page.screenshot({ path: join(outputDir, `${device.name}-1-zacatek.png`) });
 
