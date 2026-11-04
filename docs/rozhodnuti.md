@@ -70,6 +70,8 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-04 Hra má jít dobře hrát i na mobilu, na šířku i na výšku, každé
   s vlastním rozložením. Na telefonu jsou dnes moc malé hvězdičky, moc velké
   kolečko nastavení a malá plocha na psaní. Tím se otevírá odložené #34.
+- 2026-11-04 Na telefonu na šířku má číselník do 10 tvar 4 × 3 a tečky
+  nápovědy zůstávají po pěti v řadě jako na iPadu (#54, #30).
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
