@@ -1,16 +1,14 @@
 /**
- * Rozmístění teček nápovědy na telefonu (#54). Na telefonu je pro
- * nápovědu jen obdélník vlevo od ovládání. Tečky jsou buď po pěti v řadě
- * jako v #30 (do 10), nebo se tvar každé skupinky (počet sloupců a řad)
- * volí zvlášť, aby se všechny skupinky vešly vedle sebe (do 5 a do 20).
- * Když to nejde, jsou skupinky pod sebou. Každá tečka má vlastní
- * čtvercovou buňku, takže se tečky ani jejich plochy pro prst nepřekrývají.
- * Čistý TypeScript bez Phaseru.
+ * Tečky nápovědy na telefonu (#54, rozložení V2). Tečky jsou po pěti
+ * v řadě jako v #30, poslední řada skupinky smí být kratší. Skupinky jsou
+ * vedle sebe, nebo pod sebou; když se nevejdou do jednoho místa, dostane
+ * každá skupinka své místo. Každá tečka má čtvercovou buňku, takže se
+ * tečky ani jejich plochy pro prst nepřekrývají. Čistý TypeScript.
  */
 
 import type { HintDot } from './screenLayout';
 
-/** Obdélník v herních jednotkách. */
+/** Obdélník (v CSS px nebo v herních jednotkách, podle volajícího). */
 export interface Region {
   readonly left: number;
   readonly top: number;
@@ -18,176 +16,160 @@ export interface Region {
   readonly bottom: number;
 }
 
-/** Mřížka teček: strana buňky jedné tečky, mezera mezi skupinkami a nejvíc teček v řadě. */
+/** Strana buňky jedné tečky a mezera mezi skupinkami. */
 export interface HintGrid {
   readonly cell: number;
   readonly groupGap: number;
-  readonly maxColumns: number;
-  /**
-   * Každá řada skupinky má plných `maxColumns` teček a jen poslední smí
-   * být kratší (po pěti jako v #30). Jinak se řady volí podle místa.
-   */
-  readonly fullRows: boolean;
 }
 
-interface GroupShape {
-  readonly columns: number;
-  readonly rows: number;
+export type GroupArrangement = 'sideBySide' | 'stacked';
+
+export interface BlockSize {
+  readonly width: number;
+  readonly height: number;
 }
 
-/** Skupinky vedle sebe (`stacked: false`), nebo pod sebou. */
-interface Arrangement {
-  readonly shapes: readonly GroupShape[];
-  readonly stacked: boolean;
-}
+/** Tečky po pěti v řadě (#30). */
+export const DOTS_PER_ROW = 5;
 
-/** Tolerance na zaokrouhlení při porovnání s velikostí obdélníku. */
+/** Tolerance na zaokrouhlení při porovnání s velikostí místa. */
 const FIT_TOLERANCE = 0.001;
 
-function regionWidth(region: Region): number {
-  return region.right - region.left;
+/** Skupinky bez nul; nulová skupinka žádné tečky nemá. */
+export function visibleGroups(groups: readonly number[]): number[] {
+  return groups.filter((count) => count > 0);
 }
 
-function regionHeight(region: Region): number {
-  return region.bottom - region.top;
-}
-
-/** Tvar skupinky, která se má vejít do `rows` řad (víc, když to sloupce nedovolí). */
-function shapeForRows(count: number, rows: number, maxColumns: number): GroupShape {
-  const columns = Math.max(1, Math.min(maxColumns, Math.ceil(count / rows)));
-  return { columns, rows: Math.ceil(count / columns) };
-}
-
-/** Tvar skupinky s nejvýš `columns` tečkami v řadě. */
-function shapeForColumns(count: number, columns: number): GroupShape {
-  const used = Math.max(1, Math.min(count, columns));
-  return { columns: used, rows: Math.ceil(count / used) };
-}
-
-function arrangementWidth(arrangement: Arrangement, grid: HintGrid): number {
-  const widths = arrangement.shapes.map((shape) => shape.columns * grid.cell);
-  if (arrangement.stacked) {
-    return Math.max(...widths);
-  }
-  return sum(widths) + gapsBetween(widths.length, grid);
-}
-
-function arrangementHeight(arrangement: Arrangement, grid: HintGrid): number {
-  const heights = arrangement.shapes.map((shape) => shape.rows * grid.cell);
-  if (!arrangement.stacked) {
-    return Math.max(...heights);
-  }
-  return sum(heights) + gapsBetween(heights.length, grid);
+function groupSize(count: number, grid: HintGrid): BlockSize {
+  return {
+    width: Math.min(count, DOTS_PER_ROW) * grid.cell,
+    height: Math.ceil(count / DOTS_PER_ROW) * grid.cell,
+  };
 }
 
 function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0);
 }
 
-function gapsBetween(groupCount: number, grid: HintGrid): number {
-  return (groupCount - 1) * grid.groupGap;
-}
-
-/** Po pěti v řadě: skupinky vedle sebe, a když se nevejdou, pod sebou. */
-function fullRowOptions(groups: readonly number[], grid: HintGrid): Arrangement[] {
-  const shapes = groups.map((count) => shapeForColumns(count, grid.maxColumns));
-  return [
-    { shapes, stacked: false },
-    { shapes, stacked: true },
-  ];
-}
-
-/**
- * Možnosti rozmístění od nejplošší: skupinky vedle sebe v 1, 2, 3… řadách,
- * nakonec skupinky pod sebou s tolika sloupci, kolik se vejde.
- */
-function flexibleOptions(groups: readonly number[], region: Region, grid: HintGrid): Arrangement[] {
-  const options: Arrangement[] = [];
-  const mostRows = Math.max(...groups);
-  for (let rows = 1; rows <= mostRows; rows += 1) {
-    options.push({
-      shapes: groups.map((count) => shapeForRows(count, rows, grid.maxColumns)),
-      stacked: false,
-    });
+/** Velikost všech skupinek vedle sebe, nebo pod sebou. */
+export function hintBlockSize(
+  groups: readonly number[],
+  grid: HintGrid,
+  arrangement: GroupArrangement,
+): BlockSize {
+  const sizes = groups.map((count) => groupSize(count, grid));
+  const gaps = Math.max(0, sizes.length - 1) * grid.groupGap;
+  if (arrangement === 'sideBySide') {
+    return {
+      width: sum(sizes.map((size) => size.width)) + gaps,
+      height: Math.max(0, ...sizes.map((size) => size.height)),
+    };
   }
-
-  const columnsThatFit = Math.floor((regionWidth(region) + FIT_TOLERANCE) / grid.cell);
-  const stackedColumns = Math.min(grid.maxColumns, columnsThatFit);
-  options.push({
-    shapes: groups.map((count) => shapeForColumns(count, stackedColumns)),
-    stacked: true,
-  });
-  return options;
+  return {
+    width: Math.max(0, ...sizes.map((size) => size.width)),
+    height: sum(sizes.map((size) => size.height)) + gaps,
+  };
 }
 
-function fitsIn(arrangement: Arrangement, region: Region, grid: HintGrid): boolean {
-  return (
-    arrangementWidth(arrangement, grid) <= regionWidth(region) + FIT_TOLERANCE &&
-    arrangementHeight(arrangement, grid) <= regionHeight(region) + FIT_TOLERANCE
-  );
-}
-
-/** Tečky jedné skupinky po řadách zleva doprava od levého horního rohu `left`, `top`. */
+/** Tečky jedné skupinky po řadách od levého horního rohu `left`, `top`. */
 function placeGroup(
   count: number,
-  shape: GroupShape,
   group: number,
-  corner: { left: number; top: number },
-  cell: number,
+  left: number,
+  top: number,
+  grid: HintGrid,
 ): HintDot[] {
+  // Celé px: sousední buňky se pak potkají přesně a nepřekryjí se ani o zaokrouhlení.
+  const originX = Math.ceil(left);
+  const originY = Math.ceil(top);
   return Array.from({ length: count }, (_, dot) => ({
-    x: corner.left + (dot % shape.columns) * cell + cell / 2,
-    y: corner.top + Math.floor(dot / shape.columns) * cell + cell / 2,
+    x: originX + (dot % DOTS_PER_ROW) * grid.cell + grid.cell / 2,
+    y: originY + Math.floor(dot / DOTS_PER_ROW) * grid.cell + grid.cell / 2,
     group,
   }));
 }
 
-/** Tečky celého rozmístění, vycentrovaného v obdélníku. */
-function placeArrangement(
+/** Tečky všech skupinek vedle sebe, nebo pod sebou, od levého horního rohu. */
+export function placeHintBlock(
   groups: readonly number[],
-  arrangement: Arrangement,
-  region: Region,
   grid: HintGrid,
+  arrangement: GroupArrangement,
+  left: number,
+  top: number,
 ): HintDot[] {
-  const left = region.left + (regionWidth(region) - arrangementWidth(arrangement, grid)) / 2;
-  const top = region.top + (regionHeight(region) - arrangementHeight(arrangement, grid)) / 2;
-  const corner = { left, top };
   const dots: HintDot[] = [];
-
+  let cursorX = left;
+  let cursorY = top;
   groups.forEach((count, group) => {
-    const shape = arrangement.shapes[group] ?? shapeForColumns(count, grid.maxColumns);
-    dots.push(...placeGroup(count, shape, group, corner, grid.cell));
-    if (arrangement.stacked) {
-      corner.top += shape.rows * grid.cell + grid.groupGap;
+    dots.push(...placeGroup(count, group, cursorX, cursorY, grid));
+    const size = groupSize(count, grid);
+    if (arrangement === 'sideBySide') {
+      cursorX += size.width + grid.groupGap;
     } else {
-      corner.left += shape.columns * grid.cell + grid.groupGap;
+      cursorY += size.height + grid.groupGap;
     }
   });
   return dots;
 }
 
-/**
- * Tečky nápovědy pro skupinky `groups` (nulové skupinky se vynechají)
- * v obdélníku `region`. Vybere se nejplošší rozmístění, které se vejde;
- * kdyby se nevešlo žádné, použijí se skupinky pod sebou.
- */
-export function arrangeHintDots(
+function fitsIn(size: BlockSize, region: Region): boolean {
+  return (
+    size.width <= region.right - region.left + FIT_TOLERANCE &&
+    size.height <= region.bottom - region.top + FIT_TOLERANCE
+  );
+}
+
+/** Celý blok do prvního místa, kam se vejde; svisle uprostřed místa. */
+function placeWholeBlock(
   groups: readonly number[],
-  region: Region,
   grid: HintGrid,
-): HintDot[] {
-  const visibleGroups = groups.filter((count) => count > 0);
-  if (visibleGroups.length === 0) {
-    return [];
+  regions: readonly Region[],
+): HintDot[] | null {
+  for (const region of regions) {
+    for (const arrangement of ['sideBySide', 'stacked'] as const) {
+      const size = hintBlockSize(groups, grid, arrangement);
+      if (fitsIn(size, region)) {
+        const top = region.top + (region.bottom - region.top - size.height) / 2;
+        return placeHintBlock(groups, grid, arrangement, region.left, top);
+      }
+    }
   }
-  const options = grid.fullRows
-    ? fullRowOptions(visibleGroups, grid)
-    : flexibleOptions(visibleGroups, region, grid);
-  const chosen = options.find((option) => fitsIn(option, region, grid));
-  const stackedFallback = options[options.length - 1];
-  const arrangement = chosen ?? stackedFallback;
-  if (!arrangement) {
-    return [];
+  return null;
+}
+
+/** Každá skupinka zvlášť do prvního místa, kde je pro ni ještě vedle předchozích místo. */
+function placeGroupByGroup(
+  groups: readonly number[],
+  grid: HintGrid,
+  regions: readonly Region[],
+): HintDot[] | null {
+  const cursors = regions.map((region) => region.left);
+  const dots: HintDot[] = [];
+  for (const [group, count] of groups.entries()) {
+    const size = groupSize(count, grid);
+    const index = regions.findIndex((region, i) =>
+      fitsIn(size, { ...region, left: cursors[i] ?? region.left }),
+    );
+    const region = regions[index];
+    const left = cursors[index];
+    if (!region || left === undefined) {
+      return null;
+    }
+    dots.push(...placeGroup(count, group, left, region.top, grid));
+    cursors[index] = left + size.width + grid.groupGap;
   }
-  return placeArrangement(visibleGroups, arrangement, region, grid);
+  return dots;
+}
+
+/**
+ * Tečky do volných míst `regions` (v pořadí, jak jsou nejvhodnější).
+ * Nejdřív všechny skupinky pohromadě, jinak každá zvlášť. `null`, když se
+ * nevejdou.
+ */
+export function placeHintInRegions(
+  groups: readonly number[],
+  grid: HintGrid,
+  regions: readonly Region[],
+): HintDot[] | null {
+  return placeWholeBlock(groups, grid, regions) ?? placeGroupByGroup(groups, grid, regions);
 }

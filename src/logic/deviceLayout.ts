@@ -12,9 +12,11 @@
 
 import type { AnswerRound } from './answerRound';
 import type { WritingAreaSize } from './digitRecognition';
+import { canCountDots } from './dotCounting';
 import type { DotCounting } from './dotCounting';
-import { arrangeHintDots } from './phoneHint';
-import type { HintGrid, Region } from './phoneHint';
+import { DOTS_PER_ROW, visibleGroups } from './phoneHint';
+import { planPhoneScreen } from './phoneLayout';
+import type { PhonePlan, PhonePlanRequest } from './phoneLayout';
 import type { GameProgress } from './progress';
 import {
   HINT_DOT_HIT_SIZE,
@@ -25,8 +27,6 @@ import {
   layoutHint,
   layoutScreen,
   layoutWritingScreen,
-  problemMaxWidth,
-  problemTextHeight,
 } from './screenLayout';
 import type {
   ButtonSlot,
@@ -37,11 +37,9 @@ import type {
   WritingAreaSlot,
   WritingLayout,
 } from './screenLayout';
-import { writingBoxCount } from './settings';
 import type { GameSettings, MaxNumber } from './settings';
 import type { SettingsSession } from './settingsSession';
 import type { GuideState } from './setupGuide';
-import { STARS_PER_SET } from './stars';
 import type { TwoBoxRound } from './twoBoxWriting';
 import { clearWriting } from './writingRound';
 import type { WritingRound } from './writingRound';
@@ -215,6 +213,8 @@ export interface DeviceSizes {
   readonly mascotDanceSway: number;
   /** Strana plochy pro ťuknutí na tečku nápovědy. */
   readonly hintDotHitSize: number;
+  /** Jde na tečky nápovědy ťukat a počítat je (#43)? */
+  readonly hintDotsCountable: boolean;
   /** Písmo čísla ve spočítané tečce. */
   readonly dotNumberFontSize: number;
   /** Násobek tloušťky čar, okrajů a drobných posunů proti iPadu. */
@@ -224,21 +224,26 @@ export interface DeviceSizes {
 /** Písmo čísla ve spočítané tečce na iPadu. */
 const TABLET_DOT_NUMBER_FONT_SIZE = 30;
 
-const TABLET_SIZES: DeviceSizes = {
-  starSize: STAR_SIZE,
-  mascotSize: MASCOT_SIZE,
-  mascotJumpHeight: MASCOT_JUMP_HEIGHT,
-  mascotDanceSway: MASCOT_DANCE_SWAY,
-  hintDotHitSize: HINT_DOT_HIT_SIZE,
-  dotNumberFontSize: TABLET_DOT_NUMBER_FONT_SIZE,
-  detailScale: 1,
-};
+/** Na iPadu beze změny (AC5): ťukat jde na tečky do 5 a do 10. */
+function tabletSizes(maxNumber: number): DeviceSizes {
+  return {
+    starSize: STAR_SIZE,
+    mascotSize: MASCOT_SIZE,
+    mascotJumpHeight: MASCOT_JUMP_HEIGHT,
+    mascotDanceSway: MASCOT_DANCE_SWAY,
+    hintDotHitSize: HINT_DOT_HIT_SIZE,
+    hintDotsCountable: canCountDots(maxNumber),
+    dotNumberFontSize: TABLET_DOT_NUMBER_FONT_SIZE,
+    detailScale: 1,
+  };
+}
 
 interface PhoneParts extends DeviceSizes {
   readonly device: 'phone';
-  /** Obdélník vlevo od ovládání, kam se dávají tečky nápovědy. */
-  readonly hintRegion: Region;
-  readonly hintGrid: HintGrid;
+  /** Tečky nápovědy pro skupinky, se kterými se rozložení počítalo. */
+  readonly hintDots: readonly HintDot[];
+  /** Zadání rozložení v CSS px, aby šla nápověda spočítat i pro jiné skupinky. */
+  readonly request: PhonePlanRequest;
 }
 
 interface TabletParts extends DeviceSizes {
@@ -254,102 +259,8 @@ export type DeviceScreenLayout = PhoneScreenLayout | TabletScreenLayout;
 export type DeviceWritingLayout = PhoneWritingLayout | TabletWritingLayout;
 
 // ---------------------------------------------------------------------------
-// Telefon na šířku: rozměry v CSS px
+// Telefon na šířku: převod plánu z CSS px na herní jednotky
 // ---------------------------------------------------------------------------
-
-/** Okraj od kraje volné plochy. */
-const EDGE_MARGIN = 8;
-
-/** Pravý horní roh pro kolečko nastavení; zároveň výška horního pruhu. */
-const GEAR_CORNER_SIZE = 88;
-
-/** Mezera mezi hvězdičkami, postavičkou a příkladem. */
-const TOP_ROW_GAP = 8;
-
-const PHONE_STAR_SIZE = 24;
-const PHONE_STAR_SPACING = 28;
-const PHONE_MASCOT_SIZE = 64;
-const PHONE_PROBLEM_FONT_SIZE = 44;
-
-/** Postavička skáče a tančí ve stejném poměru ke své velikosti jako na iPadu. */
-const PHONE_MASCOT_JUMP = (PHONE_MASCOT_SIZE * MASCOT_JUMP_HEIGHT) / MASCOT_SIZE;
-const PHONE_MASCOT_SWAY = (PHONE_MASCOT_SIZE * MASCOT_DANCE_SWAY) / MASCOT_SIZE;
-
-/** Číselník: počet sloupců, strana tlačítka a mezera mezi tlačítky. */
-interface KeypadSpec {
-  readonly columns: number;
-  readonly buttonSize: number;
-  readonly gap: number;
-}
-
-/** Do 5: 3 × 2 velká tlačítka, do 10: 4 × 3 (0–3, 4–7, 8–10), do 20: 3 řady po 7. */
-function keypadSpecFor(buttonCount: number): KeypadSpec {
-  if (buttonCount <= 6) {
-    return { columns: 3, buttonSize: 80, gap: 12 };
-  }
-  if (buttonCount <= 11) {
-    return { columns: 4, buttonSize: 64, gap: 8 };
-  }
-  return { columns: 7, buttonSize: 64, gap: 8 };
-}
-
-/** Tečka nápovědy a její buňka (plocha pro prst) podle rozsahu. */
-interface HintDotSpec {
-  readonly cell: number;
-  readonly dotSize: number;
-  readonly groupGap: number;
-  readonly maxColumns: number;
-  /** Po pěti v řadě jako v #30, jen poslední řada skupinky smí být kratší. */
-  readonly fullRows: boolean;
-  /** Okraj pod nápovědou. Buňka tečky je větší než tečka, takže okraj má i bez něj. */
-  readonly bottomMargin: number;
-  /** Nejmenší šířka nápovědy vedle dvou okének na psaní. */
-  readonly minWidthBesideBoxes: number;
-}
-
-function hintDotSpecFor(maxNumber: number): HintDotSpec {
-  if (maxNumber <= 5) {
-    return {
-      cell: 72,
-      dotSize: 56,
-      groupGap: 16,
-      maxColumns: 5,
-      fullRows: false,
-      bottomMargin: EDGE_MARGIN,
-      minWidthBesideBoxes: 0,
-    };
-  }
-  if (maxNumber <= 10) {
-    // Skupinky pod sebou (třeba 6 + 4) mají 3 řady a mezeru: na 744×296
-    // se vejdou jen bez okraje pod nápovědou. Vedle okének je místo na 5 teček.
-    return {
-      cell: 64,
-      dotSize: 44,
-      groupGap: 16,
-      maxColumns: 5,
-      fullRows: true,
-      bottomMargin: 0,
-      minWidthBesideBoxes: 5 * 64,
-    };
-  }
-  // Do 20 se na tečky neťuká (#43), stačí menší. Vedle okének 4 + 4 sloupce.
-  return {
-    cell: 30,
-    dotSize: 24,
-    groupGap: 12,
-    maxColumns: 10,
-    fullRows: false,
-    bottomMargin: EDGE_MARGIN,
-    minWidthBesideBoxes: 4 * 64 + 16,
-  };
-}
-
-/** Okénka na psaní a tlačítka smazání a ✓ vpravo od nich. */
-const SINGLE_BOX_MAX_SIDE = 240;
-const TWO_BOX_MAX_SIDE = 200;
-const TWO_BOX_GAP = 12;
-const WRITING_BUTTON_SIZE = 72;
-const WRITING_BUTTON_GAP = 12;
 
 /** Číslo ve spočítané tečce jako část průměru tečky. */
 const DOT_NUMBER_RATIO = 0.6;
@@ -369,6 +280,10 @@ function pointInUnits(point: Point): Point {
   return { x: units(point.x), y: units(point.y) };
 }
 
+function dotInUnits(dot: HintDot): HintDot {
+  return { ...pointInUnits(dot), group: dot.group };
+}
+
 function slotInUnits(slot: ButtonSlot): ButtonSlot {
   return { x: units(slot.x), y: units(slot.y), size: units(slot.size) };
 }
@@ -382,219 +297,144 @@ function areaInUnits(area: WritingAreaSlot): WritingAreaSlot {
   };
 }
 
-/** Horní pruh: všech deset hvězdiček, postavička a příklad (v CSS px). */
-interface TopRow {
-  readonly stars: readonly Point[];
-  readonly mascot: Point;
-  readonly problem: Point;
-  readonly problemWidth: number;
-  readonly problemHeight: number;
-}
-
-/**
- * Zleva hvězdičky, postavička a příklad, všechno nad spodní hranou rohu
- * s kolečkem. Místo pro hvězdičky je vždy pro celou řadu, aby se
- * postavička s přibývajícími hvězdičkami neposouvala.
- */
-function layoutTopRow(freeWidth: number, maxNumber: number, starCount: number): TopRow {
-  const rowY = EDGE_MARGIN + PHONE_MASCOT_JUMP + PHONE_MASCOT_SIZE / 2;
-  const firstStarX = EDGE_MARGIN + PHONE_STAR_SIZE / 2;
-  const starsRight = EDGE_MARGIN + (STARS_PER_SET - 1) * PHONE_STAR_SPACING + PHONE_STAR_SIZE;
-  const mascotX = starsRight + TOP_ROW_GAP + PHONE_MASCOT_SWAY + PHONE_MASCOT_SIZE / 2;
-  const problemLeft = mascotX + PHONE_MASCOT_SIZE / 2 + PHONE_MASCOT_SWAY + TOP_ROW_GAP;
-  const problemRight = freeWidth - GEAR_CORNER_SIZE - TOP_ROW_GAP;
-  const fontInUnits = units(PHONE_PROBLEM_FONT_SIZE);
-  const problemWidth = problemMaxWidth(fontInUnits, maxNumber) / PHONE_UNITS_PER_CSS_PX;
-
+/** Vzhled teček pro scénu; na telefonu jsou vždy po pěti v řadě. */
+function hintStyleOf(plan: PhonePlan): HintStyle {
   return {
-    stars: Array.from({ length: starCount }, (_, index) => ({
-      x: firstStarX + index * PHONE_STAR_SPACING,
-      y: rowY,
-    })),
-    mascot: { x: mascotX, y: rowY },
-    // Příklad je uprostřed místa mezi postavičkou a rohem s kolečkem.
-    problem: { x: problemLeft + Math.max(problemWidth, problemRight - problemLeft) / 2, y: rowY },
-    problemWidth,
-    problemHeight: problemTextHeight(fontInUnits) / PHONE_UNITS_PER_CSS_PX,
-  };
-}
-
-function hintStyleOf(spec: HintDotSpec): HintStyle {
-  return {
-    dotSize: units(spec.dotSize),
-    spacing: units(spec.cell),
-    dotsPerRow: spec.maxColumns,
+    dotSize: units(plan.hintDotSize),
+    spacing: units(plan.hintCell),
+    dotsPerRow: DOTS_PER_ROW,
     fiveGap: 0,
-    groupGap: units(spec.groupGap),
+    groupGap: 0,
   };
 }
 
-/** Společná část rozložení telefonu: horní pruh, nápověda a velikosti (v jednotkách). */
-function phoneCommonParts(
-  free: GameSize,
-  maxNumber: number,
-  starCount: number,
-  controlsLeft: number,
+/** Společné části rozložení telefonu v herních jednotkách. */
+function phoneParts(
+  plan: PhonePlan,
+  request: PhonePlanRequest,
 ): Omit<ScreenLayout, 'answerButtons'> & PhoneParts {
-  const top = layoutTopRow(free.width, maxNumber, starCount);
-  const dots = hintDotSpecFor(maxNumber);
-
   return {
     device: 'phone',
-    problem: pointInUnits(top.problem),
-    problemFontSize: units(PHONE_PROBLEM_FONT_SIZE),
-    problemSize: { width: units(top.problemWidth), height: units(top.problemHeight) },
-    hintStyle: hintStyleOf(dots),
-    stars: top.stars.map(pointInUnits),
-    mascot: pointInUnits(top.mascot),
-    starSize: units(PHONE_STAR_SIZE),
-    mascotSize: units(PHONE_MASCOT_SIZE),
-    mascotJumpHeight: units(PHONE_MASCOT_JUMP),
-    mascotDanceSway: units(PHONE_MASCOT_SWAY),
-    hintDotHitSize: units(dots.cell),
-    dotNumberFontSize: units(Math.round(dots.dotSize * DOT_NUMBER_RATIO)),
+    request,
+    problem: pointInUnits(plan.problem),
+    problemFontSize: units(plan.problemFontSize),
+    problemSize: { width: units(plan.problemWidth), height: units(plan.problemHeight) },
+    hintStyle: hintStyleOf(plan),
+    stars: plan.stars.map(pointInUnits),
+    mascot: pointInUnits(plan.mascot),
+    starSize: units(plan.starSize),
+    mascotSize: units(plan.mascotSize),
+    mascotJumpHeight: (units(plan.mascotSize) * MASCOT_JUMP_HEIGHT) / MASCOT_SIZE,
+    mascotDanceSway: (units(plan.mascotSize) * MASCOT_DANCE_SWAY) / MASCOT_SIZE,
+    hintDotHitSize: units(plan.hintCell),
+    hintDotsCountable: plan.hintDotsCountable,
+    dotNumberFontSize: units(Math.round(plan.hintDotSize * DOT_NUMBER_RATIO)),
     detailScale: PHONE_UNITS_PER_CSS_PX,
-    hintRegion: {
-      left: units(EDGE_MARGIN),
-      top: units(GEAR_CORNER_SIZE),
-      right: units(controlsLeft - EDGE_MARGIN),
-      bottom: units(free.height - dots.bottomMargin),
-    },
-    hintGrid: {
-      cell: units(dots.cell),
-      groupGap: units(dots.groupGap),
-      maxColumns: dots.maxColumns,
-      fullRows: dots.fullRows,
-    },
+    hintDots: plan.hintDots.map(dotInUnits),
   };
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
 /**
- * Číselník vpravo dole, čísla po řadách od 0 (v CSS px). Pod spodní řadou
- * je okraj, jen když se vejde pod horní pruh. Číselník, který by zasáhl
- * do rohu s kolečkem, se posune doleva.
- */
-function layoutPhoneKeypad(buttonCount: number, free: GameSize): ButtonSlot[] {
-  const { columns, buttonSize, gap } = keypadSpecFor(buttonCount);
-  const rows = Math.ceil(buttonCount / columns);
-  const pitch = buttonSize + gap;
-  const width = columns * pitch - gap;
-  const height = rows * pitch - gap;
-  const bottomMargin = clamp(free.height - GEAR_CORNER_SIZE - height, 0, EDGE_MARGIN);
-  const top = free.height - bottomMargin - height;
-  const right = top < GEAR_CORNER_SIZE ? free.width - GEAR_CORNER_SIZE : free.width - EDGE_MARGIN;
-  const left = right - width;
-
-  return Array.from({ length: buttonCount }, (_, index) => ({
-    x: left + (index % columns) * pitch + buttonSize / 2,
-    y: top + Math.floor(index / columns) * pitch + buttonSize / 2,
-    size: buttonSize,
-  }));
-}
-
-/**
- * Telefon na šířku s číselníkem: nahoře zleva hvězdičky, postavička
- * a příklad, vlevo dole nápověda, vpravo dole číselník.
+ * Telefon na šířku s číselníkem (rozložení V2).
  *
  * @param buttonCount Počet tlačítek číselníku (rozsah + 1).
+ * @param hintGroups Skupinky teček nápovědy; prázdné = bez nápovědy.
  */
 export function layoutPhoneScreen(
   area: GameSize,
   buttonCount: number,
   starCount = 0,
+  hintGroups: readonly number[] = [],
 ): PhoneScreenLayout {
-  const free = cssSizeOf(area);
-  const keypad = layoutPhoneKeypad(buttonCount, free);
-  const keypadLeft = Math.min(...keypad.map((slot) => slot.x - slot.size / 2));
-
-  return {
-    ...phoneCommonParts(free, buttonCount - 1, starCount, keypadLeft),
-    answerButtons: keypad.map(slotInUnits),
+  const request: PhonePlanRequest = {
+    free: cssSizeOf(area),
+    maxNumber: maxNumberForButtons(buttonCount),
+    answerInput: 'keypad',
+    starCount,
+    hintGroups: visibleGroups(hintGroups),
   };
+  const plan = planPhoneScreen(request);
+  return { ...phoneParts(plan, request), answerButtons: plan.answerButtons.map(slotInUnits) };
 }
 
-/** Strana okénka: co nejvíc pod horní pruh, u dvou okének s místem pro nápovědu vlevo. */
-function writingBoxSide(free: GameSize, maxNumber: MaxNumber): number {
-  const heightLeft = free.height - GEAR_CORNER_SIZE - EDGE_MARGIN;
-  if (writingBoxCount(maxNumber) === 1) {
-    return Math.min(SINGLE_BOX_MAX_SIDE, heightLeft);
+/** Rozsah podle počtu tlačítek číselníku (0 až rozsah). */
+function maxNumberForButtons(buttonCount: number): MaxNumber {
+  if (buttonCount <= 6) {
+    return 5;
   }
-  const fixedWidth =
-    EDGE_MARGIN +
-    hintDotSpecFor(maxNumber).minWidthBesideBoxes +
-    EDGE_MARGIN +
-    TWO_BOX_GAP +
-    WRITING_BUTTON_GAP +
-    WRITING_BUTTON_SIZE +
-    EDGE_MARGIN;
-  return Math.min(TWO_BOX_MAX_SIDE, heightLeft, (free.width - fixedWidth) / 2);
+  return buttonCount <= 11 ? 10 : 20;
 }
 
 /**
- * Telefon na šířku s psaním: vpravo dole okénka (desítky vlevo, jednotky
- * vpravo), vpravo od nich pod sebou smazání a ✓, smazání nahoře.
+ * Telefon na šířku s psaním (rozložení V2): smazání vlevo, okénka
+ * uprostřed pod příkladem, ✓ vpravo.
+ *
+ * @param hintGroups Skupinky teček nápovědy; prázdné = bez nápovědy.
  */
 export function layoutPhoneWritingScreen(
   area: GameSize,
   maxNumber: MaxNumber,
   starCount = 0,
+  hintGroups: readonly number[] = [],
 ): PhoneWritingLayout {
-  const free = cssSizeOf(area);
-  const twoBoxes = writingBoxCount(maxNumber) === 2;
-  const side = writingBoxSide(free, maxNumber);
-  const buttonsX = free.width - EDGE_MARGIN - WRITING_BUTTON_SIZE / 2;
-  const boxesRight = free.width - EDGE_MARGIN - WRITING_BUTTON_SIZE - WRITING_BUTTON_GAP;
-  const centerY = free.height - EDGE_MARGIN - side / 2;
-  const onesX = boxesRight - side / 2;
-  const boxCenters = twoBoxes ? [onesX - side - TWO_BOX_GAP, onesX] : [onesX];
-  const writingAreas = boxCenters.map((x) => ({ x, y: centerY, width: side, height: side }));
-  const boxesLeft = Math.min(...writingAreas.map((box) => box.x - side / 2));
-  const buttonOffset = (WRITING_BUTTON_SIZE + WRITING_BUTTON_GAP) / 2;
-
+  const request: PhonePlanRequest = {
+    free: cssSizeOf(area),
+    maxNumber,
+    answerInput: 'writing',
+    starCount,
+    hintGroups: visibleGroups(hintGroups),
+  };
+  const plan = planPhoneScreen(request);
+  const writing = plan.writing;
+  const noButton: ButtonSlot = { x: 0, y: 0, size: 0 };
   return {
-    ...phoneCommonParts(free, maxNumber, starCount, boxesLeft),
-    writingAreas: writingAreas.map(areaInUnits),
-    clearButton: slotInUnits({
-      x: buttonsX,
-      y: centerY - buttonOffset,
-      size: WRITING_BUTTON_SIZE,
-    }),
-    confirmButton: slotInUnits({
-      x: buttonsX,
-      y: centerY + buttonOffset,
-      size: WRITING_BUTTON_SIZE,
-    }),
+    ...phoneParts(plan, request),
+    writingAreas: (writing?.areas ?? []).map(areaInUnits),
+    clearButton: slotInUnits(writing?.clear ?? noButton),
+    confirmButton: slotInUnits(writing?.confirm ?? noButton),
   };
 }
 
-/** Tečky nápovědy na telefonu: v obdélníku vlevo od ovládání. */
+function sameGroups(first: readonly number[], second: readonly number[]): boolean {
+  return first.length === second.length && first.every((count, i) => count === second[i]);
+}
+
+/**
+ * Tečky nápovědy na telefonu. Rozložení počítané pro tytéž skupinky je
+ * už má; pro jiné skupinky se rozložení spočítá znovu.
+ */
 export function layoutPhoneHint(
   layout: PhoneScreenLayout | PhoneWritingLayout,
   groups: readonly number[],
 ): HintDot[] {
-  return arrangeHintDots(groups, layout.hintRegion, layout.hintGrid);
+  const visible = visibleGroups(groups);
+  if (sameGroups(visible, layout.request.hintGroups)) {
+    return [...layout.hintDots];
+  }
+  const plan = planPhoneScreen({ ...layout.request, hintGroups: visible });
+  return plan.hintDots.map(dotInUnits);
 }
 
 // ---------------------------------------------------------------------------
 // Rozložení pro scénu podle druhu herní plochy
 // ---------------------------------------------------------------------------
 
-/** Rozložení s číselníkem pro herní plochu `area` (telefon, nebo dnešní). */
+/**
+ * Rozložení s číselníkem pro herní plochu `area` (telefon, nebo dnešní).
+ * Na telefonu udělá místo pro nápovědu `hintGroups`; iPad ji nepotřebuje.
+ */
 export function layoutDeviceScreen(
   area: GameArea,
   buttonCount: number,
   starCount = 0,
+  hintGroups: readonly number[] = [],
 ): DeviceScreenLayout {
   if (area.mode === 'phoneLandscape') {
-    return layoutPhoneScreen(area, buttonCount, starCount);
+    return layoutPhoneScreen(area, buttonCount, starCount, hintGroups);
   }
   return {
     ...layoutScreen(area.width, area.height, buttonCount, starCount),
-    ...TABLET_SIZES,
+    ...tabletSizes(buttonCount - 1),
     device: 'tablet',
   };
 }
@@ -604,13 +444,14 @@ export function layoutDeviceWritingScreen(
   area: GameArea,
   maxNumber: MaxNumber,
   starCount = 0,
+  hintGroups: readonly number[] = [],
 ): DeviceWritingLayout {
   if (area.mode === 'phoneLandscape') {
-    return layoutPhoneWritingScreen(area, maxNumber, starCount);
+    return layoutPhoneWritingScreen(area, maxNumber, starCount, hintGroups);
   }
   return {
     ...layoutWritingScreen(area.width, area.height, maxNumber, starCount),
-    ...TABLET_SIZES,
+    ...tabletSizes(maxNumber),
     device: 'tablet',
   };
 }

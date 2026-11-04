@@ -25,7 +25,7 @@ import {
   starLooks,
 } from '../logic/theme';
 import type { AnswerButtonState } from '../logic/theme';
-import { canCountDots, countDot, countingTone, startDotCounting } from '../logic/dotCounting';
+import { countDot, countingTone, startDotCounting } from '../logic/dotCounting';
 import type { DotCounting } from '../logic/dotCounting';
 import {
   isTwoBoxRound,
@@ -190,6 +190,9 @@ export class GameScene extends Phaser.Scene {
   private settingsOpen = false;
   /** Otevřené nastavení pro rodiče, aby šlo po otočení telefonu zmenšit (#54). */
   private settingsPanel: SettingsPanel | undefined;
+  /** Spočítaná rozložení podle plochy, rozsahu a nápovědy (viz `layoutKey`). */
+  private readonly keypadLayouts = new Map<string, DeviceScreenLayout>();
+  private readonly writingLayouts = new Map<string, DeviceWritingLayout>();
   /** Průvodce nastavením při prvním spuštění (#49), když je otevřený. */
   private setupGuide: SetupGuidePanel | undefined;
   /** Naplánované dokončení oslavy; nastavení ho může přerušit (#45). */
@@ -250,17 +253,25 @@ export class GameScene extends Phaser.Scene {
    */
   private onGameAreaChanged(): void {
     this.gameArea = this.readGameArea();
-    const layout = this.layout();
+    // Rozložení pro starou plochu už nebudou potřeba.
+    this.keypadLayouts.clear();
+    this.writingLayouts.clear();
     this.redrawStars();
-    this.mascot?.moveTo(layout.mascot, mascotLookOf(layout));
-    this.redrawRound();
+    this.relayoutRound(false);
     const size = { width: this.gameArea.width, height: this.gameArea.height };
     this.settingsPanel?.fitTo(size);
     this.setupGuide?.fitTo(size);
   }
 
-  /** Překreslí rozehrané kolo bez nového příkladu a bez započtení odpovědi. */
-  private redrawRound(): void {
+  /**
+   * Postavička a rozehrané kolo podle nového rozložení, bez nového příkladu
+   * a bez započtení odpovědi. Rozepsané tahy se smažou.
+   *
+   * @param animateHint Tečky nápovědy naskočí (nápověda se právě ukázala).
+   */
+  private relayoutRound(animateHint: boolean): void {
+    const layout = this.layout();
+    this.mascot?.moveTo(layout.mascot, mascotLookOf(layout));
     if (!this.round) {
       return;
     }
@@ -269,6 +280,7 @@ export class GameScene extends Phaser.Scene {
     this.clearRound();
     this.drawRound(
       after.writing !== null && isTwoBoxRound(after.writing) ? after.writing : undefined,
+      animateHint,
     );
   }
 
@@ -434,8 +446,9 @@ export class GameScene extends Phaser.Scene {
    * pokud už je vidět (po změně velikosti okna hned, bez naskakování).
    *
    * @param writingState Stav okének po změně velikosti okna; jinak prázdná okénka.
+   * @param animateHint Tečky nápovědy naskočí jedna po druhé.
    */
-  private drawRound(writingState?: TwoBoxRound): void {
+  private drawRound(writingState?: TwoBoxRound, animateHint = false): void {
     if (!this.round) {
       return;
     }
@@ -448,7 +461,7 @@ export class GameScene extends Phaser.Scene {
       this.createKeypad(layout, this.round);
     }
     if (this.hintIsShown) {
-      this.drawHint(false);
+      this.drawHint(animateHint);
     }
   }
 
@@ -663,12 +676,6 @@ export class GameScene extends Phaser.Scene {
       this.saveProgress();
     }
 
-    // Tanec začne až s oslavou, po doletu poslední hvězdičky.
-    const reaction = mascotReactionToTap(outcome, stars.setCompleted);
-    if (reaction && reaction !== 'dance') {
-      this.mascot?.react(reaction);
-    }
-
     if (outcome === 'correct') {
       visuals.onCorrect();
       this.celebrateCorrectAnswer(origin, stars.setCompleted);
@@ -676,15 +683,59 @@ export class GameScene extends Phaser.Scene {
       visuals.onWrong();
       this.showHintWhenNeeded();
     }
+
+    // Až po nápovědě: na telefonu nápověda postavičku přesune (#54) a reakce by se ztratila.
+    // Tanec začne až s oslavou, po doletu poslední hvězdičky.
+    const reaction = mascotReactionToTap(outcome, stars.setCompleted);
+    if (reaction && reaction !== 'dance') {
+      this.mascot?.react(reaction);
+    }
   }
 
   private layout(): DeviceScreenLayout {
     const maxNumber = this.round?.maxNumber ?? this.settings.maxNumber;
-    return layoutDeviceScreen(this.gameArea, answerChoices(maxNumber).length, STARS_PER_SET);
+    const groups = this.shownHintGroups();
+    const key = this.layoutKey('keypad', maxNumber, groups);
+    const cached = this.keypadLayouts.get(key);
+    if (cached) {
+      return cached;
+    }
+    const layout = layoutDeviceScreen(
+      this.gameArea,
+      answerChoices(maxNumber).length,
+      STARS_PER_SET,
+      groups,
+    );
+    this.keypadLayouts.set(key, layout);
+    return layout;
   }
 
   private writingLayout(): DeviceWritingLayout {
-    return layoutDeviceWritingScreen(this.gameArea, this.settings.maxNumber, STARS_PER_SET);
+    const groups = this.shownHintGroups();
+    const key = this.layoutKey('writing', this.settings.maxNumber, groups);
+    const cached = this.writingLayouts.get(key);
+    if (cached) {
+      return cached;
+    }
+    const layout = layoutDeviceWritingScreen(
+      this.gameArea,
+      this.settings.maxNumber,
+      STARS_PER_SET,
+      groups,
+    );
+    this.writingLayouts.set(key, layout);
+    return layout;
+  }
+
+  /** Rozložení telefonu se zkouší z mnoha velikostí, proto se spočítané pamatuje. */
+  private layoutKey(input: string, maxNumber: number, groups: readonly number[]): string {
+    const { mode, width, height } = this.gameArea;
+    return [input, mode, width, height, maxNumber, groups.join('+')].join('|');
+  }
+
+  /** Skupinky teček, pro které má rozložení udělat místo (na telefonu, #54). */
+  private shownHintGroups(): number[] {
+    return this.round && this.hintIsShown ? hintDotGroups(this.round.problem) : [];
   }
 
   /** Rozložení se skutečným ovládáním: okénka na psaní, nebo číselník. */
@@ -697,6 +748,11 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.hintIsShown = true;
+    if (this.answerLayout().device === 'phone') {
+      // Na telefonu nápověda potřebuje místo: rozložení se přepočítá (V2, #54).
+      this.relayoutRound(true);
+      return;
+    }
     this.drawHint(true);
   }
 
@@ -734,7 +790,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       // Na tečku jde ťuknout hned, i když ještě naskakuje (#43).
-      if (this.round && canCountDots(this.round.maxNumber)) {
+      if (layout.hintDotsCountable) {
         this.addDotHitZone(dot, index, circle, layout.hintDotHitSize);
       }
       const countedNumber = this.dotCounting.numbers[index];

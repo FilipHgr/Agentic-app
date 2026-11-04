@@ -295,22 +295,33 @@ async function shootPhone(browser, url, device, layoutModule) {
   await shot('1-zacatek');
 
   // Výchozí nastavení: číselník do 10. Dvě chyby za sebou ukážou nápovědu.
+  // Příklad s výsledkem 0 nápovědu nemá, proto se ťuká na 10 (do 10 nejméně častý výsledek).
   const keypad = layoutModule.layoutPhoneScreen(map.area, 11, 10);
-  const zero = map.game(keypad.answerButtons[0]);
-  await tapAt(page, zero);
-  await page.waitForTimeout(500);
-  await tapAt(page, zero);
+  const wrong = map.game(keypad.answerButtons[10]);
+  const earnedStar = () =>
+    page.evaluate(() => {
+      const saved = localStorage.getItem('agentic-app.progress');
+      return saved !== null && !saved.includes('"earned":0');
+    });
+  // Když 10 náhodou správná odpověď byla, přijde další příklad a zkusí se znovu.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await tapAt(page, wrong);
+    await page.waitForTimeout(500);
+    if (!(await earnedStar())) {
+      break;
+    }
+    await page.evaluate(() => localStorage.removeItem('agentic-app.progress'));
+    await page.waitForTimeout(1000);
+  }
+  await tapAt(page, wrong);
   await page.waitForTimeout(2500);
   await shot('2-napoveda');
 
-  // Počítání teček: ťuknutí na středy buněk v horní řadě obdélníku nápovědy.
-  const region = keypad.hintRegion;
-  const cell = keypad.hintGrid.cell;
-  for (let x = region.left + cell / 2; x < region.right; x += cell) {
-    for (let y = region.top + cell / 2; y < region.bottom; y += cell) {
-      await tapAt(page, map.game({ x, y }));
-      await page.waitForTimeout(60);
-    }
+  // Počítání teček (#43): příklad je náhodný, proto se ťuká po 24 px do místa,
+  // kde můžou být tečky (vpravo od příkladu, nad číselníkem). Jinde ťuknutí nic nedělá.
+  for (const point of hintTapGrid(layoutModule, map.area)) {
+    await tapAt(page, map.game(point));
+    await page.waitForTimeout(40);
   }
   await page.waitForTimeout(300);
   await shot('2b-pocitani');
@@ -331,10 +342,22 @@ async function shootPhone(browser, url, device, layoutModule) {
 
   const writing = layoutModule.layoutPhoneWritingScreen(map.area, 10, 10);
   const [tens, ones] = writing.writingAreas;
-  await drawAt(page, strokeInBox(ONE, IPAD_TENS_BOX, tens).map(map.game));
-  await drawAt(page, strokeInBox(SEVEN, IPAD_ONES_BOX, ones).map(map.game));
-  await page.waitForTimeout(1300);
+  const writeSeventeen = async () => {
+    await drawAt(page, strokeInBox(ONE, IPAD_TENS_BOX, tens).map(map.game));
+    await drawAt(page, strokeInBox(SEVEN, IPAD_ONES_BOX, ones).map(map.game));
+    await page.waitForTimeout(1300);
+  };
+  await writeSeventeen();
   await shot('5-psani-cislice');
+
+  // 17 je do 10 vždy špatně: dvakrát potvrdit a ukáže se nápověda při psaní.
+  const confirm = map.game(writing.confirmButton);
+  await tapAt(page, confirm);
+  await page.waitForTimeout(800);
+  await writeSeventeen();
+  await tapAt(page, confirm);
+  await page.waitForTimeout(2500);
+  await shot('5b-psani-napoveda');
 
   // Otočení na výšku a zpět (AC7): příklad zůstane, okénka se vyprázdní.
   const { width, height } = device.viewport;
@@ -349,7 +372,29 @@ async function shootPhone(browser, url, device, layoutModule) {
   return errors.concat(await shootPhoneCelebration(browser, url, device, layoutModule));
 }
 
-/** Oslava: uložených 9 hvězdiček, pak se ťuká na čísla od 0, dokud jedno není správně. */
+/**
+ * Body po 24 px v místě, kde můžou být tečky nápovědy do 10: od nejlevějšího
+ * pravého okraje příkladu po roh s kolečkem a nad nejvyšším číselníkem.
+ */
+function hintTapGrid(layoutModule, area) {
+  const samples = [[1], [5, 5], [6, 4], [9, 1], [10], [3, 7]];
+  const layouts = samples.map((groups) => layoutModule.layoutPhoneScreen(area, 11, 10, groups));
+  const left = Math.min(...layouts.map((l) => l.problem.x + l.problemSize.width / 2));
+  const bottom = Math.min(
+    ...layouts.flatMap((l) => l.answerButtons.map((slot) => slot.y - slot.size / 2)),
+  );
+  const step = 24 / area.scale;
+  const right = area.width - 92 / area.scale;
+  const points = [];
+  for (let y = 30 / area.scale; y < bottom; y += step) {
+    for (let x = left; x < right; x += step) {
+      points.push({ x, y });
+    }
+  }
+  return points;
+}
+
+/** Oslava: uložených 9 hvězdiček; stránka se načítá znovu, dokud ťuknutí na 5 není správně. */
 async function shootPhoneCelebration(browser, url, device, layoutModule) {
   const { context, page, errors } = await newPhonePage(browser, device);
   await context.addInitScript(() => {
@@ -361,14 +406,22 @@ async function shootPhoneCelebration(browser, url, device, layoutModule) {
   });
   const map = phoneMapper(layoutModule, device);
   const keypad = layoutModule.layoutPhoneScreen(map.area, 11, 10);
+  const five = map.game(keypad.answerButtons[5]);
+  const starEarned = () =>
+    page.evaluate(() =>
+      (localStorage.getItem('agentic-app.progress') ?? '').includes('"earned":10'),
+    );
 
-  await page.goto(url);
-  await page.waitForTimeout(1500);
-  for (const slot of keypad.answerButtons) {
-    await tapAt(page, map.game(slot));
-    await page.waitForTimeout(250);
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    await page.goto(url);
+    await page.waitForTimeout(1200);
+    await tapAt(page, five);
+    await page.waitForTimeout(300);
+    if (await starEarned()) {
+      break;
+    }
   }
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(1300);
   await page.screenshot({ path: join(outputDir, `${device.name}-8-oslava.png`) });
   await context.close();
   return errors;
@@ -378,7 +431,10 @@ async function shootPhoneCelebration(browser, url, device, layoutModule) {
 async function loadLayoutModule() {
   const server = await createServer({ server: { middlewareMode: true }, logLevel: 'silent' });
   try {
-    return { server, module: await server.ssrLoadModule('/src/logic/deviceLayout.ts') };
+    return {
+      server,
+      module: await server.ssrLoadModule('/src/logic/deviceLayout.ts'),
+    };
   } catch (error) {
     await server.close();
     throw error;
