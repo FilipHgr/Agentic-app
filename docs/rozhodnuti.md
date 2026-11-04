@@ -38,6 +38,11 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-04 Výjimka: při prvním spuštění (bez platného uloženého nastavení)
   se nastavení otevře samo s nápovědou pro rodiče, jinak jen podržením
   kolečka (#48).
+- 2026-11-04 Nápověda dvěma texty vedle ✓ (#48) se vlastníkovi nelíbí. Místo
+  ní interaktivní průvodce nastavením: nejdřív otázka, podle které průvodce
+  nastavení předvyplní, pak krok za krokem projde řady s radami. Jen při
+  prvním spuštění, automatické otevření z #48 zůstává. „Musí to být fakt
+  dobré.“
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
