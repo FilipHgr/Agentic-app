@@ -22,7 +22,7 @@ const EXPECTED_SCRIPT: readonly { id: string; step: number; lines: [string, stri
     step: 1,
     lines: [
       'Největší číslo, které se v příkladech objeví.',
-      'Školka do pěti, první třída do deseti, pak do dvaceti.',
+      'Začněte menším číslem a přidávejte, až to dítě zvládá.',
     ],
   },
   {
@@ -91,6 +91,12 @@ describe('scénář průvodce (#50 AC1)', () => {
     for (const id of ids) {
       expect(id).not.toMatch(/\./);
     }
+  });
+
+  it('rada u „Do kolika“ nedoporučuje rozsah podle třídy ani školky', () => {
+    const text = scriptLine('maxNumber').lines.join(' ');
+    expect(text).not.toMatch(/třída/i);
+    expect(text).not.toMatch(/školka/i);
   });
 
   it('každý řádek má nejvýš 56 znaků a žádný není prázdný', () => {

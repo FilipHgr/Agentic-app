@@ -95,7 +95,7 @@ describe('průvodce začíná rovnou řadou „Do kolika“ (#49 AC1)', () => {
   it('na kroku 1 je hned vidět vysvětlení a rada k řadě „Do kolika“', () => {
     expect(guideMessage(startGuide())).toEqual([
       'Největší číslo, které se v příkladech objeví.',
-      'Školka do pěti, první třída do deseti, pak do dvaceti.',
+      'Začněte menším číslem a přidávejte, až to dítě zvládá.',
     ]);
   });
 
@@ -222,7 +222,7 @@ describe('kroky 1 Do kolika, 2 Příklady, 3 Odpověď a ukazatel „k / 4“ (#
     const expected: Record<SettingsRowKind, [string, string]> = {
       maxNumber: [
         'Největší číslo, které se v příkladech objeví.',
-        'Školka do pěti, první třída do deseti, pak do dvaceti.',
+        'Začněte menším číslem a přidávejte, až to dítě zvládá.',
       ],
       operations: [
         'Sčítání, odčítání, nebo obojí zamíchané.',

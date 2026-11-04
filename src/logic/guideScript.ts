@@ -22,7 +22,7 @@ const LINES: Record<GuideLineId, Omit<GuideLine, 'id'>> = {
     step: 1,
     lines: [
       'Největší číslo, které se v příkladech objeví.',
-      'Školka do pěti, první třída do deseti, pak do dvaceti.',
+      'Začněte menším číslem a přidávejte, až to dítě zvládá.',
     ],
   },
   operations: {
