@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { CHECK_BUTTON_COLOR } from '../src/logic/checkButton';
 import { SETTINGS_LABEL_COLOR, layoutSettingsPanel } from '../src/logic/settingsLayout';
 import type { SettingsRowKind } from '../src/logic/settingsLayout';
 import { GUIDE_SCRIPT } from '../src/logic/guideScript';
@@ -381,10 +380,10 @@ describe('kontrast tlačítek průvodce podle WCAG (#49 AC5)', () => {
     expect(GUIDE_COLORS.startPlayingBackground).toBe('#8be04e');
   });
 
-  it('„Začít hrát“ má stejnou zelenou jako ✓', () => {
-    const asHex = `#${CHECK_BUTTON_COLOR.toString(16).padStart(6, '0')}`;
-    expect(GUIDE_COLORS.startPlayingBackground).toBe(asHex);
-  });
+  // Průvodce je mimo rozsah #52. Do té doby hlídáme dnešní zelenou #8be04e
+  // a kontrast níže. Sjednocení „Začít hrát“ se zelenou ✓ (#248A3D) je
+  // v navazujícím úkolu (b) k #52, tam se musí vyřešit i barva písma, protože
+  // #0f3d24 na #248A3D kontrast 7 : 1 nesplní.
 
   const pairs: readonly [string, () => string, number][] = [
     ['„Zpět“ a „Další“ na bílé', () => GUIDE_COLORS.buttonBackground, 12.3],

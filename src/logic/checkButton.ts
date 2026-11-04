@@ -3,11 +3,13 @@
  * fajfky podle velikosti tlačítka. Čistý TypeScript bez Phaseru.
  */
 
-/** Zelená tlačítek ✓ a správné odpovědi. */
-export const CHECK_BUTTON_COLOR = 0x8be04e;
+import { CONFIRM_BUTTON_STYLE, colorNumber } from './theme';
+
+/** Zelená tlačítek ✓ a správné odpovědi, ze světlého vzhledu (#52). */
+export const CHECK_BUTTON_COLOR = colorNumber(CONFIRM_BUTTON_STYLE.background);
 
 /** Zaoblení rohu jako část strany tlačítka. */
-const CORNER_RADIUS_RATIO = 0.18;
+const CORNER_RADIUS_RATIO = 0.25;
 
 /** Tloušťka fajfky jako část strany tlačítka. */
 const TICK_WIDTH_RATIO = 0.13;
@@ -17,7 +19,7 @@ export interface CheckButtonStyle {
   readonly tickWidth: number;
 }
 
-/** Zaoblení rohu tlačítka o straně `size`, na celé px (#46): 140 → 25, 116 → 21. */
+/** Zaoblení rohu tlačítka o straně `size`, na celé px (#46, #52): 140 → 35, 116 → 29. */
 export function buttonCornerRadius(size: number): number {
   return Math.round(size * CORNER_RADIUS_RATIO);
 }

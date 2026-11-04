@@ -24,6 +24,7 @@ import {
   stepIndicatorText,
 } from '../logic/setupGuide';
 import type { GuideLayout, GuideSlot, GuideState } from '../logic/setupGuide';
+import { FONT_FAMILY } from '../logic/theme';
 import { PANEL_DEPTH, PANEL_FADE_MS, SETTINGS_BACKDROP_COLOR } from './SettingsPanel';
 import { SettingsRows } from './SettingsRows';
 
@@ -293,7 +294,7 @@ export class SetupGuidePanel {
   private addText(slot: GuideSlot, text: string): Phaser.GameObjects.Text {
     const object = this.scene.add
       .text(slot.x, slot.y, text, {
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: FONT_FAMILY,
         fontSize: `${slot.fontSize}px`,
         color: GUIDE_COLORS.text,
         align: 'center',
@@ -309,7 +310,7 @@ export class SetupGuidePanel {
     const background = this.scene.add.graphics();
     const label = this.scene.add
       .text(0, 0, text, {
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: FONT_FAMILY,
         fontSize: `${slot.fontSize}px`,
         color: GUIDE_COLORS.buttonText,
       })

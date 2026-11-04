@@ -9,6 +9,7 @@ import type {
 } from '../logic/settingsLayout';
 import type { SelectedOptions } from '../logic/settingsSession';
 import type { AnswerInput, GameSettings, MaxNumber, OperationMode } from '../logic/settings';
+import { FONT_FAMILY } from '../logic/theme';
 
 const OPTION_COLOR = 0xffffff;
 const OPTION_SELECTED_COLOR = 0xffd54f;
@@ -96,7 +97,7 @@ export class SettingsRows {
   private createRowLabel(label: SettingsRowLabel): Phaser.GameObjects.Text {
     return this.scene.add
       .text(label.x, label.y, label.text, {
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: FONT_FAMILY,
         fontSize: `${label.fontSize}px`,
         color: SETTINGS_LABEL_COLOR,
       })
@@ -142,7 +143,7 @@ export class SettingsRows {
   private createOptionText(text: string): Phaser.GameObjects.Text {
     return this.scene.add
       .text(0, 0, text, {
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: FONT_FAMILY,
         fontSize: '84px',
         color: OPTION_TEXT_COLOR,
       })

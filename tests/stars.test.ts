@@ -65,8 +65,9 @@ describe('AC1: nahoře je řada 10 hvězdiček, která nic nepřekrývá', () =>
     expect(problemTop - lowestStarBottom).toBeGreaterThanOrEqual(30);
   });
 
-  it('hvězdičky jsou dost velké, aby byly dobře vidět', () => {
-    expect(STAR_SIZE).toBeGreaterThanOrEqual(60);
+  // #52 AC5: hvězdičky jsou nově malé jako v mockupu A3 (dříve aspoň 60 px).
+  it('hvězdičky jsou malé jako v mockupu, 30 px', () => {
+    expect(STAR_SIZE).toBe(30);
   });
 
   it('příklad se stále nepřekrývá s nápovědou ani s číselníkem', () => {

@@ -8,6 +8,7 @@ import type { GameProgress } from './progress';
 import { answerInputOf } from './settings';
 import type { AnswerInput, GameSettings, MaxNumber, OperationMode } from './settings';
 import { STARS_PER_SET } from './stars';
+import { PAGE_BACKGROUND } from './theme';
 
 export type SettingsSession =
   { readonly open: false } | { readonly open: true; readonly choice: GameSettings };
@@ -33,9 +34,13 @@ export interface PageAppearance {
   readonly transitionMs: number;
 }
 
-/** Barvy stránky: tmavá při otevřeném nastavení, jinak běžná zelená hry. */
+/** Barvy stránky: tmavá při otevřeném nastavení, jinak světlé pozadí hry (#52). */
 const OPEN_PAGE: PageAppearance = { background: '#0f3d24', gearOpacity: 0.3, transitionMs: 150 };
-const CLOSED_PAGE: PageAppearance = { background: '#1f6f43', gearOpacity: 1, transitionMs: 150 };
+const CLOSED_PAGE: PageAppearance = {
+  background: PAGE_BACKGROUND,
+  gearOpacity: 1,
+  transitionMs: 150,
+};
 
 export function isSettingsOpen(session: SettingsSession): boolean {
   return session.open;

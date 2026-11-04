@@ -12,7 +12,18 @@ import {
 } from '../logic/answerRound';
 import type { AnswerRound, TapOutcome } from '../logic/answerRound';
 import { SOUNDS, soundForOutcome } from '../logic/answerSounds';
-import { CHECK_BUTTON_COLOR, buttonCornerRadius } from '../logic/checkButton';
+import { buttonCornerRadius } from '../logic/checkButton';
+import {
+  FONT_FAMILY,
+  HINT_DOT_STYLE,
+  KEYPAD_BUTTON_STYLE,
+  PROBLEM_STYLE,
+  STAR_STYLE,
+  answerButtonLook,
+  colorNumber,
+  starLooks,
+} from '../logic/theme';
+import type { AnswerButtonState } from '../logic/theme';
 import { canCountDots, countDot, countingTone, startDotCounting } from '../logic/dotCounting';
 import type { DotCounting } from '../logic/dotCounting';
 import { mascotReactionToTap } from '../logic/mascot';
@@ -55,43 +66,41 @@ import { SettingsPanel } from './SettingsPanel';
 import { SetupGuidePanel } from './SetupGuidePanel';
 import { WritingPad } from './WritingPad';
 
-const BUTTON_COLOR = 0xffffff;
-/** Každé sčítané číslo má tečky jiné barvy, aby šly skupinky rozlišit. */
-const HINT_GROUP_COLORS = [0xffd54f, 0x81d4fa];
+/** Každé sčítané číslo má tečky jiné barvy (#30); barvy jsou v `theme.ts` (#52). */
+const HINT_GROUP_COLORS = HINT_DOT_STYLE.groupColors.map(colorNumber);
 
 /** Odečítané tečky u odčítání jsou šedé a přeškrtnuté. */
-const HINT_CROSSED_OUT_COLOR = 0x9e9e9e;
-const HINT_CROSS_COLOR = 0xffffff;
+const HINT_CROSSED_OUT_COLOR = colorNumber(HINT_DOT_STYLE.crossedOutColor);
+const HINT_CROSS_COLOR = colorNumber(HINT_DOT_STYLE.crossColor);
 
 /** Číslo na tlačítku zabírá asi dvě třetiny jeho výšky. */
 const BUTTON_LABEL_RATIO = 0.64;
 
-/** Spočítaná tečka dostane bílý okraj a tmavé číslo, které je vidět na žluté i modré. */
-const DOT_COUNTED_RING_COLOR = 0xffffff;
+/** Spočítaná tečka dostane tmavý okraj a tmavé číslo, které je vidět na žluté i modré. */
+const DOT_COUNTED_RING_COLOR = colorNumber(HINT_DOT_STYLE.countedRingColor);
 const DOT_COUNTED_RING_WIDTH = 6;
-const DOT_NUMBER_COLOR = '#0f3d24';
+const DOT_NUMBER_COLOR = HINT_DOT_STYLE.countedNumberColor;
 const DOT_NUMBER_FONT_SIZE = 30;
 
 /** Tečky naskakují jedna po druhé, aby je dítě mohlo počítat s nimi. */
 const HINT_DOT_DELAY_MS = 120;
-const BUTTON_TEXT_COLOR = '#1f6f43';
 
 /** Výsledek v příkladu po správné odpovědi: zelený jako správné tlačítko. */
-const ANSWER_REVEALED_COLOR = '#8be04e';
-const PROBLEM_TEXT_COLOR = '#ffffff';
+const ANSWER_REVEALED_COLOR = PROBLEM_STYLE.revealedAnswerColor;
+const PROBLEM_TEXT_COLOR = PROBLEM_STYLE.color;
+const QUESTION_MARK_COLOR = PROBLEM_STYLE.questionMarkColor;
 
-/** Rozpoznaná, ještě nepotvrzená číslice v příkladu: žlutá jako vybraná volba. */
-const ANSWER_WRITTEN_COLOR = '#ffd54f';
+/** Rozpoznaná, ještě nepotvrzená číslice v příkladu: modrá jako číslice číselníku. */
+const ANSWER_WRITTEN_COLOR = PROBLEM_STYLE.writtenDigitColor;
 
-/** Mezera mezi rovnítkem a odpovědí jako část velikosti písma (šířka mezery v Arialu). */
+/** Mezera mezi rovnítkem a odpovědí jako část velikosti písma (přibližná šířka mezery). */
 const ANSWER_GAP_RATIO = 0.28;
 
 /** Jak dlouho se po správné odpovědi čeká na nový příklad. */
 const NEXT_PROBLEM_DELAY_MS = 800;
 
-const STAR_EMPTY_COLOR = 0x175a36;
-const STAR_FILLED_COLOR = 0xffd54f;
-const STAR_OUTLINE_COLOR = 0xffffff;
+const STAR_EMPTY_COLOR = colorNumber(STAR_STYLE.emptyColor);
+const STAR_FILLED_COLOR = colorNumber(STAR_STYLE.earnedColor);
 
 /** Jak dlouho letí hvězdička od tlačítka do řady nahoře. */
 const STAR_FLIGHT_MS = 450;
@@ -112,6 +121,7 @@ interface AnswerButton {
   readonly value: number;
   readonly container: Phaser.GameObjects.Container;
   readonly background: Phaser.GameObjects.Graphics;
+  readonly label: Phaser.GameObjects.Text;
   readonly size: number;
   /** Vodorovná poloha, kam se tlačítko vrací po zatřesení. */
   readonly homeX: number;
@@ -271,11 +281,7 @@ export class GameScene extends Phaser.Scene {
 
   private createStarRow(): void {
     this.starIcons = this.layout().stars.map((slot) =>
-      this.createStarShape(slot.x, slot.y, STAR_EMPTY_COLOR).setStrokeStyle(
-        3,
-        STAR_OUTLINE_COLOR,
-        0.7,
-      ),
+      this.createStarShape(slot.x, slot.y, STAR_EMPTY_COLOR),
     );
   }
 
@@ -285,9 +291,18 @@ export class GameScene extends Phaser.Scene {
 
   /** Rozsvítí tolik hvězdiček zleva, kolik jich hráč v řadě získal. */
   private paintStars(): void {
+    const looks = starLooks(this.starProgress);
     this.starIcons.forEach((icon, index) => {
-      const filled = index < this.starProgress.earned;
-      icon.setFillStyle(filled ? STAR_FILLED_COLOR : STAR_EMPTY_COLOR);
+      const look = looks[index];
+      if (!look) {
+        return;
+      }
+      icon.setFillStyle(colorNumber(look.fill));
+      if (look.outlineColor === null) {
+        icon.setStrokeStyle();
+      } else {
+        icon.setStrokeStyle(look.outlineWidth, colorNumber(look.outlineColor));
+      }
     });
   }
 
@@ -335,7 +350,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     if (number === null) {
-      this.problemAnswer.setText(problemText(this.round).answer).setColor(PROBLEM_TEXT_COLOR);
+      this.problemAnswer.setText(problemText(this.round).answer).setColor(QUESTION_MARK_COLOR);
     } else {
       this.problemAnswer.setText(String(number)).setColor(ANSWER_WRITTEN_COLOR);
     }
@@ -361,15 +376,18 @@ export class GameScene extends Phaser.Scene {
     }
     const text = problemText(this.round);
     const style = {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: FONT_FAMILY,
       fontSize: `${layout.problemFontSize}px`,
+      fontStyle: String(PROBLEM_STYLE.fontWeight),
       color: PROBLEM_TEXT_COLOR,
     };
 
     this.problemEquation = this.add
       .text(0, layout.problem.y, text.equation, style)
       .setOrigin(0, 0.5);
-    this.problemAnswer = this.add.text(0, layout.problem.y, text.answer, style).setOrigin(0.5);
+    this.problemAnswer = this.add
+      .text(0, layout.problem.y, text.answer, { ...style, color: QUESTION_MARK_COLOR })
+      .setOrigin(0.5);
     this.roundObjects.push(this.problemEquation, this.problemAnswer);
     this.centerProblem(layout);
   }
@@ -418,9 +436,10 @@ export class GameScene extends Phaser.Scene {
     const background = this.add.graphics();
     const label = this.add
       .text(0, 0, String(value), {
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: FONT_FAMILY,
         fontSize: `${Math.round(slot.size * BUTTON_LABEL_RATIO)}px`,
-        color: BUTTON_TEXT_COLOR,
+        fontStyle: String(KEYPAD_BUTTON_STYLE.digitFontWeight),
+        color: KEYPAD_BUTTON_STYLE.digitColor,
       })
       .setOrigin(0.5);
 
@@ -429,11 +448,12 @@ export class GameScene extends Phaser.Scene {
       value,
       container,
       background,
+      label,
       size: slot.size,
       homeX: slot.x,
     };
 
-    this.paintButton(button, BUTTON_COLOR);
+    this.paintButton(button, 'idle');
     container.setSize(slot.size, slot.size).setInteractive();
     container.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       // Číselník bere jen jeden prst: dva prsty (třeba dlaň) nesmí dát dvě odpovědi.
@@ -447,13 +467,27 @@ export class GameScene extends Phaser.Scene {
     return button;
   }
 
-  private paintButton(button: AnswerButton, color: number): void {
+  /** Tlačítko číselníku podle stavu: světle modré, po správné odpovědi zelené (#52). */
+  private paintButton(button: AnswerButton, state: AnswerButtonState): void {
+    const look = answerButtonLook(state);
     const half = button.size / 2;
+    const radius = buttonCornerRadius(button.size);
+    // Okraj se kreslí dovnitř tlačítka, aby se nezměnila jeho velikost.
+    const inset = look.borderWidth / 2;
 
     button.background
       .clear()
-      .fillStyle(color, 1)
-      .fillRoundedRect(-half, -half, button.size, button.size, buttonCornerRadius(button.size));
+      .fillStyle(colorNumber(look.background), 1)
+      .fillRoundedRect(-half, -half, button.size, button.size, radius)
+      .lineStyle(look.borderWidth, colorNumber(look.borderColor), 1)
+      .strokeRoundedRect(
+        -half + inset,
+        -half + inset,
+        button.size - look.borderWidth,
+        button.size - look.borderWidth,
+        radius - inset,
+      );
+    button.label.setColor(look.digitColor);
   }
 
   private onAnswerTapped(button: AnswerButton): void {
@@ -595,7 +629,7 @@ export class GameScene extends Phaser.Scene {
     circle.setStrokeStyle(DOT_COUNTED_RING_WIDTH, DOT_COUNTED_RING_COLOR);
     const label = this.add
       .text(circle.x, circle.y, String(result.countedNumber), {
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: FONT_FAMILY,
         fontSize: `${DOT_NUMBER_FONT_SIZE}px`,
         fontStyle: 'bold',
         color: DOT_NUMBER_COLOR,
@@ -619,7 +653,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Správné tlačítko zezelená a poskočí. */
   private highlightCorrectButton(button: AnswerButton): void {
-    this.paintButton(button, CHECK_BUTTON_COLOR);
+    this.paintButton(button, 'correct');
     this.tweens.add({
       targets: button.container,
       scale: 1.2,
@@ -650,7 +684,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const flyingStar = this.createStarShape(origin.x, origin.y, STAR_FILLED_COLOR).setScale(1.6);
+    const flyingStar = this.createStarShape(origin.x, origin.y, STAR_FILLED_COLOR)
+      .setStrokeStyle(STAR_STYLE.earnedOutlineWidth, colorNumber(STAR_STYLE.earnedOutlineColor))
+      .setScale(1.6);
 
     this.tweens.add({
       targets: flyingStar,

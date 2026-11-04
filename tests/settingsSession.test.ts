@@ -26,7 +26,8 @@ import { STARS_PER_SET } from '../src/logic/stars';
  */
 
 const DARK_PAGE = '#0f3d24';
-const LIGHT_PAGE = '#1f6f43';
+/** Po zavření nastavení je stránka zase světlá jako hra (#52 AC1). */
+const LIGHT_PAGE = '#F5F5F7';
 const DIMMED_GEAR = 0.3;
 const FADE_MS = 150;
 

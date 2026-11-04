@@ -21,7 +21,7 @@ import { STARS_PER_SET } from '../src/logic/stars';
  * Testy vyváženého rozložení herní obrazovky (#44) na herní ploše 1024 × 768:
  * nápověda svisle uprostřed mezi příkladem a ovládáním podle skutečného počtu
  * řad teček, skupinky teček zarovnané nahoře, nápověda vodorovně pod středem
- * příkladu, postavička ve výšce příkladu, hvězdičky 20 px od horního okraje
+ * příkladu, postavička ve výšce příkladu, hvězdičky 37 px od horního okraje (od #52)
  * a větší příklad i tečky u rozsahu 5. Vyrovnaný dojem na iPadu a telefonu
  * (AC7) se kontroluje ručně.
  */
@@ -55,8 +55,11 @@ const EXCEPTION_MIN_GAP_BELOW = 16;
 const EXCEPTION_GAP_TOLERANCE = 24;
 const EXCEPTION_TOP_TOLERANCE = 1;
 
-/** Horní okraj hvězdiček od horního okraje herní plochy. */
-const STARS_TOP = 20;
+/**
+ * Horní okraj hvězdiček od horního okraje herní plochy. Od #52 jsou
+ * hvězdičky 30 px a střed řady zůstává ve výšce 52 px, proto 52 − 15 = 37.
+ */
+const STARS_TOP = 37;
 
 /** Pravý horní roh, kam se nesmí dostat žádný herní prvek (kolečko nastavení). */
 const SETTINGS_CORNER: Box = { left: 982, right: 1024, top: 11, bottom: 82 };
@@ -474,7 +477,7 @@ describe('AC3: nápověda je vodorovně pod středem příkladu a nic není v ro
   );
 });
 
-describe('AC4: postavička je ve výšce příkladu a hvězdičky 20 px od horního okraje', () => {
+describe('AC4: postavička je ve výšce příkladu a hvězdičky 37 px od horního okraje (#52: střed řady 52 px)', () => {
   it.each(ALL_VARIANTS)(
     'rozsah %i (%s): střed postavičky je ve stejné výšce jako střed příkladu',
     (maxNumber, mode) => {
@@ -521,7 +524,7 @@ describe('AC4: postavička je ve výšce příkladu a hvězdičky 20 px od horn�
   );
 
   it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): hvězdičky mají horní okraj 20 px při jakémkoli počtu',
+    'rozsah %i (%s): hvězdičky mají horní okraj 37 px při jakémkoli počtu',
     (maxNumber, mode) => {
       for (let starCount = 1; starCount <= STARS_PER_SET; starCount += 1) {
         const { layout } = variantFor(maxNumber, mode, starCount);

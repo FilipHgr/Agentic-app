@@ -182,10 +182,10 @@ export const HINT_DOT_SIZE = HINT_STYLE.dotSize;
 export const HINT_DOTS_PER_ROW = HINT_STYLE.dotsPerRow;
 
 /** Velikost jedné hvězdičky v řadě nahoře. */
-export const STAR_SIZE = 64;
+export const STAR_SIZE = 30;
 
 /** Vzdálenost středů sousedních hvězdiček. */
-const STAR_SPACING = 80;
+const STAR_SPACING = 44;
 
 /** Svislá poloha středu řady hvězdiček. */
 const STARS_Y = 52;

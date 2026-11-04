@@ -2,6 +2,13 @@ import Phaser from 'phaser';
 
 import type { AnswerRound } from '../logic/answerRound';
 import { CHECK_BUTTON_COLOR, buttonCornerRadius, checkButtonStyle } from '../logic/checkButton';
+import {
+  CLEAR_ICON_COLOR,
+  KEYPAD_BUTTON_STYLE,
+  CONFIRM_BUTTON_STYLE,
+  WRITING_PAD_STYLE,
+  colorNumber,
+} from '../logic/theme';
 import type { Stroke, StrokePoint } from '../logic/digitRecognition';
 import type { ButtonSlot, WritingAreaSlot, WritingLayout } from '../logic/screenLayout';
 import {
@@ -19,17 +26,21 @@ import {
 import type { TwoBoxConfirmResult, TwoBoxRound, WritingBox } from '../logic/twoBoxWriting';
 import { REJECTED_FADE_MS } from '../logic/writingRound';
 
-const AREA_COLOR = 0x175a36;
-const AREA_BORDER_COLOR = 0xffffff;
+/** Barvy jsou ve světlém vzhledu (#52) v `src/logic/theme.ts`. */
+const AREA_COLOR = colorNumber(WRITING_PAD_STYLE.background);
+const AREA_BORDER_COLOR = colorNumber(WRITING_PAD_STYLE.borderColor);
 const AREA_CORNER_RADIUS = 28;
-const INK_COLOR = 0xffffff;
+const INK_COLOR = colorNumber(WRITING_PAD_STYLE.inkColor);
 const INK_WIDTH = 16;
 
-const CLEAR_COLOR = 0xffffff;
-const CLEAR_ICON_COLOR = 0x1f6f43;
+/** Smazat vypadá jako tlačítko číselníku, aby se nepletlo s bílým okénkem. */
+const CLEAR_BACKGROUND = colorNumber(KEYPAD_BUTTON_STYLE.background);
+const CLEAR_BORDER = colorNumber(KEYPAD_BUTTON_STYLE.borderColor);
+const CLEAR_ICON = colorNumber(CLEAR_ICON_COLOR);
+const TICK_COLOR = colorNumber(CONFIRM_BUTTON_STYLE.tickColor);
 
 /** ✓ bez rozpoznané číslice je pobledlé, aby bylo vidět, že ještě nejde. */
-const DISABLED_ALPHA = 0.35;
+const DISABLED_ALPHA = CONFIRM_BUTTON_STYLE.disabledAlpha;
 
 /** Body tahu blíž než tohle se nepřidávají (prst se chvěje). */
 const MIN_POINT_DISTANCE = 3;
@@ -139,7 +150,7 @@ export class WritingPad {
         slot.height,
         AREA_CORNER_RADIUS,
       )
-      .lineStyle(4, AREA_BORDER_COLOR, 0.6)
+      .lineStyle(WRITING_PAD_STYLE.borderWidth, AREA_BORDER_COLOR, 1)
       .strokeRoundedRect(
         -slot.width / 2,
         -slot.height / 2,
@@ -313,7 +324,7 @@ export class WritingPad {
       .fillRoundedRect(-half, -half, slot.size, slot.size, checkStyle.cornerRadius);
     const tick = this.scene.add.graphics();
     tick
-      .lineStyle(checkStyle.tickWidth, 0xffffff, 1)
+      .lineStyle(checkStyle.tickWidth, TICK_COLOR, 1)
       .beginPath()
       .moveTo(-slot.size * 0.27, 0)
       .lineTo(-slot.size * 0.07, slot.size * 0.2)
@@ -329,15 +340,25 @@ export class WritingPad {
   private createClearButton(slot: ButtonSlot): Phaser.GameObjects.Container {
     const half = slot.size / 2;
     const background = this.scene.add.graphics();
+    const radius = buttonCornerRadius(slot.size);
+    const border = KEYPAD_BUTTON_STYLE.borderWidth;
     background
-      .fillStyle(CLEAR_COLOR, 1)
-      .fillRoundedRect(-half, -half, slot.size, slot.size, buttonCornerRadius(slot.size));
+      .fillStyle(CLEAR_BACKGROUND, 1)
+      .fillRoundedRect(-half, -half, slot.size, slot.size, radius)
+      .lineStyle(border, CLEAR_BORDER, 1)
+      .strokeRoundedRect(
+        -half + border / 2,
+        -half + border / 2,
+        slot.size - border,
+        slot.size - border,
+        radius - border / 2,
+      );
 
     // Mazací klávesa: pětiúhelník se šipkou doleva a křížkem uvnitř.
     const unit = slot.size / 120;
     const icon = this.scene.add.graphics();
     icon
-      .lineStyle(8 * unit, CLEAR_ICON_COLOR, 1)
+      .lineStyle(8 * unit, CLEAR_ICON, 1)
       .strokePoints(
         [
           new Phaser.Math.Vector2(-40 * unit, 0),

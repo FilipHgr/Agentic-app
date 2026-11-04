@@ -486,30 +486,31 @@ describe('AC4: psaní do 5 má velké okénko a ✓ a smazání 140 px', () => {
 });
 
 describe('AC5: tlačítka mají zaoblení podle své velikosti', () => {
-  it('tlačítko 140 px (číselník do 5 a 10, ✓ a smazání) má zaoblení 25 px', () => {
-    expect(buttonCornerRadius(140)).toBe(25);
+  // #52 AC3: zaoblení je nově čtvrtina strany (dříve 0,18).
+  it('tlačítko 140 px (číselník do 5 a 10, ✓ a smazání) má zaoblení 35 px', () => {
+    expect(buttonCornerRadius(140)).toBe(35);
   });
 
-  it('tlačítko 116 px (číselník do 20) má zaoblení 21 px', () => {
-    expect(buttonCornerRadius(116)).toBe(21);
+  it('tlačítko 116 px (číselník do 20) má zaoblení 29 px', () => {
+    expect(buttonCornerRadius(116)).toBe(29);
   });
 
-  it('zaoblení je 0,18 × strana zaokrouhlené na celé px i u jiných velikostí', () => {
+  it('zaoblení je čtvrtina strany zaokrouhlená na celé px i u jiných velikostí', () => {
     for (const size of [64, 100, 116, 120, 140, 150, 200]) {
       const radius = buttonCornerRadius(size);
       expect(Number.isInteger(radius), `${size}`).toBe(true);
-      expect(Math.abs(radius - 0.18 * size), `${size}`).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(radius - 0.25 * size), `${size}`).toBeLessThanOrEqual(0.5);
     }
   });
 
   it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): každé tlačítko ve hře má podle své velikosti zaoblení 25 nebo 21 px',
+    'rozsah %i (%s): každé tlačítko ve hře má podle své velikosti zaoblení 35 nebo 29 px',
     (maxNumber, mode) => {
       const buttons =
         mode === 'číselník'
           ? keypadFor(maxNumber).answerButtons
           : [writingFor(maxNumber).confirmButton, writingFor(maxNumber).clearButton];
-      const expected = mode === 'číselník' && maxNumber === 20 ? 21 : 25;
+      const expected = mode === 'číselník' && maxNumber === 20 ? 29 : 35;
 
       for (const button of buttons) {
         expect(buttonCornerRadius(button.size)).toBe(expected);
@@ -518,11 +519,11 @@ describe('AC5: tlačítka mají zaoblení podle své velikosti', () => {
   );
 
   it.each(RANGES)(
-    'psaní do %i: ✓ má zaoblení 25 px a fajfku tlustou 0,13 × velikost (18,2 px)',
+    'psaní do %i: ✓ má zaoblení 35 px a fajfku tlustou 0,13 × velikost (18,2 px)',
     (max) => {
       const style = checkButtonStyle(writingFor(max).confirmButton.size);
 
-      expect(Math.abs(style.cornerRadius - 25)).toBeLessThanOrEqual(STYLE_TOLERANCE);
+      expect(Math.abs(style.cornerRadius - 35)).toBeLessThanOrEqual(STYLE_TOLERANCE);
       expect(Math.abs(style.tickWidth - 18.2)).toBeLessThanOrEqual(STYLE_TOLERANCE);
     },
   );
@@ -535,8 +536,8 @@ describe('AC5: tlačítka mají zaoblení podle své velikosti', () => {
     }
   });
 
-  it('✓ při psaní má stejnou zelenou jako dosud', () => {
-    expect(CHECK_BUTTON_COLOR).toBe(0x8be04e);
+  it('✓ při psaní má tmavší zelenou #248A3D ze světlého vzhledu (#52 AC7)', () => {
+    expect(CHECK_BUTTON_COLOR).toBe(0x248a3d);
   });
 });
 

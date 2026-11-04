@@ -228,21 +228,22 @@ describe('tužka ve volbě psaní (#45 AC4)', () => {
 });
 
 describe('jednotné pravidlo pro tlačítka ✓ (#45 AC5)', () => {
-  it('✓ v nastavení (150 px) má zaoblení rohu 27 px a fajfku tlustou 19,5 px', () => {
+  // #52 AC7: ✓ v nastavení dostane stejné zaoblení (čtvrtina strany) a zelenou jako ve hře.
+  it('✓ v nastavení (150 px) má zaoblení rohu 37,5 px a fajfku tlustou 19,5 px', () => {
     const style = checkButtonStyle(layout.confirm.size);
-    expect(Math.abs(style.cornerRadius - 27)).toBeLessThanOrEqual(STYLE_TOLERANCE);
+    expect(Math.abs(style.cornerRadius - 37.5)).toBeLessThanOrEqual(STYLE_TOLERANCE);
     expect(Math.abs(style.tickWidth - 19.5)).toBeLessThanOrEqual(STYLE_TOLERANCE);
   });
 
-  it('zaoblení je 0,18 a tah 0,13 velikosti tlačítka i u jiných velikostí', () => {
+  it('zaoblení je čtvrtina a tah 0,13 velikosti tlačítka i u jiných velikostí', () => {
     for (const size of [64, 100, 140, 150, 200]) {
       const style = checkButtonStyle(size);
-      expect(Math.abs(style.cornerRadius - 0.18 * size)).toBeLessThanOrEqual(STYLE_TOLERANCE);
+      expect(Math.abs(style.cornerRadius - 0.25 * size)).toBeLessThanOrEqual(STYLE_TOLERANCE);
       expect(Math.abs(style.tickWidth - 0.13 * size)).toBeLessThanOrEqual(STYLE_TOLERANCE);
     }
   });
 
   it('✓ v nastavení má stejnou zelenou jako ✓ ve hře', () => {
-    expect(CHECK_BUTTON_COLOR).toBe(0x8be04e);
+    expect(CHECK_BUTTON_COLOR).toBe(0x248a3d);
   });
 });
