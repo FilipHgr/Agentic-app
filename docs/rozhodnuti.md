@@ -35,6 +35,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   (podržení 2 s nahrazeno)
 - 2026-11-04 Kolečko nastavení se otevře podržením 1 s místo 2 s, 2 s byly
   pro rodiče moc dlouho (#36).
+- 2026-11-04 Výjimka: při prvním spuštění (bez platného uloženého nastavení)
+  se nastavení otevře samo s nápovědou pro rodiče, jinak jen podržením
+  kolečka (#48).
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
