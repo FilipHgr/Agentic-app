@@ -16,8 +16,26 @@ export interface SettingsOptionSlot extends Point {
   readonly value: MaxNumber | OperationMode | AnswerInput;
 }
 
+/** Popisek nad řadou pro rodiče (#47); `x` a `y` je střed pruhu. */
+export interface SettingsRowLabel extends Point {
+  readonly text: string;
+  readonly width: number;
+  readonly height: number;
+  readonly fontSize: number;
+}
+
+/** Světle zelená popisků: na tmavém pozadí čitelná, ale nevypadá jako tlačítko. */
+export const SETTINGS_LABEL_COLOR = '#cfe8d6';
+
+const ROW_LABELS: Record<SettingsRowKind, string> = {
+  maxNumber: 'Do kolika',
+  operations: 'Příklady',
+  answerInput: 'Odpověď',
+};
+
 export interface SettingsRow {
   readonly kind: SettingsRowKind;
+  readonly label: SettingsRowLabel;
   /** Svislý střed řady. */
   readonly y: number;
   readonly options: readonly SettingsOptionSlot[];
@@ -33,13 +51,16 @@ const OPTION_WIDTH = 220;
 const OPTION_HEIGHT = 130;
 const OPTION_GAP = 40;
 
-/** Okraj nad první řadou a mezera mezi řadami. */
-const TOP_MARGIN = 45;
-const ROW_GAP = 40;
+/** Okraj nad prvním popiskem; popisek a jeho řada; mezera k dalšímu popisku (#47). */
+const TOP_MARGIN = 12;
+const LABEL_HEIGHT = 32;
+const LABEL_FONT_SIZE = 28;
+const LABEL_TO_ROW_GAP = 8;
+const ROW_TO_LABEL_GAP = 20;
 
-/** ✓ je od poslední řady dál, aby působilo jako samostatný krok. */
+/** Mezera mezi poslední řadou a ✓ (#47 AC3). */
 const CONFIRM_SIZE = 150;
-const CONFIRM_GAP = 60;
+const CONFIRM_GAP = 32;
 
 /**
  * Tužka ve volbě psaní, kreslená čarou (nezávisí na písmu). Souřadnice jsou
@@ -56,17 +77,14 @@ export const PENCIL_ICON = {
 /** Tři řady voleb pod sebou a pod nimi ✓, vše vodorovně na středu. */
 export function layoutSettingsPanel(width: number, height: number): SettingsLayout {
   const centerX = width / 2;
+  const rowStep = LABEL_HEIGHT + LABEL_TO_ROW_GAP + OPTION_HEIGHT + ROW_TO_LABEL_GAP;
   const rowY = (index: number): number =>
-    TOP_MARGIN + OPTION_HEIGHT / 2 + index * (OPTION_HEIGHT + ROW_GAP);
+    TOP_MARGIN + LABEL_HEIGHT + LABEL_TO_ROW_GAP + OPTION_HEIGHT / 2 + index * rowStep;
 
   const rows: [SettingsRow, SettingsRow, SettingsRow] = [
-    { kind: 'maxNumber', y: rowY(0), options: layoutRow(MAX_NUMBER_OPTIONS, centerX, rowY(0)) },
-    { kind: 'operations', y: rowY(1), options: layoutRow(OPERATION_OPTIONS, centerX, rowY(1)) },
-    {
-      kind: 'answerInput',
-      y: rowY(2),
-      options: layoutRow(ANSWER_INPUT_OPTIONS, centerX, rowY(2)),
-    },
+    layoutRowWithLabel('maxNumber', MAX_NUMBER_OPTIONS, centerX, rowY(0)),
+    layoutRowWithLabel('operations', OPERATION_OPTIONS, centerX, rowY(1)),
+    layoutRowWithLabel('answerInput', ANSWER_INPUT_OPTIONS, centerX, rowY(2)),
   ];
   const lastRowBottom = rowY(2) + OPTION_HEIGHT / 2;
   // Na nižší ploše ✓ nevyjede pod spodní okraj, zůstane celé vidět.
@@ -76,6 +94,31 @@ export function layoutSettingsPanel(width: number, height: number): SettingsLayo
   );
 
   return { rows, confirm: { x: centerX, y: confirmY, size: CONFIRM_SIZE } };
+}
+
+/** Řada voleb se středem `y` a nad ní popisek široký jako řada. */
+function layoutRowWithLabel(
+  kind: SettingsRowKind,
+  values: readonly (MaxNumber | OperationMode | AnswerInput)[],
+  centerX: number,
+  y: number,
+): SettingsRow {
+  const options = layoutRow(values, centerX, y);
+  const rowWidth = values.length * OPTION_WIDTH + (values.length - 1) * OPTION_GAP;
+  const labelBottom = y - OPTION_HEIGHT / 2 - LABEL_TO_ROW_GAP;
+  return {
+    kind,
+    y,
+    options,
+    label: {
+      text: ROW_LABELS[kind],
+      x: centerX,
+      y: labelBottom - LABEL_HEIGHT / 2,
+      width: rowWidth,
+      height: LABEL_HEIGHT,
+      fontSize: LABEL_FONT_SIZE,
+    },
+  };
 }
 
 function layoutRow(

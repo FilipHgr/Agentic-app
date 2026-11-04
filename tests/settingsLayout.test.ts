@@ -7,7 +7,8 @@ import type { SettingsLayout } from '../src/logic/settingsLayout';
 /**
  * Testy k #45 (úprava nastavení pro rodiče) na herní ploše 1024 × 768:
  * rovnoměrné rozložení tří řad voleb a ✓ (AC1–AC3), rozměry tužky (AC4)
- * a jednotné pravidlo pro tlačítka ✓ (AC5). Barvy, vzhled tužky v Safari
+ * a jednotné pravidlo pro tlačítka ✓ (AC5). Svislá čísla z AC1 a AC2 změnilo
+ * #47 AC3 (popisky řad). Barvy, vzhled tužky v Safari
  * a v Chromu a tmavá stránka se kontrolují ručně.
  */
 
@@ -84,8 +85,9 @@ describe('rozložení nastavení: tři řady voleb (#45 AC1)', () => {
     expect(layout.rows[2].options.map((option) => option.value)).toEqual(['keypad', 'writing']);
   });
 
-  it('řady voleb mají středy na y 110, 280 a 450', () => {
-    expect(layout.rows.map((row) => row.y)).toEqual([110, 280, 450]);
+  // Čísla změnilo #47 AC3 (místo pro popisky řad), dřív 110, 280 a 450.
+  it('řady voleb mají středy na y 117, 307 a 497', () => {
+    expect(layout.rows.map((row) => row.y)).toEqual([117, 307, 497]);
     for (const row of layout.rows) {
       for (const option of row.options) {
         expect(option.y).toBe(row.y);
@@ -101,19 +103,22 @@ describe('rozložení nastavení: tři řady voleb (#45 AC1)', () => {
     }
   });
 
-  it('nad první řadou je 45 px a mezi řadami 40 px', () => {
+  // Podle #47 AC3: nad řadou je popisek (12 + 32 + 8 px) a mezi řadami
+  // 20 + 32 + 8 px, dřív 45 px a 40 px.
+  it('nad první řadou je 52 px a mezi řadami 60 px pro popisek', () => {
     const firstBox = optionBox(itemAt(layout.rows[0].options, 0));
     const secondBox = optionBox(itemAt(layout.rows[1].options, 0));
     const thirdBox = optionBox(itemAt(layout.rows[2].options, 0));
-    expect(firstBox.top).toBe(45);
-    expect(secondBox.top - firstBox.bottom).toBe(40);
-    expect(thirdBox.top - secondBox.bottom).toBe(40);
+    expect(firstBox.top).toBe(52);
+    expect(secondBox.top - firstBox.bottom).toBe(60);
+    expect(thirdBox.top - secondBox.bottom).toBe(60);
   });
 });
 
 describe('rozložení nastavení: tlačítko ✓ (#45 AC2)', () => {
-  it('✓ má střed na y 650 a je vodorovně uprostřed', () => {
-    expect(layout.confirm.y).toBe(650);
+  // Podle #47 AC3, dřív y 650.
+  it('✓ má střed na y 669 a je vodorovně uprostřed', () => {
+    expect(layout.confirm.y).toBe(669);
     expect(layout.confirm.x).toBe(SCREEN_WIDTH / 2);
   });
 
@@ -121,11 +126,12 @@ describe('rozložení nastavení: tlačítko ✓ (#45 AC2)', () => {
     expect(layout.confirm.size).toBe(150);
   });
 
-  it('mezi poslední řadou voleb a ✓ je 60 px a pod ✓ zbývá 43 px', () => {
+  // Podle #47 AC3, dřív 60 px a 43 px.
+  it('mezi poslední řadou voleb a ✓ je 32 px a pod ✓ zbývá 24 px', () => {
     const lastRow = optionBox(itemAt(layout.rows[2].options, 0));
     const confirm = confirmBox(layout);
-    expect(confirm.top - lastRow.bottom).toBe(60);
-    expect(SCREEN_HEIGHT - confirm.bottom).toBe(43);
+    expect(confirm.top - lastRow.bottom).toBe(32);
+    expect(SCREEN_HEIGHT - confirm.bottom).toBe(24);
   });
 });
 

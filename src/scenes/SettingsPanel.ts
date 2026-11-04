@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 
 import { CHECK_BUTTON_COLOR, checkButtonStyle } from '../logic/checkButton';
 import type { ButtonSlot } from '../logic/screenLayout';
-import { PENCIL_ICON, layoutSettingsPanel } from '../logic/settingsLayout';
-import type { SettingsOptionSlot } from '../logic/settingsLayout';
+import { PENCIL_ICON, SETTINGS_LABEL_COLOR, layoutSettingsPanel } from '../logic/settingsLayout';
+import type { SettingsOptionSlot, SettingsRowLabel } from '../logic/settingsLayout';
 import {
   CLOSED_SETTINGS,
   chooseOption,
@@ -68,6 +68,9 @@ export class SettingsPanel {
     this.container = scene.add.container(0, 0, [backdrop]).setDepth(PANEL_DEPTH);
 
     const [maxNumberRow, operationsRow, answerInputRow] = layout.rows;
+    for (const row of layout.rows) {
+      this.addLabel(row.label);
+    }
     for (const slot of maxNumberRow.options) {
       const maxNumber = slot.value as MaxNumber;
       this.addOption(slot, MAX_NUMBER_LABELS[maxNumber], { maxNumber });
@@ -85,6 +88,18 @@ export class SettingsPanel {
 
     this.container.setAlpha(0);
     scene.tweens.add({ targets: this.container, alpha: 1, duration: PANEL_FADE_MS });
+  }
+
+  /** Popisek řady pro rodiče (#47): jen text, na ťuknutí nereaguje. */
+  private addLabel(label: SettingsRowLabel): void {
+    const text = this.scene.add
+      .text(label.x, label.y, label.text, {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: `${label.fontSize}px`,
+        color: SETTINGS_LABEL_COLOR,
+      })
+      .setOrigin(0.5);
+    this.container.add(text);
   }
 
   /** Volba s popiskem; bez popisku (psaní) se nakreslí tužka. */
