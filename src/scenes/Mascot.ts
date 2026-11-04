@@ -93,6 +93,8 @@ export class Mascot {
    * kontejneru, který reakce na ťuknutí nezastavují.
    */
   switchTo(character: CharacterId): void {
+    // Přerušená oslava (#45): tanec skončí, nová postavička netančí dál.
+    this.resetPose();
     this.character = character;
     this.scene.tweens.add({
       targets: this.body,

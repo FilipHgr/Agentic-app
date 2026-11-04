@@ -29,10 +29,18 @@ import { nextCharacter } from '../logic/characters';
 import type { CharacterId } from '../logic/characters';
 import { isWritingActive } from '../logic/settings';
 import type { GameSettings } from '../logic/settings';
+import {
+  CLOSED_SETTINGS,
+  confirmSettings,
+  openSettings,
+  pageAppearance,
+} from '../logic/settingsSession';
+import type { GameProgress } from '../logic/progress';
 import type { TwoBoxConfirmResult } from '../logic/twoBoxWriting';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { browserStorage, loadSettings, saveSettings } from '../storage/settingsStorage';
 import { Mascot } from './Mascot';
+import { applyPageAppearance } from '../ui/pageAppearance';
 import { attachSettingsButton } from '../ui/settingsButton';
 import { SettingsPanel } from './SettingsPanel';
 import { WritingPad } from './WritingPad';
@@ -122,6 +130,9 @@ export class GameScene extends Phaser.Scene {
   private character: CharacterId = this.savedProgress.character;
   private settings: GameSettings = loadSettings(browserStorage());
   private settingsOpen = false;
+  /** Naplánované dokončení oslavy; nastavení ho může přerušit (#45). */
+  private celebrationTimer: Phaser.Time.TimerEvent | undefined;
+  private confettiPieces: Phaser.GameObjects.Rectangle[] = [];
   private readonly sounds = createTonePlayer(createBrowserAudioContext);
 
   constructor() {
@@ -165,19 +176,60 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  /** Nastavení pro rodiče; po potvrzení se uloží a přijde nový příklad. */
+  /**
+   * Nastavení pro rodiče; po potvrzení se uloží a přijde nový příklad.
+   * Stránka kolem ztmavne a kolečko se ztlumí (#45). Druhé podržení kolečka
+   * při otevřeném nastavení nic neudělá.
+   */
   private openSettings(): void {
     if (this.settingsOpen) {
       return;
     }
     this.settingsOpen = true;
+    // Oslava se pod panelem nedohrává, dokončí ji až potvrzení (#45 AC8).
+    this.stopCelebration();
+    const settingsButton = document.getElementById('settings-button');
+    const session = openSettings(CLOSED_SETTINGS, this.settings);
+    applyPageAppearance(pageAppearance(session), settingsButton);
 
     new SettingsPanel(this, this.settings, (chosen) => {
-      this.settings = chosen;
-      saveSettings(browserStorage(), chosen);
+      const result = confirmSettings(chosen, this.settings, {
+        earned: this.starProgress.earned,
+        character: this.character,
+      });
+      this.settings = result.settings;
+      saveSettings(browserStorage(), result.settings);
       this.settingsOpen = false;
-      this.startRound();
+      applyPageAppearance(pageAppearance(result.session), settingsButton);
+      this.applyProgressAfterSettings(result.progress);
+      if (result.startNewProblem) {
+        this.startRound();
+      }
     });
+  }
+
+  /** Když nastavení přerušilo oslavu, dokončí se jako po oslavě (nová řada, další postavička). */
+  private applyProgressAfterSettings(progress: GameProgress): void {
+    if (progress.earned === this.starProgress.earned && progress.character === this.character) {
+      return;
+    }
+    this.stopCelebration();
+    this.starProgress = { earned: progress.earned };
+    this.character = progress.character;
+    this.saveProgress();
+    this.mascot?.switchTo(this.character);
+    this.paintStars();
+  }
+
+  /** Zastaví naplánované dokončení oslavy a uklidí konfety. */
+  private stopCelebration(): void {
+    this.celebrationTimer?.remove();
+    this.celebrationTimer = undefined;
+    for (const piece of this.confettiPieces) {
+      this.tweens.killTweensOf(piece);
+      piece.destroy();
+    }
+    this.confettiPieces = [];
   }
 
   private createStarRow(): void {
@@ -587,11 +639,17 @@ export class GameScene extends Phaser.Scene {
 
   /** Oslava po zaplnění řady: konfety a melodie, pak nová prázdná řada. */
   private celebrateFullSet(): void {
+    // Nastavení mezitím mohlo oslavu přerušit a řadu vyprázdnit (#45).
+    if (this.starProgress.earned < STARS_PER_SET || this.settingsOpen) {
+      return;
+    }
     this.sounds.play(SOUNDS.celebration);
     this.throwConfetti();
     this.mascot?.react('dance', CELEBRATION_MS);
 
-    this.time.delayedCall(CELEBRATION_MS, () => {
+    this.celebrationTimer = this.time.delayedCall(CELEBRATION_MS, () => {
+      this.celebrationTimer = undefined;
+      this.confettiPieces = [];
       this.starProgress = startNewStarSet();
       this.character = nextCharacter(this.character);
       this.saveProgress();
@@ -610,6 +668,7 @@ export class GameScene extends Phaser.Scene {
         .rectangle(Phaser.Math.Between(0, width), -20, 14, 22, color)
         .setAngle(Phaser.Math.Between(0, 360))
         .setDepth(10);
+      this.confettiPieces.push(piece);
 
       this.tweens.add({
         targets: piece,
