@@ -27,7 +27,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   a Plamínek, střídají se po každé oslavě a začíná Hvězdík (#33).
 - 2026-11-03 Hra na celou obrazovku a rozložení na výšku: implementace se
   vlastníkovi nelíbila, vráceno a odloženo (#34). Znovu nenavrhovat bez
-  upřesnění od vlastníka.
+  upřesnění od vlastníka. (nahrazeno)
 - 2026-11-03 Automatická obtížnost zamítnuta (#35). Místo ní je nastavení pro
   rodiče (#36).
 - 2026-11-03 Nastavení pro rodiče: kolečko v pravém horním rohu celé
@@ -67,6 +67,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   systémové písmo (-apple-system), tmavý text #1D1D1F, šedý otazník,
   plné malé hvězdičky, tlačítka s čísly světle modrá #E5F0FF s okrajem
   #B8D6FF a modrými tučnými číslicemi #0062CC (varianta A3 z návrhů).
+- 2026-11-04 Hra má jít dobře hrát i na mobilu, na šířku i na výšku, každé
+  s vlastním rozložením. Na telefonu jsou dnes moc malé hvězdičky, moc velké
+  kolečko nastavení a malá plocha na psaní. Tím se otevírá odložené #34.
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
