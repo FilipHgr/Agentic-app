@@ -21,12 +21,11 @@ import { STARS_PER_SET } from '../src/logic/stars';
  * Testy k #45 (úprava nastavení pro rodiče): hra ví, kdy je nastavení
  * otevřené (AC6), podržení kolečka při otevřeném nastavení nic nezmění
  * (AC7), otevření během oslavy po 10. hvězdičce (AC8) a opakované otevření
- * a zavření (AC9). Samotné barvy stránky, průhlednost kolečka a otočení
- * zařízení se kontrolují ručně na iPadu, iPhonu a Samsungu.
+ * a zavření (AC9). Otočení zařízení se kontroluje ručně na iPadu, iPhonu
+ * a Samsungu.
  */
 
-const DARK_PAGE = '#0f3d24';
-/** Po zavření nastavení je stránka zase světlá jako hra (#52 AC1). */
+/** Stránka je světlá jako hra, i při otevřeném nastavení (#52 AC1, #53 AC1). */
 const LIGHT_PAGE = '#F5F5F7';
 const DIMMED_GEAR = 0.3;
 const FADE_MS = 150;
@@ -51,9 +50,9 @@ describe('hra ví, kdy je nastavení otevřené (#45 AC6)', () => {
     expect(isSettingsOpen(session)).toBe(false);
   });
 
-  it('při otevřeném nastavení je stránka tmavá a kolečko ztlumené na 0,3', () => {
+  it('při otevřeném nastavení zůstane stránka světlá a kolečko se ztlumí na 0,3', () => {
     const appearance = pageAppearance(openSettings(CLOSED_SETTINGS, SAVED));
-    expect(appearance.background).toBe(DARK_PAGE);
+    expect(appearance.background).toBe(LIGHT_PAGE);
     expect(appearance.gearOpacity).toBe(DIMMED_GEAR);
   });
 
@@ -63,7 +62,7 @@ describe('hra ví, kdy je nastavení otevřené (#45 AC6)', () => {
     expect(appearance.gearOpacity).toBe(1);
   });
 
-  it('pozadí ztmavne i zesvětlá postupně za 150 ms jako panel', () => {
+  it('kolečko se ztlumí i rozsvítí postupně za 150 ms jako panel', () => {
     const open = openSettings(CLOSED_SETTINGS, SAVED);
     expect(pageAppearance(open).transitionMs).toBe(FADE_MS);
     expect(pageAppearance(CLOSED_SETTINGS).transitionMs).toBe(FADE_MS);
@@ -152,7 +151,7 @@ describe('opakované otevření a zavření nastavení (#45 AC9)', () => {
       session = openSettings(session, settings);
       expect(isSettingsOpen(session)).toBe(true);
       expect(pageAppearance(session)).toEqual({
-        background: DARK_PAGE,
+        background: LIGHT_PAGE,
         gearOpacity: DIMMED_GEAR,
         transitionMs: FADE_MS,
       });

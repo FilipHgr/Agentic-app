@@ -127,7 +127,7 @@ describe('#52 AC1: světlé pozadí a systémové písmo', () => {
 
   it('po zavření nastavení má stránka zase pozadí #F5F5F7, ne dnešní zelené', () => {
     const open = openSettings(CLOSED_SETTINGS, DEFAULT_SETTINGS);
-    expect(pageAppearance(open).background.toLowerCase()).not.toBe('#f5f5f7');
+    expect(isOldGreen(pageAppearance(open).background)).toBe(false);
     const closed = pageAppearance(CLOSED_SETTINGS);
     expectColor(closed.background, PAGE_BACKGROUND);
     expect(isOldGreen(closed.background)).toBe(false);

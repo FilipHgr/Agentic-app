@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { SETTINGS_LABEL_COLOR, layoutSettingsPanel } from '../src/logic/settingsLayout';
+import { layoutSettingsPanel } from '../src/logic/settingsLayout';
 import type { SettingsRowKind } from '../src/logic/settingsLayout';
 import { GUIDE_SCRIPT } from '../src/logic/guideScript';
-import { GUIDE_COLORS, GUIDE_TEXTS, layoutGuideStep } from '../src/logic/setupGuide';
+import { GUIDE_TEXTS, layoutGuideStep } from '../src/logic/setupGuide';
 import type { GuideStep } from '../src/logic/setupGuide';
+import { CONFIRM_BUTTON_STYLE, GUIDE_STYLE, PAGE_BACKGROUND } from '../src/logic/theme';
 
 /**
  * Testy k #49 AC5 (rozložení a čitelnost průvodce) na herní ploše
@@ -20,7 +21,6 @@ const SCREEN_HEIGHT = 768;
 const MIN_TOUCH_SIZE = 64;
 const MAX_LINE_CHARACTERS = 56;
 const MAX_BUTTON_CHARACTERS = 14;
-const MIN_CONTRAST = 7;
 
 const STEPS: readonly GuideStep[] = [1, 2, 3, 4];
 const SUMMARY_STEP: GuideStep = 4;
@@ -164,12 +164,11 @@ describe('pás textu na všech krocích 1–4 (#49 AC5)', () => {
       expect(message.fontSize).toBe(28);
     });
 
-    it(`na kroku ${step} je text na středu, barvy #cfe8d6 a bez podkladu`, () => {
+    it(`na kroku ${step} je text na středu, tmavý #1D1D1F (#53) a bez podkladu`, () => {
       const { message } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
       expect(message?.align).toBe('center');
-      expect(message?.color).toBe('#cfe8d6');
+      expect(message?.color.toLowerCase()).toBe('#1d1d1f');
       expect(message?.background).toBeNull();
-      expect(GUIDE_COLORS.text).toBe(SETTINGS_LABEL_COLOR);
     });
   }
 
@@ -193,11 +192,11 @@ describe('pás tlačítek y 680–752 (#49 AC5)', () => {
   }
 
   for (const step of STEPS) {
-    it(`na kroku ${step} je ukazatel kroku v x 452–572, písmo 28 px, barva #cfe8d6`, () => {
+    it(`na kroku ${step} je ukazatel kroku v x 452–572, písmo 28 px, barva #1D1D1F (#53)`, () => {
       const { indicator } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
       expect(centeredBox(indicator)).toEqual({ left: 452, right: 572, top: 680, bottom: 752 });
       expect(indicator.fontSize).toBe(28);
-      expect(indicator.color).toBe('#cfe8d6');
+      expect(indicator.color.toLowerCase()).toBe('#1d1d1f');
     });
 
     it(`na kroku ${step} je pravé tlačítko v x 760–1000, výška 72 px, písmo 32 px`, () => {
@@ -268,10 +267,10 @@ describe('rámeček kolem zvýrazněné řady (#49 AC5)', () => {
       expect(frame && centeredBox(frame)).toEqual(grow(rowContentBox(FOCUSED_ROW[step]), 8));
     });
 
-    it(`na kroku ${step} má rámeček 4 px, barvu #cfe8d6 a je bez výplně`, () => {
+    it(`na kroku ${step} má rámeček 4 px, modrou #0062CC (#53) a je bez výplně`, () => {
       const { frame } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
       expect(frame?.lineWidth).toBe(4);
-      expect(frame?.color).toBe('#cfe8d6');
+      expect(frame?.color.toLowerCase()).toBe('#0062cc');
       expect(frame?.fill).toBeNull();
     });
 
@@ -373,27 +372,45 @@ describe('délky textů (#49 AC5, věty podle scénáře z #50)', () => {
   });
 });
 
-describe('kontrast tlačítek průvodce podle WCAG (#49 AC5)', () => {
-  it('písmo tlačítek je #0f3d24, pozadí bílé a „Začít hrát“ zelené', () => {
-    expect(GUIDE_COLORS.buttonText).toBe('#0f3d24');
-    expect(GUIDE_COLORS.buttonBackground).toBe('#ffffff');
-    expect(GUIDE_COLORS.startPlayingBackground).toBe('#8be04e');
+describe('kontrast textů a tlačítek průvodce podle WCAG (#49 AC5, #53 AC3)', () => {
+  it('„Zpět“ a „Další“ mají modré písmo #0062CC na světle modré #E5F0FF', () => {
+    expect(GUIDE_STYLE.buttonTextColor.toLowerCase()).toBe('#0062cc');
+    expect(GUIDE_STYLE.buttonBackground.toLowerCase()).toBe('#e5f0ff');
   });
 
-  // Průvodce je mimo rozsah #52. Do té doby hlídáme dnešní zelenou #8be04e
-  // a kontrast níže. Sjednocení „Začít hrát“ se zelenou ✓ (#248A3D) je
-  // v navazujícím úkolu (b) k #52, tam se musí vyřešit i barva písma, protože
-  // #0f3d24 na #248A3D kontrast 7 : 1 nesplní.
+  it('„Začít hrát“ má bílé písmo na stejné zelené jako ✓', () => {
+    expect(GUIDE_STYLE.startPlayingTextColor.toLowerCase()).toBe('#ffffff');
+    expect(GUIDE_STYLE.startPlayingBackground.toLowerCase()).toBe(
+      CONFIRM_BUTTON_STYLE.background.toLowerCase(),
+    );
+  });
 
-  const pairs: readonly [string, () => string, number][] = [
-    ['„Zpět“ a „Další“ na bílé', () => GUIDE_COLORS.buttonBackground, 12.3],
-    ['„Začít hrát“ na zelené', () => GUIDE_COLORS.startPlayingBackground, 7.5],
+  // Rady a tlačítka jsou běžný text (4,5 : 1), „Začít hrát“ 32 px je velký
+  // text, kterému stačí 3 : 1 (#53, otevřená otázka 3).
+  const pairs: readonly [string, () => [string, string], number, number][] = [
+    ['rada a ukazatel kroku na pozadí', () => [GUIDE_STYLE.textColor, PAGE_BACKGROUND], 4.5, 15.46],
+    [
+      '„Zpět“ a „Další“',
+      () => [GUIDE_STYLE.buttonTextColor, GUIDE_STYLE.buttonBackground],
+      4.5,
+      5.04,
+    ],
+    [
+      '„Začít hrát“',
+      () => [GUIDE_STYLE.startPlayingTextColor, GUIDE_STYLE.startPlayingBackground],
+      3,
+      4.4,
+    ],
   ];
 
-  for (const [name, background, expected] of pairs) {
-    it(`${name} má kontrast aspoň 7 : 1 (asi ${expected} : 1)`, () => {
-      const ratio = contrastRatio(GUIDE_COLORS.buttonText, background());
-      expect(ratio).toBeGreaterThanOrEqual(MIN_CONTRAST);
+  /** 4.5 → „4,5“, jak se v češtině píše desetinná čárka. */
+  const czech = (value: number): string => String(value).replace('.', ',');
+
+  for (const [name, colors, minimum, expected] of pairs) {
+    it(`${name} má kontrast aspoň ${czech(minimum)} : 1 (asi ${czech(expected)} : 1)`, () => {
+      const [text, background] = colors();
+      const ratio = contrastRatio(text, background);
+      expect(ratio).toBeGreaterThanOrEqual(minimum);
       expect(ratio).toBeCloseTo(expected, 1);
     });
   }

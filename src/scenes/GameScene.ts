@@ -14,6 +14,7 @@ import type { AnswerRound, TapOutcome } from '../logic/answerRound';
 import { SOUNDS, soundForOutcome } from '../logic/answerSounds';
 import { buttonCornerRadius } from '../logic/checkButton';
 import {
+  CONFETTI_COLORS,
   FONT_FAMILY,
   HINT_DOT_STYLE,
   KEYPAD_BUTTON_STYLE,
@@ -109,7 +110,8 @@ const STAR_FLIGHT_MS = 450;
 const CELEBRATION_MS = 2600;
 
 const CONFETTI_COUNT = 80;
-const CONFETTI_COLORS = [0xffd54f, 0x81d4fa, 0xff8a80, 0xb9f6ca, 0xffffff, 0xce93d8];
+/** Konfety v barvách, které jsou na světlém pozadí vidět (#53). */
+const CONFETTI_COLOR_NUMBERS = CONFETTI_COLORS.map(colorNumber);
 
 /** Místo, odkud vyletí hvězdička za správnou odpověď. */
 interface Origin {
@@ -225,7 +227,7 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Nastavení pro rodiče; po potvrzení se uloží a přijde nový příklad.
-   * Stránka kolem ztmavne a kolečko se ztlumí (#45). Druhé podržení kolečka
+   * Stránka zůstane světlá a kolečko se ztlumí (#45). Druhé podržení kolečka
    * při otevřeném nastavení nic neudělá.
    */
   private openSettings(): void {
@@ -736,7 +738,7 @@ export class GameScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     for (let index = 0; index < CONFETTI_COUNT; index += 1) {
-      const color = CONFETTI_COLORS[index % CONFETTI_COLORS.length];
+      const color = CONFETTI_COLOR_NUMBERS[index % CONFETTI_COLOR_NUMBERS.length];
       const piece = this.add
         .rectangle(Phaser.Math.Between(0, width), -20, 14, 22, color)
         .setAngle(Phaser.Math.Between(0, 360))

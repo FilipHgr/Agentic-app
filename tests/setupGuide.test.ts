@@ -157,11 +157,11 @@ describe('kroky 1 Do kolika, 2 Příklady, 3 Odpověď a ukazatel „k / 4“ (#
       expect(style).toEqual({ visible: true, opacity: 1, framed: true, tappable: true });
     });
 
-    it(`na kroku ${step} mají ostatní řady i popisky průhlednost 0,3, bez rámečku a nereagují`, () => {
+    it(`na kroku ${step} mají ostatní řady i popisky průhlednost 0,5 (#53), bez rámečku a nereagují`, () => {
       const guide = nextUntil(startGuide(), step);
       for (const row of ROWS.filter((kind) => kind !== focused)) {
         const style = guideRowStyle(guide, row);
-        expect(style, row).toEqual({ visible: true, opacity: 0.3, framed: false, tappable: false });
+        expect(style, row).toEqual({ visible: true, opacity: 0.5, framed: false, tappable: false });
       }
     });
   }

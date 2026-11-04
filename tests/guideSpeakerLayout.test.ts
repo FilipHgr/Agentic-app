@@ -7,8 +7,9 @@ import type { GuideStep } from '../src/logic/setupGuide';
 /**
  * Testy k #51 AC1: místo reproduktoru ve spodním pásu průvodce na herní
  * ploše 1024 × 768. Ostatní rozložení z #49 se nemění (to hlídá
- * `setupGuideLayout.test.ts`). Vzhled tlačítka (bílé pozadí, ikona
- * #0f3d24, krátké zvětšení při ťuknutí) a pulzování se kontrolují ručně.
+ * `setupGuideLayout.test.ts`). Barvy reproduktoru hlídá
+ * `lightSettingsTheme.test.ts` (#53), krátké zvětšení při ťuknutí
+ * a pulzování se kontrolují ručně.
  */
 
 const SCREEN_WIDTH = 1024;

@@ -34,8 +34,12 @@ export interface PageAppearance {
   readonly transitionMs: number;
 }
 
-/** Barvy stránky: tmavá při otevřeném nastavení, jinak světlé pozadí hry (#52). */
-const OPEN_PAGE: PageAppearance = { background: '#0f3d24', gearOpacity: 0.3, transitionMs: 150 };
+/** Stránka je vždy světlá (#52, #53); při otevřeném nastavení se jen ztlumí kolečko. */
+const OPEN_PAGE: PageAppearance = {
+  background: PAGE_BACKGROUND,
+  gearOpacity: 0.3,
+  transitionMs: 150,
+};
 const CLOSED_PAGE: PageAppearance = {
   background: PAGE_BACKGROUND,
   gearOpacity: 1,
@@ -68,7 +72,7 @@ export function chooseOption(
   return session.open ? { ...session, choice: { ...session.choice, ...change } } : session;
 }
 
-/** Které volby jsou teď vybrané (žluté); při zavřeném nastavení `null`. */
+/** Které volby jsou teď vybrané (modré); při zavřeném nastavení `null`. */
 export function selectedOptions(session: SettingsSession): SelectedOptions | null {
   if (!session.open) {
     return null;

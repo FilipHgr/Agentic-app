@@ -24,9 +24,6 @@ export interface SettingsRowLabel extends Point {
   readonly fontSize: number;
 }
 
-/** Světle zelená popisků: na tmavém pozadí čitelná, ale nevypadá jako tlačítko. */
-export const SETTINGS_LABEL_COLOR = '#cfe8d6';
-
 const ROW_LABELS: Record<SettingsRowKind, string> = {
   maxNumber: 'Do kolika',
   operations: 'Příklady',

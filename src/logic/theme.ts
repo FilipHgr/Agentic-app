@@ -147,3 +147,69 @@ function relativeLuminance(hex: string): number {
 function linearChannel(channel: number): number {
   return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
 }
+
+// ---------------------------------------------------------------------------
+// Nastavení, průvodce a oslava (#53, část b světlého vzhledu).
+// ---------------------------------------------------------------------------
+
+/** Pozadí panelu nastavení i průvodce: stejné jako hra, neprůhledné. */
+export const SETTINGS_PANEL_STYLE = { background: PAGE_BACKGROUND, backgroundAlpha: 1 } as const;
+
+export interface SettingsOptionLook {
+  readonly background: string;
+  readonly borderColor: string;
+  readonly borderWidth: number;
+  readonly textColor: string;
+  readonly iconColor: string;
+}
+
+/** Nevybraná volba jako číselník, vybraná plná modrá s bílým textem. */
+export const SETTINGS_OPTION_STYLE: {
+  readonly unselected: SettingsOptionLook;
+  readonly selected: SettingsOptionLook;
+} = {
+  unselected: {
+    background: KEYPAD_BUTTON_STYLE.background,
+    borderColor: KEYPAD_BUTTON_STYLE.borderColor,
+    borderWidth: KEYPAD_BUTTON_STYLE.borderWidth,
+    textColor: BLUE,
+    iconColor: BLUE,
+  },
+  selected: {
+    background: BLUE,
+    borderColor: BLUE,
+    borderWidth: KEYPAD_BUTTON_STYLE.borderWidth,
+    textColor: WHITE,
+    iconColor: WHITE,
+  },
+};
+
+export function settingsOptionLook(selected: boolean): SettingsOptionLook {
+  return selected ? SETTINGS_OPTION_STYLE.selected : SETTINGS_OPTION_STYLE.unselected;
+}
+
+/** Popisky řad nastavení: druhotná šedá jako popisky skupin v iOS. */
+export const SETTINGS_LABEL_COLOR = '#6E6E73';
+
+export const GUIDE_STYLE = {
+  textColor: TEXT,
+  buttonBackground: KEYPAD_BUTTON_STYLE.background,
+  buttonBorderColor: KEYPAD_BUTTON_STYLE.borderColor,
+  buttonBorderWidth: KEYPAD_BUTTON_STYLE.borderWidth,
+  buttonTextColor: BLUE,
+  speakerIconColor: BLUE,
+  startPlayingBackground: SUCCESS_GREEN,
+  startPlayingTextColor: WHITE,
+  frameColor: BLUE,
+  frameLineWidth: 4,
+} as const;
+
+/** Konfety oslavy: každá barva je na světlém pozadí vidět (aspoň 3 : 1). */
+export const CONFETTI_COLORS: readonly string[] = [
+  BLUE,
+  SUCCESS_GREEN,
+  '#FF3B30',
+  '#AF52DE',
+  '#C93400',
+  STAR_STYLE.earnedOutlineColor,
+];

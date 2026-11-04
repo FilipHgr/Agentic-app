@@ -1,15 +1,17 @@
 import Phaser from 'phaser';
 
 import { CHECK_BUTTON_COLOR, checkButtonStyle } from '../logic/checkButton';
+import { CONFIRM_BUTTON_STYLE, SETTINGS_PANEL_STYLE, colorNumber } from '../logic/theme';
 import type { ButtonSlot } from '../logic/screenLayout';
 import { layoutSettingsPanel } from '../logic/settingsLayout';
 import { chooseOption, selectedOptions } from '../logic/settingsSession';
 import type { SettingsSession } from '../logic/settingsSession';
 import { SettingsRows } from './SettingsRows';
 
-export const SETTINGS_BACKDROP_COLOR = 0x0f3d24;
+/** Pozadí panelu je stejné jako hra (#53). */
+export const SETTINGS_BACKDROP_COLOR = colorNumber(SETTINGS_PANEL_STYLE.background);
 
-/** Jak dlouho panel naběhne; stránka kolem ztmavne stejně rychle (#45). */
+/** Jak dlouho panel naběhne; kolečko se ztlumí stejně rychle (#45). */
 export const PANEL_FADE_MS = 150;
 
 /** Panel je nad vším ostatním, aby ťuknutí nepropadla do hry pod ním. */
@@ -18,7 +20,7 @@ export const PANEL_DEPTH = 100;
 /**
  * Obrazovka nastavení pro rodiče: řada rozsahů (5, 10, 20), řada druhů
  * příkladů (+, −, + −), způsob odpovědi (číselník, psaní) a potvrzovací „✓“.
- * Vybrané volby jsou žluté. Rozměry jsou v `src/logic/settingsLayout.ts`.
+ * Vybrané volby jsou plně modré. Rozměry jsou v `src/logic/settingsLayout.ts`.
  */
 export class SettingsPanel {
   private readonly container: Phaser.GameObjects.Container;
@@ -36,7 +38,14 @@ export class SettingsPanel {
     // Neprůhledné pozadí stejné barvy jako stránka (#45) zachytí všechna
     // ťuknutí, takže hra pod panelem nic nedostane.
     const backdrop = scene.add
-      .rectangle(width / 2, height / 2, width, height, SETTINGS_BACKDROP_COLOR, 1)
+      .rectangle(
+        width / 2,
+        height / 2,
+        width,
+        height,
+        SETTINGS_BACKDROP_COLOR,
+        SETTINGS_PANEL_STYLE.backgroundAlpha,
+      )
       .setInteractive();
     this.container = scene.add.container(0, 0, [backdrop]).setDepth(PANEL_DEPTH);
 
@@ -64,7 +73,7 @@ export class SettingsPanel {
       .fillRoundedRect(-half, -half, slot.size, slot.size, cornerRadius);
     const tick = this.scene.add.graphics();
     tick
-      .lineStyle(tickWidth, 0xffffff, 1)
+      .lineStyle(tickWidth, colorNumber(CONFIRM_BUTTON_STYLE.tickColor), 1)
       .beginPath()
       .moveTo(-slot.size * 0.27, 0)
       .lineTo(-slot.size * 0.07, slot.size * 0.2)

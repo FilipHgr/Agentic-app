@@ -8,7 +8,6 @@ import type { GuideVoiceEvent, GuideVoiceState, GuideVoiceTapTarget } from '../l
 import type { GameSettings } from '../logic/settings';
 import { layoutSettingsPanel } from '../logic/settingsLayout';
 import {
-  GUIDE_COLORS,
   GUIDE_TEXTS,
   back,
   chooseOption,
@@ -24,7 +23,7 @@ import {
   stepIndicatorText,
 } from '../logic/setupGuide';
 import type { GuideLayout, GuideSlot, GuideState } from '../logic/setupGuide';
-import { FONT_FAMILY } from '../logic/theme';
+import { FONT_FAMILY, GUIDE_STYLE, colorNumber } from '../logic/theme';
 import { PANEL_DEPTH, PANEL_FADE_MS, SETTINGS_BACKDROP_COLOR } from './SettingsPanel';
 import { SettingsRows } from './SettingsRows';
 
@@ -33,8 +32,24 @@ const ROW_KINDS = ['maxNumber', 'operations', 'answerInput'] as const;
 /** Jemné pulzování reproduktoru, dokud rodič poprvé neťukne (#51). */
 const SPEAKER_PULSE = { scale: 1.08, durationMs: 600 } as const;
 
-/** Barvy jako čísla pro Phaser Graphics. */
-const toColor = (hex: string): number => Number.parseInt(hex.slice(1), 16);
+/** Vzhled tlačítka průvodce: jako číselník, nebo zelené „Začít hrát“ (#53). */
+interface GuideButtonLook {
+  readonly background: string;
+  readonly borderColor: string;
+  readonly textColor: string;
+}
+
+const PLAIN_BUTTON: GuideButtonLook = {
+  background: GUIDE_STYLE.buttonBackground,
+  borderColor: GUIDE_STYLE.buttonBorderColor,
+  textColor: GUIDE_STYLE.buttonTextColor,
+};
+
+const START_PLAYING_BUTTON: GuideButtonLook = {
+  background: GUIDE_STYLE.startPlayingBackground,
+  borderColor: GUIDE_STYLE.startPlayingBackground,
+  textColor: GUIDE_STYLE.startPlayingTextColor,
+};
 
 interface GuideButton {
   readonly container: Phaser.GameObjects.Container;
@@ -260,14 +275,12 @@ export class SetupGuidePanel {
     this.indicator.setText(stepIndicatorText(this.state));
 
     this.backButton.container.setVisible(hasBackButton(this.state));
-    this.paintButton(this.backButton, GUIDE_COLORS.buttonBackground);
+    this.paintButton(this.backButton, PLAIN_BUTTON);
     const right = rightButton(this.state);
     this.rightButton.label.setText(GUIDE_TEXTS.buttons[right]);
     this.paintButton(
       this.rightButton,
-      right === 'startPlaying'
-        ? GUIDE_COLORS.startPlayingBackground
-        : GUIDE_COLORS.buttonBackground,
+      right === 'startPlaying' ? START_PLAYING_BUTTON : PLAIN_BUTTON,
     );
   }
 
@@ -280,7 +293,7 @@ export class SetupGuidePanel {
     // Souřadnice rámečku jsou vnější hrana, čára se kreslí dovnitř.
     const inset = frame.lineWidth / 2;
     this.frame
-      .lineStyle(frame.lineWidth, toColor(frame.color), 1)
+      .lineStyle(frame.lineWidth, colorNumber(frame.color), 1)
       .strokeRoundedRect(
         frame.x - frame.width / 2 + inset,
         frame.y - frame.height / 2 + inset,
@@ -296,7 +309,7 @@ export class SetupGuidePanel {
       .text(slot.x, slot.y, text, {
         fontFamily: FONT_FAMILY,
         fontSize: `${slot.fontSize}px`,
-        color: GUIDE_COLORS.text,
+        color: GUIDE_STYLE.textColor,
         align: 'center',
         wordWrap: { width: slot.width },
       })
@@ -312,7 +325,7 @@ export class SetupGuidePanel {
       .text(0, 0, text, {
         fontFamily: FONT_FAMILY,
         fontSize: `${slot.fontSize}px`,
-        color: GUIDE_COLORS.buttonText,
+        color: GUIDE_STYLE.buttonTextColor,
       })
       .setOrigin(0.5);
     const container = this.scene.add
@@ -332,13 +345,11 @@ export class SetupGuidePanel {
     return { container, background, label, slot };
   }
 
-  /** Reproduktor (#51): bílý čtverec s kreslenou ikonou, bez textu. */
+  /** Reproduktor (#51): čtverec jako číselník s kreslenou ikonou, bez textu. */
   private addSpeakerButton(slot: GuideLayout['speaker']): Phaser.GameObjects.Container {
     const { width, height } = slot;
-    const background = this.scene.add
-      .graphics()
-      .fillStyle(toColor(GUIDE_COLORS.buttonBackground), 1)
-      .fillRoundedRect(-width / 2, -height / 2, width, height, buttonCornerRadius(height));
+    const background = this.scene.add.graphics();
+    this.drawButtonShape(background, width, height, PLAIN_BUTTON);
     const icon = this.createSpeakerIcon(height);
     const container = this.scene.add
       .container(slot.x, slot.y, [background, icon])
@@ -363,7 +374,7 @@ export class SetupGuidePanel {
   /** Reproduktor s dvěma vlnkami, kreslený čarou, aby nezávisel na písmu. */
   private createSpeakerIcon(size: number): Phaser.GameObjects.Graphics {
     const unit = size / 12;
-    const color = toColor(GUIDE_COLORS.buttonText);
+    const color = colorNumber(GUIDE_STYLE.speakerIconColor);
     const icon = this.scene.add.graphics();
     icon.fillStyle(color, 1);
     icon.fillRect(-4 * unit, -1.5 * unit, 2 * unit, 3 * unit);
@@ -378,11 +389,31 @@ export class SetupGuidePanel {
     return icon;
   }
 
-  private paintButton(button: GuideButton, color: string): void {
-    const { width, height } = button.slot;
-    button.background
+  private paintButton(button: GuideButton, look: GuideButtonLook): void {
+    this.drawButtonShape(button.background, button.slot.width, button.slot.height, look);
+    button.label.setColor(look.textColor);
+  }
+
+  /** Zaoblený obdélník s okrajem kresleným dovnitř, aby se velikost nezměnila. */
+  private drawButtonShape(
+    graphics: Phaser.GameObjects.Graphics,
+    width: number,
+    height: number,
+    look: GuideButtonLook,
+  ): void {
+    const radius = buttonCornerRadius(height);
+    const border = GUIDE_STYLE.buttonBorderWidth;
+    graphics
       .clear()
-      .fillStyle(toColor(color), 1)
-      .fillRoundedRect(-width / 2, -height / 2, width, height, buttonCornerRadius(height));
+      .fillStyle(colorNumber(look.background), 1)
+      .fillRoundedRect(-width / 2, -height / 2, width, height, radius)
+      .lineStyle(border, colorNumber(look.borderColor), 1)
+      .strokeRoundedRect(
+        -width / 2 + border / 2,
+        -height / 2 + border / 2,
+        width - border,
+        height - border,
+        radius - border / 2,
+      );
   }
 }

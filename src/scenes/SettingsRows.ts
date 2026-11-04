@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-import { PENCIL_ICON, SETTINGS_LABEL_COLOR } from '../logic/settingsLayout';
+import { PENCIL_ICON } from '../logic/settingsLayout';
 import type {
   SettingsLayout,
   SettingsOptionSlot,
@@ -9,12 +9,15 @@ import type {
 } from '../logic/settingsLayout';
 import type { SelectedOptions } from '../logic/settingsSession';
 import type { AnswerInput, GameSettings, MaxNumber, OperationMode } from '../logic/settings';
-import { FONT_FAMILY } from '../logic/theme';
+import {
+  FONT_FAMILY,
+  SETTINGS_LABEL_COLOR,
+  SETTINGS_OPTION_STYLE,
+  colorNumber,
+  settingsOptionLook,
+} from '../logic/theme';
 
-const OPTION_COLOR = 0xffffff;
-const OPTION_SELECTED_COLOR = 0xffd54f;
-const OPTION_TEXT_COLOR = '#1f6f43';
-const OPTION_ICON_COLOR = 0x1f6f43;
+/** Vzhled voleb je ve světlém vzhledu (#53) v `src/logic/theme.ts`. */
 const OPTION_RADIUS = 28;
 
 /** Popisky voleb: jen čísla a znaménka, žádný text ke čtení. Psaní je kreslená tužka. */
@@ -26,10 +29,20 @@ const OPERATION_LABELS: Record<OperationMode, string> = {
 };
 const ANSWER_INPUT_LABELS: Record<AnswerInput, string | null> = { keypad: '123', writing: null };
 
+/** Obsah volby: text, nebo tužka kreslená ve dvou barvách (vybraná a nevybraná). */
+type OptionContent =
+  | { readonly kind: 'text'; readonly text: Phaser.GameObjects.Text }
+  | {
+      readonly kind: 'pencil';
+      readonly unselected: Phaser.GameObjects.Graphics;
+      readonly selected: Phaser.GameObjects.Graphics;
+    };
+
 interface OptionButton {
   readonly slot: SettingsOptionSlot;
   readonly button: Phaser.GameObjects.Container;
   readonly background: Phaser.GameObjects.Graphics;
+  readonly content: OptionContent;
   readonly change: Partial<GameSettings>;
 }
 
@@ -40,7 +53,7 @@ interface RowView {
 }
 
 /**
- * Tři řady voleb nastavení s popisky (#45, #47). Sdílí je nastavení
+ * Tři řady voleb nastavení s popisky (#45, #47), světlý vzhled (#53). Sdílí je nastavení
  * otevřené kolečkem i průvodce při prvním spuštění (#49); o tom, co je
  * vybrané a co se stane po ťuknutí, rozhoduje volající.
  */
@@ -79,17 +92,38 @@ export class SettingsRows {
     }
   }
 
-  /** Vybrané volby žlutě, ostatní bíle. */
+  /** Vybrané volby plně modře s bílým obsahem, ostatní světle modře (#53). */
   repaint(): void {
     for (const row of this.rows.values()) {
       for (const option of row.options) {
-        const { width, height } = option.slot;
-        const color = this.isSelected(option.change) ? OPTION_SELECTED_COLOR : OPTION_COLOR;
-        option.background
-          .clear()
-          .fillStyle(color, 1)
-          .fillRoundedRect(-width / 2, -height / 2, width, height, OPTION_RADIUS);
+        this.paintOption(option, this.isSelected(option.change));
       }
+    }
+  }
+
+  private paintOption(option: OptionButton, selected: boolean): void {
+    const look = settingsOptionLook(selected);
+    const { width, height } = option.slot;
+    // Okraj se kreslí dovnitř, aby se velikost volby nezměnila.
+    const inset = look.borderWidth / 2;
+    option.background
+      .clear()
+      .fillStyle(colorNumber(look.background), 1)
+      .fillRoundedRect(-width / 2, -height / 2, width, height, OPTION_RADIUS)
+      .lineStyle(look.borderWidth, colorNumber(look.borderColor), 1)
+      .strokeRoundedRect(
+        -width / 2 + inset,
+        -height / 2 + inset,
+        width - look.borderWidth,
+        height - look.borderWidth,
+        OPTION_RADIUS - inset,
+      );
+    const content = option.content;
+    if (content.kind === 'text') {
+      content.text.setColor(look.textColor);
+    } else {
+      content.selected.setVisible(selected);
+      content.unselected.setVisible(!selected);
     }
   }
 
@@ -108,12 +142,20 @@ export class SettingsRows {
   private createOption(slot: SettingsOptionSlot, change: Partial<GameSettings>): OptionButton {
     const background = this.scene.add.graphics();
     const text = optionLabel(slot);
-    const content = text === null ? this.createPencil() : this.createOptionText(text);
+    const content: OptionContent =
+      text === null
+        ? {
+            kind: 'pencil',
+            unselected: this.createPencil(SETTINGS_OPTION_STYLE.unselected.iconColor),
+            selected: this.createPencil(SETTINGS_OPTION_STYLE.selected.iconColor),
+          }
+        : { kind: 'text', text: this.createOptionText(text) };
+    const parts = content.kind === 'text' ? [content.text] : [content.unselected, content.selected];
     const button = this.scene.add
-      .container(slot.x, slot.y, [background, content])
+      .container(slot.x, slot.y, [background, ...parts])
       .setSize(slot.width, slot.height)
       .setInteractive();
-    const option: OptionButton = { slot, button, background, change };
+    const option: OptionButton = { slot, button, background, content, change };
 
     button.on('pointerdown', () => {
       if (!this.isTappable(option)) {
@@ -145,13 +187,14 @@ export class SettingsRows {
       .text(0, 0, text, {
         fontFamily: FONT_FAMILY,
         fontSize: '84px',
-        color: OPTION_TEXT_COLOR,
+        color: SETTINGS_OPTION_STYLE.unselected.textColor,
       })
       .setOrigin(0.5);
   }
 
   /** Tužka šikmo hrotem vlevo dole, kreslená čarou, aby nezávisela na písmu. */
-  private createPencil(): Phaser.GameObjects.Graphics {
+  private createPencil(colorHex: string): Phaser.GameObjects.Graphics {
+    const color = colorNumber(colorHex);
     const { tip, tail, strokeWidth } = PENCIL_ICON;
     const length = Math.hypot(tail.x - tip.x, tail.y - tip.y);
     const along = { x: (tail.x - tip.x) / length, y: (tail.y - tip.y) / length };
@@ -164,7 +207,7 @@ export class SettingsRows {
     });
 
     const pencil = this.scene.add.graphics();
-    pencil.lineStyle(strokeWidth, OPTION_ICON_COLOR, 1);
+    pencil.lineStyle(strokeWidth, color, 1);
     // Tělo tužky: obdélník od hrotu k zadnímu konci, hrot je plný trojúhelník.
     const bodyLeft = at(tipLength, half);
     const bodyRight = at(tipLength, -half);
@@ -176,7 +219,7 @@ export class SettingsRows {
       ),
       true,
     );
-    pencil.fillStyle(OPTION_ICON_COLOR, 1);
+    pencil.fillStyle(color, 1);
     pencil.fillTriangle(bodyLeft.x, bodyLeft.y, bodyRight.x, bodyRight.y, tip.x, tip.y);
     return pencil;
   }

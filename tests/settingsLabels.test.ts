@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { FIRST_CHARACTER } from '../src/logic/characters';
 import type { GameProgress } from '../src/logic/progress';
 import type { GameSettings } from '../src/logic/settings';
-import { SETTINGS_LABEL_COLOR, layoutSettingsPanel } from '../src/logic/settingsLayout';
+import { layoutSettingsPanel } from '../src/logic/settingsLayout';
 import type { SettingsLayout, SettingsRow } from '../src/logic/settingsLayout';
 import {
   CLOSED_SETTINGS,
@@ -15,6 +15,7 @@ import {
 } from '../src/logic/settingsSession';
 import type { SettingsSession } from '../src/logic/settingsSession';
 import { STARS_PER_SET } from '../src/logic/stars';
+import { SETTINGS_LABEL_COLOR, settingsOptionLook } from '../src/logic/theme';
 
 /**
  * Testy k #47 (popisky řad v nastavení pro rodiče) na herní ploše 1024 × 768:
@@ -31,9 +32,6 @@ const LABEL_HEIGHT = 32;
 const LABEL_FONT_SIZE = 28;
 const LABEL_TO_ROW_GAP = 8;
 const MAX_LABEL_CHARACTERS = 12;
-
-/** Barva vybrané volby (žlutá) ze scény nastavení. */
-const SELECTED_OPTION_COLOR = '#ffd54f';
 
 interface Box {
   readonly left: number;
@@ -307,24 +305,26 @@ describe('ťuknutí na popisek nic nezmění (#47 AC5)', () => {
   });
 });
 
-describe('barva popisků (#47 AC6)', () => {
-  const darkPage = pageAppearance(
+describe('barva popisků (#47 AC6, #53 AC2)', () => {
+  const page = pageAppearance(
     openSettings(CLOSED_SETTINGS, { maxNumber: 10, operations: 'plus' }),
   ).background;
 
-  it('popisky jsou světle zelené #cfe8d6', () => {
-    expect(SETTINGS_LABEL_COLOR.toLowerCase()).toBe('#cfe8d6');
+  it('popisky jsou šedé #6E6E73', () => {
+    expect(SETTINGS_LABEL_COLOR.toLowerCase()).toBe('#6e6e73');
   });
 
-  it('na tmavém pozadí #0f3d24 mají kontrast aspoň 7 : 1 (asi 9,4 : 1)', () => {
-    expect(darkPage.toLowerCase()).toBe('#0f3d24');
-    const ratio = contrastRatio(SETTINGS_LABEL_COLOR, darkPage);
-    expect(ratio).toBeGreaterThanOrEqual(7);
-    expect(Math.abs(ratio - 9.4)).toBeLessThan(0.1);
+  it('na světlém pozadí #F5F5F7 mají kontrast aspoň 4,5 : 1 (asi 4,66 : 1)', () => {
+    expect(page.toLowerCase()).toBe('#f5f5f7');
+    const ratio = contrastRatio(SETTINGS_LABEL_COLOR, page);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+    expect(Math.abs(ratio - 4.66)).toBeLessThan(0.1);
   });
 
-  it('popisky nejsou žluté jako vybraná volba', () => {
-    expect(SETTINGS_LABEL_COLOR.toLowerCase()).not.toBe(SELECTED_OPTION_COLOR);
+  it('popisky nejsou modré jako vybraná volba', () => {
+    expect(SETTINGS_LABEL_COLOR.toLowerCase()).not.toBe(
+      settingsOptionLook(true).background.toLowerCase(),
+    );
   });
 });
 

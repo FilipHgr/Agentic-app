@@ -5,6 +5,7 @@
  */
 
 import { scriptLines } from './guideScript';
+import { GUIDE_STYLE } from './theme';
 import type { Point } from './screenLayout';
 import { DEFAULT_SETTINGS, answerInputOf } from './settings';
 import type { GameSettings } from './settings';
@@ -23,15 +24,6 @@ export const START_PLAYING_GUARD_MS = 500;
 /** Texty tlačítek; věty pod řadami jsou ve scénáři `guideScript.ts` (#50). */
 export const GUIDE_TEXTS = {
   buttons: { back: 'Zpět', next: 'Další', startPlaying: 'Začít hrát' },
-} as const;
-
-/** Barvy průvodce; písmo tlačítek má na všech pozadích kontrast aspoň 7 : 1. */
-export const GUIDE_COLORS = {
-  text: '#cfe8d6',
-  buttonText: '#0f3d24',
-  buttonBackground: '#ffffff',
-  startPlayingBackground: '#8be04e',
-  frame: '#cfe8d6',
 } as const;
 
 export interface GuideState {
@@ -126,7 +118,7 @@ export interface GuideRowStyle {
 }
 
 /** Ztlumená řada v krocích 1–3. */
-const DIMMED_ROW_OPACITY = 0.3;
+const DIMMED_ROW_OPACITY = 0.5;
 
 /** Jak vypadá řada nastavení v daném kroku průvodce. */
 export function guideRowStyle(state: GuideState, kind: SettingsRowKind): GuideRowStyle {
@@ -228,7 +220,7 @@ const MESSAGE_FONT_SIZE = 28;
 
 /** Rámeček zvýrazněné řady: 8 px vně popisku a řady, čára 4 px. */
 const FRAME_PADDING = 8;
-const FRAME_LINE_WIDTH = 4;
+const FRAME_LINE_WIDTH = GUIDE_STYLE.frameLineWidth;
 
 /** Slot z hran (vlevo, vpravo, nahoře, dole). */
 function slotFromEdges(
@@ -261,7 +253,7 @@ function frameAround(row: SettingsRow): GuideFrame {
     width: right - left,
     height: bottom - top,
     lineWidth: FRAME_LINE_WIDTH,
-    color: GUIDE_COLORS.frame,
+    color: GUIDE_STYLE.frameColor,
     fill: null,
   };
 }
@@ -288,7 +280,7 @@ export function layoutGuideStep(step: GuideStep, width: number, height: number):
       lineCount: 2,
       lineHeight: MESSAGE_LINE_HEIGHT,
       align: 'center',
-      color: GUIDE_COLORS.text,
+      color: GUIDE_STYLE.textColor,
       background: null,
     },
     back: isFirstStep
@@ -308,7 +300,7 @@ export function layoutGuideStep(step: GuideStep, width: number, height: number):
         buttonBottom,
         INDICATOR_FONT_SIZE,
       ),
-      color: GUIDE_COLORS.text,
+      color: GUIDE_STYLE.textColor,
     },
     right: slotFromEdges(
       width - EDGE_MARGIN - BUTTON_WIDTH,
