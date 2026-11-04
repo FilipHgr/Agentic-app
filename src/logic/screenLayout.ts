@@ -363,3 +363,64 @@ export function layoutHintDots(
 
   return dots;
 }
+
+/** Strana čtvercové plochy na psaní (#41). */
+export const WRITING_AREA_SIZE = 320;
+
+/** Velikost tlačítek ✓ a smazání vedle plochy na psaní. */
+export const WRITING_BUTTON_SIZE = 120;
+
+/** Mezera mezi plochou na psaní a tlačítky. */
+const WRITING_BUTTON_GAP = 48;
+
+/** Plocha na psaní; `x` a `y` je její střed. */
+export interface WritingAreaSlot extends Point {
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface WritingLayout extends Omit<ScreenLayout, 'answerButtons'> {
+  readonly writingArea: WritingAreaSlot;
+  /** ✓ vpravo od plochy. */
+  readonly confirmButton: ButtonSlot;
+  /** Smazání vlevo od plochy. */
+  readonly clearButton: ButtonSlot;
+}
+
+/**
+ * Rozložení při psaní: nahoře stejné jako s číselníkem (hvězdičky,
+ * postavička, příklad, nápověda), dole místo číselníku plocha na psaní,
+ * vlevo od ní smazání a vpravo ✓.
+ */
+export function layoutWritingScreen(
+  screenWidth: number,
+  screenHeight: number,
+  maxNumber: 5 | 10,
+  starCount = 0,
+): WritingLayout {
+  const keypadLayout = layoutScreen(screenWidth, screenHeight, maxNumber + 1, starCount);
+  const top: Omit<ScreenLayout, 'answerButtons'> = {
+    problem: keypadLayout.problem,
+    problemFontSize: keypadLayout.problemFontSize,
+    problemSize: keypadLayout.problemSize,
+    hint: keypadLayout.hint,
+    hintStyle: keypadLayout.hintStyle,
+    stars: keypadLayout.stars,
+    mascot: keypadLayout.mascot,
+  };
+  const centerX = screenWidth / 2;
+  const centerY = screenHeight - BOTTOM_MARGIN - WRITING_AREA_SIZE / 2;
+  const buttonOffset = WRITING_AREA_SIZE / 2 + WRITING_BUTTON_GAP + WRITING_BUTTON_SIZE / 2;
+
+  return {
+    ...top,
+    writingArea: {
+      x: centerX,
+      y: centerY,
+      width: WRITING_AREA_SIZE,
+      height: WRITING_AREA_SIZE,
+    },
+    confirmButton: { x: centerX + buttonOffset, y: centerY, size: WRITING_BUTTON_SIZE },
+    clearButton: { x: centerX - buttonOffset, y: centerY, size: WRITING_BUTTON_SIZE },
+  };
+}

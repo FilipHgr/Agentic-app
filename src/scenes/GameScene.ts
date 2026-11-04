@@ -13,18 +13,26 @@ import {
 import type { AnswerRound, TapOutcome } from '../logic/answerRound';
 import { SOUNDS, soundForOutcome } from '../logic/answerSounds';
 import { mascotReactionToTap } from '../logic/mascot';
-import { STAR_SIZE, layoutHintDots, layoutScreen } from '../logic/screenLayout';
+import {
+  STAR_SIZE,
+  layoutHintDots,
+  layoutScreen,
+  layoutWritingScreen,
+} from '../logic/screenLayout';
 import type { ButtonSlot, ScreenLayout } from '../logic/screenLayout';
 import { STARS_PER_SET, startNewStarSet, starsAfterTap } from '../logic/stars';
 import type { StarProgress } from '../logic/stars';
 import { nextCharacter } from '../logic/characters';
 import type { CharacterId } from '../logic/characters';
+import { isWritingActive } from '../logic/settings';
 import type { GameSettings } from '../logic/settings';
+import type { ConfirmResult } from '../logic/writingRound';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { browserStorage, loadSettings, saveSettings } from '../storage/settingsStorage';
 import { Mascot } from './Mascot';
 import { attachSettingsButton } from '../ui/settingsButton';
 import { SettingsPanel } from './SettingsPanel';
+import { WritingPad } from './WritingPad';
 
 const BUTTON_COLOR = 0xffffff;
 const BUTTON_CORRECT_COLOR = 0x8be04e;
@@ -47,6 +55,9 @@ const BUTTON_CORNER_RADIUS = 24;
 const ANSWER_REVEALED_COLOR = '#8be04e';
 const PROBLEM_TEXT_COLOR = '#ffffff';
 
+/** Rozpoznaná, ještě nepotvrzená číslice v příkladu: žlutá jako vybraná volba. */
+const ANSWER_WRITTEN_COLOR = '#ffd54f';
+
 /** Mezera mezi rovnítkem a odpovědí jako část velikosti písma (šířka mezery v Arialu). */
 const ANSWER_GAP_RATIO = 0.28;
 
@@ -66,6 +77,12 @@ const CELEBRATION_MS = 2600;
 const CONFETTI_COUNT = 80;
 const CONFETTI_COLORS = [0xffd54f, 0x81d4fa, 0xff8a80, 0xb9f6ca, 0xffffff, 0xce93d8];
 
+/** Místo, odkud vyletí hvězdička za správnou odpověď. */
+interface Origin {
+  readonly x: number;
+  readonly y: number;
+}
+
 interface AnswerButton {
   readonly value: number;
   readonly container: Phaser.GameObjects.Container;
@@ -82,6 +99,8 @@ export class GameScene extends Phaser.Scene {
   private problemEquation: Phaser.GameObjects.Text | undefined;
   private problemAnswer: Phaser.GameObjects.Text | undefined;
   private hintIsShown = false;
+  /** Plocha na psaní, když dítě odpovídá psaním (#41); jinak číselník. */
+  private writingPad: WritingPad | undefined;
   // Hvězdičky a postavička přežijí zavření hry (načtou se ze zařízení).
   private readonly savedProgress = loadProgress(browserStorage());
   private starProgress: StarProgress = { earned: this.savedProgress.earned };
@@ -111,6 +130,10 @@ export class GameScene extends Phaser.Scene {
       attachSettingsButton(settingsButton, () => this.openSettings());
     }
     this.startRound();
+  }
+
+  override update(time: number): void {
+    this.writingPad?.update(time);
   }
 
   /** Uloží hvězdičky a postavičku do zařízení; když to nejde, hra jede dál. */
@@ -168,11 +191,56 @@ export class GameScene extends Phaser.Scene {
 
     this.drawProblem(layout);
 
+    if (isWritingActive(this.settings)) {
+      this.createWritingPad(this.round);
+      return;
+    }
+
     answerChoices(this.round.maxNumber).forEach((value, index) => {
       const slot = layout.answerButtons[index];
       if (slot) {
         this.roundObjects.push(this.createAnswerButton(value, slot).container);
       }
+    });
+  }
+
+  /** Místo číselníku plocha na psaní; psaní je jen při rozsahu 5 a 10. */
+  private createWritingPad(round: AnswerRound): void {
+    const maxNumber = round.maxNumber === 5 ? 5 : 10;
+    const layout = layoutWritingScreen(
+      this.scale.width,
+      this.scale.height,
+      maxNumber,
+      STARS_PER_SET,
+    );
+    this.writingPad = new WritingPad(this, layout, round, {
+      onDigitChanged: (digit) => this.showWrittenDigit(digit),
+      onConfirmed: (result) => this.onWritingConfirmed(result),
+    });
+  }
+
+  /** Rozpoznaná číslice se ukáže žlutě místo „?“, dokud ji dítě nepotvrdí. */
+  private showWrittenDigit(digit: number | null): void {
+    if (!this.round || this.round.solved || !this.problemAnswer) {
+      return;
+    }
+    if (digit === null) {
+      this.problemAnswer.setText(problemText(this.round).answer).setColor(PROBLEM_TEXT_COLOR);
+    } else {
+      this.problemAnswer.setText(String(digit)).setColor(ANSWER_WRITTEN_COLOR);
+    }
+    this.centerProblem(this.layout());
+  }
+
+  private onWritingConfirmed(result: ConfirmResult): void {
+    const pad = this.writingPad;
+    if (!pad) {
+      return;
+    }
+    this.round = result.round.answer;
+    this.applyOutcome(result.outcome, pad.confirmPosition, {
+      onCorrect: () => pad.lock(),
+      onWrong: () => this.showWrittenDigit(null),
     });
   }
 
@@ -227,6 +295,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private clearRound(): void {
+    this.writingPad?.destroy();
+    this.writingPad = undefined;
     for (const object of this.roundObjects) {
       this.tweens.killTweensOf(object);
       object.destroy();
@@ -276,24 +346,40 @@ export class GameScene extends Phaser.Scene {
 
     const result = tapAnswer(this.round, button.value);
     this.round = result.round;
-    this.playSoundFor(result.outcome);
+    this.applyOutcome(result.outcome, button.container, {
+      onCorrect: () => this.highlightCorrectButton(button),
+      onWrong: () => this.showWrongAnswer(button),
+    });
+  }
 
-    const stars = starsAfterTap(this.starProgress, result.outcome);
+  /**
+   * Společné vyhodnocení pro číselník i psaní: zvuk, hvězdička, postavička,
+   * výsledek v příkladu a nápověda po 2. chybě.
+   */
+  private applyOutcome(
+    outcome: TapOutcome,
+    origin: Origin,
+    visuals: { onCorrect: () => void; onWrong: () => void },
+  ): void {
+    this.playSoundFor(outcome);
+
+    const stars = starsAfterTap(this.starProgress, outcome);
     this.starProgress = stars.progress;
     if (stars.starEarned) {
       this.saveProgress();
     }
 
     // Tanec začne až s oslavou, po doletu poslední hvězdičky.
-    const reaction = mascotReactionToTap(result.outcome, stars.setCompleted);
+    const reaction = mascotReactionToTap(outcome, stars.setCompleted);
     if (reaction && reaction !== 'dance') {
       this.mascot?.react(reaction);
     }
 
-    if (result.outcome === 'correct') {
-      this.celebrateCorrectAnswer(button, stars.setCompleted);
-    } else if (result.outcome === 'wrong') {
-      this.showWrongAnswer(button);
+    if (outcome === 'correct') {
+      visuals.onCorrect();
+      this.celebrateCorrectAnswer(origin, stars.setCompleted);
+    } else if (outcome === 'wrong') {
+      visuals.onWrong();
       this.showHintWhenNeeded();
     }
   }
@@ -356,9 +442,9 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private celebrateCorrectAnswer(button: AnswerButton, setCompleted: boolean): void {
+  /** Správné tlačítko zezelená a poskočí. */
+  private highlightCorrectButton(button: AnswerButton): void {
     this.paintButton(button, BUTTON_CORRECT_COLOR);
-    this.revealAnswer();
     this.tweens.add({
       targets: button.container,
       scale: 1.2,
@@ -366,7 +452,11 @@ export class GameScene extends Phaser.Scene {
       yoyo: true,
       ease: 'Quad.easeOut',
     });
-    this.flyStarToRow(button, () => {
+  }
+
+  private celebrateCorrectAnswer(origin: Origin, setCompleted: boolean): void {
+    this.revealAnswer();
+    this.flyStarToRow(origin, () => {
       if (setCompleted) {
         this.celebrateFullSet();
       }
@@ -378,18 +468,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Hvězdička přiletí od tlačítka na své místo v řadě a rozsvítí ho. */
-  private flyStarToRow(button: AnswerButton, onArrived: () => void): void {
+  private flyStarToRow(origin: Origin, onArrived: () => void): void {
     const targetIcon = this.starIcons[this.starProgress.earned - 1];
     if (!targetIcon) {
       onArrived();
       return;
     }
 
-    const flyingStar = this.createStarShape(
-      button.container.x,
-      button.container.y,
-      STAR_FILLED_COLOR,
-    ).setScale(1.6);
+    const flyingStar = this.createStarShape(origin.x, origin.y, STAR_FILLED_COLOR).setScale(1.6);
 
     this.tweens.add({
       targets: flyingStar,

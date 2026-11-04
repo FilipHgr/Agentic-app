@@ -1,7 +1,12 @@
 import Phaser from 'phaser';
 
-import { MAX_NUMBER_OPTIONS, OPERATION_OPTIONS } from '../logic/settings';
-import type { GameSettings, MaxNumber, OperationMode } from '../logic/settings';
+import {
+  ANSWER_INPUT_OPTIONS,
+  MAX_NUMBER_OPTIONS,
+  OPERATION_OPTIONS,
+  answerInputOf,
+} from '../logic/settings';
+import type { AnswerInput, GameSettings, MaxNumber, OperationMode } from '../logic/settings';
 
 const BACKDROP_COLOR = 0x0f3d24;
 const OPTION_COLOR = 0xffffff;
@@ -10,7 +15,7 @@ const OPTION_TEXT_COLOR = '#1f6f43';
 const CONFIRM_COLOR = 0x8be04e;
 
 const OPTION_WIDTH = 220;
-const OPTION_HEIGHT = 150;
+const OPTION_HEIGHT = 130;
 const OPTION_GAP = 40;
 const OPTION_RADIUS = 28;
 const CONFIRM_SIZE = 150;
@@ -25,6 +30,16 @@ const OPERATION_LABELS: Record<OperationMode, string> = {
   minus: '−',
   mixed: '+ −',
 };
+/** Číselník jako „123“, psaní jako tužka. */
+const ANSWER_INPUT_LABELS: Record<AnswerInput, string> = { keypad: '123', writing: '✎' };
+
+/** Svislé polohy řad voleb a potvrzení jako část výšky obrazovky. */
+const ROW_Y = [0.16, 0.38, 0.6] as const;
+const CONFIRM_Y = 0.86;
+
+/** Poznámka pro rodiče pod volbou psaní (dítě nastavení neotevře). */
+const WRITING_NOTE = 'Psaní zatím jen do 10';
+const NOTE_COLOR = '#ffffff';
 
 interface OptionButton {
   readonly background: Phaser.GameObjects.Graphics;
@@ -33,7 +48,7 @@ interface OptionButton {
 
 /**
  * Obrazovka nastavení pro rodiče: řada rozsahů (5, 10, 20), řada druhů
- * příkladů (+, −, + −) a potvrzovací „✓“. Vybrané volby jsou žluté.
+ * příkladů (+, −, + −), způsob odpovědi (číselník, psaní) a potvrzovací „✓“. Vybrané volby jsou žluté.
  */
 export class SettingsPanel {
   private readonly container: Phaser.GameObjects.Container;
@@ -55,7 +70,7 @@ export class SettingsPanel {
     this.container = scene.add.container(0, 0, [backdrop]).setDepth(PANEL_DEPTH);
 
     this.addOptionRow(
-      height * 0.24,
+      height * ROW_Y[0],
       MAX_NUMBER_OPTIONS.map((maxNumber) => ({
         label: MAX_NUMBER_LABELS[maxNumber],
         isSelected: () => this.choice.maxNumber === maxNumber,
@@ -63,24 +78,37 @@ export class SettingsPanel {
       })),
     );
     this.addOptionRow(
-      height * 0.52,
+      height * ROW_Y[1],
       OPERATION_OPTIONS.map((operations) => ({
         label: OPERATION_LABELS[operations],
         isSelected: () => this.choice.operations === operations,
         select: () => (this.choice = { ...this.choice, operations }),
       })),
     );
-    this.addConfirmButton(width / 2, height * 0.82);
+    const answerRow = this.addOptionRow(
+      height * ROW_Y[2],
+      ANSWER_INPUT_OPTIONS.map((answerInput) => ({
+        label: ANSWER_INPUT_LABELS[answerInput],
+        isSelected: () => answerInputOf(this.choice) === answerInput,
+        select: () => (this.choice = { ...this.choice, answerInput }),
+      })),
+    );
+    const writingX = answerRow[ANSWER_INPUT_OPTIONS.indexOf('writing')];
+    if (writingX !== undefined) {
+      this.addNote(writingX, height * ROW_Y[2] + OPTION_HEIGHT / 2 + 24, WRITING_NOTE);
+    }
+    this.addConfirmButton(width / 2, height * CONFIRM_Y);
     this.repaint();
 
     this.container.setAlpha(0);
     scene.tweens.add({ targets: this.container, alpha: 1, duration: 150 });
   }
 
+  /** Řada voleb vycentrovaná na obrazovce; vrátí vodorovné středy tlačítek. */
   private addOptionRow(
     y: number,
     items: { label: string; isSelected: () => boolean; select: () => void }[],
-  ): void {
+  ): number[] {
     const rowWidth = items.length * OPTION_WIDTH + (items.length - 1) * OPTION_GAP;
     const firstX = this.scene.scale.width / 2 - rowWidth / 2 + OPTION_WIDTH / 2;
 
@@ -108,6 +136,15 @@ export class SettingsPanel {
       this.options.push({ background, isSelected: item.isSelected });
       this.container.add(button);
     });
+
+    return items.map((_, index) => firstX + index * (OPTION_WIDTH + OPTION_GAP));
+  }
+
+  private addNote(x: number, y: number, text: string): void {
+    const note = this.scene.add
+      .text(x, y, text, { fontFamily: 'Arial, sans-serif', fontSize: '24px', color: NOTE_COLOR })
+      .setOrigin(0.5);
+    this.container.add(note);
   }
 
   private addConfirmButton(x: number, y: number): void {

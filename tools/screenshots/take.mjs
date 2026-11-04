@@ -5,8 +5,9 @@
  * Spuštění z kořene repa (po `npm run build`):
  *   node tools/screenshots/take.mjs [složka]
  *
- * Udělá snímky na iPadu na šířku a na telefonu na výšku ve třech stavech:
- * začátek hry, nápověda po dvou chybách a otevřené nastavení pro rodiče.
+ * Udělá snímky na iPadu na šířku a na telefonu na výšku v pěti stavech:
+ * začátek hry, nápověda po dvou chybách, otevřené nastavení pro rodiče,
+ * plocha na psaní (#41) a rozpoznaná napsaná číslice.
  * Použije WebKit (jako Safari), když je k dispozici, jinak Chromium a řekne to.
  * Playwright není závislost projektu, musí být nainstalovaný v systému.
  */
@@ -26,6 +27,17 @@ const GAME_HEIGHT = 768;
 
 /** Tlačítko 0 na číselníku 0–10 (výchozí nastavení) v herních souřadnicích. */
 const BUTTON_ZERO = { x: 112, y: 514 };
+
+/** Volba „psaní“ a ✓ v nastavení pro rodiče. */
+const SETTINGS_WRITING = { x: 642, y: 461 };
+const SETTINGS_CONFIRM = { x: 512, y: 660 };
+
+/** Sedmička napsaná přes plochu na psaní (levý horní roh plochy je 352, 424). */
+const SEVEN = [
+  { x: 402, y: 474 },
+  { x: 622, y: 474 },
+  { x: 472, y: 714 },
+];
 
 const DEVICES = [
   { name: 'ipad-sirka', viewport: { width: 1180, height: 820 }, scale: 2 },
@@ -50,12 +62,32 @@ async function launchBrowser(playwright) {
   }
 }
 
+/** Převede herní souřadnice na souřadnice stránky. */
+async function toPage(page, point) {
+  const box = await page.locator('canvas').boundingBox();
+  return {
+    x: box.x + (point.x / GAME_WIDTH) * box.width,
+    y: box.y + (point.y / GAME_HEIGHT) * box.height,
+  };
+}
+
 /** Ťukne na místo zadané v herních souřadnicích. */
 async function tapGame(page, point) {
-  const box = await page.locator('canvas').boundingBox();
-  const x = box.x + (point.x / GAME_WIDTH) * box.width;
-  const y = box.y + (point.y / GAME_HEIGHT) * box.height;
+  const { x, y } = await toPage(page, point);
   await page.mouse.click(x, y);
+}
+
+/** Táhne prstem přes body v herních souřadnicích, jako když dítě píše. */
+async function drawGame(page, points) {
+  const [first, ...rest] = points;
+  const start = await toPage(page, first);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  for (const point of rest) {
+    const next = await toPage(page, point);
+    await page.mouse.move(next.x, next.y, { steps: 12 });
+  }
+  await page.mouse.up();
 }
 
 async function shootDevice(browser, url, device) {
@@ -85,6 +117,16 @@ async function shootDevice(browser, url, device) {
   await page.mouse.up();
   await page.waitForTimeout(400);
   await page.screenshot({ path: join(outputDir, `${device.name}-3-nastaveni.png`) });
+
+  await tapGame(page, SETTINGS_WRITING);
+  await page.waitForTimeout(200);
+  await tapGame(page, SETTINGS_CONFIRM);
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: join(outputDir, `${device.name}-4-psani.png`) });
+
+  await drawGame(page, SEVEN);
+  await page.waitForTimeout(1300);
+  await page.screenshot({ path: join(outputDir, `${device.name}-5-psani-cislice.png`) });
 
   await context.close();
   return errors;

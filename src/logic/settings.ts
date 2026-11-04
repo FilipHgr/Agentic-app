@@ -1,5 +1,6 @@
 /**
- * Nastavení pro rodiče: do kolika se počítá a jaké příklady hra dává.
+ * Nastavení pro rodiče: do kolika se počítá, jaké příklady hra dává
+ * a jestli dítě odpovídá číselníkem, nebo psaním.
  * Čistý TypeScript bez Phaseru i bez prohlížeče; uložení řeší
  * `src/storage/settingsStorage.ts`.
  */
@@ -17,9 +18,16 @@ export type OperationMode = (typeof OPERATION_OPTIONS)[number];
 /** Druh jednoho příkladu. */
 export type Operation = 'plus' | 'minus';
 
+/** Jak dítě odpovídá: ťuká na číselník, nebo píše číslici prstem (#41). */
+export const ANSWER_INPUT_OPTIONS = ['keypad', 'writing'] as const;
+
+export type AnswerInput = (typeof ANSWER_INPUT_OPTIONS)[number];
+
 export interface GameSettings {
   readonly maxNumber: MaxNumber;
   readonly operations: OperationMode;
+  /** Chybí ve starších uložených nastaveních, pak platí číselník. */
+  readonly answerInput?: AnswerInput;
 }
 
 /** Výchozí nastavení odpovídá hře před přidáním nastavení: sčítání do 10. */
@@ -31,6 +39,26 @@ export const HOLD_TO_OPEN_SETTINGS_MS = 2000;
 /** Otevře se nastavení po takto dlouhém držení kolečka? */
 export function isHoldLongEnough(heldMs: number): boolean {
   return Number.isFinite(heldMs) && heldMs >= HOLD_TO_OPEN_SETTINGS_MS;
+}
+
+/** Rozsahy, ve kterých jde výsledek napsat jednou číslicí. Při 20 zůstává číselník. */
+const WRITING_MAX_NUMBERS: readonly MaxNumber[] = [5, 10];
+
+/** Nejvyšší výsledek, který jde napsat jednou číslicí. */
+export const MAX_WRITTEN_RESULT = 9;
+
+/** Způsob odpovědi zvolený rodičem; bez volby číselník. */
+export function answerInputOf(settings: GameSettings): AnswerInput {
+  return isAnswerInput(settings.answerInput) ? settings.answerInput : 'keypad';
+}
+
+/** Odpovídá dítě teď psaním? Jen když ho rodič zvolil a rozsah je 5 nebo 10. */
+export function isWritingActive(settings: GameSettings): boolean {
+  return answerInputOf(settings) === 'writing' && WRITING_MAX_NUMBERS.includes(settings.maxNumber);
+}
+
+function isAnswerInput(value: unknown): value is AnswerInput {
+  return ANSWER_INPUT_OPTIONS.some((option) => option === value);
 }
 
 function isMaxNumber(value: unknown): value is MaxNumber {
@@ -68,10 +96,14 @@ export function parseSettings(saved: string | null | undefined): GameSettings {
   }
 
   const record = data as Record<string, unknown>;
-  return {
+  const settings: GameSettings = {
     maxNumber: isMaxNumber(record.maxNumber) ? record.maxNumber : DEFAULT_SETTINGS.maxNumber,
     operations: isOperationMode(record.operations)
       ? record.operations
       : DEFAULT_SETTINGS.operations,
   };
+  // Neznámá nebo chybějící volba se vynechá, `answerInputOf` pak vrátí číselník.
+  return isAnswerInput(record.answerInput)
+    ? { ...settings, answerInput: record.answerInput }
+    : settings;
 }
