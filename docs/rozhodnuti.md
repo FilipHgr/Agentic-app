@@ -43,6 +43,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   nastavení předvyplní, pak krok za krokem projde řady s radami. Jen při
   prvním spuštění, automatické otevření z #48 zůstává. „Musí to být fakt
   dobré.“
+- 2026-11-04 Průvodce schválen jako #49: otázka na třídu (ne věk), 5 kroků
+  s radami pro rodiče, u 2. třídy a výš předvyplněná tužka (vědomě, i když
+  rozpoznávání dětského písma zatím nikdo neměřil).
 - 2026-11-03 Vracení příkladů, ve kterých se dítě spletlo, zamítnuto (návrh
   neprošel kontrolou, vlastník zvolil jiný úkol). Neopakovat.
 
