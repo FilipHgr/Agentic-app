@@ -5,7 +5,8 @@
  * Upraveno z: E. Alpaydin, F. Alimoglu, Pen-Based Recognition of Handwritten
  * Digits, UCI Machine Learning Repository, https://doi.org/10.24432/C5MG6K,
  * licence CC BY 4.0. Použita jen trénovací část (30 pisatelů), prvních
- * 200 vzorů od každé číslice.
+ * 200 vzorů od každé číslice. Atribuce pro nasazenou hru je
+ * v public/licence.txt.
  *
  * Index pole je číslice. Každý vzor je 8 bodů (x, y) po délce tahu, souřadnice
  * 0–100 (osa y nahoru), každé číslo jako dva šestnáctkové znaky.

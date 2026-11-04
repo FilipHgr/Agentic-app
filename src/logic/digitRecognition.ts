@@ -56,6 +56,21 @@ const MAX_DIRECTION_TURNS = 5;
 /** Malé chvění prstu se jako obrat nepočítá (část velikosti zápisu). */
 const TURN_TOLERANCE_SHARE = 0.08;
 
+/**
+ * Zápis musí znovu potkat svůj začátek nejdřív po 25 % délky. Smyčka může
+ * být i celý zápis (nula).
+ */
+const LOOP_MIN_SHARE = 0.25;
+
+/** Jak blízko musí zápis znovu projít začátkem, aby šlo o uzavřenou smyčku (část velikosti). */
+const LOOP_CLOSE_SHARE = 0.2;
+
+/** Kolik různých začátků smyčky se vyzkouší. */
+const LOOP_START_VARIANTS = 8;
+
+/** Na kolik bodů se zápis zhustí, než se v něm hledá smyčka. */
+const LOOP_SEARCH_POINTS = 64;
+
 interface Template {
   readonly digit: number;
   readonly values: readonly number[];
@@ -108,7 +123,7 @@ export function recognizeDigit(strokes: readonly Stroke[], area: WritingAreaSize
 
   // Smyčku na začátku zápisu (devítka, nula) jde začít psát kdekoli.
   // Zkusí se proto i jiné začátky smyčky a vyhraje nejpodobnější podoba.
-  const variants = loopStartVariants(points, size).map((variant) =>
+  const variants = loopStartVariants(resample(points, LOOP_SEARCH_POINTS), size).map((variant) =>
     nearestTemplates(normalize(resample(variant, SAMPLE_POINTS), bounds)),
   );
   const best = variants.reduce((winner, candidate) =>
@@ -116,16 +131,6 @@ export function recognizeDigit(strokes: readonly Stroke[], area: WritingAreaSize
   );
   return digitByVote(best);
 }
-
-/** Smyčka se hledá jen uprostřed zápisu: začátek musí znovu potkat po 25–75 % délky. */
-const LOOP_MIN_SHARE = 0.25;
-const LOOP_MAX_SHARE = 0.75;
-
-/** Jak blízko musí zápis znovu projít začátkem, aby šlo o uzavřenou smyčku (část velikosti). */
-const LOOP_CLOSE_SHARE = 0.2;
-
-/** Kolik různých začátků smyčky se vyzkouší. */
-const LOOP_START_VARIANTS = 8;
 
 /**
  * Zápis tak, jak ho dítě napsalo, a když začíná uzavřenou smyčkou, tak
@@ -138,11 +143,19 @@ function loopStartVariants(points: readonly StrokePoint[], size: number): Stroke
   }
 
   const loop = points.slice(0, closing);
+  // Zbytek zápisu (u devítky noha) zůstává, jak ho dítě napsalo, i když
+  // smyčka v nové podobě končí jinde. Vzory devítky to snesou, ověřuje to
+  // tests/nineRecognition.test.ts.
   const rest = points.slice(closing);
+  // Smyčku jde psát i opačným směrem, proto i obrácené podoby.
+  const reversed = [...loop].reverse();
   const variants: StrokePoint[][] = [[...points]];
-  for (let variant = 1; variant < LOOP_START_VARIANTS; variant += 1) {
+  for (let variant = 0; variant < LOOP_START_VARIANTS; variant += 1) {
     const start = Math.round((loop.length * variant) / LOOP_START_VARIANTS);
-    variants.push([...loop.slice(start), ...loop.slice(0, start), ...rest]);
+    if (variant > 0) {
+      variants.push([...loop.slice(start), ...loop.slice(0, start), ...rest]);
+    }
+    variants.push([...reversed.slice(start), ...reversed.slice(0, start), ...rest]);
   }
   return variants;
 }
@@ -161,7 +174,7 @@ function loopClosingIndex(points: readonly StrokePoint[], size: number): number 
   points.forEach((point, index) => {
     const share = (lengths[index] ?? 0) / total;
     const gap = Math.hypot(point.x - start.x, point.y - start.y);
-    if (share >= LOOP_MIN_SHARE && share <= LOOP_MAX_SHARE && gap < closestDistance) {
+    if (share >= LOOP_MIN_SHARE && gap < closestDistance) {
       closest = index;
       closestDistance = gap;
     }

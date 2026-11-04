@@ -50,7 +50,10 @@ export class WritingPad {
   private round: WritingRound;
   private readonly objects: Phaser.GameObjects.GameObject[] = [];
   private readonly area: Phaser.GameObjects.Container;
-  private readonly ink: Phaser.GameObjects.Graphics;
+  /** Napsané tahy: kreslí se jednou do textury, ne znovu každý snímek. */
+  private readonly ink: Phaser.GameObjects.RenderTexture;
+  /** Štětec, kterým se nové úseky tahu kreslí do `ink`; sám není vidět. */
+  private readonly brush: Phaser.GameObjects.Graphics;
   private readonly fadingInk: Phaser.GameObjects.Graphics;
   private readonly confirmButton: Phaser.GameObjects.Container;
   private currentStroke: StrokePoint[] | undefined;
@@ -87,7 +90,10 @@ export class WritingPad {
         AREA_CORNER_RADIUS,
       );
     this.fadingInk = scene.add.graphics();
-    this.ink = scene.add.graphics();
+    this.ink = scene.add
+      .renderTexture(-slot.width / 2, -slot.height / 2, slot.width, slot.height)
+      .setOrigin(0, 0);
+    this.brush = scene.make.graphics({}, false);
     this.area = scene.add.container(slot.x, slot.y, [background, this.fadingInk, this.ink]);
     this.area.setSize(slot.width, slot.height).setInteractive();
     this.area.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.onPointerDown(pointer));
@@ -122,6 +128,8 @@ export class WritingPad {
     this.scene.input.off('pointermove', this.onPointerMove, this);
     this.scene.input.off('pointerup', this.onPointerUp, this);
     this.scene.input.off('pointerupoutside', this.onPointerUp, this);
+    this.scene.tweens.killTweensOf(this.fadingInk);
+    this.brush.destroy();
     for (const object of this.objects) {
       this.scene.tweens.killTweensOf(object);
       object.destroy();
@@ -149,7 +157,10 @@ export class WritingPad {
       return;
     }
     this.currentStroke.push(point);
-    this.drawInk();
+    // Jen nový úsek, celý zápis se nepřekresluje.
+    if (last) {
+      this.paintStrokes([[last, point]]);
+    }
   }
 
   private onPointerUp(pointer: Phaser.Input.Pointer): void {
@@ -162,12 +173,17 @@ export class WritingPad {
     this.drawInk();
   }
 
-  /** Bod prstu v souřadnicích plochy: levý horní roh je 0, 0. */
+  /**
+   * Bod prstu v souřadnicích plochy: levý horní roh je 0, 0. Prst mimo
+   * plochu se přitáhne k jejímu okraji, takže tah nepřeleze přes tlačítka.
+   */
   private toAreaPoint(pointer: Phaser.Input.Pointer): StrokePoint {
     const slot = this.layout.writingArea;
+    const x = pointer.worldX - (slot.x - slot.width / 2);
+    const y = pointer.worldY - (slot.y - slot.height / 2);
     return {
-      x: pointer.worldX - (slot.x - slot.width / 2),
-      y: pointer.worldY - (slot.y - slot.height / 2),
+      x: Phaser.Math.Clamp(x, 0, slot.width),
+      y: Phaser.Math.Clamp(y, 0, slot.height),
     };
   }
 
@@ -202,7 +218,8 @@ export class WritingPad {
   private startFading(strokes: readonly Stroke[]): void {
     this.scene.tweens.killTweensOf(this.fadingInk);
     this.fadingInk.clear().setAlpha(1);
-    this.drawStrokes(this.fadingInk, strokes);
+    const slot = this.layout.writingArea;
+    this.drawStrokes(this.fadingInk, strokes, -slot.width / 2, -slot.height / 2);
     this.scene.tweens.add({
       targets: this.fadingInk,
       alpha: 0,
@@ -212,18 +229,29 @@ export class WritingPad {
     });
   }
 
+  /** Překreslí celý zápis (po smazání, odmítnutí nebo konci tahu). */
   private drawInk(): void {
     this.ink.clear();
     const strokes = this.currentStroke
       ? [...writtenStrokes(this.round), this.currentStroke]
       : writtenStrokes(this.round);
-    this.drawStrokes(this.ink, strokes);
+    this.paintStrokes(strokes);
   }
 
-  private drawStrokes(graphics: Phaser.GameObjects.Graphics, strokes: readonly Stroke[]): void {
-    const slot = this.layout.writingArea;
-    const left = -slot.width / 2;
-    const top = -slot.height / 2;
+  /** Domaluje tahy do textury zápisu. */
+  private paintStrokes(strokes: readonly Stroke[]): void {
+    this.brush.clear();
+    this.drawStrokes(this.brush, strokes, 0, 0);
+    this.ink.draw(this.brush);
+  }
+
+  /** Tahy v souřadnicích plochy, posunuté o `left`, `top`. */
+  private drawStrokes(
+    graphics: Phaser.GameObjects.Graphics,
+    strokes: readonly Stroke[],
+    left: number,
+    top: number,
+  ): void {
     graphics.lineStyle(INK_WIDTH, INK_COLOR, 1).fillStyle(INK_COLOR, 1);
 
     for (const stroke of strokes) {

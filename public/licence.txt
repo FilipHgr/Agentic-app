@@ -1,0 +1,8 @@
+Zdroje třetích stran ve hře
+
+Rozpoznávání číslic psaných prstem používá vzory upravené z datové sady:
+E. Alpaydin, F. Alimoglu, „Pen-Based Recognition of Handwritten Digits“,
+UCI Machine Learning Repository, https://doi.org/10.24432/C5MG6K
+Licence: CC BY 4.0, https://creativecommons.org/licenses/by/4.0/
+Úprava: použita trénovací část sady (30 pisatelů), 200 vzorů od každé číslice,
+převedených na formát pro hru.
