@@ -199,12 +199,10 @@ function simulateNotch(safeArea) {
     const { top, right, bottom, left } = safeArea;
     style.textContent =
       `#safe-area-probe { padding: ${top}px ${right}px ${bottom}px ${left}px !important; }` +
-      `#settings-button { top: ${top + 12}px !important; right: ${right + 12}px !important; }` +
       '.notch { position: fixed; background: #000; z-index: 1000; pointer-events: none; }' +
       // Po otočení na výšku je výřez nahoře a lišta dole (jako iPhone na výšku).
       '@media (orientation: portrait) {' +
       `  #safe-area-probe { padding: ${left}px 0 ${bottom + 13}px 0 !important; }` +
-      `  #settings-button { top: ${left + 12}px !important; right: 12px !important; }` +
       '  .notch { display: none; }' +
       '}';
     document.head.append(style);

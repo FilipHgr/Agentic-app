@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
 
-import { gameAreaFor } from './logic/deviceLayout';
+import { gameAreaFor, settingsGearFor } from './logic/deviceLayout';
+import type { Viewport } from './logic/deviceLayout';
 import { PAGE_BACKGROUND } from './logic/theme';
 import { GameScene } from './scenes/GameScene';
+import { applySettingsGear } from './ui/settingsGear';
 import {
   GAME_AREA_KEY,
   hasSameLayout,
@@ -16,6 +18,15 @@ let area = gameAreaFor(readViewport());
 if (parent) {
   placeGameParent(parent, area);
 }
+
+/** Kolečko nastavení: na telefonu menší, na iPadu jako dřív (#55). */
+const settingsButton = document.getElementById('settings-button');
+function placeSettingsGear(viewport: Viewport): void {
+  if (settingsButton) {
+    applySettingsGear(settingsButton, settingsGearFor(viewport));
+  }
+}
+placeSettingsGear(readViewport());
 
 /**
  * Herní plocha podle okna (#54): na iPadu a v ostatních oknech pevně
@@ -46,7 +57,9 @@ game.registry.set(GAME_AREA_KEY, area);
  * se překreslí jen při jiném rozložení, jinak se plocha jen posune.
  */
 watchViewport(() => {
-  const next = gameAreaFor(readViewport());
+  const viewport = readViewport();
+  placeSettingsGear(viewport);
+  const next = gameAreaFor(viewport);
   const layoutChanged = !hasSameLayout(next, area);
   area = next;
   if (parent) {
