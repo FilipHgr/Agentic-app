@@ -14,6 +14,11 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-03 Odpovídej stručně.
 - 2026-11-03 Vlastník hru zkouší i na telefonu (iPhone se Safari, Samsung
   s Chromem), nejen na iPadu.
+- 2026-11-04 Noční práce: večer vlastník schválí 2–3 issues (u vzhledu po
+  obrázcích), Claude je v noci udělá celé včetně kontrol, commitu a pushe do
+  sprintu. Otázku, kterou musí rozhodnout vlastník, Claude neodhaduje, úkol
+  odloží a pokračuje dalším. Ráno shrnutí s náhledem.
+- 2026-11-04 Číselník do 20 na telefonu na výšku je 5 × 5 (#56).
 
 ## Hra
 
