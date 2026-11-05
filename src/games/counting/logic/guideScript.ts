@@ -6,6 +6,7 @@
  */
 
 import { countingTexts } from '../texts/countingTexts';
+import type { CountingTexts } from '../texts/countingTexts';
 import type { SettingsRowKind } from './settingsLayout';
 import type { GuideStep } from './setupGuide';
 
@@ -40,7 +41,15 @@ export function spokenText(line: GuideLine): string {
   return `${line.lines[0]} ${line.lines[1]}`;
 }
 
-/** Věty pro skript, který vytváří nahrávky. */
-export function voiceSentences(): { id: GuideLineId; text: string }[] {
-  return GUIDE_SCRIPT.map((line) => ({ id: line.id, text: spokenText(line) }));
+/**
+ * Věty pro skript, který vytváří nahrávky: z textů zadaného jazyka (#66),
+ * bez zadání z textů aktuálního jazyka.
+ */
+export function voiceSentences(
+  texts: CountingTexts = countingTexts(),
+): { id: GuideLineId; text: string }[] {
+  return GUIDE_SCRIPT.map((line) => ({
+    id: line.id,
+    text: spokenText({ ...line, lines: texts.guideLines[line.id] }),
+  }));
 }

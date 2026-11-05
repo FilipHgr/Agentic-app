@@ -58,8 +58,11 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
   2. projdou testy textů (klíče, prázdné texty, vejde se do rozložení); běží
      pro každý jazyk se souborem textů, i mimo seznam, kontrola nahrávek jen
      pro jazyky ze seznamu,
-  3. vlastník u sebe vytvoří nahrávky skriptem `npm run voice` (až po úkolu
-     Skript na nahrávky po jazycích),
+  3. hlas jazyka (`voiceId`, `modelId`, `voiceSettings`) se zapíše do
+     oddílu jazyka v `tools/voice/voice.config.json`, vlastník u sebe vytvoří
+     nahrávky Počítání příkazem `npm run voice -- <jazyk>` (kód jazyka malými
+     písmeny přesně podle souboru textů, např. `npm run voice -- cs`) a hlas
+     doplní do `public/licence.txt`,
   4. jazyk se přidá do seznamu v `languages.ts` až s nahrávkami, v jednom
      commitu.
 - `npm run dev` vývojový server

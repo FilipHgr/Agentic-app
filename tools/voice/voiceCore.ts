@@ -3,6 +3,10 @@
  * ElevenLabs (#50). Bez Node API: síť, soubory a výpis dostane zvenku, takže
  * se testuje s napodobeným serverem a nikdy nevolá skutečnou síť.
  *
+ * Skript je po jazycích (#66): `npm run voice -- <jazyk>` vytvoří nahrávky
+ * Počítání jen zvoleného jazyka, jeho hlasem, do `public/voice/<jazyk>/counting/guide/`.
+ * Otisky jsou ve `fingerprints.json` v oddílu každého jazyka zvlášť.
+ *
  * Postup: stáhne nahrávky změněných vět, zkontroluje je a celkovou velikost,
  * a teprve když je vše v pořádku, zapíše nové nahrávky, smaže staré a uloží
  * otisky. Přerušení nebo chyba klíče tak nikdy nenechá rozpracovaný stav.
@@ -11,6 +15,16 @@
 import { readMp3FrameInfo } from './mp3Header';
 
 export const API_KEY_ENV = 'ELEVENLABS_API_KEY';
+
+/** Soubor s otisky nahrávek všech jazyků, každý jazyk ve vlastním oddílu. */
+export const MANIFEST_PATH = 'tools/voice/fingerprints.json';
+/** Nastavení hlasů, každý jazyk ve vlastním oddílu. */
+export const CONFIG_PATH = 'tools/voice/voice.config.json';
+/** Složka s texty Počítání, soubor jazyka se jmenuje podle kódu (`cs.ts`). */
+export const TEXTS_DIR = 'src/games/counting/texts';
+const RUN_COMMAND = 'npm run voice -- <jazyk>';
+/** Kód jazyka: jen malá písmena, přesně jako název souboru textů. */
+const LANGUAGE_FILE = /^([a-z]+)\.ts$/;
 
 /**
  * Formát, který si skript od serveru vyžádá: mp3, 44,1 kHz, 64 kbps.
@@ -44,16 +58,31 @@ export interface VoiceFiles {
   listFiles(dir: string): Promise<string[]>;
 }
 
-export interface MakeVoiceOptions {
-  readonly sentences: readonly VoiceSentence[];
-  readonly config: VoiceConfig;
+interface VoiceRunEnvironment {
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly fetch: (url: string, init: RequestInit) => Promise<Response>;
   readonly files: VoiceFiles;
-  readonly outputDir: string;
-  readonly manifestPath: string;
   readonly log: (line: string) => void;
   readonly signal?: AbortSignal;
+}
+
+export interface MakeVoiceOptions extends VoiceRunEnvironment {
+  /** Kód jazyka; určí složku nahrávek a oddíl otisků. */
+  readonly language: string;
+  readonly sentences: readonly VoiceSentence[];
+  readonly config: VoiceConfig;
+}
+
+/** Spuštění `npm run voice -- <jazyk>`. */
+export interface RunVoiceOptions extends VoiceRunEnvironment {
+  /** Argumenty příkazové řádky za `--`. */
+  readonly args: readonly string[];
+  /** Názvy souborů ve složce textů Počítání. */
+  readonly textFiles: readonly string[];
+  /** Obsah `voice.config.json`, ještě nezkontrolovaný. */
+  readonly voices: unknown;
+  /** Věty průvodce z textů Počítání v daném jazyce. */
+  readonly loadSentences: (language: string) => Promise<readonly VoiceSentence[]>;
 }
 
 export interface MakeVoiceResult {
@@ -67,6 +96,9 @@ export interface MakeVoiceResult {
 /** Otisky nahrávek podle id věty. */
 type Manifest = Record<string, string>;
 
+/** Celý soubor otisků: oddíl otisků podle kódu jazyka. */
+type ManifestFile = Record<string, unknown>;
+
 interface Download {
   readonly id: string;
   readonly bytes: Uint8Array;
@@ -78,6 +110,126 @@ type DownloadOutcome =
   | { readonly kind: 'failed'; readonly reason: string }
   | { readonly kind: 'keyRejected' }
   | { readonly kind: 'aborted' };
+
+/** Složka nahrávek průvodce Počítání v daném jazyce. */
+export function voiceDir(language: string): string {
+  // Druhá pojistka: do cesty smí jen kód jazyka z malých písmen.
+  if (!/^[a-z]+$/.test(language)) {
+    throw new Error(`Neplatný kód jazyka pro složku nahrávek: ${language}`);
+  }
+  return `public/voice/${language}/counting/guide`;
+}
+
+/**
+ * Zkontroluje zvolený jazyk a vytvoří jeho nahrávky. Při chybném spuštění
+ * vypíše jednu zprávu s příkazem, nic nezmění a server nevolá.
+ */
+export async function runVoiceCommand(options: RunVoiceOptions): Promise<MakeVoiceResult> {
+  const choice = chooseVoiceLanguage(options.args, options.textFiles, options.voices);
+  if (choice.kind === 'wrong') {
+    return stopped(options, choice.message);
+  }
+  try {
+    await removeLeftoverTemporaryFiles(options.files, voiceDir(choice.language));
+    const sentences = await options.loadSentences(choice.language);
+    return await makeVoice({
+      ...options,
+      language: choice.language,
+      sentences,
+      config: choice.config,
+    });
+  } catch (error) {
+    const key = (options.env[API_KEY_ENV] ?? '').trim();
+    return stopped(
+      options,
+      hideKey(`Skript skončil chybou: ${String(error)}. Nic jsem nezměnil.`, key),
+    );
+  }
+}
+
+type LanguageChoice =
+  | { readonly kind: 'ok'; readonly language: string; readonly config: VoiceConfig }
+  | { readonly kind: 'wrong'; readonly message: string };
+
+function chooseVoiceLanguage(
+  args: readonly string[],
+  textFiles: readonly string[],
+  voices: unknown,
+): LanguageChoice {
+  const withTexts = textLanguages(textFiles);
+  const runnable = withTexts.filter((language) => voiceOf(voices, language) !== null);
+  const wrong = (reason: string): LanguageChoice => ({
+    kind: 'wrong',
+    message: wrongRunMessage(reason, runnable),
+  });
+
+  if (args.length === 0) {
+    return wrong('Chybí jazyk.');
+  }
+  if (args.length > 1) {
+    return wrong('Zadej jen jeden jazyk.');
+  }
+  const language = args[0] ?? '';
+  if (!withTexts.includes(language)) {
+    return wrong(
+      `Jazyk „${language}“ nemá soubor textů Počítání v ${TEXTS_DIR} ` +
+        '(kód je malými písmeny přesně jako název souboru, třeba cs).',
+    );
+  }
+  const config = voiceOf(voices, language);
+  if (config === null) {
+    return wrong(`Jazyk ${language} nemá nastavený hlas v ${CONFIG_PATH}.`);
+  }
+  return { kind: 'ok', language, config };
+}
+
+function wrongRunMessage(reason: string, runnable: readonly string[]): string {
+  const languages = runnable.length > 0 ? runnable.join(', ') : 'zatím žádné';
+  return (
+    `${reason} Nic jsem nezměnil. Spusť skript s jedním jazykem: ${RUN_COMMAND}. ` +
+    `Jazyky, pro které jde skript spustit: ${languages}`
+  );
+}
+
+/** Kódy jazyků podle souborů textů (`cs.ts` → `cs`), seřazené. */
+function textLanguages(textFiles: readonly string[]): string[] {
+  return textFiles
+    .map((name) => LANGUAGE_FILE.exec(name)?.[1])
+    .filter((language): language is string => language !== undefined)
+    .sort();
+}
+
+/** Hlas jazyka z `voice.config.json`, nebo `null`, když chybí nebo je neúplný. */
+function voiceOf(voices: unknown, language: string): VoiceConfig | null {
+  if (!isRecord(voices) || !Object.hasOwn(voices, language)) {
+    return null;
+  }
+  const voice = voices[language];
+  if (
+    !isRecord(voice) ||
+    typeof voice.voiceId !== 'string' ||
+    voice.voiceId.trim() === '' ||
+    typeof voice.modelId !== 'string' ||
+    voice.modelId.trim() === '' ||
+    !isRecord(voice.voiceSettings)
+  ) {
+    return null;
+  }
+  return voice as unknown as VoiceConfig;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Dočasné soubory po tvrdém ukončení by build přibalil do hry, proto pryč. */
+async function removeLeftoverTemporaryFiles(files: VoiceFiles, dir: string): Promise<void> {
+  for (const name of await files.listFiles(dir)) {
+    if (name.endsWith('.tmp')) {
+      await files.deleteFile(`${dir}/${name}`);
+    }
+  }
+}
 
 /** Vytvoří nahrávky vět, které se od minula změnily. Nikdy nevyhodí výjimku. */
 export async function makeVoice(options: MakeVoiceOptions): Promise<MakeVoiceResult> {
@@ -102,11 +254,13 @@ export async function makeVoice(options: MakeVoiceOptions): Promise<MakeVoiceRes
 }
 
 async function run(options: MakeVoiceOptions, key: string): Promise<MakeVoiceResult> {
-  const { files, outputDir, sentences } = options;
+  const { files, language, sentences } = options;
+  const outputDir = voiceDir(language);
   if (options.signal?.aborted) {
     return stopped(options, 'Přerušeno. Nic jsem nezměnil.');
   }
-  const manifest = await readManifest(files, options.manifestPath);
+  const manifestFile = await readManifestFile(files);
+  const manifest = languageManifest(manifestFile, language);
   const manifestBefore = JSON.stringify(manifest);
   const skipped: string[] = [];
   const failed: string[] = [];
@@ -140,11 +294,11 @@ async function run(options: MakeVoiceOptions, key: string): Promise<MakeVoiceRes
     .map((name) => name.slice(0, -'.mp3'.length))
     .filter((id) => !wanted.has(id));
 
-  const total = await totalBytesAfterRun(options, downloads);
+  const total = await totalBytesAfterRun(options, outputDir, downloads);
   if (total > MAX_TOTAL_BYTES) {
     return stopped(
       options,
-      `Nahrávky by dohromady měly ${megabytes(total)} MB, víc než 1 MB. ` +
+      `Nahrávky jazyka ${language} by dohromady měly ${megabytes(total)} MB, víc než 1 MB. ` +
         'Nic jsem neuložil ani nesmazal, stažené nahrávky jsem zahodil.',
     );
   }
@@ -163,7 +317,8 @@ async function run(options: MakeVoiceOptions, key: string): Promise<MakeVoiceRes
     }
   }
   if (JSON.stringify(manifest) !== manifestBefore) {
-    await files.writeFile(options.manifestPath, encodeManifest(manifest));
+    const updated = { ...manifestFile, [language]: sortedManifest(manifest) };
+    await files.writeFile(MANIFEST_PATH, encodeManifestFile(updated));
   }
 
   const created = downloads.map((recording) => recording.id);
@@ -171,7 +326,10 @@ async function run(options: MakeVoiceOptions, key: string): Promise<MakeVoiceRes
     `Hotovo: vytvořeno ${created.length}, přeskočeno ${skipped.length}, ` +
       `smazáno ${obsolete.length}, selhalo ${failed.length}.`,
   );
-  options.log('Nezapomeň do public/licence.txt doplnit, odkud je hlas (ElevenLabs, jméno hlasu).');
+  options.log(
+    `Nezapomeň do public/licence.txt doplnit hlas jazyka ${language}: ` +
+      `odkud je (ElevenLabs), ID hlasu ${options.config.voiceId} a model ${options.config.modelId}.`,
+  );
   return { ok: failed.length === 0, created, skipped, deleted: obsolete, failed };
 }
 
@@ -230,14 +388,13 @@ function checkRecording(bytes: Uint8Array): DownloadOutcome {
 /** Velikost všech nahrávek, které by po běhu zůstaly: nové místo starých, smazané ne. */
 async function totalBytesAfterRun(
   options: MakeVoiceOptions,
+  outputDir: string,
   downloads: readonly Download[],
 ): Promise<number> {
   let total = 0;
   for (const sentence of options.sentences) {
     const fresh = downloads.find((recording) => recording.id === sentence.id);
-    const kept = fresh
-      ? null
-      : await options.files.readFile(recordingPath(options.outputDir, sentence.id));
+    const kept = fresh ? null : await options.files.readFile(recordingPath(outputDir, sentence.id));
     total += fresh?.bytes.length ?? kept?.length ?? 0;
   }
   return total;
@@ -251,34 +408,39 @@ async function fingerprintOf(text: string, config: VoiceConfig): Promise<string>
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function readManifest(files: VoiceFiles, path: string): Promise<Manifest> {
-  const raw = await files.readFile(path);
+/** Celý soubor otisků; oddíly ostatních jazyků se jen přenesou beze změny. */
+async function readManifestFile(files: VoiceFiles): Promise<ManifestFile> {
+  const raw = await files.readFile(MANIFEST_PATH);
   if (raw === null) {
     return {};
   }
   try {
     const parsed: unknown = JSON.parse(new TextDecoder().decode(raw));
-    return isManifest(parsed) ? { ...parsed } : {};
+    return isRecord(parsed) ? { ...parsed } : {};
   } catch {
     // Poškozené otisky: věty se vytvoří znovu, nic horšího se nestane.
     return {};
   }
 }
 
-function isManifest(value: unknown): value is Manifest {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.values(value).every((entry) => typeof entry === 'string')
-  );
+function languageManifest(manifestFile: ManifestFile, language: string): Manifest {
+  const section = Object.hasOwn(manifestFile, language) ? manifestFile[language] : undefined;
+  return isManifest(section) ? { ...section } : {};
 }
 
-function encodeManifest(manifest: Manifest): Uint8Array {
+function isManifest(value: unknown): value is Manifest {
+  return isRecord(value) && Object.values(value).every((entry) => typeof entry === 'string');
+}
+
+function encodeManifestFile(manifestFile: ManifestFile): Uint8Array {
   const sorted = Object.fromEntries(
-    Object.entries(manifest).sort(([a], [b]) => a.localeCompare(b)),
+    Object.entries(manifestFile).sort(([a], [b]) => a.localeCompare(b)),
   );
   return new TextEncoder().encode(`${JSON.stringify(sorted, null, 2)}\n`);
+}
+
+function sortedManifest(manifest: Manifest): Manifest {
+  return Object.fromEntries(Object.entries(manifest).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 function recordingPath(outputDir: string, id: string): string {
@@ -294,7 +456,7 @@ function hideKey(text: string, key: string): string {
   return key === '' ? text : text.split(key).join('***');
 }
 
-function stopped(options: MakeVoiceOptions, message: string): MakeVoiceResult {
+function stopped(options: Pick<VoiceRunEnvironment, 'log'>, message: string): MakeVoiceResult {
   options.log(message);
   return { ok: false, created: [], skipped: [], deleted: [], failed: [] };
 }

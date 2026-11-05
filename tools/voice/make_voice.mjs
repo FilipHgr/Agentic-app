@@ -1,17 +1,21 @@
 /* global console, process, fetch, AbortController */
 /**
- * Vytvoří nahrávky vět průvodce nastavením přes ElevenLabs (#50).
- * Spouští ho jen vlastník u sebe, nikdy CI, testy ani build.
+ * Vytvoří nahrávky vět průvodce nastavením Počítání přes ElevenLabs (#50),
+ * vždy pro jeden zvolený jazyk (#66). Spouští ho jen vlastník u sebe,
+ * nikdy CI, testy ani build.
  *
- * Spuštění:
- *   read -s ELEVENLABS_API_KEY && export ELEVENLABS_API_KEY && npm run voice
+ * Spuštění (např. pro češtinu jazyk cs):
+ *   read -s ELEVENLABS_API_KEY && export ELEVENLABS_API_KEY && npm run voice -- <jazyk>
  * (klíč se tak neuloží do historie příkazů)
  *
  * - Klíč se čte jen z proměnné prostředí a nikam se nezapisuje.
- * - Hlas a jeho nastavení jsou v tools/voice/voice.config.json.
- * - Zatím jen čeština: nahrávky se uloží do
- *   public/voice/cs/counting/guide/<id>.mp3 (nahrávky po jazycích, #65) a otisky do
- *   tools/voice/fingerprints.json. Věty beze změny se znovu neplatí.
+ * - Jazyk je kód z malých písmen přesně podle souboru textů
+ *   src/games/counting/texts/<jazyk>.ts, nemusí být v seznamu jazyků hry.
+ * - Hlas jazyka a jeho nastavení jsou v tools/voice/voice.config.json
+ *   v oddílu jazyka.
+ * - Nahrávky se uloží do public/voice/<jazyk>/counting/guide/<id>.mp3 a otisky
+ *   do oddílu jazyka v tools/voice/fingerprints.json. Věty beze změny se
+ *   znovu neplatí, ostatní jazyky zůstanou netknuté.
  *
  * Skript je v JavaScriptu, aby šel spustit bez další závislosti. Jádro
  * (voiceCore.ts) a scénář (src/games/counting/logic/guideScript.ts, věty
@@ -22,9 +26,9 @@ import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promise
 import { dirname } from 'node:path';
 import { createServer } from 'vite';
 
-const OUTPUT_DIR = 'public/voice/cs/counting/guide';
-const MANIFEST_PATH = 'tools/voice/fingerprints.json';
+// Cesty musí sedět s CONFIG_PATH a TEXTS_DIR ve voiceCore.ts.
 const CONFIG_PATH = 'tools/voice/voice.config.json';
+const TEXTS_DIR = 'src/games/counting/texts';
 
 /** Soubory na disku. Zápis jde přes dočasný soubor, takže přerušení nenechá půlku nahrávky. */
 const diskFiles = {
@@ -59,55 +63,34 @@ const diskFiles = {
   },
 };
 
-/** Dočasné soubory po tvrdém ukončení by build přibalil do hry, proto pryč. */
-async function removeLeftoverTemporaryFiles() {
-  for (const name of await diskFiles.listFiles(OUTPUT_DIR)) {
-    if (name.endsWith('.tmp')) {
-      await rm(`${OUTPUT_DIR}/${name}`, { force: true });
-    }
-  }
-}
-
-function isValidConfig(config) {
-  return (
-    typeof config === 'object' &&
-    config !== null &&
-    typeof config.voiceId === 'string' &&
-    typeof config.modelId === 'string' &&
-    typeof config.voiceSettings === 'object' &&
-    config.voiceSettings !== null
-  );
-}
-
 async function main() {
-  await removeLeftoverTemporaryFiles();
-  const config = JSON.parse(await readFile(CONFIG_PATH, 'utf8'));
-  if (!isValidConfig(config)) {
-    console.error(`V ${CONFIG_PATH} musí být voiceId a modelId (text) a voiceSettings (objekt).`);
-    process.exitCode = 1;
-    return;
-  }
+  const voices = JSON.parse(await readFile(CONFIG_PATH, 'utf8'));
+  const textFiles = await diskFiles.listFiles(TEXTS_DIR);
   const vite = await createServer({
     server: { middlewareMode: true, hmr: false },
     appType: 'custom',
     logLevel: 'silent',
   });
   try {
-    const { makeVoice } = await vite.ssrLoadModule('/tools/voice/voiceCore.ts');
+    const { runVoiceCommand } = await vite.ssrLoadModule('/tools/voice/voiceCore.ts');
     const { voiceSentences } = await vite.ssrLoadModule('/src/games/counting/logic/guideScript.ts');
 
     // Ctrl+C: rozpracovaná věta se zahodí, staré nahrávky i otisky zůstanou.
     const interrupt = new AbortController();
     process.once('SIGINT', () => interrupt.abort());
 
-    const result = await makeVoice({
-      sentences: voiceSentences(),
-      config,
+    const result = await runVoiceCommand({
+      args: process.argv.slice(2),
+      textFiles,
+      voices,
+      // Jazyk je už ověřený proti názvům souborů v TEXTS_DIR.
+      loadSentences: async (language) => {
+        const texts = await vite.ssrLoadModule(`/${TEXTS_DIR}/${language}.ts`);
+        return voiceSentences(texts.default);
+      },
       env: process.env,
       fetch,
       files: diskFiles,
-      outputDir: OUTPUT_DIR,
-      manifestPath: MANIFEST_PATH,
       log: (line) => console.log(line),
       signal: interrupt.signal,
     });

@@ -24,7 +24,7 @@ import type {
   GuideVoiceState,
 } from '../../../src/games/counting/logic/guideVoice';
 import { readMp3FrameInfo } from '../../../tools/voice/mp3Header';
-import { API_KEY_ENV, makeVoice } from '../../../tools/voice/voiceCore';
+import { API_KEY_ENV, makeVoice, voiceDir } from '../../../tools/voice/voiceCore';
 import type { VoiceConfig } from '../../../tools/voice/voiceCore';
 import makeVoiceScript from '../../../tools/voice/make_voice.mjs?raw';
 import fingerprintsJson from '../../../tools/voice/fingerprints.json?raw';
@@ -409,7 +409,7 @@ describe('#65 AC6: nahrávka, která se za běhu nestáhne', () => {
 
 describe('#65 AC6: npm run voice dál funguje pro češtinu a ukládá do nové složky', () => {
   it('skript ukládá nahrávky do public/voice/cs/counting/guide', () => {
-    expect(makeVoiceScript).toContain(`'${CZECH_VOICE_DIR}'`);
+    expect(voiceDir('cs')).toBe(CZECH_VOICE_DIR);
   });
 
   it('skript už neodkazuje na starou složku public/voice/guide', () => {
@@ -431,12 +431,11 @@ describe('#65 AC6: npm run voice dál funguje pro češtinu a ukládá do nové 
 
     const result = await makeVoice({
       sentences: voiceSentences(),
-      config: JSON.parse(voiceConfigJson) as VoiceConfig,
+      config: (JSON.parse(voiceConfigJson) as Record<string, VoiceConfig>).cs as VoiceConfig,
       env: { [API_KEY_ENV]: 'sk_test_jen_pro_test' },
       fetch: server.fetch,
       files,
-      outputDir: CZECH_VOICE_DIR,
-      manifestPath: MANIFEST_PATH,
+      language: 'cs',
       log: () => {},
     });
 

@@ -3,15 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { voiceSentences } from '../../../src/games/counting/logic/guideScript';
 import { API_KEY_ENV, makeVoice } from '../../../tools/voice/voiceCore';
 import type { MakeVoiceOptions, VoiceConfig, VoiceSentence } from '../../../tools/voice/voiceCore';
-import {
-  MANIFEST_PATH,
-  OUTPUT_DIR,
-  alwaysMp3,
-  fakeMp3,
-  fakeServer,
-  looksCzech,
-  memoryFiles,
-} from './voiceFakes';
+import { OUTPUT_DIR, alwaysMp3, fakeMp3, fakeServer, looksCzech, memoryFiles } from './voiceFakes';
 import type { FakeReply, FakeServer, MemoryFiles } from './voiceFakes';
 
 /**
@@ -68,8 +60,7 @@ async function runScript(
     env: { [API_KEY_ENV]: KEY },
     fetch: server.fetch,
     files,
-    outputDir: OUTPUT_DIR,
-    manifestPath: MANIFEST_PATH,
+    language: 'cs',
     log: (line) => log.push(line),
     ...overrides,
   });
