@@ -30,7 +30,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-02 Hvězdička se dává za každý vyřešený příklad, i s nápovědou. Po
   deseti přijde oslava (#31).
 - 2026-11-02 Sovička se ruší. Hlavní postavičky jsou Hvězdík, Robík
-  a Plamínek, střídají se po každé oslavě a začíná Hvězdík (#33).
+  a Plamínek, střídají se po každé oslavě a začíná Hvězdík (#33). (nahrazeno)
 - 2026-11-03 Hra na celou obrazovku a rozložení na výšku: implementace se
   vlastníkovi nelíbila, vráceno a odloženo (#34). Znovu nenavrhovat bez
   upřesnění od vlastníka. (nahrazeno)
@@ -119,3 +119,17 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-05 Nastavení pro rodiče (kolečko) má každá hra vlastní, menu
   nastavení nemá. Dnešní hra se jmenuje „Počítání“. Rozšíření se dělá
   v novém sprintu 3, který se založí až po sloučení PR sprintu 2.
+- 2026-11-05 Postavičky (Hvězdík, Robík, Plamínek) se z celého projektu
+  odstraní. V Počítání místo nich nic, příklad se zvětší, oslava jen
+  s konfetami. Nahrazuje rozhodnutí z #33 a pravidlo o postavičkách v CLAUDE.md.
+- 2026-11-05 Úvodní menu bude robustní a her bude hodně: výběr her, profily,
+  jazyk a zatím neurčené další volby (v menu jen jako zástupné prvky).
+- 2026-11-05 Profil dítěte: přezdívka (nemusí být skutečné jméno) a barva
+  nebo obrázek, uložené jen v zařízení. Každý profil má vlastní postup
+  a nastavení her.
+- 2026-11-05 Víc jazyků: připravit prostředí, aby šlo snadno přidávat texty
+  i nahrávky dalších jazyků. Výjimka z „texty ve hře česky“ v CLAUDE.md.
+- 2026-11-05 Vlastník plánuje paywall a předplatné. Projekt se má připravit,
+  aby šlo předplatné spravovat (které hry jsou odemčené). Skutečné placení
+  zatím ne: potřebuje cizí službu a změnu pravidel o soukromí v CLAUDE.md,
+  rozhodne se samostatně.
