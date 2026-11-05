@@ -113,3 +113,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-05 Vlastník nechává: na telefonu na výšku vyhrazené místo pro
   nápovědu i bez nápovědy (#56), čísla ve volbách nastavení netučná (#59)
   a okénko na psaní po výpadku stahování až od dalšího příkladu (#58).
+- 2026-11-05 Rozšíření projektu: úvodní menu s výběrem her. Hry jsou
+  samostatné části (vlastní kód i testy, navzájem se neovlivňují), společné
+  věci ve sdílené části. Práce na menu nebo nové hře pouští jen její testy.
+- 2026-11-05 Nastavení pro rodiče (kolečko) má každá hra vlastní, menu
+  nastavení nemá. Dnešní hra se jmenuje „Počítání“. Rozšíření se dělá
+  v novém sprintu 3, který se založí až po sloučení PR sprintu 2.
