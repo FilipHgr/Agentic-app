@@ -5,9 +5,11 @@
  * telefonu na výšku řada) a vedle nebo pod nimi mřížka dlaždic.
  * Čistý TypeScript bez Phaseru.
  *
- * Místa pro profil a jazyk jsou v rozložení už dnes, i když zůstanou
- * prázdná, aby se dlaždice po doplnění profilů (#71) a jazyka (#70)
- * neposunuly.
+ * Místa pro profil a jazyk mají pevnou velikost, aby se dlaždice podle
+ * profilu (#71) a jazyka (#70) neposouvaly.
+ *
+ * Profil (#71): kolečko 64 px v levém horním rohu místa pro profil, vedle
+ * něj přezdívka. Na telefonu na výšku a bez přezdívky je jen kolečko.
  *
  * Posouvání (#69): mřížka a kategorie mají každá svou viditelnou plochu,
  * mimo kterou se obsah ořízne, a největší posun. Polohy dlaždic
@@ -75,9 +77,22 @@ export interface MenuLanguagePanel {
   readonly checkWidth: number;
 }
 
+/** Kolečko profilu a přezdívka vedle něj (#71). */
+export interface MenuProfileBadgeLayout {
+  /** Ťukací plocha kolečka (64 × 64 px), kolečko se kreslí uprostřed. */
+  readonly circle: MenuBox;
+  /** Plocha přezdívky vpravo od kolečka; `null` bez přezdívky a na telefonu na výšku. */
+  readonly label: MenuBox | null;
+  readonly symbolFontSize: number;
+  readonly labelFontSize: number;
+  /** Odsazení přezdívky od levého okraje její plochy. */
+  readonly labelInset: number;
+}
+
 export interface MenuLayout {
   readonly mode: LayoutMode;
   readonly profileSlot: MenuBox;
+  readonly profileBadge: MenuProfileBadgeLayout;
   readonly languageSlot: MenuBox;
   /** Písmo zkratky jazyka na tlačítku (#70). */
   readonly languageButtonFontSize: number;
@@ -112,6 +127,8 @@ export interface MenuContent {
   readonly allTileCount?: number;
   /** Vlastní názvy jazyků v pořadí nabídky (#70); bez nich je panel prázdný. */
   readonly languageNames?: readonly string[];
+  /** Přezdívka aktivního profilu (#71); `null` nebo bez zadání = bez přezdívky. */
+  readonly profileNickname?: string | null;
 }
 
 /** Odhad šířky textu jako v #65: znaky × 0,6 × velikost písma. */
@@ -248,6 +265,11 @@ const LANGUAGE_PANEL_EDGE = 8;
  * jeho názvu a bylo poznat, že seznam pokračuje (pravidlo z #69: 20–60 %).
  */
 const LANGUAGE_ROW_PEEK = 0.55;
+
+/** Kolečko profilu (#71): písmeno jako na obrázku palety, přezdívka jako kategorie. */
+const PROFILE_SYMBOL_FONT_SIZE = 22;
+const PROFILE_LABEL_FONT_SIZE = 17;
+const PROFILE_LABEL_INSET = 8;
 
 /** Volná plocha okna v CSS px (bez výřezu a lišty domů). */
 function freeAreaOf(viewport: Viewport | undefined): MenuBox {
@@ -491,6 +513,28 @@ function maxOffsetFor(contentEnd: number, viewportEnd: number, scrolledEnd: numb
   return contentEnd > viewportEnd ? contentEnd - scrolledEnd : 0;
 }
 
+/**
+ * Kolečko v levém horním rohu místa pro profil, přezdívka ve zbytku místa
+ * vpravo od něj. Na telefonu na výšku je místo jen pro kolečko.
+ */
+function profileBadgeFor(
+  mode: LayoutMode,
+  slot: MenuBox,
+  nickname: string | null,
+): MenuProfileBadgeLayout {
+  const circle = boxAt(slot.left, slot.top, BUTTON_SIZE, BUTTON_SIZE);
+  const hasLabel = nickname !== null && nickname !== '' && mode !== 'phonePortrait';
+  return {
+    circle,
+    label: hasLabel
+      ? { left: circle.right, right: slot.right, top: slot.top, bottom: slot.bottom }
+      : null,
+    symbolFontSize: PROFILE_SYMBOL_FONT_SIZE,
+    labelFontSize: PROFILE_LABEL_FONT_SIZE,
+    labelInset: PROFILE_LABEL_INSET,
+  };
+}
+
 /** Výška viditelné části seznamu: celý, nebo celé řady a 55 % další. */
 function languageListHeight(count: number, available: number): number {
   const step = BUTTON_SIZE + LANGUAGE_ROW_GAP;
@@ -677,6 +721,7 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
   return {
     mode,
     profileSlot,
+    profileBadge: profileBadgeFor(mode, profileSlot, content.profileNickname ?? null),
     languageSlot,
     languageButtonFontSize: LANGUAGE_BUTTON_FONT_SIZE,
     languagePanel: languagePanelFor(free, languageSlot, content.languageNames ?? []),

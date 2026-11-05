@@ -9,12 +9,19 @@ import {
   loadSettingsState,
   saveSettings,
 } from '../../../src/games/counting/storage/settingsStorage';
+import { COUNTING_META } from '../../../src/games/counting/meta';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
+import { openProfiles } from '../../../src/shared/storage/profileStorage';
 
 /**
  * Testy k #64, AC5: po rozdělení na sdílenou část a Počítání dítě
- * pokračuje, kde skončilo. Hra čte stejné klíče úložiště jako ve sprintu 2
- * a záznamy uložené starší verzí hry načte beze změny.
+ * pokračuje, kde skončilo. Úložiště Počítání čte stejné klíče hry jako ve
+ * sprintu 2 a záznamy uložené starší verzí hry načte beze změny.
+ *
+ * #71: od profilů dostane Počítání úložiště aktivního profilu, které klíče
+ * hry uloží s předponou profilu. Staré klíče v zařízení se přenesou do
+ * výchozího profilu a zůstanou beze změny; přenos testuje
+ * `tests/games/counting/profiles.test.ts`.
  */
 
 const SETTINGS_KEY = 'agentic-app.settings';
@@ -81,18 +88,29 @@ describe('AC5: dítě po aktualizaci pokračuje, kde skončilo', () => {
     expect(loadProgress(storage)).toEqual(START_PROGRESS);
   });
 
-  it('nastavení i postup se ukládají pod stejné klíče jako dřív', () => {
+  it('nastavení i postup se ukládají k profilu a staré klíče zůstanou beze změny (#71)', () => {
     const storage = storageWith({});
+    const store = openProfiles(storage);
+    const before = new Map(storage.data);
+    const profileStorage = store.gameStorage(COUNTING_META.id);
 
-    saveSettings(storage, { maxNumber: 20, operations: 'minus', answerInput: 'writing' });
-    saveProgress(storage, { earned: 3 });
+    saveSettings(profileStorage, { maxNumber: 20, operations: 'minus', answerInput: 'writing' });
+    saveProgress(profileStorage, { earned: 3 });
 
-    expect([...storage.data.keys()].sort()).toEqual([PROGRESS_KEY, SETTINGS_KEY]);
-    expect(loadSettingsState(storage).settings).toEqual({
+    const added = [...storage.data.keys()].filter((key) => !before.has(key));
+    expect(added).toHaveLength(2);
+    for (const key of added) {
+      expect(key).toContain(store.activeProfile().id);
+    }
+    expect(storage.data.has(SETTINGS_KEY)).toBe(false);
+    expect(storage.data.has(PROGRESS_KEY)).toBe(false);
+    expect(loadSettingsState(profileStorage).settings).toEqual({
       maxNumber: 20,
       operations: 'minus',
       answerInput: 'writing',
     });
-    expect(loadProgress(storage)).toEqual({ earned: 3 });
+    expect(loadProgress(openProfiles(storage).gameStorage(COUNTING_META.id))).toEqual({
+      earned: 3,
+    });
   });
 });

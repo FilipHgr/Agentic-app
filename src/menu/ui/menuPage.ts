@@ -16,6 +16,7 @@ import { unlockSharedAudio } from '../../shared/audio/sharedAudio';
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
 import { chooseSubscriptionSource } from '../../shared/logic/subscriptionSource';
 import { PAGE_BACKGROUND } from '../../shared/logic/theme';
+import type { ProfileStore } from '../../shared/storage/profileStorage';
 import { currentLanguage } from '../../shared/texts/languages';
 import { readViewport, watchViewport } from '../../shared/ui/viewport';
 import { createMenu } from '../logic/menu';
@@ -31,6 +32,8 @@ import { showPageLanguage } from './pageLanguage';
 export interface MenuPageOptions {
   readonly games: readonly GameEntry[];
   readonly categories: readonly GameCategory[];
+  /** Profily zařízení (#71): kolečko v menu a úložiště spuštěné hry. */
+  readonly profiles: ProfileStore;
 }
 
 /** Text menu v aktuálním jazyce. */
@@ -110,8 +113,10 @@ export function startMenuPage(options: MenuPageOptions): void {
         closeMenu: () => view.close?.(),
         returnToMenu: () => menu.returnFromGame(),
         subscription: chooseSubscriptionSource(),
+        gameStorage: (gameId) => options.profiles.gameStorage(gameId),
       }),
     feedback: (event) => view.scene?.play(event),
+    profile: () => options.profiles.activeProfile(),
     onStarted: () => showPageState(menu),
     onReturned: () => {
       showPageState(menu);
@@ -133,6 +138,7 @@ export function startMenuPage(options: MenuPageOptions): void {
       tileCount: menu.tiles().length,
       allTileCount,
       languageNames: menu.languages().map((language) => language.name),
+      profileNickname: menu.profileBadge().nickname,
     });
   // Posun mřížky a kategorií žije s menu po celé načtení stránky, takže
   // po návratu z hry zůstane, jak ho dítě nechalo (#69 AC5).

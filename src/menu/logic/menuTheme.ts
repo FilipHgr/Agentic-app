@@ -22,6 +22,10 @@ export const MENU_STYLE = {
   languageButtonBackground: WHITE,
   languageButtonText: '#6E6E73',
   languageButtonShadowAlpha: 0.06,
+  /** Profil (#71): bílý podklad jako tlačítko jazyka, bílé písmeno, tmavá přezdívka. */
+  profileBackground: WHITE,
+  profileSymbol: WHITE,
+  profileNickname: TEXT,
   /** Panel nabídky jazyků: bílá karta se stínem nad mřížkou. */
   languagePanelBackground: WHITE,
   languagePanelShadowAlpha: 0.08,

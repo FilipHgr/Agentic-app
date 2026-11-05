@@ -96,7 +96,7 @@ function tapAreas(layout: MenuLayout): Array<{ name: string; box: Box }> {
   ];
 }
 
-/** Všechno v menu i s místy pro profil a jazyk, která dnes zůstanou prázdná. */
+/** Všechno v menu i s místy pro profil (#71) a jazyk (#70). */
 function allElements(layout: MenuLayout): Array<{ name: string; box: Box }> {
   return [
     { name: 'místo pro profil', box: layout.profileSlot },

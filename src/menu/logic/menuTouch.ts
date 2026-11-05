@@ -73,6 +73,7 @@ type TapTarget =
   | { readonly kind: 'tile'; readonly gameId: string }
   | { readonly kind: 'category'; readonly categoryId: string }
   | { readonly kind: 'placeholder'; readonly index: number }
+  | { readonly kind: 'profile' }
   | { readonly kind: 'languageButton' }
   | { readonly kind: 'language'; readonly language: string }
   /** Ťuknutí mimo otevřenou nabídku jazyků. */
@@ -251,6 +252,10 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
     if (contains(layout.languageSlot, point)) {
       return { target: { kind: 'languageButton' } };
     }
+    const badge = layout.profileBadge;
+    if (contains(badge.circle, point) || (badge.label !== null && contains(badge.label, point))) {
+      return { target: { kind: 'profile' } };
+    }
     const index = layout.placeholders.findIndex((box) => contains(box, point));
     return index < 0 ? {} : { target: { kind: 'placeholder', index } };
   }
@@ -270,6 +275,9 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
       }
       case 'placeholder':
         menu.tapPlaceholder(target.index);
+        break;
+      case 'profile':
+        menu.tapProfile();
         break;
       case 'languageButton':
         menu.tapLanguageButton();
@@ -414,6 +422,7 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
         case 'language':
           return target;
         case 'placeholder':
+        case 'profile':
         case 'languageButton':
         case 'outsideLanguageMenu':
           return undefined;

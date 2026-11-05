@@ -22,6 +22,8 @@ const LANGUAGE_PANEL_RADIUS = 20;
 const LANGUAGE_ROW_RADIUS = 14;
 /** Jak daleko od karty nabídky sahá její stín (px). */
 const LANGUAGE_PANEL_SHADOW = 6;
+/** Barevné kolečko profilu je 48 px v bílém kolečku 64 px (obrázek palety, #71). */
+const PROFILE_COLOR_INSET = 8;
 
 const PRESS = { scale: 0.94, durationMs: 70 };
 /** Zmáčknutí hned po dotyku prstem, ještě před zvednutím (#69). */
@@ -69,6 +71,8 @@ export class MenuScene extends Phaser.Scene {
   private categories = new Map<string, Tappable>();
   private placeholders: Tappable[] = [];
   private languageButton: Tappable | undefined;
+  private profileBadge: Tappable | undefined;
+  private profileWobbleAngle = WOBBLE.angle;
   private languageRows = new Map<string, Tappable>();
   private drawn: Phaser.GameObjects.GameObject[] = [];
   /** Nakreslená nabídka jazyků; překresluje se zvlášť od zbytku menu. */
@@ -265,6 +269,7 @@ export class MenuScene extends Phaser.Scene {
     this.tiles = new Map();
     this.categories = new Map();
     this.placeholders = [];
+    this.profileBadge = undefined;
     this.drawnSelection = this.selectedCategoryId();
 
     const layout = this.host.layout();
@@ -274,6 +279,7 @@ export class MenuScene extends Phaser.Scene {
     this.fitCamera(this.categoryCamera, layout.categoryScroll.clip);
     this.fitCamera(this.panelCamera, layout.languagePanel.panel, LANGUAGE_PANEL_SHADOW);
     this.fitCamera(this.languageCamera, layout.languagePanel.list.clip);
+    this.drawProfileBadge(layout);
     this.drawLanguageButton(layout, layout.languageSlot);
     layout.placeholders.forEach((box, index) => this.drawPlaceholder(layout, box, index));
     const categories = this.host.menu.categories();
@@ -326,6 +332,8 @@ export class MenuScene extends Phaser.Scene {
         this.playSound(MENU_SOUNDS.wobble);
         if (event.target.kind === 'placeholder') {
           this.wobble(this.placeholders[event.target.index], WOBBLE.angle);
+        } else if (event.target.kind === 'profile') {
+          this.wobble(this.profileBadge, this.profileWobbleAngle);
         } else {
           this.wobble(this.categories.get(event.target.categoryId), CATEGORY_WOBBLE_ANGLE);
         }
@@ -373,6 +381,81 @@ export class MenuScene extends Phaser.Scene {
       fontStyle,
       color,
     });
+  }
+
+  /** Bílý podklad se stínem jako tlačítko jazyka: kolečko, nebo pilulka s přezdívkou. */
+  private drawProfileBackground(width: number, height: number): Phaser.GameObjects.Graphics {
+    const unit = MENU_UNITS_PER_CSS_PX;
+    const radius = height / 2;
+    const background = this.add.graphics();
+    for (const spread of [3, 1]) {
+      background
+        .fillStyle(0x000000, MENU_STYLE.languageButtonShadowAlpha)
+        .fillRoundedRect(
+          -width / 2 - spread * unit,
+          -height / 2 - spread * unit + 1.5 * unit,
+          width + 2 * spread * unit,
+          height + 2 * spread * unit,
+          radius + spread * unit,
+        );
+    }
+    background
+      .fillStyle(colorNumber(MENU_STYLE.profileBackground), 1)
+      .fillRoundedRect(-width / 2, -height / 2, width, height, radius);
+    return background;
+  }
+
+  /**
+   * Kolečko aktivního profilu (obrázek B, #71): v bílém podkladu barevné
+   * kolečko s bílým tučným písmenem (bez přezdívky ★), vedle přezdívka.
+   */
+  private drawProfileBadge(layout: MenuLayout): void {
+    const badge = this.host.menu.profileBadge();
+    const { circle, label } = layout.profileBadge;
+    const area: MenuBox =
+      label === null ? circle : { ...circle, right: label.right, bottom: label.bottom };
+    const item = this.tappable(area, this.barLayer);
+    const unit = MENU_UNITS_PER_CSS_PX;
+    const width = (area.right - area.left) * unit;
+    const height = (area.bottom - area.top) * unit;
+    const background = this.drawProfileBackground(width, height);
+
+    const circleX = ((circle.left + circle.right) / 2 - (area.left + area.right) / 2) * unit;
+    const circleY = ((circle.top + circle.bottom) / 2 - (area.top + area.bottom) / 2) * unit;
+    const colorRadius = ((circle.right - circle.left) / 2 - PROFILE_COLOR_INSET) * unit;
+    const colored = this.add.graphics();
+    colored.fillStyle(colorNumber(badge.color), 1).fillCircle(circleX, circleY, colorRadius);
+    const symbol = this.text(
+      badge.symbol,
+      layout.profileBadge.symbolFontSize,
+      MENU_STYLE.profileSymbol,
+      'bold',
+    ).setOrigin(0.5);
+    symbol.setPosition(circleX, circleY);
+    item.container.add([background, colored, symbol]);
+
+    if (label !== null && badge.nickname !== null) {
+      const nickname = this.text(
+        badge.nickname,
+        layout.profileBadge.labelFontSize,
+        MENU_STYLE.profileNickname,
+      ).setOrigin(0, 0.5);
+      nickname.x =
+        (label.left - (area.left + area.right) / 2 + layout.profileBadge.labelInset) * unit;
+      // Odhad šířky (#65) počítá 0,6 písma na znak, široká písmena (W) jsou
+      // ale širší. Přezdívka, která se skutečně nevejde, se zmenší. Vpravo
+      // zůstane místo aspoň na poloměr pilulky, aby text nesahal do oblouku.
+      const rightInset = (area.bottom - area.top) / 2;
+      const available =
+        (label.right - label.left - layout.profileBadge.labelInset - rightInset) * unit;
+      if (nickname.width > available) {
+        nickname.setScale(available / nickname.width);
+      }
+      item.container.add(nickname);
+    }
+    this.profileBadge = item;
+    // Široká pilulka se zhoupne méně, jako kategorie.
+    this.profileWobbleAngle = label === null ? WOBBLE.angle : CATEGORY_WOBBLE_ANGLE;
   }
 
   /** Plné bílé kolečko se stínem a zkratkou jazyka (obrázek B, #70). */

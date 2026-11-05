@@ -32,6 +32,13 @@ import { createServer, preview } from 'vite';
 const require = createRequire(import.meta.url);
 const outputDir = process.argv[2] ?? 'snimky';
 
+/**
+ * Postup Počítání výchozího profilu (#71). Nástroj začíná s prázdným
+ * úložištěm, takže hra ukládá do výchozího profilu s označením `default`
+ * (`DEFAULT_PROFILE_ID` v `src/shared/logic/profiles.ts`).
+ */
+const PROGRESS_KEY = 'agentic-app.profile.default.counting.agentic-app.progress';
+
 /** Herní plocha má pevně 1024 × 768 a na obrazovce se jen zmenší nebo zvětší. */
 const GAME_WIDTH = 1024;
 const GAME_HEIGHT = 768;
@@ -353,10 +360,10 @@ async function shootPhone(browser, url, device, layoutModule) {
   const keypad = layoutModule.layoutPhoneScreen(map.area, 11, 10);
   const wrong = map.game(keypad.answerButtons[10]);
   const earnedStar = () =>
-    page.evaluate(() => {
-      const saved = localStorage.getItem('agentic-app.progress');
+    page.evaluate((key) => {
+      const saved = localStorage.getItem(key);
       return saved !== null && !saved.includes('"earned":0');
-    });
+    }, PROGRESS_KEY);
   // Když 10 náhodou správná odpověď byla, přijde další příklad a zkusí se znovu.
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await tapAt(page, wrong);
@@ -364,7 +371,7 @@ async function shootPhone(browser, url, device, layoutModule) {
     if (!(await earnedStar())) {
       break;
     }
-    await page.evaluate(() => localStorage.removeItem('agentic-app.progress'));
+    await page.evaluate((key) => localStorage.removeItem(key), PROGRESS_KEY);
     await page.waitForTimeout(1000);
   }
   await tapAt(page, wrong);
@@ -463,9 +470,7 @@ async function shootPhoneCelebration(browser, url, device, layoutModule) {
   const keypad = layoutModule.layoutPhoneScreen(map.area, 11, 10);
   const five = map.game(keypad.answerButtons[5]);
   const starEarned = () =>
-    page.evaluate(() =>
-      (localStorage.getItem('agentic-app.progress') ?? '').includes('"earned":10'),
-    );
+    page.evaluate((key) => (localStorage.getItem(key) ?? '').includes('"earned":10'), PROGRESS_KEY);
 
   for (let attempt = 0; attempt < 40; attempt += 1) {
     await page.goto(url);

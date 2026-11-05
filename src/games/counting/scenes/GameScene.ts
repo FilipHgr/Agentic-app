@@ -6,7 +6,6 @@ import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
 import type { GameHost } from '../../../shared/logic/gameHost';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
-import { browserStorage } from '../../../shared/storage/keyValueStorage';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import type { TapOutcome } from '../logic/answerRound';
 import { createCountingSession } from '../logic/countingSession';
@@ -91,7 +90,8 @@ export class GameScene extends Phaser.Scene {
     });
     const host = this.readHost();
     const session = createCountingSession({
-      storage: browserStorage(),
+      // Úložiště aktivního profilu od stránky (#71); bez stránky jen paměť.
+      storage: host?.storage,
       random: Math.random,
       sounds: this.sounds,
       voice: { stop: () => this.panels.stopVoice() },

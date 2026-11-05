@@ -6,11 +6,13 @@
  * vyhodí výjimku a menu nechá dítě v menu se zatřesením. Rozehranou hru
  * pozdější změna stavu neukončí, zamčení platí až od dalšího spuštění.
  * Název stránky a kolečko nastaví stránka menu podle logiky menu.
+ * Hra dostane úložiště aktivního profilu (#71), jiné úložiště nemá.
  */
 
 import { isGameUnlocked } from '../../shared/logic/gameAccess';
 import type { SubscriptionSource } from '../../shared/logic/gameAccess';
 import type { GameEntry } from '../../shared/logic/gameRegistry';
+import type { KeyValueStorage } from '../../shared/storage/keyValueStorage';
 import { isGameModule, runGame } from '../../shared/ui/gameRunner';
 
 export interface LaunchContext {
@@ -20,6 +22,11 @@ export interface LaunchContext {
   readonly returnToMenu: () => void;
   /** Zdroj stavu předplatného (#74); stav se čte při každém spuštění znovu. */
   readonly subscription: SubscriptionSource;
+  /**
+   * Úložiště hry pro aktivní profil v době spuštění (#71). Bez něj hra
+   * ukládá jen do paměti.
+   */
+  readonly gameStorage?: ((gameId: string) => KeyValueStorage) | undefined;
 }
 
 export function launchGame(game: GameEntry, loaded: unknown, context: LaunchContext): void {
@@ -29,6 +36,9 @@ export function launchGame(game: GameEntry, loaded: unknown, context: LaunchCont
   if (!isGameModule(loaded)) {
     throw new Error(`stažená hra ${game.id} nemá scény`);
   }
-  runGame(loaded, { onLeft: context.returnToMenu });
+  runGame(loaded, {
+    onLeft: context.returnToMenu,
+    storage: context.gameStorage?.(game.id),
+  });
   context.closeMenu();
 }

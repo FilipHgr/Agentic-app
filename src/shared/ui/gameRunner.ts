@@ -19,6 +19,7 @@ import { settingsGearFor } from '../logic/settingsGear';
 import { PAGE_BACKGROUND } from '../logic/theme';
 import { gameAreaFor } from '../logic/viewportLayout';
 import type { GameArea, Viewport } from '../logic/viewportLayout';
+import type { KeyValueStorage } from '../storage/keyValueStorage';
 import { applyHomeButton, attachHomeButton } from './homeButton';
 import { attachSettingsButton } from './settingsButton';
 import { applySettingsGear } from './settingsGear';
@@ -62,6 +63,8 @@ interface PageButtons {
 export interface RunGameOptions {
   /** Dítě odešlo domečkem a hra je zničená: stránka ukáže menu. */
   readonly onLeft: () => void;
+  /** Úložiště hry pro aktivní profil (#71); bez něj hra ukládá jen do paměti. */
+  readonly storage?: KeyValueStorage | undefined;
 }
 
 /** Phaser hra bez vlastních zvuků: hry hrají přes společný zvukový kontext stránky. */
@@ -148,6 +151,7 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
     onLeave: (handler) => {
       leaveHandlers.push(handler);
     },
+    storage: options.storage,
   };
   game.registry.set(GAME_HOST_KEY, host);
 

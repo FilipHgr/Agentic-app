@@ -21,10 +21,16 @@
  * nebo znovu na tlačítko ji zavře beze změny. Dokud je nabídka otevřená,
  * dlaždice, kategorie ani zástupná tlačítka nereagují, ťuknutí na ně
  * nabídku jen zavře. Jazyk se mění jen v menu, ne během hry.
+ *
+ * Profil (#71): vlevo nahoře kolečko aktivního profilu v jeho barvě
+ * s prvním písmenem přezdívky (bez přezdívky ★) a vedle přezdívka.
+ * Ťuknutí na něj zatím dá jen zhoupnutí, výběr profilu přidá #72.
  */
 
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
 import { findGame } from '../../shared/logic/gameRegistry';
+import { DEFAULT_PROFILE_COLOR, DEFAULT_PROFILE_ID } from '../../shared/logic/profiles';
+import type { Profile, ProfileColor } from '../../shared/logic/profiles';
 import { ALL_CATEGORY, gamesInCategory, visibleCategories } from './menuCategories';
 import { deviceLanguages } from './menuLanguages';
 import { PAGE_TITLE_KEY } from './menuTextKeys';
@@ -35,9 +41,16 @@ export const SLOW_LOADING_MS = 300;
 /** Stahování, které do té doby nedoběhne, je selhání. */
 export const LOADING_TIMEOUT_MS = 15_000;
 
-/** Co se zhouplo: zástupné tlačítko, nebo už vybraná kategorie. */
+/** Symbol v kolečku profilu bez přezdívky (není to text jazyka). */
+export const PROFILE_WITHOUT_NICKNAME_SYMBOL = '★';
+
+/** Profil, když stránka menu žádný nedá: výchozí profil bez přezdívky. */
+const FALLBACK_PROFILE: Profile = { id: DEFAULT_PROFILE_ID, color: DEFAULT_PROFILE_COLOR };
+
+/** Co se zhouplo: zástupné tlačítko, už vybraná kategorie, nebo kolečko profilu. */
 export type WobbleTarget =
   | { readonly kind: 'placeholder'; readonly index: number }
+  | { readonly kind: 'profile' }
   | { readonly kind: 'category'; readonly categoryId: string };
 
 /**
@@ -76,6 +89,15 @@ export interface MenuLanguageView {
   readonly name: string;
   /** Aktuální jazyk má v nabídce ✓. */
   readonly selected: boolean;
+}
+
+/** Kolečko profilu (#71). */
+export interface MenuProfileBadge {
+  readonly color: ProfileColor;
+  /** První písmeno přezdívky, bez přezdívky ★. */
+  readonly symbol: string;
+  /** Přezdívka vedle kolečka, `null` bez přezdívky. */
+  readonly nickname: string | null;
 }
 
 export interface MenuCategoryView {
@@ -119,6 +141,8 @@ export interface MenuOptions {
    * a menu nakreslí v novém jazyce. Výběr stejného jazyka nic neohlásí.
    */
   readonly onLanguageChanged?: (() => void) | undefined;
+  /** Aktivní profil (#71); čte se při každém kreslení. Bez něj výchozí profil. */
+  readonly profile?: (() => Profile) | undefined;
 }
 
 export interface Menu {
@@ -148,6 +172,10 @@ export interface Menu {
   tapLanguage(language: string): void;
   /** Ťuknutí mimo nabídku: zavře ji beze změny. */
   closeLanguageMenu(): void;
+  /** Kolečko aktivního profilu (#71). */
+  profileBadge(): MenuProfileBadge;
+  /** Ťuknutí na profil: zatím jen zhoupnutí (#71). */
+  tapProfile(): void;
 }
 
 /** Rozběhnuté stahování a spuštění jedné hry. */
@@ -404,6 +432,25 @@ export function createMenu(options: MenuOptions): Menu {
       if (languageMenuOpen) {
         setLanguageMenuOpen(false);
       }
+    },
+
+    profileBadge(): MenuProfileBadge {
+      const profile = options.profile?.() ?? FALLBACK_PROFILE;
+      const nickname = profile.nickname ?? '';
+      const firstLetter = [...nickname][0];
+      return {
+        color: profile.color,
+        symbol: firstLetter ?? PROFILE_WITHOUT_NICKNAME_SYMBOL,
+        nickname: firstLetter === undefined ? null : nickname,
+      };
+    },
+
+    tapProfile(): void {
+      if (running !== null || closeLanguageMenuInstead()) {
+        return;
+      }
+      cancelDownload();
+      emit({ kind: 'wobble', target: { kind: 'profile' } });
     },
   };
 }
