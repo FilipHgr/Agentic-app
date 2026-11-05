@@ -155,3 +155,8 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   výběr profilu na šířku v 1 řadě a na výšku ve 2 sloupcích, mřížka písmen
   ve 2 vrstvách, 2. krok formuláře barva s košem jen při úpravě, plné „CS“
   i na výběru profilu, potvrzení smazání se „Zpět“ na místě ✓.
+- 2026-11-05 Telefon na šířku s domečkem podle návrhu C (#68): nahoře pás
+  s příkladem, tečkami nápovědy hned vedle a hvězdičkami 2 × 5 u kolečka,
+  dole číselník přes celou šířku (do 20 ve 3 řadách po 7, do 10 jako 6 + 5).
+  Tečky jdou souvisle po pěti v řadě (druhé číslo pokračuje v řadě prvního).
+  Dřívější rozložení s tečkami nahoře daleko od příkladu vlastník zamítl.
