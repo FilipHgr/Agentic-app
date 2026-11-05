@@ -1,79 +1,84 @@
 # Agentic-app
 
 Webová hra v prohlížeči na výuku matematiky pro děti.
-- Primární zařízení je iPad Air v Safari (WebKit), na šířku, ovládání jen
-  dotykem (ťuknutí, tažení). Žádný hover, klávesnice ani malé ovládací prvky.
-- Nikdy nespouštěj `npm run deploy` ani `wrangler deploy`. Nasazení dělá
-  Cloudflare automaticky po sloučení do `main`.
 
 ## Produkt
-- Primární zařízení je tablet na šířku, ovládání jen dotykem (ťuknutí, tažení).
-  Žádný hover, klávesnice ani malé ovládací prvky.
-- Hra musí být pochopitelná bez čtení návodu, jedna hlavní mechanika.
+- Primární zařízení: iPad Air, Safari (WebKit), na šířku, ovládání jen dotykem
+  (ťuknutí, tažení). Žádný hover ani klávesnice.
+- Dotykové plochy alespoň 64 × 64 px, mezi nimi dost místa pro dětské prsty.
+- Hra je pochopitelná bez čtení návodu, má jednu hlavní mechaniku.
 - Každá akce má okamžitou zpětnou vazbu (animace, zvuk). Chyba nikdy netrestá.
-- Žádné prvky, které nejsou v zadání: menu, účty, obchod, reklamy, texty navíc.
-- Hra musí běžet plynule i na levnějším tabletu.
-- 
+- Žádné prvky mimo zadání: menu, účty, obchod, reklamy, texty navíc.
+  Výjimka: nastavení pro rodiče (rozsah, druh příkladů) za ozubeným kolečkem,
+  které se otevře až po podržení, aby se tam dítě nedostalo omylem.
+- Plynulost: cíl 60 fps i na levnějším tabletu, žádné zbytečně velké assety.
+- Texty ve hře česky. Názvy v kódu anglicky, komentáře a commity česky.
+
+## Safari na iPadu
+- Používej pointer události (Phaser input), ne mouse/hover.
+- Zvuk se odemkne až po prvním dotyku hráče, s tím počítej při startu hry.
+- Zakaž přibližování dvojitým ťuknutím a sevřením prstů (viewport, `touch-action`).
+- Nové funkce ověř v náhledu na iPadu nebo ve WebKit emulaci, ne jen v Chrome.
+
+## Soukromí dětí
+- Žádná analytika, cookies, sledování ani požadavky na cizí servery
+  (fonty, CDN, API). Vše, co hra potřebuje, je v repozitáři.
+- Nastavení ukládej jen lokálně (`localStorage`), bez osobních údajů.
+
 ## Technologie a příkazy
-- Phaser (hra, animace, dotyk), TypeScript (strict), Vite, Vitest,
-  ESLint + Prettier. Verze viz `package.json`.
-- Struktura: `src/logic/` čistý TypeScript bez Phaseru (příklady, vyhodnocení,
-  obtížnost, body), `src/scenes/` Phaser scény, které logiku jen volají.
+- Phaser, TypeScript (strict), Vite, Vitest, ESLint + Prettier.
+  Verze viz `package.json`.
+- `src/logic/` čistý TypeScript bez Phaseru (příklady, vyhodnocení,
+  obtížnost, body). `src/scenes/` Phaser scény, které logiku jen volají.
   Testy logiky jsou v `tests/`.
-- `npm run dev` – vývojový server
-- `npm test` – testy (Vitest)
-- `npm run lint` – ESLint a kontrola formátování
-- `npm run build` – produkční build
-- Testy, lint a build spouštěj vždy přes tyto skripty, ne přímo
-  v nastavení GitHub Actions (kvůli případné migraci na GitLab).
+- Postavičky (Hvězdík, Robík, Plamínek) jsou společné pro všechny hry:
+  obrázky `public/characters/<postavička>/<nálada>.svg`, seznam
+  `src/logic/characters.ts`, kresby generuje
+  `tools/characters/make_characters.py`. Nové hry je použijí, nekreslí vlastní.
+- `npm run dev` vývojový server
+- `npm test` testy
+- `npm run lint` ESLint a kontrola formátování
+- `npm run build` produkční build
+- CI (GitHub Actions) volá jen tyto skripty, nemá vlastní příkazy
+  (kvůli možné migraci na GitLab).
 
 ## Postup práce
-- Úkoly navrhuje Claude sám jako GitHub issues, vlastník je jen schvaluje.
-  Postup: skill `novy-ukol`. Šablona: `.github/ISSUE_TEMPLATE/user-story.md`.
-- Po dokončení úkolu pošli odkaz na náhled a na konci sprintu otevři PR.
-  Postup: skill `predani-ukolu`. Šablona: `.github/pull_request_template.md`.
+- Úkoly navrhuje Claude jako GitHub issues, vlastník je jen schvaluje.
+  Postup: skill `novy-ukol`.
+- Po dokončení úkolu pošli odkaz na náhled, na konci sprintu otevři PR.
+  Postup: skill `predani-ukolu`.
+- Úkol je hotový, až když projde `npm test`, `npm run lint` i `npm run build`.
+- Rozhodnutí vlastníka z chatu, která nejsou v issue ani tady, zapiš hned
+  jedním řádkem do `docs/rozhodnuti.md` a commitni jako drobnost.
+  Deník: @docs/rozhodnuti.md
 
-## Git workflow
-- Jeden sprint = jedna větev = jeden PR. Větev `sprint-<číslo>` vytvoř
-  ze `staging`, schválené úkoly v ní dělej postupně, každý jako vlastní
-  commit začínající `#<číslo issue>`.
-- Drobnosti (dokumentace, nastavení, postup práce) dej do větve
-  aktuálního sprintu jako samostatný commit, ne do nové větve.
-- PR otevírej do `staging`, nikdy do `main`.
-- Nepushuj přímo do `staging` ani `main`, nepoužívej force push.
+## Git
+- Jeden sprint = jedna větev `sprint-<číslo>` ze `staging` = jeden PR do `staging`.
+- Každý schválený úkol je samostatný commit začínající `#<číslo issue>`.
+- Drobnosti (dokumentace, nastavení) jako samostatný commit do aktuálního sprintu.
+- Nikdy nepushuj do `main` ani `staging`, žádný force push, žádný deploy
+  (`npm run deploy`, `wrangler deploy`). Nasazení dělá Cloudflare po sloučení do `main`.
 - Nesouvisející refaktoring nedělej, navrhni ho jako nový úkol.
 
 ## Testování
-- Testy ověřují splnění zadání (user story a akceptační kritéria), ne to,
-  jak je kód uvnitř napsaný.
-- Každé akceptační kritérium má alespoň jeden test. Název testu popisuje
-  chování z pohledu hráče ("po správné odpovědi se přičte bod").
-- Testuj chování, ne implementaci: test se nesmí rozbít, když se kód přepíše
-  a chování zůstane stejné.
-- Zahrň okrajové případy ze zadání (špatná odpověď, prázdný vstup, konec hry).
-- Úkol je hotový, až když projdou testy funkcionality.
+- Každé akceptační kritérium má alespoň jeden test, pojmenovaný z pohledu
+  hráče ("po správné odpovědi se přičte bod").
+- Testuj chování, ne implementaci: přepis kódu se stejným chováním test nerozbije.
+- Pokryj okrajové případy ze zadání (špatná odpověď, prázdný vstup, konec hry).
 
 ## Kód
-- Čitelnost má přednost před stručností: jasné názvy, krátké funkce, žádné
-  chytré triky.
-- Logiku hry odděl od uživatelského rozhraní, aby šla testovat bez prohlížeče.
-- Ošetři chybné vstupy a stavy, hráč nikdy nevidí výjimku. Žádné prázdné
-  `catch`.
-- Formátování a styl hlídá automatický linter/formátovač, neobcházej ho.
-- Před otevřením PR si přečti vlastní diff (ladicí výpisy, nepoužité importy
-  pryč), spusť lint i testy.
+- Čitelnost před stručností: jasné názvy, krátké funkce, žádné chytré triky.
+- Hráč nikdy nevidí výjimku ani stack trace. Žádné prázdné `catch`.
+- Linter a formátovač neobcházej (žádné `eslint-disable` bez zdůvodnění).
+- Před PR si přečti vlastní diff (ladicí výpisy a nepoužité importy pryč).
 
 ## Bezpečnost
-- Žádná tajemství v kódu (hesla, klíče, tokeny). Používej proměnné prostředí,
-  `.env` je v `.gitignore`.
-- Veškerý uživatelský vstup validuj. Nevkládej ho do stránky přes `innerHTML`,
-  nepoužívej `eval` ani spouštění kódu z řetězců.
-- Hráč nikdy nevidí interní chyby ani stack trace, logy neobsahují osobní údaje.
-- Žádné vlastní řešení přihlášení ani šifrování, použij ověřenou knihovnu.
+- Žádná tajemství v kódu, `.env` je v `.gitignore` a nečti ho.
+- Nepoužívej `innerHTML`, `eval` ani spouštění kódu z řetězců.
 - Novou závislost přidej jen když je nutná a zdůvodni ji v PR.
   `package-lock.json` patří do repa.
-- Před PR spusť `npm audit`. Vysoké a kritické nálezy nahlas v PR.
-- Při bezpečnostní nejistotě se zeptej. Nikdy nesnižuj ochrany, aby něco prošlo.
+- Před PR spusť `npm audit`, vysoké a kritické nálezy uveď v PR.
+- Nikdy nesnižuj ochrany, aby něco prošlo.
 
 ## Nejasnosti
 - Když je zadání nejasné nebo chybí akceptační kritéria, zeptej se, neodhaduj.

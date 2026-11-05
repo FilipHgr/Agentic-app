@@ -1,111 +1,118 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_SUM } from '../src/logic/addition';
+import { MAX_SUM } from '../src/logic/problems';
 import {
-  ANSWER_CHOICE_COUNT,
-  createAnswerChoices,
+  ANSWER_CHOICES,
   createAnswerRound,
+  hintDotGroups,
+  isHintVisible,
   tapAnswer,
 } from '../src/logic/answerRound';
 import type { AnswerRound } from '../src/logic/answerRound';
-import { layoutScreen } from '../src/logic/screenLayout';
+import {
+  HINT_DOT_SIZE,
+  PROBLEM_TEXT_HEIGHT,
+  layoutHint,
+  layoutScreen,
+} from '../src/logic/screenLayout';
+import type { ButtonSlot } from '../src/logic/screenLayout';
+import { DEFAULT_SETTINGS } from '../src/logic/settings';
+
+import { seededRandom } from './seededRandom';
 
 const SCREEN_WIDTH = 1024;
 const SCREEN_HEIGHT = 768;
 const MIN_FINGER_SIZE = 140;
 
-const MANY_ROUNDS = Array.from({ length: 500 }, () => createAnswerRound());
+const LAYOUT = layoutScreen(SCREEN_WIDTH, SCREEN_HEIGHT, ANSWER_CHOICES.length);
 
 /** Kolo s pevným příkladem 3 + 4, aby testy ťukání nezávisely na náhodě. */
 function roundThreePlusFour(): AnswerRound {
   return {
-    problem: { first: 3, second: 4, result: 7 },
-    choices: [2, 7, 9],
-    rejected: [],
+    problem: { first: 3, second: 4, operation: 'plus', result: 7 },
+    maxNumber: 10,
+    wrongAnswers: 0,
     solved: false,
   };
 }
 
-describe('AC1: pod příkladem jsou 3 tlačítka, právě jedno je správné', () => {
-  it('hráč dostane na výběr přesně 3 čísla', () => {
-    for (const round of MANY_ROUNDS) {
-      expect(round.choices).toHaveLength(3);
-    }
-    expect(ANSWER_CHOICE_COUNT).toBe(3);
+/** Postupně ťukne na zadaná čísla a vrátí výsledný stav kola. */
+function tapAll(round: AnswerRound, numbers: readonly number[]): AnswerRound {
+  return numbers.reduce((current, number) => tapAnswer(current, number).round, round);
+}
+
+function top(button: ButtonSlot): number {
+  return button.y - button.size / 2;
+}
+
+describe('AC1: číselník má všechna čísla 0 až 10 ve stálém pořadí', () => {
+  it('na číselníku je každé číslo od 0 do 10 právě jednou', () => {
+    expect(ANSWER_CHOICES).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 
-  it('mezi nabízenými čísly je právě jednou správný výsledek', () => {
-    for (const round of MANY_ROUNDS) {
-      const correctChoices = round.choices.filter((choice) => choice === round.problem.result);
-      expect(correctChoices).toHaveLength(1);
+  it('správný výsledek je na číselníku u každého příkladu', () => {
+    const random = seededRandom();
+    for (let attempt = 0; attempt < 500; attempt += 1) {
+      const round = createAnswerRound(DEFAULT_SETTINGS, random);
+      expect(ANSWER_CHOICES).toContain(round.problem.result);
     }
+    expect(Math.max(...ANSWER_CHOICES)).toBe(MAX_SUM);
   });
 
-  it('tlačítka jsou na obrazovce pod příkladem', () => {
-    const layout = layoutScreen(SCREEN_WIDTH, SCREEN_HEIGHT, ANSWER_CHOICE_COUNT);
+  it('horní řada má čísla 0–5 a dolní 6–10, zleva doprava', () => {
+    const buttons = LAYOUT.answerButtons;
+    const topRowY = buttons[0]?.y;
+    const topRow = buttons.filter((button) => button.y === topRowY);
+    const bottomRow = buttons.filter((button) => button.y !== topRowY);
 
-    expect(layout.answerButtons).toHaveLength(3);
-    for (const button of layout.answerButtons) {
-      expect(button.y - button.size / 2).toBeGreaterThan(layout.problem.y);
+    expect(topRow).toHaveLength(6);
+    expect(bottomRow).toHaveLength(5);
+    expect(bottomRow.every((button) => button.y > (topRowY ?? 0))).toBe(true);
+    for (const row of [topRow, bottomRow]) {
+      for (let index = 1; index < row.length; index += 1) {
+        expect(row[index]?.x).toBeGreaterThan(row[index - 1]?.x ?? Infinity);
+      }
     }
   });
 });
 
-describe('AC2: nabízená čísla se neopakují a jsou od 0 do 10', () => {
-  it('žádné nabízené číslo se neopakuje', () => {
-    for (const round of MANY_ROUNDS) {
-      expect(new Set(round.choices).size).toBe(round.choices.length);
+describe('AC2: tlačítka jsou dost velká, celá na obrazovce a nepřekrývají se', () => {
+  it('každé tlačítko má aspoň 140 × 140 px', () => {
+    for (const button of LAYOUT.answerButtons) {
+      expect(button.size).toBeGreaterThanOrEqual(MIN_FINGER_SIZE);
     }
   });
 
-  it('všechna nabízená čísla jsou celá od 0 do 10', () => {
-    for (const round of MANY_ROUNDS) {
-      for (const choice of round.choices) {
-        expect(Number.isInteger(choice)).toBe(true);
-        expect(choice).toBeGreaterThanOrEqual(0);
-        expect(choice).toBeLessThanOrEqual(MAX_SUM);
+  it('všechna tlačítka jsou celá na obrazovce', () => {
+    for (const button of LAYOUT.answerButtons) {
+      const half = button.size / 2;
+      expect(button.x - half).toBeGreaterThanOrEqual(0);
+      expect(button.x + half).toBeLessThanOrEqual(SCREEN_WIDTH);
+      expect(button.y - half).toBeGreaterThanOrEqual(0);
+      expect(button.y + half).toBeLessThanOrEqual(SCREEN_HEIGHT);
+    }
+  });
+
+  it('žádná dvě tlačítka se nepřekrývají', () => {
+    const buttons = LAYOUT.answerButtons;
+
+    for (const [index, a] of buttons.entries()) {
+      for (const b of buttons.slice(index + 1)) {
+        const apartHorizontally = Math.abs(a.x - b.x) >= (a.size + b.size) / 2;
+        const apartVertically = Math.abs(a.y - b.y) >= (a.size + b.size) / 2;
+        expect(apartHorizontally || apartVertically).toBe(true);
       }
     }
   });
 
-  it('i u krajních příkladů 0 + 0 a součtu 10 jsou čísla různá a v rozsahu', () => {
-    const extremes = [
-      { first: 0, second: 0, result: 0 },
-      { first: 4, second: 6, result: 10 },
-    ];
+  it('tlačítka nepřekrývají příklad', () => {
+    const highestButtonTop = Math.min(...LAYOUT.answerButtons.map(top));
 
-    for (const problem of extremes) {
-      for (let attempt = 0; attempt < 100; attempt += 1) {
-        const choices = createAnswerChoices(problem);
-        expect(new Set(choices).size).toBe(3);
-        expect(choices).toContain(problem.result);
-        expect(choices.every((choice) => choice >= 0 && choice <= MAX_SUM)).toBe(true);
-      }
-    }
-  });
-
-  it('ani generátor vracející hraniční hodnoty nerozbije nabídku', () => {
-    const problem = { first: 2, second: 3, result: 5 };
-
-    for (const value of [0, 0.999999, 1]) {
-      const choices = createAnswerChoices(problem, () => value);
-      expect(new Set(choices).size).toBe(3);
-      expect(choices).toContain(5);
-    }
+    expect(LAYOUT.problem.y + PROBLEM_TEXT_HEIGHT / 2).toBeLessThan(highestButtonTop);
   });
 });
 
-describe('AC3: správná odpověď není pořád na stejném místě', () => {
-  it('správné číslo se objeví na každém ze tří míst', () => {
-    const positionsOfCorrectAnswer = new Set(
-      MANY_ROUNDS.map((round) => round.choices.indexOf(round.problem.result)),
-    );
-
-    expect(positionsOfCorrectAnswer).toEqual(new Set([0, 1, 2]));
-  });
-});
-
-describe('AC4: po ťuknutí na správné číslo kolo skončí a přijde nový příklad', () => {
+describe('AC3: správná odpověď ukončí kolo', () => {
   it('ťuknutí na správné číslo je uznáno', () => {
     const result = tapAnswer(roundThreePlusFour(), 7);
 
@@ -113,52 +120,48 @@ describe('AC4: po ťuknutí na správné číslo kolo skončí a přijde nový p
     expect(result.round.solved).toBe(true);
   });
 
-  it('nové kolo má nový příklad s vlastní nabídkou čísel', () => {
-    const nextRound = createAnswerRound();
+  it('správná odpověď je uznána i po předchozích chybách', () => {
+    const afterMistakes = tapAll(roundThreePlusFour(), [2, 9, 5]);
 
-    expect(nextRound.solved).toBe(false);
-    expect(nextRound.rejected).toEqual([]);
-    expect(nextRound.choices).toContain(nextRound.problem.result);
+    expect(tapAnswer(afterMistakes, 7).outcome).toBe('correct');
+  });
+
+  it('nové kolo začíná bez chyb a bez nápovědy', () => {
+    const round = createAnswerRound(DEFAULT_SETTINGS, seededRandom());
+
+    expect(round.solved).toBe(false);
+    expect(round.wrongAnswers).toBe(0);
+    expect(isHintVisible(round)).toBe(false);
   });
 });
 
-describe('AC5: špatné číslo nic netrestá, hráč zkouší dál', () => {
-  it('ťuknutí na špatné číslo není uznáno, ale příklad zůstává', () => {
+describe('AC4: špatné číslo se nevyřadí, příklad zůstává', () => {
+  it('ťuknutí na špatné číslo není uznáno a příklad zůstane', () => {
     const round = roundThreePlusFour();
     const result = tapAnswer(round, 2);
 
     expect(result.outcome).toBe('wrong');
     expect(result.round.problem).toEqual(round.problem);
-    expect(result.round.choices).toEqual(round.choices);
     expect(result.round.solved).toBe(false);
   });
 
-  it('po špatné odpovědi jde pořád odpovědět správně', () => {
+  it('na stejné špatné číslo jde ťuknout znovu, nevyřadí se', () => {
     const afterWrong = tapAnswer(roundThreePlusFour(), 2).round;
-    const result = tapAnswer(afterWrong, 7);
 
-    expect(result.outcome).toBe('correct');
+    expect(tapAnswer(afterWrong, 2).outcome).toBe('wrong');
   });
 
-  it('po obou špatných odpovědích jde pořád odpovědět správně', () => {
-    const afterFirstWrong = tapAnswer(roundThreePlusFour(), 2).round;
-    const afterSecondWrong = tapAnswer(afterFirstWrong, 9).round;
+  it('vyzkoušení všech špatných čísel kolo nevyřeší', () => {
+    const wrongNumbers = ANSWER_CHOICES.filter((number) => number !== 7);
+    const afterAllWrong = tapAll(roundThreePlusFour(), wrongNumbers);
 
-    expect(tapAnswer(afterSecondWrong, 7).outcome).toBe('correct');
+    expect(afterAllWrong.solved).toBe(false);
   });
 
-  it('opakované ťuknutí na zešedlé špatné číslo nic nedělá', () => {
-    const afterWrong = tapAnswer(roundThreePlusFour(), 2).round;
-    const result = tapAnswer(afterWrong, 2);
-
-    expect(result.outcome).toBe('ignored');
-    expect(result.round).toEqual(afterWrong);
-  });
-
-  it('číslo, které nebylo nabídnuto, se ignoruje a nespadne', () => {
+  it('číslo mimo číselník se ignoruje a nespadne', () => {
     const round = roundThreePlusFour();
 
-    for (const tapped of [5, -1, 11, Number.NaN, 7.5]) {
+    for (const tapped of [-1, 11, Number.NaN, 7.5]) {
       const result = tapAnswer(round, tapped);
       expect(result.outcome).toBe('ignored');
       expect(result.round).toEqual(round);
@@ -166,7 +169,133 @@ describe('AC5: špatné číslo nic netrestá, hráč zkouší dál', () => {
   });
 });
 
-describe('AC6: po správné odpovědi se další ťuknutí ignorují', () => {
+describe('AC5: po druhé chybě se ukáže nápověda s tečkami', () => {
+  it('po první chybě nápověda ještě není', () => {
+    expect(isHintVisible(tapAll(roundThreePlusFour(), [2]))).toBe(false);
+  });
+
+  it('po druhé chybě se nápověda ukáže', () => {
+    expect(isHintVisible(tapAll(roundThreePlusFour(), [2, 9]))).toBe(true);
+  });
+
+  it('dvě chyby na stejném čísle se počítají obě', () => {
+    expect(isHintVisible(tapAll(roundThreePlusFour(), [2, 2]))).toBe(true);
+  });
+
+  it('nápověda zůstane i po dalších chybách', () => {
+    expect(isHintVisible(tapAll(roundThreePlusFour(), [2, 9, 5, 1]))).toBe(true);
+  });
+
+  it('po správné odpovědi nápověda zmizí', () => {
+    expect(isHintVisible(tapAll(roundThreePlusFour(), [2, 9, 7]))).toBe(false);
+  });
+
+  it('příklad 3 + 4 má skupinky 3 a 4 tečky', () => {
+    expect(hintDotGroups({ first: 3, second: 4, operation: 'plus', result: 7 })).toEqual([3, 4]);
+  });
+
+  it('teček je vždy tolik, kolik je výsledek', () => {
+    const random = seededRandom();
+    for (let attempt = 0; attempt < 500; attempt += 1) {
+      const { problem } = createAnswerRound(DEFAULT_SETTINGS, random);
+      const dots = hintDotGroups(problem).reduce((sum, count) => sum + count, 0);
+      expect(dots).toBe(problem.result);
+    }
+  });
+
+  it('tečky jsou dost velké, aby se daly dobře spočítat', () => {
+    expect(HINT_DOT_SIZE).toBeGreaterThanOrEqual(44);
+  });
+
+  it('v jedné řadě je nejvýš 5 teček, jako na počítadle', () => {
+    for (const groups of [[10], [7, 3], [9, 1], [6]]) {
+      const dots = layoutHint(LAYOUT, groups);
+      const rows = new Map<string, number>();
+      for (const dot of dots) {
+        const key = `${dot.group}:${dot.y}`;
+        rows.set(key, (rows.get(key) ?? 0) + 1);
+      }
+      expect(Math.max(...rows.values())).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it('7 teček je řada 5 a pod ní řada 2', () => {
+    const dots = layoutHint(LAYOUT, [7]);
+    const rowYs = [...new Set(dots.map((dot) => dot.y))].sort((a, b) => a - b);
+
+    expect(rowYs).toHaveLength(2);
+    expect(dots.filter((dot) => dot.y === rowYs[0])).toHaveLength(5);
+    expect(dots.filter((dot) => dot.y === rowYs[1])).toHaveLength(2);
+  });
+
+  it('každá skupinka má tolik teček, kolik je její číslo', () => {
+    const dots = layoutHint(LAYOUT, [3, 4]);
+
+    expect(dots.filter((dot) => dot.group === 0)).toHaveLength(3);
+    expect(dots.filter((dot) => dot.group === 1)).toHaveLength(4);
+  });
+
+  it('skupinky jsou od sebe oddělené větší mezerou než tečky uvnitř', () => {
+    const dots = layoutHint(LAYOUT, [3, 4]);
+    const first = dots.filter((dot) => dot.group === 0).map((dot) => dot.x);
+    const second = dots.filter((dot) => dot.group === 1).map((dot) => dot.x);
+    const spacingInsideGroup = (first[1] ?? 0) - (first[0] ?? 0);
+    const gapBetweenGroups = Math.min(...second) - Math.max(...first);
+
+    expect(gapBetweenGroups).toBeGreaterThan(spacingInsideGroup);
+  });
+
+  it('u každého příkladu se nápověda vejde mezi příklad a číselník', () => {
+    const problemBottom = LAYOUT.problem.y + LAYOUT.problemSize.height / 2;
+    const highestButtonTop = Math.min(...LAYOUT.answerButtons.map(top));
+    const radius = HINT_DOT_SIZE / 2;
+
+    for (let first = 0; first <= MAX_SUM; first += 1) {
+      for (let second = 0; first + second <= MAX_SUM; second += 1) {
+        const groups = hintDotGroups({ first, second, operation: 'plus', result: first + second });
+        for (const dot of layoutHint(LAYOUT, groups)) {
+          expect(dot.x - radius).toBeGreaterThanOrEqual(0);
+          expect(dot.x + radius).toBeLessThanOrEqual(SCREEN_WIDTH);
+          expect(dot.y - radius).toBeGreaterThan(problemBottom);
+          expect(dot.y + radius).toBeLessThan(highestButtonTop);
+        }
+      }
+    }
+  });
+
+  it('u každého příkladu se tečky navzájem nepřekrývají', () => {
+    for (let first = 0; first <= MAX_SUM; first += 1) {
+      for (let second = 0; first + second <= MAX_SUM; second += 1) {
+        const groups = hintDotGroups({ first, second, operation: 'plus', result: first + second });
+        const dots = layoutHint(LAYOUT, groups);
+        for (const [index, a] of dots.entries()) {
+          for (const b of dots.slice(index + 1)) {
+            expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(HINT_DOT_SIZE);
+          }
+        }
+      }
+    }
+  });
+});
+
+describe('AC6: příklady s nulou mají správnou nápovědu', () => {
+  it('5 + 0 má jen jednu skupinku s 5 tečkami', () => {
+    expect(hintDotGroups({ first: 5, second: 0, operation: 'plus', result: 5 })).toEqual([5]);
+  });
+
+  it('0 + 6 má jen jednu skupinku s 6 tečkami', () => {
+    expect(hintDotGroups({ first: 0, second: 6, operation: 'plus', result: 6 })).toEqual([6]);
+  });
+
+  it('0 + 0 nemá žádné tečky a rozložení nespadne', () => {
+    const groups = hintDotGroups({ first: 0, second: 0, operation: 'plus', result: 0 });
+
+    expect(groups).toEqual([]);
+    expect(layoutHint(LAYOUT, groups)).toEqual([]);
+  });
+});
+
+describe('AC7: po správné odpovědi se další ťuknutí ignorují', () => {
   it('druhé ťuknutí na správné číslo už nic nezmění', () => {
     const solved = tapAnswer(roundThreePlusFour(), 7).round;
     const result = tapAnswer(solved, 7);
@@ -180,39 +309,6 @@ describe('AC6: po správné odpovědi se další ťuknutí ignorují', () => {
     const result = tapAnswer(solved, 2);
 
     expect(result.outcome).toBe('ignored');
-    expect(result.round.rejected).toEqual([]);
-  });
-});
-
-describe('AC7: tlačítka jsou dost velká na prst a vejdou se na obrazovku', () => {
-  const layout = layoutScreen(SCREEN_WIDTH, SCREEN_HEIGHT, ANSWER_CHOICE_COUNT);
-
-  it('každé tlačítko má aspoň 140 × 140 px', () => {
-    for (const button of layout.answerButtons) {
-      expect(button.size).toBeGreaterThanOrEqual(MIN_FINGER_SIZE);
-    }
-  });
-
-  it('všechna tlačítka jsou celá na obrazovce', () => {
-    for (const button of layout.answerButtons) {
-      const half = button.size / 2;
-      expect(button.x - half).toBeGreaterThanOrEqual(0);
-      expect(button.x + half).toBeLessThanOrEqual(SCREEN_WIDTH);
-      expect(button.y - half).toBeGreaterThanOrEqual(0);
-      expect(button.y + half).toBeLessThanOrEqual(SCREEN_HEIGHT);
-    }
-  });
-
-  it('tlačítka se nepřekrývají, takže se netrefí vedlejší', () => {
-    const sortedByX = [...layout.answerButtons].sort((a, b) => a.x - b.x);
-
-    for (let index = 1; index < sortedByX.length; index += 1) {
-      const left = sortedByX[index - 1];
-      const right = sortedByX[index];
-      if (!left || !right) {
-        throw new Error('chybí tlačítko v rozložení');
-      }
-      expect(right.x - right.size / 2).toBeGreaterThan(left.x + left.size / 2);
-    }
+    expect(result.round.wrongAnswers).toBe(0);
   });
 });

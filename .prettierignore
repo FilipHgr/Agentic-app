@@ -5,3 +5,6 @@ package-lock.json
 # CLAUDE.md vzniklo před touto větví, nepřeformátováváme ho kvůli kostře.
 CLAUDE.md
 .vite/
+
+# Definice agentů Claude Code: obsah dodává vlastník přesně, neformátujeme.
+.claude/agents/
