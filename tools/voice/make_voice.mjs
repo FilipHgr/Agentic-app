@@ -13,7 +13,7 @@
  *   tools/voice/fingerprints.json. Věty beze změny se znovu neplatí.
  *
  * Skript je v JavaScriptu, aby šel spustit bez další závislosti. Jádro
- * (voiceCore.ts) a scénář (src/logic/guideScript.ts) jsou v TypeScriptu,
+ * (voiceCore.ts) a scénář (src/games/counting/logic/guideScript.ts) jsou v TypeScriptu,
  * proto je načte Vite, který už je v projektu.
  */
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
@@ -92,7 +92,7 @@ async function main() {
   });
   try {
     const { makeVoice } = await vite.ssrLoadModule('/tools/voice/voiceCore.ts');
-    const { voiceSentences } = await vite.ssrLoadModule('/src/logic/guideScript.ts');
+    const { voiceSentences } = await vite.ssrLoadModule('/src/games/counting/logic/guideScript.ts');
 
     // Ctrl+C: rozpracovaná věta se zahodí, staré nahrávky i otisky zůstanou.
     const interrupt = new AbortController();

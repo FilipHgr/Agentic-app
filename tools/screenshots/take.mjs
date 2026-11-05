@@ -14,7 +14,8 @@
  * šířku navíc otočení na výšku a zpět a oslava po deseti hvězdičkách.
  * Výřez iPhonu Playwright neumí, nasimuluje se přes `#safe-area-probe`
  * a na snímku je černě. Místa pro ťuknutí na telefonu se berou ze
- * skutečného rozložení (`src/logic/deviceLayout.ts` přes Vite).
+ * skutečného rozložení (`src/shared/logic/viewportLayout.ts`
+ * a `src/games/counting/logic/deviceLayout.ts` přes Vite).
  * Použije WebKit (jako Safari), když je k dispozici, jinak Chromium a řekne to.
  * Playwright není závislost projektu, musí být nainstalovaný v systému.
  */
@@ -457,7 +458,11 @@ async function loadLayoutModule() {
   try {
     return {
       server,
-      module: await server.ssrLoadModule('/src/logic/deviceLayout.ts'),
+      // Herní plocha podle okna je ve sdílené části, rozložení hry v Počítání (#64).
+      module: {
+        ...(await server.ssrLoadModule('/src/shared/logic/viewportLayout.ts')),
+        ...(await server.ssrLoadModule('/src/games/counting/logic/deviceLayout.ts')),
+      },
     };
   } catch (error) {
     await server.close();

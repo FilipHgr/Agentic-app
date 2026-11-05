@@ -28,11 +28,24 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
 ## Technologie a příkazy
 - Phaser, TypeScript (strict), Vite, Vitest, ESLint + Prettier.
   Verze viz `package.json`.
-- `src/logic/` čistý TypeScript bez Phaseru (příklady, vyhodnocení,
-  obtížnost, body). `src/scenes/` Phaser scény, které logiku jen volají.
-  Testy logiky jsou v `tests/`.
+- Projekt má oddělené části:
+  - `src/shared/` společné věci stránky (herní plocha podle okna, kolečko
+    nastavení, společné barvy, úložiště, přehrávač tónů),
+  - `src/games/<hra>/` jednotlivé hry (dnes `counting` = Počítání) s jediným
+    vstupem `src/games/<hra>/index.ts`,
+  - později `src/menu/` úvodní menu.
+  `src/main.ts` je vstup stránky a z hry importuje jen její `index.ts`.
+- Hra smí importovat jen sama sebe a `src/shared/`, sdílená část nic z her,
+  menu ani `src/main.ts`. Hlídá to `tests/shared/boundaries.test.ts`.
+- Ve složkách `logic/` (`src/shared/logic/`, `src/games/<hra>/logic/`) je čistý
+  TypeScript bez Phaseru (příklady, vyhodnocení, obtížnost, body), ve
+  `scenes/` hry Phaser scény, které logiku jen volají. Testy jsou
+  v `tests/shared/` a `tests/games/<hra>/`.
 - `npm run dev` vývojový server
-- `npm test` testy
+- `npm test` všechny testy
+- `npm run test:shared` testy sdílené části, `npm run test:<hra>` (např.
+  `test:counting`) testy jedné hry a test hranic. Práce na hře pouští jen
+  její testy, při změně v `src/shared/` se pouští celé `npm test`.
 - `npm run lint` ESLint a kontrola formátování
 - `npm run build` produkční build
 - CI (GitHub Actions) volá jen tyto skripty, nemá vlastní příkazy

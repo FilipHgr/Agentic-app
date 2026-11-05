@@ -1,17 +1,18 @@
 import Phaser from 'phaser';
 
-import { gameAreaFor, settingsGearFor } from './logic/deviceLayout';
-import type { Viewport } from './logic/deviceLayout';
-import { PAGE_BACKGROUND } from './logic/theme';
-import { GameScene } from './scenes/GameScene';
-import { applySettingsGear } from './ui/settingsGear';
+import { gameAreaFor } from './shared/logic/viewportLayout';
+import { settingsGearFor } from './shared/logic/settingsGear';
+import type { Viewport } from './shared/logic/viewportLayout';
+import { PAGE_BACKGROUND } from './shared/logic/theme';
+import { GameScene } from './games/counting';
+import { applySettingsGear } from './shared/ui/settingsGear';
 import {
   GAME_AREA_KEY,
   hasSameLayout,
   placeGameParent,
   readViewport,
   watchViewport,
-} from './ui/viewport';
+} from './shared/ui/viewport';
 
 const parent = document.getElementById('game');
 let area = gameAreaFor(readViewport());

@@ -75,7 +75,8 @@ výsledky automaticky načtou zpět, stejně jako v nové session. Co není v is
    `test-writer` neupravuj, aby prošly. Když je test podle tebe špatně,
    řekni proč a nech ho opravit subagentem `test-writer`.
 5. **Kontroly:** zavolej s číslem issue subagenty `reviewer`,
-   `security-auditor` a (pokud se měnilo cokoli v `src/scenes/` nebo
+   `security-auditor` a (pokud se měnilo cokoli ve `scenes/` některé hry
+   (`src/games/<hra>/scenes/`) nebo
    vzhled) `ux-checker`. Každý výsledek ulož do issue.
    - Před `ux-checker` udělej snímky obrazovky: `npm run build`
      a `node tools/screenshots/take.mjs` (složka `snimky/`). Sám si je

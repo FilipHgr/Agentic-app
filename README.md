@@ -11,19 +11,26 @@ npm install
 npm run dev      # otevři vypsanou adresu „Network:“ na iPadu
 ```
 
-| Příkaz          | K čemu                                     |
-| --------------- | ------------------------------------------ |
-| `npm run dev`   | vývojový server, dostupný i z iPadu v síti |
-| `npm test`      | testy herní logiky (Vitest)                |
-| `npm run lint`  | ESLint a kontrola formátování              |
-| `npm run build` | produkční build do `dist/`                 |
+| Příkaz                  | K čemu                                     |
+| ----------------------- | ------------------------------------------ |
+| `npm run dev`           | vývojový server, dostupný i z iPadu v síti |
+| `npm test`              | všechny testy (Vitest)                     |
+| `npm run test:shared`   | testy sdílené části                        |
+| `npm run test:counting` | testy Počítání a test hranic               |
+| `npm run lint`          | ESLint a kontrola formátování              |
+| `npm run build`         | produkční build do `dist/`                 |
 
 ## Struktura
 
-- `src/logic/` – herní logika v čistém TypeScriptu, bez Phaseru, testovatelná
-  bez prohlížeče
-- `src/scenes/` – Phaser scény, které logiku jen volají
-- `tests/` – testy logiky
+- `src/main.ts` – vstup stránky, z hry importuje jen její `index.ts`
+- `src/shared/` – společné věci všech her (herní plocha podle okna, kolečko
+  nastavení, společné barvy, úložiště, přehrávač tónů)
+- `src/games/counting/` – hra Počítání, jediný vstup `index.ts`
+  - `logic/` – herní logika v čistém TypeScriptu, bez Phaseru, testovatelná
+    bez prohlížeče (stejně `src/shared/logic/`)
+  - `scenes/` – Phaser scény, které logiku jen volají
+- `tests/shared/` – testy sdílené části a test hranic mezi částmi
+- `tests/games/counting/` – testy Počítání
 
 ## Nasazení na Cloudflare Workers
 
