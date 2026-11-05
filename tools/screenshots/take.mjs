@@ -38,9 +38,22 @@ const BUTTON_ZERO = { x: 112, y: 514 };
 /** Průvodce (#49): pravé tlačítko (Další / Začít hrát). */
 const GUIDE_RIGHT_BUTTON = { x: 880, y: 716 };
 
-/** Volba „psaní“ a ✓ v nastavení pro rodiče (rozložení z #47). */
-const SETTINGS_WRITING = { x: 642, y: 497 };
-const SETTINGS_CONFIRM = { x: 512, y: 669 };
+/**
+ * Volba „psaní“ a ✓ v nastavení pro rodiče na stránce. Nastavení má na
+ * telefonu vlastní rozložení (#59), proto se místa berou z
+ * `layoutDeviceSettingsPanel` pro okno zařízení.
+ */
+function settingsTargets(layoutModule, viewport, safeArea) {
+  const area = layoutModule.gameAreaFor({ ...viewport, safeArea });
+  const layout = layoutModule.layoutDeviceSettingsPanel(area);
+  const { placement } = layout;
+  const toPagePoint = (point) => ({
+    x: area.offsetX + (placement.x + point.x * placement.scale) * area.scale,
+    y: area.offsetY + (placement.y + point.y * placement.scale) * area.scale,
+  });
+  const writing = layout.rows[2].options.find((option) => option.value === 'writing');
+  return { writing: toPagePoint(writing), confirm: toPagePoint(layout.confirm) };
+}
 
 /**
  * Číslo 17 napsané do dvou okének při rozsahu 10 (#42): jednička do okénka
@@ -125,7 +138,7 @@ async function drawGame(page, points) {
   await page.mouse.up();
 }
 
-async function shootDevice(browser, url, device) {
+async function shootDevice(browser, url, device, layoutModule) {
   const context = await browser.newContext({
     viewport: device.viewport,
     deviceScaleFactor: device.scale,
@@ -174,9 +187,10 @@ async function shootDevice(browser, url, device) {
   await page.waitForTimeout(400);
   await page.screenshot({ path: join(outputDir, `${device.name}-3-nastaveni.png`) });
 
-  await tapGame(page, SETTINGS_WRITING);
+  const settings = settingsTargets(layoutModule, device.viewport, NO_NOTCH);
+  await tapAt(page, settings.writing);
   await page.waitForTimeout(200);
-  await tapGame(page, SETTINGS_CONFIRM);
+  await tapAt(page, settings.confirm);
   await page.waitForTimeout(600);
   await page.screenshot({ path: join(outputDir, `${device.name}-4-psani.png`) });
 
@@ -332,9 +346,10 @@ async function shootPhone(browser, url, device, layoutModule) {
   await page.waitForTimeout(400);
   await shot('3-nastaveni');
 
-  await tapAt(page, map.inPanel(SETTINGS_WRITING));
+  const settings = settingsTargets(layoutModule, device.viewport, device.safeArea);
+  await tapAt(page, settings.writing);
   await page.waitForTimeout(200);
-  await tapAt(page, map.inPanel(SETTINGS_CONFIRM));
+  await tapAt(page, settings.confirm);
   await page.waitForTimeout(600);
   await shot('4-psani');
 
@@ -449,7 +464,7 @@ async function main() {
 
   try {
     for (const device of DEVICES) {
-      const errors = await shootDevice(browser, url, device);
+      const errors = await shootDevice(browser, url, device, layout.module);
       const status = errors.length === 0 ? 'bez chyb' : `CHYBY: ${errors.join(' | ')}`;
       console.log(`${device.name}: hotovo (${status})`);
     }

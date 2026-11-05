@@ -2,12 +2,12 @@ import Phaser from 'phaser';
 
 import { CHECK_BUTTON_COLOR, checkButtonStyle } from '../logic/checkButton';
 import { CONFIRM_BUTTON_STYLE, SETTINGS_PANEL_STYLE, colorNumber } from '../logic/theme';
-import type { GameSize } from '../logic/deviceLayout';
+import { layoutDeviceSettingsPanel } from '../logic/deviceLayout';
+import type { GameArea } from '../logic/deviceLayout';
 import type { ButtonSlot } from '../logic/screenLayout';
-import { layoutSettingsPanel } from '../logic/settingsLayout';
 import { chooseOption, selectedOptions } from '../logic/settingsSession';
 import type { SettingsSession } from '../logic/settingsSession';
-import { PANEL_HEIGHT, PANEL_WIDTH, fitPanel } from './panelFit';
+import { PANEL_HEIGHT, PANEL_WIDTH, placePanel } from './panelFit';
 import { SettingsRows } from './SettingsRows';
 
 /** Pozadí panelu je stejné jako hra (#53). */
@@ -22,11 +22,14 @@ export const PANEL_DEPTH = 100;
 /**
  * Obrazovka nastavení pro rodiče: řada rozsahů (5, 10, 20), řada druhů
  * příkladů (+, −, + −), způsob odpovědi (číselník, psaní) a potvrzovací „✓“.
- * Vybrané volby jsou plně modré. Rozměry jsou v `src/logic/settingsLayout.ts`.
+ * Vybrané volby jsou plně modré. Rozměry jsou v `src/logic/settingsLayout.ts`
+ * a na telefonu v `src/logic/phoneSettingsLayout.ts` (#59).
  */
 export class SettingsPanel {
   private readonly container: Phaser.GameObjects.Container;
   private readonly backdrop: Phaser.GameObjects.Rectangle;
+  /** Řady a ✓; po otočení telefonu se nakreslí znovu podle nového rozložení. */
+  private readonly content: Phaser.GameObjects.Container;
   private session: SettingsSession;
 
   /** Rozehrané volby; zůstanou i po otočení telefonu (#54). */
@@ -37,13 +40,13 @@ export class SettingsPanel {
   constructor(
     private readonly scene: Phaser.Scene,
     session: SettingsSession,
+    area: GameArea,
     private readonly onConfirm: (session: SettingsSession) => void,
   ) {
     this.session = session;
-    // Panel má vlastní plochu 1024 × 768, na telefonu se celý zmenší (#54).
+    // Pozadí má plochu 1024 × 768 a roztáhne se přes celou herní plochu.
     const width = PANEL_WIDTH;
     const height = PANEL_HEIGHT;
-    const layout = layoutSettingsPanel(width, height);
 
     // Neprůhledné pozadí stejné barvy jako stránka (#45) zachytí všechna
     // ťuknutí, takže hra pod panelem nic nedostane.
@@ -58,11 +61,25 @@ export class SettingsPanel {
       )
       .setInteractive();
     this.backdrop = backdrop;
-    this.container = scene.add.container(0, 0, [backdrop]).setDepth(PANEL_DEPTH);
+    this.content = scene.add.container(0, 0);
+    this.container = scene.add.container(0, 0, [backdrop, this.content]).setDepth(PANEL_DEPTH);
+    this.fitTo(area);
 
+    this.container.setAlpha(0);
+    scene.tweens.add({ targets: this.container, alpha: 1, duration: PANEL_FADE_MS });
+  }
+
+  /**
+   * Po otočení telefonu nebo změně lišty se řady a ✓ nakreslí znovu podle
+   * rozložení nové plochy (#59 AC7). Vybrané volby zůstanou, nic se neuloží.
+   */
+  fitTo(area: GameArea): void {
+    const layout = layoutDeviceSettingsPanel(area);
+    this.scene.tweens.killTweensOf(this.content.list);
+    this.content.removeAll(true);
     new SettingsRows(
-      scene,
-      this.container,
+      this.scene,
+      this.content,
       layout,
       () => selectedOptions(this.session),
       (change) => {
@@ -70,15 +87,7 @@ export class SettingsPanel {
       },
     );
     this.addConfirmButton(layout.confirm);
-    this.fitTo({ width: scene.scale.width, height: scene.scale.height });
-
-    this.container.setAlpha(0);
-    scene.tweens.add({ targets: this.container, alpha: 1, duration: PANEL_FADE_MS });
-  }
-
-  /** Po změně velikosti okna se panel znovu vejde na herní plochu. */
-  fitTo(area: GameSize): void {
-    fitPanel(this.container, this.backdrop, area);
+    placePanel(this.container, this.backdrop, area, layout.placement);
   }
 
   private addConfirmButton(slot: ButtonSlot): void {
@@ -102,7 +111,7 @@ export class SettingsPanel {
       .setSize(slot.size, slot.size)
       .setInteractive();
     button.on('pointerdown', () => this.confirm());
-    this.container.add(button);
+    this.content.add(button);
   }
 
   private confirm(): void {

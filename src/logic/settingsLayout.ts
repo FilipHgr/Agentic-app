@@ -14,7 +14,12 @@ export interface SettingsOptionSlot extends Point {
   readonly width: number;
   readonly height: number;
   readonly value: MaxNumber | OperationMode | AnswerInput;
+  /** Písmo čísla nebo znaménka ve volbě. */
+  readonly fontSize: number;
 }
+
+/** Jak je popisek zarovnaný ve svém pruhu: na středu nad řadou, nebo vpravo vedle ní (#59). */
+export type SettingsLabelAlign = 'center' | 'right';
 
 /** Popisek nad řadou pro rodiče (#47); `x` a `y` je střed pruhu. */
 export interface SettingsRowLabel extends Point {
@@ -22,9 +27,10 @@ export interface SettingsRowLabel extends Point {
   readonly width: number;
   readonly height: number;
   readonly fontSize: number;
+  readonly align: SettingsLabelAlign;
 }
 
-const ROW_LABELS: Record<SettingsRowKind, string> = {
+export const ROW_LABELS: Record<SettingsRowKind, string> = {
   maxNumber: 'Do kolika',
   operations: 'Příklady',
   answerInput: 'Odpověď',
@@ -38,15 +44,27 @@ export interface SettingsRow {
   readonly options: readonly SettingsOptionSlot[];
 }
 
+/** Vzhled voleb, který se mění s velikostí (v jednotkách plochy panelu). */
+export interface SettingsOptionLookSizes {
+  readonly cornerRadius: number;
+  /** Násobek tloušťky okraje voleb proti iPadu. */
+  readonly borderScale: number;
+  /** Strana čtverce, do kterého se kreslí tužka ve volbě psaní. */
+  readonly pencilSize: number;
+}
+
 export interface SettingsLayout {
   /** Rozsah, druh příkladů a způsob odpovědi, v tomto pořadí. */
   readonly rows: readonly [SettingsRow, SettingsRow, SettingsRow];
   readonly confirm: ButtonSlot;
+  readonly optionLook: SettingsOptionLookSizes;
 }
 
 const OPTION_WIDTH = 220;
 const OPTION_HEIGHT = 130;
 const OPTION_GAP = 40;
+const OPTION_FONT_SIZE = 84;
+const OPTION_CORNER_RADIUS = 28;
 
 /** Okraj nad prvním popiskem; popisek a jeho řada; mezera k dalšímu popisku (#47). */
 const TOP_MARGIN = 12;
@@ -90,7 +108,15 @@ export function layoutSettingsPanel(width: number, height: number): SettingsLayo
     height - CONFIRM_SIZE / 2,
   );
 
-  return { rows, confirm: { x: centerX, y: confirmY, size: CONFIRM_SIZE } };
+  return {
+    rows,
+    confirm: { x: centerX, y: confirmY, size: CONFIRM_SIZE },
+    optionLook: {
+      cornerRadius: OPTION_CORNER_RADIUS,
+      borderScale: 1,
+      pencilSize: PENCIL_ICON.width,
+    },
+  };
 }
 
 /** Řada voleb se středem `y` a nad ní popisek široký jako řada. */
@@ -114,6 +140,7 @@ function layoutRowWithLabel(
       width: rowWidth,
       height: LABEL_HEIGHT,
       fontSize: LABEL_FONT_SIZE,
+      align: 'center',
     },
   };
 }
@@ -131,5 +158,6 @@ function layoutRow(
     width: OPTION_WIDTH,
     height: OPTION_HEIGHT,
     value,
+    fontSize: OPTION_FONT_SIZE,
   }));
 }

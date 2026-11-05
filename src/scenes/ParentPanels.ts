@@ -1,6 +1,6 @@
 import type Phaser from 'phaser';
 
-import type { GameSize, PlayState } from '../logic/deviceLayout';
+import type { GameArea, PlayState } from '../logic/deviceLayout';
 import type { GameProgress } from '../logic/progress';
 import type { GameSettings } from '../logic/settings';
 import {
@@ -27,6 +27,8 @@ export interface ParentPanelsHost {
   readonly settings: () => GameSettings;
   /** Současné hvězdičky a postavička. */
   readonly progress: () => GameProgress;
+  /** Současná herní plocha (iPad, telefon na šířku nebo na výšku, zmenšené). */
+  readonly gameArea: () => GameArea;
   /** Nastavení zvolené rodičem začne platit a uloží se. */
   readonly useSettings: (chosen: GameSettings) => void;
   /** Nastavení se právě otevírá podržením kolečka. */
@@ -76,10 +78,13 @@ export class ParentPanels {
     };
   }
 
-  /** Otevřené panely se zmenší nebo zvětší na novou herní plochu (#54). */
-  fitTo(size: GameSize): void {
-    this.settingsPanel?.fitTo(size);
-    this.setupGuide?.fitTo(size);
+  /**
+   * Otevřené panely se přizpůsobí nové herní ploše: nastavení dostane
+   * rozložení plochy (#59), průvodce se zmenší nebo zvětší (#54).
+   */
+  fitTo(area: GameArea): void {
+    this.settingsPanel?.fitTo(area);
+    this.setupGuide?.fitTo({ width: area.width, height: area.height });
   }
 
   /**
@@ -115,7 +120,7 @@ export class ParentPanels {
     const session = openSettings(CLOSED_SETTINGS, this.host.settings());
     applyPageAppearance(pageAppearance(session), settingsButton);
 
-    this.settingsPanel = new SettingsPanel(this.scene, session, (chosen) => {
+    this.settingsPanel = new SettingsPanel(this.scene, session, this.host.gameArea(), (chosen) => {
       this.settingsPanel = undefined;
       const result = confirmSettings(chosen, this.host.settings(), this.host.progress());
       this.host.useSettings(result.settings);

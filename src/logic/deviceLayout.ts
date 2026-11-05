@@ -17,6 +17,7 @@ import { canCountDots } from './dotCounting';
 import type { DotCounting } from './dotCounting';
 import { visibleGroups } from './phoneHint';
 import { planPhoneScreen } from './phoneLayout';
+import { layoutPhoneLandscapeSettings, layoutPhonePortraitSettings } from './phoneSettingsLayout';
 import type { PhonePlanRequest } from './phoneLayout';
 import {
   isPortraitLayout,
@@ -46,6 +47,8 @@ import {
 } from './screenLayout';
 import type { ButtonSlot, HintDot, ScreenLayout, WritingLayout } from './screenLayout';
 import type { GameSettings, MaxNumber, OperationMode } from './settings';
+import { layoutSettingsPanel } from './settingsLayout';
+import type { SettingsLayout } from './settingsLayout';
 import type { SettingsSession } from './settingsSession';
 import type { GuideState } from './setupGuide';
 import type { TwoBoxRound } from './twoBoxWriting';
@@ -478,8 +481,8 @@ export interface PanelPlacement {
 }
 
 /**
- * Nastavení a průvodce na telefonu zatím jen zmenší celé (úkol c),
- * na iPadu zůstanou beze změny (měřítko 1).
+ * Průvodce (a nastavení mimo telefon) se navrhuje na 1024 × 768 a na menší
+ * plochu se celý zmenší; na iPadu zůstane beze změny (měřítko 1).
  */
 export function panelPlacement(area: GameSize): PanelPlacement {
   const scale = Math.min(area.width / TABLET_GAME_WIDTH, area.height / TABLET_GAME_HEIGHT);
@@ -487,6 +490,43 @@ export function panelPlacement(area: GameSize): PanelPlacement {
     scale,
     x: (area.width - TABLET_GAME_WIDTH * scale) / 2,
     y: (area.height - TABLET_GAME_HEIGHT * scale) / 2,
+  };
+}
+
+/** Nastavení otevřené kolečkem pro danou herní plochu (#59). */
+export interface DeviceSettingsLayout extends SettingsLayout {
+  readonly mode: LayoutMode;
+  /** Kam a jak zmenšené se rozložení na herní plochu dá. */
+  readonly placement: PanelPlacement;
+}
+
+/** Telefonní rozložení je přímo v jednotkách herní plochy, nic se nezmenšuje. */
+const PHONE_SETTINGS_PLACEMENT: PanelPlacement = { scale: 1, x: 0, y: 0 };
+
+/**
+ * Nastavení pro rodiče: na telefonu na šířku a na výšku vlastní rozložení
+ * s velkými volbami (#59), jinde dnešní panel 1024 × 768 zmenšený na
+ * herní plochu (iPad beze změny).
+ */
+export function layoutDeviceSettingsPanel(area: GameArea): DeviceSettingsLayout {
+  if (area.mode === 'phoneLandscape') {
+    return {
+      ...layoutPhoneLandscapeSettings(area),
+      mode: area.mode,
+      placement: PHONE_SETTINGS_PLACEMENT,
+    };
+  }
+  if (area.mode === 'phonePortrait') {
+    return {
+      ...layoutPhonePortraitSettings(area),
+      mode: area.mode,
+      placement: PHONE_SETTINGS_PLACEMENT,
+    };
+  }
+  return {
+    ...layoutSettingsPanel(TABLET_GAME_WIDTH, TABLET_GAME_HEIGHT),
+    mode: area.mode,
+    placement: panelPlacement(area),
   };
 }
 

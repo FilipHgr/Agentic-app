@@ -80,6 +80,7 @@ export class GameScene extends Phaser.Scene {
   private readonly panels = new ParentPanels(this, this.settingsState.firstLaunch, {
     settings: () => this.settings,
     progress: () => this.currentProgress(),
+    gameArea: () => this.gameArea,
     useSettings: (chosen) => {
       this.settings = chosen;
       saveSettings(browserStorage(), chosen);
@@ -194,7 +195,7 @@ export class GameScene extends Phaser.Scene {
     this.layouts.clear();
     this.starRow.redraw();
     this.relayoutRound(false);
-    this.panels.fitTo({ width: this.gameArea.width, height: this.gameArea.height });
+    this.panels.fitTo(this.gameArea);
   }
 
   /**

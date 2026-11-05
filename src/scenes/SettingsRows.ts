@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { PENCIL_ICON } from '../logic/settingsLayout';
 import type {
   SettingsLayout,
+  SettingsOptionLookSizes,
   SettingsOptionSlot,
   SettingsRowKind,
   SettingsRowLabel,
@@ -17,8 +18,7 @@ import {
   settingsOptionLook,
 } from '../logic/theme';
 
-/** Vzhled voleb je ve světlém vzhledu (#53) v `src/logic/theme.ts`. */
-const OPTION_RADIUS = 28;
+// Barvy voleb jsou ve světlém vzhledu (#53) v `src/logic/theme.ts`, velikosti v rozložení.
 
 /** Popisky voleb: jen čísla a znaménka, žádný text ke čtení. Psaní je kreslená tužka. */
 const MAX_NUMBER_LABELS: Record<MaxNumber, string> = { 5: '5', 10: '10', 20: '20' };
@@ -59,6 +59,7 @@ interface RowView {
  */
 export class SettingsRows {
   private readonly rows = new Map<SettingsRowKind, RowView>();
+  private readonly look: SettingsOptionLookSizes;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -67,6 +68,7 @@ export class SettingsRows {
     private readonly selection: () => SelectedOptions | null,
     private readonly onChoose: (change: Partial<GameSettings>) => void,
   ) {
+    this.look = layout.optionLook;
     for (const row of layout.rows) {
       const label = this.createRowLabel(row.label);
       container.add(label);
@@ -104,19 +106,21 @@ export class SettingsRows {
   private paintOption(option: OptionButton, selected: boolean): void {
     const look = settingsOptionLook(selected);
     const { width, height } = option.slot;
+    const radius = this.look.cornerRadius;
+    const borderWidth = look.borderWidth * this.look.borderScale;
     // Okraj se kreslí dovnitř, aby se velikost volby nezměnila.
-    const inset = look.borderWidth / 2;
+    const inset = borderWidth / 2;
     option.background
       .clear()
       .fillStyle(colorNumber(look.background), 1)
-      .fillRoundedRect(-width / 2, -height / 2, width, height, OPTION_RADIUS)
-      .lineStyle(look.borderWidth, colorNumber(look.borderColor), 1)
+      .fillRoundedRect(-width / 2, -height / 2, width, height, radius)
+      .lineStyle(borderWidth, colorNumber(look.borderColor), 1)
       .strokeRoundedRect(
         -width / 2 + inset,
         -height / 2 + inset,
-        width - look.borderWidth,
-        height - look.borderWidth,
-        OPTION_RADIUS - inset,
+        width - borderWidth,
+        height - borderWidth,
+        radius - inset,
       );
     const content = option.content;
     if (content.kind === 'text') {
@@ -127,15 +131,20 @@ export class SettingsRows {
     }
   }
 
-  /** Popisek řady pro rodiče (#47): jen text, na ťuknutí nereaguje. */
+  /**
+   * Popisek řady pro rodiče (#47): jen text, na ťuknutí nereaguje. Na středu
+   * pruhu, nebo zarovnaný k pravému okraji pruhu vedle řady (#59).
+   */
   private createRowLabel(label: SettingsRowLabel): Phaser.GameObjects.Text {
+    const alignRight = label.align === 'right';
+    const x = alignRight ? label.x + label.width / 2 : label.x;
     return this.scene.add
-      .text(label.x, label.y, label.text, {
+      .text(x, label.y, label.text, {
         fontFamily: FONT_FAMILY,
         fontSize: `${label.fontSize}px`,
         color: SETTINGS_LABEL_COLOR,
       })
-      .setOrigin(0.5);
+      .setOrigin(alignRight ? 1 : 0.5, 0.5);
   }
 
   /** Volba s popiskem; bez popisku (psaní) se nakreslí tužka. */
@@ -149,7 +158,7 @@ export class SettingsRows {
             unselected: this.createPencil(SETTINGS_OPTION_STYLE.unselected.iconColor),
             selected: this.createPencil(SETTINGS_OPTION_STYLE.selected.iconColor),
           }
-        : { kind: 'text', text: this.createOptionText(text) };
+        : { kind: 'text', text: this.createOptionText(text, slot.fontSize) };
     const parts = content.kind === 'text' ? [content.text] : [content.unselected, content.selected];
     const button = this.scene.add
       .container(slot.x, slot.y, [background, ...parts])
@@ -182,20 +191,26 @@ export class SettingsRows {
     return false;
   }
 
-  private createOptionText(text: string): Phaser.GameObjects.Text {
+  private createOptionText(text: string, fontSize: number): Phaser.GameObjects.Text {
     return this.scene.add
       .text(0, 0, text, {
         fontFamily: FONT_FAMILY,
-        fontSize: '84px',
+        fontSize: `${fontSize}px`,
         color: SETTINGS_OPTION_STYLE.unselected.textColor,
       })
       .setOrigin(0.5);
   }
 
-  /** Tužka šikmo hrotem vlevo dole, kreslená čarou, aby nezávisela na písmu. */
+  /**
+   * Tužka šikmo hrotem vlevo dole, kreslená čarou, aby nezávisela na písmu.
+   * Zvětší se na velikost tužky z rozložení (na iPadu jako dnes).
+   */
   private createPencil(colorHex: string): Phaser.GameObjects.Graphics {
     const color = colorNumber(colorHex);
-    const { tip, tail, strokeWidth } = PENCIL_ICON;
+    const zoom = this.look.pencilSize / PENCIL_ICON.width;
+    const tip = { x: PENCIL_ICON.tip.x * zoom, y: PENCIL_ICON.tip.y * zoom };
+    const tail = { x: PENCIL_ICON.tail.x * zoom, y: PENCIL_ICON.tail.y * zoom };
+    const strokeWidth = PENCIL_ICON.strokeWidth * zoom;
     const length = Math.hypot(tail.x - tip.x, tail.y - tip.y);
     const along = { x: (tail.x - tip.x) / length, y: (tail.y - tip.y) / length };
     const across = { x: -along.y, y: along.x };
