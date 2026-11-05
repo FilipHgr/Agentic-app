@@ -8,6 +8,14 @@
  * Místa pro profil a jazyk jsou v rozložení už dnes, i když zůstanou
  * prázdná, aby se dlaždice po doplnění profilů (#71) a jazyka (#70)
  * neposunuly.
+ *
+ * Posouvání (#69): mřížka a kategorie mají každá svou viditelnou plochu,
+ * mimo kterou se obsah ořízne, a největší posun. Polohy dlaždic
+ * a kategorií jsou bez posunu. Když se dlaždice nevejdou, mají takovou
+ * výšku, aby z první skryté řady bylo vidět 20–60 %. Když se nevejdou
+ * kategorie, mají mezi sebou takovou mezeru, aby z další skryté kategorie
+ * bylo vidět aspoň 24 px. Když se všechno vejde (dnes), je rozložení stejné
+ * jako bez posouvání.
  */
 
 import {
@@ -32,6 +40,20 @@ export interface MenuCategorySlot {
   readonly pill: MenuBox;
 }
 
+/** Plocha, ve které se obsah posouvá. */
+export interface MenuScrollArea {
+  /** Viditelná plocha: v ní se ťuká, podle ní se posouvá. */
+  readonly viewport: MenuBox;
+  /**
+   * Kde se obsah při kreslení ořízne: viditelná plocha s rezervou, aby se
+   * okraje pulzující, zatřesené nebo zmáčknuté dlaždice a stín neořízly.
+   * Nezasahuje do lišty ani do kategorií.
+   */
+  readonly clip: MenuBox;
+  /** Největší posun v px; 0 = obsah se vejde a neposouvá se. */
+  readonly maxOffset: number;
+}
+
 export interface MenuLayout {
   readonly mode: LayoutMode;
   readonly profileSlot: MenuBox;
@@ -48,12 +70,22 @@ export interface MenuLayout {
   readonly tileRadius: number;
   readonly tileSymbolFontSize: number;
   readonly tileTitleFontSize: number;
+  /** Mřížka se posouvá svisle. */
+  readonly gridScroll: MenuScrollArea;
+  /** Kategorie v řadě se posouvají vodorovně, ve sloupci svisle. */
+  readonly categoryScroll: MenuScrollArea;
 }
 
 export interface MenuContent {
   /** Názvy viditelných kategorií v jazyce menu, v pořadí menu. */
   readonly categoryTitles: readonly string[];
+  /** Počet dlaždic vybrané kategorie. */
   readonly tileCount: number;
+  /**
+   * Počet dlaždic ve „Vše“ (všechny hry). Podle něj se volí výška dlaždic,
+   * aby se po výběru jiné kategorie neměnila. Bez něj platí `tileCount`.
+   */
+  readonly allTileCount?: number;
 }
 
 /** Odhad šířky textu jako v #65: znaky × 0,6 × velikost písma. */
@@ -62,6 +94,32 @@ const CHARACTER_WIDTH_RATIO = 0.6;
 const BUTTON_SIZE = 64;
 const PILL_HEIGHT = 48;
 const CATEGORY_GAP = 8;
+/**
+ * Mezera mezi kategoriemi, když se posouvají: nejvýš 24 px (rozestup 88 px
+ * jako na schváleném obrázku), jen když se s ní další kategorie neodkryje
+ * aspoň o 24 px, smí být větší (nejvýš 48 px).
+ */
+const APPROVED_MAX_CATEGORY_GAP = 24;
+const MAX_CATEGORY_GAP = 48;
+
+/** Viditelná plocha posouvání je aspoň 4 px od okraje volné plochy a od lišty. */
+const VIEWPORT_EDGE = 4;
+
+/** Rezerva kamery mřížky nad viditelnou plochou (pulzování a stín první řady). */
+const GRID_CLIP_TOP_RESERVE = 8;
+
+/** Z další skryté kategorie je vidět 24 až 36 px pilulky (#69 AC4). */
+const CATEGORY_PEEK_MIN = 24;
+const CATEGORY_PEEK_MAX = 36;
+
+/** Z první skryté řady dlaždic je vidět 20–60 % výšky, nejraději 40 % (#69 AC1). */
+const ROW_PEEK_MIN = 0.2;
+const ROW_PEEK_MAX = 0.6;
+const ROW_PEEK_TARGET = 0.4;
+/** Nejnižší dlaždice při posouvání (symbol a název se vejdou). */
+const TABLET_MIN_SCROLL_TILE_HEIGHT = 120;
+/** Nejvyšší počet celých řad, ze kterých se volí výška dlaždic. */
+const MAX_FULL_ROWS = 12;
 
 /** Rozměry, které se liší podle zařízení. */
 interface MenuMetrics {
@@ -191,12 +249,17 @@ function categorySlot(left: number, top: number, width: number): MenuCategorySlo
 }
 
 /** Kategorie ve sloupci pod sebou, všechny stejně široké. */
-function categoryColumn(free: MenuBox, metrics: MenuMetrics, count: number): MenuCategorySlot[] {
+function categoryColumn(
+  free: MenuBox,
+  metrics: MenuMetrics,
+  count: number,
+  gap: number,
+): MenuCategorySlot[] {
   const left = free.left + metrics.sideMargin;
   return Array.from({ length: count }, (_, index) =>
     categorySlot(
       left,
-      free.top + metrics.contentTop + index * (BUTTON_SIZE + CATEGORY_GAP),
+      free.top + metrics.contentTop + index * (BUTTON_SIZE + gap),
       metrics.categoryWidth,
     ),
   );
@@ -207,6 +270,7 @@ function categoryRow(
   free: MenuBox,
   metrics: MenuMetrics,
   titles: readonly string[],
+  gap: number,
 ): MenuCategorySlot[] {
   const slots: MenuCategorySlot[] = [];
   let left = free.left + metrics.sideMargin;
@@ -216,7 +280,7 @@ function categoryRow(
       Math.ceil(textWidth(title, metrics.categoryFontSize) + 2 * metrics.categoryTextInset),
     );
     slots.push(categorySlot(left, free.top + metrics.contentTop, width));
-    left += width + CATEGORY_GAP;
+    left += width + gap;
   }
   return slots;
 }
@@ -261,6 +325,128 @@ function tileSymbolFontSize(mode: LayoutMode, tileHeight: number): number {
   return 34;
 }
 
+/** Konec obsahu ve směru posouvání. */
+function endOf(box: MenuBox, direction: 'row' | 'column'): number {
+  return direction === 'row' ? box.right : box.bottom;
+}
+
+function startOf(box: MenuBox, direction: 'row' | 'column'): number {
+  return direction === 'row' ? box.left : box.top;
+}
+
+/** Kolik px z první pilulky, která není celá vidět, je vidět; `Infinity`, když se všechny vejdou. */
+function categoryPeek(
+  slots: readonly MenuCategorySlot[],
+  viewport: MenuBox,
+  direction: 'row' | 'column',
+): number {
+  const viewportEnd = endOf(viewport, direction);
+  const cut = slots.find((slot) => endOf(slot.pill, direction) > viewportEnd);
+  return cut === undefined ? Infinity : viewportEnd - startOf(cut.pill, direction);
+}
+
+/** Mezera z `gaps`, která je nejblíž schválené (24 px) a splní `isGood`. */
+function closestToApprovedGap(
+  gaps: readonly number[],
+  isGood: (gap: number) => boolean,
+): number | undefined {
+  const good = gaps.filter(isGood);
+  return good.sort(
+    (a, b) =>
+      Math.abs(a - APPROVED_MAX_CATEGORY_GAP) - Math.abs(b - APPROVED_MAX_CATEGORY_GAP) || a - b,
+  )[0];
+}
+
+/**
+ * Kategorie s mezerou, při které je z další skryté kategorie vidět 24 až
+ * 36 px, s mezerou nejvýš 24 px (rozestup 88 px). Když to s ní nejde, vezme
+ * se mezera nejbližší 24 px, která odkryje 24–36 px, a když ani to ne,
+ * nejbližší, která odkryje aspoň 24 px. Když se kategorie vejdou, zůstane
+ * mezera 8 px jako bez posouvání.
+ */
+function categorySlotsFor(
+  build: (gap: number) => MenuCategorySlot[],
+  viewport: MenuBox,
+  direction: 'row' | 'column',
+): MenuCategorySlot[] {
+  const tight = build(CATEGORY_GAP);
+  const last = tight[tight.length - 1];
+  if (last === undefined || endOf(last.hit, direction) <= endOf(viewport, direction)) {
+    return tight;
+  }
+  const peekOf = (gap: number): number => categoryPeek(build(gap), viewport, direction);
+  const isClearPeek = (gap: number): boolean =>
+    peekOf(gap) >= CATEGORY_PEEK_MIN && peekOf(gap) <= CATEGORY_PEEK_MAX;
+  const allGaps = Array.from(
+    { length: MAX_CATEGORY_GAP - CATEGORY_GAP + 1 },
+    (_, index) => CATEGORY_GAP + index,
+  );
+  const approvedGaps = allGaps.filter((gap) => gap <= APPROVED_MAX_CATEGORY_GAP);
+  const gap =
+    approvedGaps.find(isClearPeek) ??
+    closestToApprovedGap(allGaps, isClearPeek) ??
+    closestToApprovedGap(allGaps, (candidate) => peekOf(candidate) >= CATEGORY_PEEK_MIN);
+  return gap === undefined ? tight : build(gap);
+}
+
+/** Kolik z výšky první řady, která není celá vidět, je vidět (0 až 1). */
+function partialRowShare(available: number, tileHeight: number, gap: number): number {
+  let rowTop = 0;
+  while (rowTop + tileHeight <= available) {
+    rowTop += tileHeight + gap;
+  }
+  return Math.max(0, available - rowTop) / tileHeight;
+}
+
+function isGoodPeek(share: number): boolean {
+  return share >= ROW_PEEK_MIN && share <= ROW_PEEK_MAX;
+}
+
+/**
+ * Výška dlaždic, když se mřížka posouvá: co nejblíž běžné výšce, ale tak,
+ * aby z první skryté řady bylo vidět 20–60 %. `available` je výška od
+ * horního okraje mřížky ke spodnímu okraji viditelné plochy.
+ */
+function scrollingTileHeight(
+  baseHeight: number,
+  available: number,
+  gap: number,
+  minHeight: number,
+): number {
+  if (isGoodPeek(partialRowShare(available, baseHeight, gap))) {
+    return baseHeight;
+  }
+  let best: number | undefined;
+  for (let fullRows = 1; fullRows <= MAX_FULL_ROWS; fullRows += 1) {
+    const height = Math.floor((available - fullRows * gap) / (fullRows + ROW_PEEK_TARGET));
+    if (height < minHeight) {
+      break;
+    }
+    const isCloser =
+      best === undefined || Math.abs(height - baseHeight) < Math.abs(best - baseHeight);
+    if (isGoodPeek(partialRowShare(available, height, gap)) && isCloser) {
+      best = height;
+    }
+  }
+  return best ?? baseHeight;
+}
+
+function minScrollTileHeight(mode: LayoutMode): number {
+  return mode === 'phoneLandscape'
+    ? PHONE_LANDSCAPE_MIN_TILE_HEIGHT
+    : TABLET_MIN_SCROLL_TILE_HEIGHT;
+}
+
+/** Spodní okraj mřížky s `rows` řadami. */
+function gridBottom(grid: GridArea, rows: number, tileHeight: number, gap: number): number {
+  return grid.top + rows * tileHeight + (rows - 1) * gap;
+}
+
+/** Posun, při kterém je poslední prvek celý vidět u konce mřížky; 0, když se obsah vejde. */
+function maxOffsetFor(contentEnd: number, viewportEnd: number, scrolledEnd: number): number {
+  return contentEnd > viewportEnd ? contentEnd - scrolledEnd : 0;
+}
+
 export function menuLayoutFor(viewport: Viewport | undefined, content: MenuContent): MenuLayout {
   const mode = chooseLayoutMode(viewport);
   const metrics = metricsFor(mode);
@@ -283,9 +469,38 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
   const languageSlot = boxAt(right - BUTTON_SIZE, barTop, BUTTON_SIZE, BUTTON_SIZE);
 
   const isRow = mode === 'phonePortrait';
-  const categories = isRow
-    ? categoryRow(free, metrics, content.categoryTitles)
-    : categoryColumn(free, metrics, content.categoryTitles.length);
+  const direction = isRow ? 'row' : 'column';
+  const categoryViewport: MenuBox = isRow
+    ? {
+        left: free.left + VIEWPORT_EDGE,
+        right: free.right - VIEWPORT_EDGE,
+        top: free.top + metrics.contentTop - VIEWPORT_EDGE,
+        bottom: free.top + metrics.contentTop + BUTTON_SIZE + VIEWPORT_EDGE,
+      }
+    : {
+        left: free.left + VIEWPORT_EDGE,
+        right: free.left + metrics.sideMargin + metrics.categoryWidth + VIEWPORT_EDGE,
+        top: free.top + metrics.contentTop - VIEWPORT_EDGE,
+        bottom: free.bottom - VIEWPORT_EDGE,
+      };
+  const categories = categorySlotsFor(
+    (categoryGap) =>
+      isRow
+        ? categoryRow(free, metrics, content.categoryTitles, categoryGap)
+        : categoryColumn(free, metrics, content.categoryTitles.length, categoryGap),
+    categoryViewport,
+    direction,
+  );
+  const lastCategory = categories[categories.length - 1];
+  const categoryEnd = isRow ? free.right - metrics.sideMargin : free.bottom - metrics.sideMargin;
+  const categoryMaxOffset =
+    lastCategory === undefined
+      ? 0
+      : maxOffsetFor(
+          endOf(lastCategory.hit, direction),
+          endOf(categoryViewport, direction),
+          categoryEnd,
+        );
 
   const grid: GridArea = isRow
     ? {
@@ -300,11 +515,43 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
         top: free.top + metrics.contentTop,
         bottom: free.bottom - metrics.sideMargin,
       };
+  const gridViewport: MenuBox = {
+    left: grid.left - VIEWPORT_EDGE,
+    right: free.right - VIEWPORT_EDGE,
+    top: grid.top - VIEWPORT_EDGE,
+    bottom: free.bottom - VIEWPORT_EDGE,
+  };
+
+  // Kamera mřížky kreslí i kousek vedle viditelné plochy: nad ní až po
+  // lištu nebo řadu kategorií, do stran a dolů až k okraji volné plochy.
+  const barBottom = Math.max(
+    profileSlot.bottom,
+    languageSlot.bottom,
+    ...placeholders.map((box) => box.bottom),
+  );
+  const aboveGrid = isRow ? Math.max(barBottom, categoryViewport.bottom) : barBottom;
+  const gridClip: MenuBox = {
+    left: isRow ? free.left : categoryViewport.right,
+    right: free.right,
+    top: Math.max(aboveGrid, gridViewport.top - GRID_CLIP_TOP_RESERVE),
+    bottom: free.bottom,
+  };
 
   const gap = metrics.tileGap;
   const gridColumns = columnsFor(mode, grid.right - grid.left, gap);
   const tileWidth = (grid.right - grid.left - (gridColumns - 1) * gap) / gridColumns;
-  const tileHeight = tileHeightFor(mode, grid, gap);
+  const allTileCount = Math.max(content.tileCount, content.allTileCount ?? content.tileCount);
+  const allRows = Math.ceil(allTileCount / gridColumns);
+  const baseTileHeight = tileHeightFor(mode, grid, gap);
+  const tileHeight =
+    gridBottom(grid, allRows, baseTileHeight, gap) > gridViewport.bottom
+      ? scrollingTileHeight(
+          baseTileHeight,
+          gridViewport.bottom - grid.top,
+          gap,
+          minScrollTileHeight(mode),
+        )
+      : baseTileHeight;
   const tiles = Array.from({ length: content.tileCount }, (_, index) => {
     const column = index % gridColumns;
     const row = Math.floor(index / gridColumns);
@@ -315,6 +562,11 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
       tileHeight,
     );
   });
+  const rows = Math.ceil(content.tileCount / gridColumns);
+  const gridMaxOffset =
+    rows === 0
+      ? 0
+      : maxOffsetFor(gridBottom(grid, rows, tileHeight, gap), gridViewport.bottom, grid.bottom);
 
   return {
     mode,
@@ -322,7 +574,7 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     languageSlot,
     placeholders,
     placeholderFontSize: 22,
-    categoryDirection: isRow ? 'row' : 'column',
+    categoryDirection: direction,
     categories,
     categoryFontSize: metrics.categoryFontSize,
     categoryTextInset: metrics.categoryTextInset,
@@ -331,5 +583,11 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     tileRadius: metrics.tileRadius,
     tileSymbolFontSize: tileSymbolFontSize(mode, tileHeight),
     tileTitleFontSize: metrics.tileTitleFontSize,
+    gridScroll: { viewport: gridViewport, clip: gridClip, maxOffset: gridMaxOffset },
+    categoryScroll: {
+      viewport: categoryViewport,
+      clip: categoryViewport,
+      maxOffset: categoryMaxOffset,
+    },
   };
 }

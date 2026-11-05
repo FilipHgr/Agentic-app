@@ -7,6 +7,7 @@ import { FONT_FAMILY, colorNumber } from '../../shared/logic/theme';
 import type { Menu, MenuFeedback } from '../logic/menu';
 import type { MenuBox, MenuLayout } from '../logic/menuLayout';
 import { MENU_SOUNDS } from '../logic/menuSounds';
+import type { MenuTouch, TouchPoint } from '../logic/menuTouch';
 import { MENU_STYLE, PLACEHOLDER_BORDER_WIDTH } from '../logic/menuTheme';
 
 /** Herní jednotky na 1 CSS px: plátno menu má dvojnásobné rozlišení okna. */
@@ -17,6 +18,8 @@ const PLACEHOLDER_SYMBOL = '…';
 const PLACEHOLDER_DASHES = 14;
 
 const PRESS = { scale: 0.94, durationMs: 70 };
+/** Zmáčknutí hned po dotyku prstem, ještě před zvednutím (#69). */
+const HELD_SCALE = 0.97;
 const PULSE = { scale: 1.05, durationMs: 450 };
 const SHAKE = { distance: 10, durationMs: 50, repeat: 3 };
 const WOBBLE = { angle: 6, durationMs: 90 };
@@ -25,9 +28,11 @@ const CATEGORY_WOBBLE_ANGLE = 2.5;
 
 export interface MenuSceneHost {
   readonly menu: Menu;
+  /** Dotyky prstem: posouvání a ťuknutí (#69). */
+  readonly touch: MenuTouch;
   /** Rozložení pro současné okno a obsah menu. */
   layout(): MenuLayout;
-  /** Po každém ťuknutí. */
+  /** Po každém zvednutí prstu. */
   onTapped(): void;
 }
 
@@ -38,10 +43,15 @@ interface Tappable {
 }
 
 /**
- * Scéna menu (#67): kreslí rozložení z `menuLayout.ts` a ťuknutí předává
- * logice menu (`menu.ts`). Odezvu, kterou logika ohlásí, zahraje jako
- * animaci a zvuk. Souřadnice z rozložení jsou CSS px okna, plátno má
+ * Scéna menu (#67): kreslí rozložení z `menuLayout.ts` a dotyky prstů
+ * předává logice dotyků (`menuTouch.ts`), která posouvá a ťuká (#69).
+ * Odezvu, kterou logika menu ohlásí, zahraje jako animaci a zvuk.
+ * Souřadnice z rozložení jsou CSS px okna, plátno má
  * `MENU_UNITS_PER_CSS_PX` jednotek na CSS px.
+ *
+ * Mřížka a kategorie mají každá svou kameru s výřezem podle viditelné
+ * plochy z rozložení. Posun je jen posun kamery, nic se nepřekresluje,
+ * takže posouvání zůstane plynulé.
  */
 export class MenuScene extends Phaser.Scene {
   private readonly sounds = createTonePlayer(sharedToneContext);
@@ -49,6 +59,15 @@ export class MenuScene extends Phaser.Scene {
   private categories = new Map<string, Tappable>();
   private placeholders: Tappable[] = [];
   private drawn: Phaser.GameObjects.GameObject[] = [];
+  /** Vrstvy: lišta (hlavní kamera), kategorie a mřížka (každá svou kamerou). */
+  private barLayer!: Phaser.GameObjects.Container;
+  private categoryLayer!: Phaser.GameObjects.Container;
+  private tileLayer!: Phaser.GameObjects.Container;
+  private categoryCamera!: Phaser.Cameras.Scene2D.Camera;
+  private gridCamera!: Phaser.Cameras.Scene2D.Camera;
+  private layout: MenuLayout | undefined;
+  /** Dlaždice nebo kategorie, která je teď nakreslená jako zmáčknutá. */
+  private held: Tappable | undefined;
   /** Překreslí se až v dalším snímku, ne uprostřed zpracování ťuknutí. */
   private redrawWanted = false;
   /** Kategorie vybraná při posledním kreslení. */
@@ -59,14 +78,113 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Druhý prst Phaser ohlásí taky; logika dotyků ho ignoruje (#69 AC2).
+    this.input.addPointer(1);
+    this.barLayer = this.add.container(0, 0);
+    this.categoryLayer = this.add.container(0, 0);
+    this.tileLayer = this.add.container(0, 0);
+    this.cameras.main.ignore([this.categoryLayer, this.tileLayer]);
+    this.categoryCamera = this.cameras.add(0, 0, 1, 1);
+    this.categoryCamera.ignore([this.barLayer, this.tileLayer]);
+    this.gridCamera = this.cameras.add(0, 0, 1, 1);
+    this.gridCamera.ignore([this.barLayer, this.categoryLayer]);
+    this.listenToFingers();
     this.redraw();
   }
 
   override update(): void {
+    this.host.touch.frame(performance.now());
     if (this.redrawWanted) {
       this.redrawWanted = false;
       this.redraw();
     }
+    this.scrollCameras();
+    this.showHeld();
+  }
+
+  /**
+   * Dlaždice nebo kategorie pod prstem se hned po dotyku lehce zmenší.
+   * Po tahu nebo zvednutí prstu se vrátí, pokud ji zrovna nehýbe animace
+   * odezvy (zmáčknutí po ťuknutí, pulzování, zatřesení).
+   */
+  private showHeld(): void {
+    const target = this.host.touch.pressed();
+    let item: Tappable | undefined;
+    if (target?.kind === 'tile') {
+      item = this.tiles.get(target.gameId);
+    } else if (target?.kind === 'category') {
+      item = this.categories.get(target.categoryId);
+    }
+    if (item === this.held) {
+      return;
+    }
+    const released = this.held;
+    if (released !== undefined && !this.tweens.isTweening(released.container)) {
+      released.container.setScale(1);
+    }
+    if (item !== undefined && !this.tweens.isTweening(item.container)) {
+      item.container.setScale(HELD_SCALE);
+    }
+    this.held = item;
+  }
+
+  /** Dotyky prstů v CSS px okna jdou do logiky dotyků. */
+  private listenToFingers(): void {
+    const pointOf = (pointer: Phaser.Input.Pointer): TouchPoint => ({
+      x: pointer.x / MENU_UNITS_PER_CSS_PX,
+      y: pointer.y / MENU_UNITS_PER_CSS_PX,
+    });
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.host.touch.pointerDown(pointer.id, pointOf(pointer), performance.now());
+    });
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      this.host.touch.pointerMove(pointer.id, pointOf(pointer), performance.now());
+    });
+    const release = (pointer: Phaser.Input.Pointer): void => {
+      if (pointer.wasCanceled) {
+        this.host.touch.pointerCancel(pointer.id);
+        return;
+      }
+      this.host.touch.pointerUp(pointer.id, pointOf(pointer), performance.now());
+      this.host.onTapped();
+    };
+    this.input.on('pointerup', release);
+    this.input.on('pointerupoutside', release);
+  }
+
+  /** Kamery mřížky a kategorií ukážou obsah posunutý podle logiky dotyků. */
+  private scrollCameras(): void {
+    const layout = this.layout;
+    if (layout === undefined) {
+      return;
+    }
+    const unit = MENU_UNITS_PER_CSS_PX;
+    const grid = layout.gridScroll.clip;
+    // Kamera začíná na zaokrouhleném rohu ořezu (`fitCamera`), posun je v CSS px.
+    this.gridCamera.setScroll(
+      Math.round(grid.left * unit),
+      Math.round(grid.top * unit) + this.host.touch.gridOffset() * unit,
+    );
+    const categories = layout.categoryScroll.clip;
+    const offset = this.host.touch.categoryOffset();
+    const left = Math.round(categories.left * unit);
+    const top = Math.round(categories.top * unit);
+    if (layout.categoryDirection === 'row') {
+      this.categoryCamera.setScroll(left + offset * unit, top);
+    } else {
+      this.categoryCamera.setScroll(left, top + offset * unit);
+    }
+  }
+
+  /** Kamera kreslí jen do plochy ořezu, obsah mimo ni ořízne. */
+  private fitCamera(camera: Phaser.Cameras.Scene2D.Camera, clip: MenuBox): void {
+    const unit = MENU_UNITS_PER_CSS_PX;
+    camera.setViewport(
+      Math.round(clip.left * unit),
+      Math.round(clip.top * unit),
+      Math.round((clip.right - clip.left) * unit),
+      Math.round((clip.bottom - clip.top) * unit),
+    );
   }
 
   /** Menu se nakreslí znovu v dalším snímku (po změně kategorie, otočení nebo změně okna). */
@@ -91,12 +209,17 @@ export class MenuScene extends Phaser.Scene {
       object.destroy();
     }
     this.drawn = [];
+    this.held = undefined;
     this.tiles = new Map();
     this.categories = new Map();
     this.placeholders = [];
     this.drawnSelection = this.selectedCategoryId();
 
     const layout = this.host.layout();
+    this.layout = layout;
+    this.host.touch.setLayout(layout);
+    this.fitCamera(this.gridCamera, layout.gridScroll.clip);
+    this.fitCamera(this.categoryCamera, layout.categoryScroll.clip);
     layout.placeholders.forEach((box, index) => this.drawPlaceholder(layout, box, index));
     const categories = this.host.menu.categories();
     categories.forEach((category, index) => {
@@ -160,18 +283,15 @@ export class MenuScene extends Phaser.Scene {
   // Kreslení
   // ---------------------------------------------------------------------------
 
-  /** Kontejner uprostřed obdélníku, ťukací plocha je celý obdélník. */
-  private tappable(box: MenuBox, onTap: () => void): Tappable {
-    const width = (box.right - box.left) * MENU_UNITS_PER_CSS_PX;
-    const height = (box.bottom - box.top) * MENU_UNITS_PER_CSS_PX;
+  /**
+   * Kontejner uprostřed obdélníku ve vrstvě. Ťuknutí na něj pozná logika
+   * dotyků podle rozložení, kontejner sám dotyky nepřijímá.
+   */
+  private tappable(box: MenuBox, layer: Phaser.GameObjects.Container): Tappable {
     const x = ((box.left + box.right) / 2) * MENU_UNITS_PER_CSS_PX;
     const y = ((box.top + box.bottom) / 2) * MENU_UNITS_PER_CSS_PX;
     const container = this.add.container(x, y);
-    container.setSize(width, height).setInteractive();
-    container.on('pointerdown', () => {
-      onTap();
-      this.host.onTapped();
-    });
+    layer.add(container);
     this.drawn.push(container);
     return { container, homeX: x };
   }
@@ -191,7 +311,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private drawPlaceholder(layout: MenuLayout, box: MenuBox, index: number): void {
-    const item = this.tappable(box, () => this.host.menu.tapPlaceholder(index));
+    const item = this.tappable(box, this.barLayer);
     const radius = ((box.right - box.left) / 2) * MENU_UNITS_PER_CSS_PX;
     const border = PLACEHOLDER_BORDER_WIDTH * MENU_UNITS_PER_CSS_PX;
     const ring = this.add.graphics();
@@ -218,7 +338,7 @@ export class MenuScene extends Phaser.Scene {
     pill: MenuBox,
     category: { id: string; title: string; selected: boolean },
   ): void {
-    const item = this.tappable(hit, () => this.host.menu.tapCategory(category.id));
+    const item = this.tappable(hit, this.categoryLayer);
     const width = (pill.right - pill.left) * MENU_UNITS_PER_CSS_PX;
     const height = (pill.bottom - pill.top) * MENU_UNITS_PER_CSS_PX;
     const background = this.add.graphics();
@@ -248,7 +368,7 @@ export class MenuScene extends Phaser.Scene {
     symbolText: string,
     titleText: string,
   ): void {
-    const item = this.tappable(box, () => this.host.menu.tapTile(gameId));
+    const item = this.tappable(box, this.tileLayer);
     const width = (box.right - box.left) * MENU_UNITS_PER_CSS_PX;
     const height = (box.bottom - box.top) * MENU_UNITS_PER_CSS_PX;
     const radius = layout.tileRadius * MENU_UNITS_PER_CSS_PX;

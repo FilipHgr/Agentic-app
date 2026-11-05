@@ -47,13 +47,15 @@
           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
       }
 
-      /* Menu s výběrem her (#67) přes celé okno; po spuštění hry se skryje. */
+      /* Menu s výběrem her (#67) přes celé okno; po spuštění hry se skryje.
+         Leží nad #game, aby dotyky i tažení prstem šly na plátno menu (#69). */
       #menu {
         position: fixed;
         left: 0;
         top: 0;
         width: 100%;
         height: 100%;
+        z-index: 1;
       }
 
       #menu[hidden] {

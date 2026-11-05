@@ -2,7 +2,8 @@
  * Stránka s menu (#67): plátno menu přes celé okno, logika menu, odemčení
  * zvuku prvním ťuknutím a spuštění hry. Po spuštění hry se menu schová
  * a uspí (nekreslí se), po návratu z hry domečkem (#68) se znovu ukáže
- * na stejné kategorii. Plátno menu je jedno pro celé načtení stránky, takže
+ * na stejné kategorii a se stejným posunem mřížky i kategorií (#69).
+ * Plátno menu je jedno pro celé načtení stránky, takže
  * opakované vstupy do her a návraty nezakládají nová plátna ani posluchače.
  */
 
@@ -19,6 +20,7 @@ import type { Menu } from '../logic/menu';
 import { menuLayoutFor } from '../logic/menuLayout';
 import type { MenuLayout } from '../logic/menuLayout';
 import { menuText } from '../logic/menuTexts';
+import { createMenuTouch } from '../logic/menuTouch';
 import { MENU_UNITS_PER_CSS_PX, MenuScene } from '../scenes/MenuScene';
 import { launchGame } from './launchGame';
 
@@ -114,10 +116,20 @@ export function startMenuPage(options: MenuPageOptions): void {
   });
 
   const categoryTitles = menu.categories().map((category) => category.title);
+  // „Vše“ ukáže všechny hry; podle jejich počtu se volí výška dlaždic (#69).
+  const allTileCount = options.games.length;
   const layout = (): MenuLayout =>
-    menuLayoutFor(readViewport(), { categoryTitles, tileCount: menu.tiles().length });
+    menuLayoutFor(readViewport(), {
+      categoryTitles,
+      tileCount: menu.tiles().length,
+      allTileCount,
+    });
+  // Posun mřížky a kategorií žije s menu po celé načtení stránky, takže
+  // po návratu z hry zůstane, jak ho dítě nechalo (#69 AC5).
+  const touch = createMenuTouch({ menu });
   const scene = new MenuScene({
     menu,
+    touch,
     layout,
     onTapped: () => scene.redrawIfSelectionChanged(),
   });
