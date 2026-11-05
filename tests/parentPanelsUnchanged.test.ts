@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { todayGuideCss, todaySettingsCss } from './parentPanelSnapshot';
+import { STEPS, expectLandscapeGuideSpec, expectPortraitGuideSpec } from './phoneGuideFixtures';
 import { IPHONE_PORTRAIT_NOTCH, NO_NOTCH } from './viewportFixtures';
 import type { TestWindow } from './viewportFixtures';
 
@@ -11,9 +12,9 @@ import type { TestWindow } from './viewportFixtures';
  * průvodce na iPadu (1180×820, 1180×760, 932×500, 820×1180) a ve zmenšených
  * oknech (667×320, 375×553) v CSS px.
  *
- * Rozdělení (a): průvodce zůstane i v telefonních oknech 744×296, 844×340
+ * Rozdělení (a) zafixovalo průvodce i v telefonních oknech 744×296, 844×340
  * (výřez 47/47/21), 932×499, 360×620, 390×844 (výřez 47 nahoře, 34 dole)
- * a 499×932 jako dnes. Tyto hodnoty nahradí až část (b) podle AC4 a AC5.
+ * a 499×932. Část (b, #60) tyto hodnoty nahradila polohami z AC4 a AC5.
  *
  * Hodnoty jsou snapshot vytvořený z dnešního kódu před změnou (plocha
  * 1024 × 768 zmenšená na herní plochu jako `panelFit`). Že nové nastavení
@@ -32,7 +33,7 @@ const UNCHANGED_WINDOWS: readonly TestWindow[] = [
   { name: 'zmenšené 375×553', width: 375, height: 553, safeArea: NO_NOTCH },
 ];
 
-/** Telefonní okna, kde průvodce v části (a) zůstane zmenšený jako dnes. */
+/** Telefonní okna, kde průvodce dostal v části (b) vlastní rozložení (AC4, AC5). */
 const PHONE_GUIDE_WINDOWS: readonly TestWindow[] = [
   { name: '744×296 nejmenší na šířku', width: 744, height: 296, safeArea: NO_NOTCH },
   {
@@ -70,11 +71,22 @@ describe('AC6: na iPadu a ve zmenšených oknech je průvodce jako dnes', () => 
   );
 });
 
-describe('rozdělení (a): průvodce na telefonu zůstane jako dnes, až do části (b)', () => {
-  it.each(PHONE_GUIDE_WINDOWS)(
-    '$name: všechny čtyři kroky průvodce mají stejnou velikost a polohu jako před změnou',
+describe('#60 (část b): průvodce v telefonních oknech má polohy z AC4 a AC5', () => {
+  it.each(PHONE_GUIDE_WINDOWS.filter((window) => window.width > window.height))(
+    '$name: všechny čtyři kroky průvodce mají řady, rámeček, radu, ukazatel a tlačítka podle AC4',
     (window) => {
-      expect(todayGuideCss(window)).toMatchSnapshot();
+      for (const step of STEPS) {
+        expectLandscapeGuideSpec(window, step);
+      }
+    },
+  );
+
+  it.each(PHONE_GUIDE_WINDOWS.filter((window) => window.width < window.height))(
+    '$name: všechny čtyři kroky průvodce mají řady, rámeček, radu a tlačítka podle AC5',
+    (window) => {
+      for (const step of STEPS) {
+        expectPortraitGuideSpec(window, step);
+      }
     },
   );
 });

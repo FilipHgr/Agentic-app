@@ -79,12 +79,12 @@ export class ParentPanels {
   }
 
   /**
-   * Otevřené panely se přizpůsobí nové herní ploše: nastavení dostane
-   * rozložení plochy (#59), průvodce se zmenší nebo zvětší (#54).
+   * Otevřené panely se přizpůsobí nové herní ploše: nastavení (#59)
+   * i průvodce (#60) dostanou rozložení plochy.
    */
   fitTo(area: GameArea): void {
     this.settingsPanel?.fitTo(area);
-    this.setupGuide?.fitTo({ width: area.width, height: area.height });
+    this.setupGuide?.fitTo(area);
   }
 
   /**
@@ -95,7 +95,7 @@ export class ParentPanels {
     this.open = true;
     const settingsButton = document.getElementById('settings-button');
     applyPageAppearance(guidePageAppearance(), settingsButton);
-    this.setupGuide = new SetupGuidePanel(this.scene, (chosen) => {
+    this.setupGuide = new SetupGuidePanel(this.scene, this.host.gameArea(), (chosen) => {
       this.setupGuide = undefined;
       this.launch = launchAfterGuide(this.launch);
       this.host.useSettings(chosen);

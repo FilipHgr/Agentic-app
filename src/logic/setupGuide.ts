@@ -107,7 +107,12 @@ export function hasBackButton(state: GuideState): boolean {
 
 /** Dva řádky pod řadami ze scénáře: vysvětlení a rada (kroky 1–3), nebo shrnutí. */
 export function guideMessage(state: GuideState): readonly [string, string] {
-  return scriptLines(ROW_OF_STEP[state.step] ?? 'summary');
+  return stepMessage(state.step);
+}
+
+/** Dvě věty rady ke kroku ze scénáře (#50). */
+export function stepMessage(step: GuideStep): readonly [string, string] {
+  return scriptLines(ROW_OF_STEP[step] ?? 'summary');
 }
 
 export interface GuideRowStyle {

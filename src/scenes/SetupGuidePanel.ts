@@ -6,26 +6,24 @@ import { buttonCornerRadius } from '../logic/checkButton';
 import { createGuideVoice, handleGuideVoice, speakerPulses } from '../logic/guideVoice';
 import type { GuideVoiceEvent, GuideVoiceState, GuideVoiceTapTarget } from '../logic/guideVoice';
 import type { GameSettings } from '../logic/settings';
-import { layoutSettingsPanel } from '../logic/settingsLayout';
 import {
   GUIDE_TEXTS,
   back,
   chooseOption,
   finishGuide,
-  guideMessage,
   guideRowStyle,
   guideSelection,
   hasBackButton,
-  layoutGuideStep,
   next,
   rightButton,
   startGuide,
   stepIndicatorText,
 } from '../logic/setupGuide';
-import type { GuideLayout, GuideSlot, GuideState } from '../logic/setupGuide';
+import type { GuideSlot, GuideState } from '../logic/setupGuide';
 import { FONT_FAMILY, GUIDE_STYLE, colorNumber } from '../logic/theme';
-import type { GameSize } from '../logic/deviceLayout';
-import { PANEL_HEIGHT, PANEL_WIDTH, fitPanel } from './panelFit';
+import { layoutDeviceGuideStep } from '../logic/deviceLayout';
+import type { DeviceGuideLayout, DeviceGuideMessage, GameArea } from '../logic/deviceLayout';
+import { PANEL_HEIGHT, PANEL_WIDTH, placePanel } from './panelFit';
 import { PANEL_DEPTH, PANEL_FADE_MS, SETTINGS_BACKDROP_COLOR } from './SettingsPanel';
 import { SettingsRows } from './SettingsRows';
 
@@ -60,10 +58,22 @@ interface GuideButton {
   readonly slot: GuideSlot;
 }
 
+/** Všechno, co se po otočení telefonu nakreslí znovu podle nového rozložení (#60). */
+interface GuideView {
+  readonly rows: SettingsRows;
+  readonly frame: Phaser.GameObjects.Graphics;
+  readonly message: Phaser.GameObjects.Text;
+  readonly indicator: Phaser.GameObjects.Text;
+  readonly backButton: GuideButton;
+  readonly rightButton: GuideButton;
+  readonly speakerButton: Phaser.GameObjects.Container;
+}
+
 /**
  * Průvodce nastavením při prvním spuštění (#49): tři kroky po řadách
  * s radami a shrnutí s „Začít hrát“. O krocích a volbách rozhoduje
- * `src/logic/setupGuide.ts`, o hlasu (#51) `src/logic/guideVoice.ts`;
+ * `src/logic/setupGuide.ts`, o hlasu (#51) `src/logic/guideVoice.ts`
+ * a o rozložení (na telefonu vlastní, #60) `layoutDeviceGuideStep`;
  * panel je jen kreslí a předává události.
  */
 export class SetupGuidePanel {
@@ -79,13 +89,12 @@ export class SetupGuidePanel {
   }
   private readonly container: Phaser.GameObjects.Container;
   private readonly backdrop: Phaser.GameObjects.Rectangle;
-  private readonly rows: SettingsRows;
-  private readonly frame: Phaser.GameObjects.Graphics;
-  private readonly message: Phaser.GameObjects.Text;
-  private readonly indicator: Phaser.GameObjects.Text;
-  private readonly backButton: GuideButton;
-  private readonly rightButton: GuideButton;
-  private readonly speakerButton: Phaser.GameObjects.Container;
+  /** Řady, rada a tlačítka; po otočení telefonu se nakreslí znovu. */
+  private readonly content: Phaser.GameObjects.Container;
+  private area: GameArea;
+  private view: GuideView;
+  /** Násobek tloušťky okraje tlačítek proti iPadu (na telefonu 2 jednotky na CSS px). */
+  private borderScale = 1;
   private speakerPulse: Phaser.Tweens.Tween | undefined;
   private voice: GuideVoiceState = createGuideVoice();
   private readonly voicePlayer: VoicePlayer;
@@ -106,44 +115,22 @@ export class SetupGuidePanel {
 
   constructor(
     private readonly scene: Phaser.Scene,
+    area: GameArea,
     private readonly onFinish: (settings: GameSettings) => void,
   ) {
-    // Průvodce má vlastní plochu 1024 × 768, na telefonu se celý zmenší (#54).
+    // Pozadí má plochu 1024 × 768 a roztáhne se přes celou herní plochu.
     const width = PANEL_WIDTH;
     const height = PANEL_HEIGHT;
-    const firstLayout = layoutGuideStep(1, width, height);
-    const stepWithBackLayout = layoutGuideStep(2, width, height);
 
     // Neprůhledné pozadí zachytí ťuknutí mimo ovládání průvodce.
     const backdrop = scene.add
       .rectangle(width / 2, height / 2, width, height, SETTINGS_BACKDROP_COLOR, 1)
       .setInteractive();
     this.backdrop = backdrop;
-    this.container = scene.add.container(0, 0, [backdrop]).setDepth(PANEL_DEPTH);
-
-    this.rows = new SettingsRows(
-      scene,
-      this.container,
-      layoutSettingsPanel(width, height),
-      () => guideSelection(this.state),
-      (change) => {
-        this.state = chooseOption(this.state, change);
-        this.tapVoice('option');
-      },
-    );
-    this.frame = scene.add.graphics();
-    this.container.add(this.frame);
-
-    this.message = this.addText(stepWithBackLayout.message, '');
-    this.message.setLineSpacing(
-      stepWithBackLayout.message.lineHeight - stepWithBackLayout.message.fontSize,
-    );
-    this.indicator = this.addText(stepWithBackLayout.indicator, '');
-    // Zpět je jen na krocích 2–4, proto jeho místo bereme z kroku 2.
-    const backSlot = stepWithBackLayout.back ?? stepWithBackLayout.right;
-    this.backButton = this.addButton(backSlot, GUIDE_TEXTS.buttons.back, () => this.onBack());
-    this.rightButton = this.addButton(firstLayout.right, '', () => this.onRight());
-    this.speakerButton = this.addSpeakerButton(firstLayout.speaker);
+    this.content = scene.add.container(0, 0);
+    this.container = scene.add.container(0, 0, [backdrop, this.content]).setDepth(PANEL_DEPTH);
+    this.area = area;
+    this.view = this.buildView(area);
 
     // Nahrávky se stahují až s otevřeným průvodcem, jen z vlastních souborů hry.
     this.voicePlayer = createVoicePlayer({
@@ -161,15 +148,60 @@ export class SetupGuidePanel {
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.removeListeners());
 
     this.render();
-    this.fitTo({ width: scene.scale.width, height: scene.scale.height });
     this.sendVoice({ kind: 'opened' });
     this.container.setAlpha(0);
     scene.tweens.add({ targets: this.container, alpha: 1, duration: PANEL_FADE_MS });
   }
 
-  /** Po změně velikosti okna se průvodce znovu vejde na herní plochu. */
-  fitTo(area: GameSize): void {
-    fitPanel(this.container, this.backdrop, area);
+  /**
+   * Po otočení telefonu nebo změně lišty se průvodce nakreslí znovu podle
+   * rozložení nové plochy (#60 AC7). Krok, volby i hlas zůstanou: hraná
+   * věta nepřestane a reproduktor pulzuje dál, pokud pulzoval.
+   */
+  fitTo(area: GameArea): void {
+    this.area = area;
+    this.stopSpeakerPulse();
+    this.scene.tweens.killTweensOf(this.content.list);
+    this.content.removeAll(true);
+    this.view = this.buildView(area);
+    this.render();
+    this.updateSpeakerPulse();
+  }
+
+  /** Nakreslí řady, rámeček, radu a tlačítka podle rozložení plochy `area`. */
+  private buildView(area: GameArea): GuideView {
+    // Místa tlačítek jsou na všech krocích stejná; Zpět je jen na krocích 2–4.
+    const firstLayout = layoutDeviceGuideStep(area, 1);
+    const stepWithBackLayout = layoutDeviceGuideStep(area, 2);
+    this.borderScale = firstLayout.optionLook.borderScale;
+
+    const rows = new SettingsRows(
+      this.scene,
+      this.content,
+      firstLayout,
+      () => guideSelection(this.state),
+      (change) => {
+        this.state = chooseOption(this.state, change);
+        this.tapVoice('option');
+      },
+    );
+    const frame = this.scene.add.graphics();
+    this.content.add(frame);
+
+    const message = this.addMessage(firstLayout.message);
+    const indicator = this.addText(firstLayout.indicator, '');
+    const backSlot = stepWithBackLayout.back ?? stepWithBackLayout.right;
+    const view: GuideView = {
+      rows,
+      frame,
+      message,
+      indicator,
+      backButton: this.addButton(backSlot, GUIDE_TEXTS.buttons.back, () => this.onBack()),
+      rightButton: this.addButton(firstLayout.right, '', () => this.onRight()),
+      speakerButton: this.addSpeakerButton(firstLayout.speaker),
+    };
+    placePanel(this.container, this.backdrop, area, firstLayout.placement);
+    return view;
   }
 
   private onBack(): void {
@@ -256,7 +288,7 @@ export class SetupGuidePanel {
     const pulses = speakerPulses(this.voice);
     if (pulses && this.speakerPulse === undefined) {
       this.speakerPulse = this.scene.tweens.add({
-        targets: this.speakerButton,
+        targets: this.view.speakerButton,
         scale: SPEAKER_PULSE.scale,
         duration: SPEAKER_PULSE.durationMs,
         yoyo: true,
@@ -264,46 +296,51 @@ export class SetupGuidePanel {
         ease: 'Sine.easeInOut',
       });
     } else if (!pulses && this.speakerPulse !== undefined) {
-      this.speakerPulse.stop();
-      this.speakerPulse = undefined;
-      this.speakerButton.setScale(1);
+      this.stopSpeakerPulse();
     }
+  }
+
+  private stopSpeakerPulse(): void {
+    this.speakerPulse?.stop();
+    this.speakerPulse = undefined;
+    this.view.speakerButton.setScale(1);
   }
 
   /** Překreslí krok podle stavu z logiky. */
   private render(): void {
-    const step = this.state.step;
-    const layout = layoutGuideStep(step, PANEL_WIDTH, PANEL_HEIGHT);
+    const view = this.view;
+    const layout = layoutDeviceGuideStep(this.area, this.state.step);
 
     for (const kind of ROW_KINDS) {
       const style = guideRowStyle(this.state, kind);
-      this.rows.setRowStyle(kind, style.visible, style.opacity, style.tappable);
+      view.rows.setRowStyle(kind, style.visible, style.opacity, style.tappable);
     }
-    this.rows.repaint();
+    view.rows.repaint();
     this.drawFrame(layout);
 
-    this.message.setText(guideMessage(this.state).join('\n'));
-    this.indicator.setText(stepIndicatorText(this.state));
+    view.message.setText(layout.message.lines.join('\n'));
+    view.indicator.setText(stepIndicatorText(this.state));
 
-    this.backButton.container.setVisible(hasBackButton(this.state));
-    this.paintButton(this.backButton, PLAIN_BUTTON);
+    view.backButton.container.setVisible(hasBackButton(this.state));
+    this.paintButton(view.backButton, PLAIN_BUTTON);
     const right = rightButton(this.state);
-    this.rightButton.label.setText(GUIDE_TEXTS.buttons[right]);
+    view.rightButton.label.setText(GUIDE_TEXTS.buttons[right]);
     this.paintButton(
-      this.rightButton,
+      view.rightButton,
       right === 'startPlaying' ? START_PLAYING_BUTTON : PLAIN_BUTTON,
     );
   }
 
-  private drawFrame(layout: GuideLayout): void {
-    this.frame.clear();
+  private drawFrame(layout: DeviceGuideLayout): void {
+    const graphics = this.view.frame;
+    graphics.clear();
     const frame = layout.frame;
     if (!frame) {
       return;
     }
     // Souřadnice rámečku jsou vnější hrana, čára se kreslí dovnitř.
     const inset = frame.lineWidth / 2;
-    this.frame
+    graphics
       .lineStyle(frame.lineWidth, colorNumber(frame.color), 1)
       .strokeRoundedRect(
         frame.x - frame.width / 2 + inset,
@@ -325,7 +362,37 @@ export class SetupGuidePanel {
         wordWrap: { width: slot.width },
       })
       .setOrigin(0.5);
-    this.container.add(object);
+    this.content.add(object);
+    return object;
+  }
+
+  /**
+   * Rada kroku: řádky jsou už zalomené v rozložení. Na středu pruhu, nebo
+   * (telefon na šířku) zarovnaná vlevo a nahoru.
+   */
+  private addMessage(slot: DeviceGuideMessage): Phaser.GameObjects.Text {
+    const alignLeft = slot.align === 'left';
+    const alignTop = slot.verticalAlign === 'top';
+    const object = this.scene.add
+      .text(
+        alignLeft ? slot.x - slot.width / 2 : slot.x,
+        alignTop ? slot.y - slot.height / 2 : slot.y,
+        '',
+        {
+          fontFamily: FONT_FAMILY,
+          fontSize: `${slot.fontSize}px`,
+          color: slot.color,
+          align: slot.align,
+          wordWrap: { width: slot.width },
+        },
+      )
+      .setOrigin(alignLeft ? 0 : 0.5, alignTop ? 0 : 0.5);
+    // Phaser dává řádky po výšce písma z prohlížeče a mezeře navíc.
+    const lineSpacing = slot.exactLineHeight
+      ? slot.lineHeight - object.getTextMetrics().fontSize
+      : slot.lineHeight - slot.fontSize;
+    object.setLineSpacing(lineSpacing);
+    this.content.add(object);
     return object;
   }
 
@@ -352,12 +419,12 @@ export class SetupGuidePanel {
       });
       onTap();
     });
-    this.container.add(container);
+    this.content.add(container);
     return { container, background, label, slot };
   }
 
   /** Reproduktor (#51): čtverec jako číselník s kreslenou ikonou, bez textu. */
-  private addSpeakerButton(slot: GuideLayout['speaker']): Phaser.GameObjects.Container {
+  private addSpeakerButton(slot: DeviceGuideLayout['speaker']): Phaser.GameObjects.Container {
     const { width, height } = slot;
     const background = this.scene.add.graphics();
     this.drawButtonShape(background, width, height, PLAIN_BUTTON);
@@ -378,7 +445,7 @@ export class SetupGuidePanel {
         yoyo: true,
       });
     });
-    this.container.add(container);
+    this.content.add(container);
     return container;
   }
 
@@ -413,7 +480,7 @@ export class SetupGuidePanel {
     look: GuideButtonLook,
   ): void {
     const radius = buttonCornerRadius(height);
-    const border = GUIDE_STYLE.buttonBorderWidth;
+    const border = GUIDE_STYLE.buttonBorderWidth * this.borderScale;
     graphics
       .clear()
       .fillStyle(colorNumber(look.background), 1)

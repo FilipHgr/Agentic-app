@@ -35,8 +35,20 @@ const GAME_HEIGHT = 768;
 /** Tlačítko 0 na číselníku 0–10 (výchozí nastavení) v herních souřadnicích. */
 const BUTTON_ZERO = { x: 112, y: 514 };
 
-/** Průvodce (#49): pravé tlačítko (Další / Začít hrát). */
-const GUIDE_RIGHT_BUTTON = { x: 880, y: 716 };
+/**
+ * Pravé tlačítko průvodce (#49, Další / Začít hrát) na stránce. Průvodce má
+ * na telefonu vlastní rozložení (#60), proto se místo bere z
+ * `layoutDeviceGuideStep` pro okno zařízení (na všech krocích stejné).
+ */
+function guideRightTarget(layoutModule, viewport, safeArea) {
+  const area = layoutModule.gameAreaFor({ ...viewport, safeArea });
+  const layout = layoutModule.layoutDeviceGuideStep(area, 1);
+  const { placement, right } = layout;
+  return {
+    x: area.offsetX + (placement.x + right.x * placement.scale) * area.scale,
+    y: area.offsetY + (placement.y + right.y * placement.scale) * area.scale,
+  };
+}
 
 /**
  * Volba „psaní“ a ✓ v nastavení pro rodiče na stránce. Nastavení má na
@@ -150,17 +162,18 @@ async function shootDevice(browser, url, device, layoutModule) {
   await page.goto(url);
   await page.waitForTimeout(1500);
   // Nový prohlížeč nemá uložené nastavení: průvodce nastavením (#49).
+  const guideRight = guideRightTarget(layoutModule, device.viewport, NO_NOTCH);
   await page.screenshot({ path: join(outputDir, `${device.name}-0b-pruvodce-rozsah.png`) });
-  await tapGame(page, GUIDE_RIGHT_BUTTON);
+  await tapAt(page, guideRight);
   await page.waitForTimeout(300);
   await page.screenshot({ path: join(outputDir, `${device.name}-0c-pruvodce-priklady.png`) });
-  await tapGame(page, GUIDE_RIGHT_BUTTON);
+  await tapAt(page, guideRight);
   await page.waitForTimeout(300);
   await page.screenshot({ path: join(outputDir, `${device.name}-0d-pruvodce-odpoved.png`) });
-  await tapGame(page, GUIDE_RIGHT_BUTTON);
+  await tapAt(page, guideRight);
   await page.waitForTimeout(700);
   await page.screenshot({ path: join(outputDir, `${device.name}-0e-pruvodce-shrnuti.png`) });
-  await tapGame(page, GUIDE_RIGHT_BUTTON);
+  await tapAt(page, guideRight);
   await page.waitForTimeout(600);
   await page.screenshot({ path: join(outputDir, `${device.name}-1-zacatek.png`) });
 
@@ -240,17 +253,14 @@ function simulateNotch(safeArea) {
   });
 }
 
-/** Převod herních souřadnic telefonu a panelů na souřadnice stránky. */
+/** Převod herních souřadnic telefonu na souřadnice stránky. */
 function phoneMapper(layoutModule, device) {
   const area = layoutModule.gameAreaFor({ ...device.viewport, safeArea: device.safeArea });
-  const panel = layoutModule.panelPlacement(area);
   const game = (point) => ({
     x: area.offsetX + point.x * area.scale,
     y: area.offsetY + point.y * area.scale,
   });
-  const inPanel = (point) =>
-    game({ x: panel.x + point.x * panel.scale, y: panel.y + point.y * panel.scale });
-  return { area, game, inPanel };
+  return { area, game };
 }
 
 async function tapAt(page, point) {
@@ -294,15 +304,16 @@ async function shootPhone(browser, url, device, layoutModule) {
   const map = phoneMapper(layoutModule, device);
   const shot = (name) => page.screenshot({ path: join(outputDir, `${device.name}-${name}.png`) });
 
+  const guideRight = guideRightTarget(layoutModule, device.viewport, device.safeArea);
   await page.goto(url);
   await page.waitForTimeout(1500);
   await shot('0b-pruvodce-rozsah');
   for (let step = 0; step < 3; step += 1) {
-    await tapAt(page, map.inPanel(GUIDE_RIGHT_BUTTON));
+    await tapAt(page, guideRight);
     await page.waitForTimeout(400);
   }
   await shot('0e-pruvodce-shrnuti');
-  await tapAt(page, map.inPanel(GUIDE_RIGHT_BUTTON));
+  await tapAt(page, guideRight);
   await page.waitForTimeout(600);
   await shot('1-zacatek');
 

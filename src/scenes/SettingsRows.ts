@@ -64,7 +64,7 @@ export class SettingsRows {
   constructor(
     private readonly scene: Phaser.Scene,
     container: Phaser.GameObjects.Container,
-    layout: SettingsLayout,
+    layout: Pick<SettingsLayout, 'rows' | 'optionLook'>,
     private readonly selection: () => SelectedOptions | null,
     private readonly onChoose: (change: Partial<GameSettings>) => void,
   ) {

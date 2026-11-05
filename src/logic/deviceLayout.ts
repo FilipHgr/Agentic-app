@@ -17,6 +17,8 @@ import { canCountDots } from './dotCounting';
 import type { DotCounting } from './dotCounting';
 import { visibleGroups } from './phoneHint';
 import { planPhoneScreen } from './phoneLayout';
+import { layoutPhoneLandscapeGuide, layoutPhonePortraitGuide } from './phoneGuideLayout';
+import type { GuideStepParts } from './phoneGuideLayout';
 import { layoutPhoneLandscapeSettings, layoutPhonePortraitSettings } from './phoneSettingsLayout';
 import type { PhonePlanRequest } from './phoneLayout';
 import {
@@ -50,12 +52,14 @@ import type { GameSettings, MaxNumber, OperationMode } from './settings';
 import { layoutSettingsPanel } from './settingsLayout';
 import type { SettingsLayout } from './settingsLayout';
 import type { SettingsSession } from './settingsSession';
-import type { GuideState } from './setupGuide';
+import { layoutGuideStep, stepMessage } from './setupGuide';
+import type { GuideState, GuideStep } from './setupGuide';
 import type { TwoBoxRound } from './twoBoxWriting';
 import { clearWriting } from './writingRound';
 import type { WritingRound } from './writingRound';
 
 export type { Region } from './phoneHint';
+export type { DeviceGuideMessage } from './phoneGuideLayout';
 export {
   isPortraitLayout,
   layoutPhonePortraitHint,
@@ -500,7 +504,7 @@ export interface DeviceSettingsLayout extends SettingsLayout {
   readonly placement: PanelPlacement;
 }
 
-/** Telefonní rozložení je přímo v jednotkách herní plochy, nic se nezmenšuje. */
+/** Telefonní rozložení (nastavení i průvodce) je přímo v jednotkách herní plochy, nic se nezmenšuje. */
 const PHONE_SETTINGS_PLACEMENT: PanelPlacement = { scale: 1, x: 0, y: 0 };
 
 /**
@@ -527,6 +531,53 @@ export function layoutDeviceSettingsPanel(area: GameArea): DeviceSettingsLayout 
     ...layoutSettingsPanel(TABLET_GAME_WIDTH, TABLET_GAME_HEIGHT),
     mode: area.mode,
     placement: panelPlacement(area),
+  };
+}
+
+/** Krok průvodce nastavením pro danou herní plochu (#60). */
+export interface DeviceGuideLayout extends GuideStepParts {
+  readonly mode: LayoutMode;
+  /** Kam a jak zmenšené se rozložení na herní plochu dá. */
+  readonly placement: PanelPlacement;
+}
+
+/**
+ * Průvodce nastavením: na telefonu na šířku a na výšku vlastní rozložení
+ * s velkými volbami a zalomenou radou (#60), jinde dnešní průvodce
+ * 1024 × 768 zmenšený na herní plochu (iPad beze změny).
+ */
+export function layoutDeviceGuideStep(area: GameArea, step: GuideStep): DeviceGuideLayout {
+  if (area.mode === 'phoneLandscape') {
+    return {
+      ...layoutPhoneLandscapeGuide(area, step),
+      mode: area.mode,
+      placement: PHONE_SETTINGS_PLACEMENT,
+    };
+  }
+  if (area.mode === 'phonePortrait') {
+    return {
+      ...layoutPhonePortraitGuide(area, step),
+      mode: area.mode,
+      placement: PHONE_SETTINGS_PLACEMENT,
+    };
+  }
+  return { ...todayGuideStep(step), mode: area.mode, placement: panelPlacement(area) };
+}
+
+/** Dnešní krok průvodce na ploše 1024 × 768: rada dva řádky ze scénáře na středu. */
+function todayGuideStep(step: GuideStep): GuideStepParts {
+  const settings = layoutSettingsPanel(TABLET_GAME_WIDTH, TABLET_GAME_HEIGHT);
+  const guide = layoutGuideStep(step, TABLET_GAME_WIDTH, TABLET_GAME_HEIGHT);
+  return {
+    ...guide,
+    rows: settings.rows,
+    optionLook: settings.optionLook,
+    message: {
+      ...guide.message,
+      lines: [...stepMessage(step)],
+      exactLineHeight: false,
+      verticalAlign: 'middle',
+    },
   };
 }
 

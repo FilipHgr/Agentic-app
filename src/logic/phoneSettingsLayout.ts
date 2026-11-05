@@ -3,7 +3,8 @@
  * S-sirka-nast (řady vlevo s popisky, ✓ vpravo), na výšku podle
  * S-vyska-nast (řady pod sebou na středu, ✓ dole u palce). Rozměry jsou
  * v CSS px a na konci se převedou na herní jednotky telefonu.
- * Průvodce nastavením se tady neřeší (#60). Čistý TypeScript.
+ * Řady voleb sdílí i průvodce nastavením na telefonu (#60,
+ * `phoneGuideLayout.ts`). Čistý TypeScript.
  */
 
 import type { GameSize } from './deviceLayout';
@@ -32,7 +33,7 @@ const ROW_ORDER: readonly SettingsRowKind[] = ['maxNumber', 'operations', 'answe
 const LABEL_FONT_SIZE = 16;
 const LABEL_HEIGHT = 20;
 const OPTION_WIDTH = 104;
-const OPTION_GAP = 8;
+export const PHONE_OPTION_GAP = 8;
 const OPTION_CORNER_RADIUS = 18;
 /** Okraj voleb 2 CSS px jako na obrázcích S (na iPadu 2 jednotky). */
 const OPTION_BORDER_SCALE = PHONE_UNITS_PER_CSS_PX;
@@ -64,11 +65,12 @@ const PORTRAIT = {
 } as const;
 
 /** Rozměry řady v CSS px, ze kterých se postaví řada v jednotkách. */
-interface RowPlan {
+export interface PhoneRowPlan {
   readonly kind: SettingsRowKind;
   /** Levý okraj první volby a svislý střed řady. */
   readonly optionsLeft: number;
   readonly centerY: number;
+  readonly optionWidth: number;
   readonly optionHeight: number;
   readonly optionFontSize: number;
   readonly label: {
@@ -79,17 +81,19 @@ interface RowPlan {
   };
 }
 
-function rowWidth(kind: SettingsRowKind): number {
+/** Šířka řady voleb v CSS px (volby a mezery mezi nimi). */
+export function phoneRowWidth(kind: SettingsRowKind, optionWidth: number): number {
   const count = ROW_VALUES[kind].length;
-  return count * OPTION_WIDTH + (count - 1) * OPTION_GAP;
+  return count * optionWidth + (count - 1) * PHONE_OPTION_GAP;
 }
 
 /** Řada z plánu v CSS px převedená na herní jednotky. */
-function rowInUnits(plan: RowPlan): SettingsRow {
+function rowInUnits(plan: PhoneRowPlan): SettingsRow {
+  const step = plan.optionWidth + PHONE_OPTION_GAP;
   const options: SettingsOptionSlot[] = ROW_VALUES[plan.kind].map((value, index) => ({
-    x: units(plan.optionsLeft + index * (OPTION_WIDTH + OPTION_GAP) + OPTION_WIDTH / 2),
+    x: units(plan.optionsLeft + index * step + plan.optionWidth / 2),
     y: units(plan.centerY),
-    width: units(OPTION_WIDTH),
+    width: units(plan.optionWidth),
     height: units(plan.optionHeight),
     value,
     fontSize: units(plan.optionFontSize),
@@ -110,14 +114,15 @@ function rowInUnits(plan: RowPlan): SettingsRow {
   };
 }
 
-function threeRows(
-  plan: (kind: SettingsRowKind, index: number) => RowPlan,
+/** Řady Do kolika, Příklady a Odpověď podle plánu jednotlivých řad. */
+export function phoneRows(
+  plan: (kind: SettingsRowKind, index: number) => PhoneRowPlan,
 ): SettingsLayout['rows'] {
   const [first, second, third] = ROW_ORDER.map((kind, index) => rowInUnits(plan(kind, index)));
   return [first as SettingsRow, second as SettingsRow, third as SettingsRow];
 }
 
-const PHONE_OPTION_LOOK: SettingsLayout['optionLook'] = {
+export const PHONE_OPTION_LOOK: SettingsLayout['optionLook'] = {
   cornerRadius: units(OPTION_CORNER_RADIUS),
   borderScale: OPTION_BORDER_SCALE,
   pencilSize: units(PENCIL_SIZE),
@@ -131,12 +136,13 @@ export function layoutPhoneLandscapeSettings(area: GameSize): SettingsLayout {
   const free = cssSizeOf(area);
   const top = (free.height - LANDSCAPE.rowsHeight) / 2;
   const labelWidth = LANDSCAPE.labelRight - LANDSCAPE.labelLeft;
-  const rows = threeRows((kind, index) => {
+  const rows = phoneRows((kind, index) => {
     const centerY = top + index * LANDSCAPE.rowStep + LANDSCAPE.optionHeight / 2;
     return {
       kind,
       optionsLeft: LANDSCAPE.optionsLeft,
       centerY,
+      optionWidth: OPTION_WIDTH,
       optionHeight: LANDSCAPE.optionHeight,
       optionFontSize: LANDSCAPE.optionFontSize,
       label: {
@@ -162,13 +168,14 @@ export function layoutPhoneLandscapeSettings(area: GameSize): SettingsLayout {
 export function layoutPhonePortraitSettings(area: GameSize): SettingsLayout {
   const free = cssSizeOf(area);
   const centerX = free.width / 2;
-  const rows = threeRows((kind, index) => {
+  const rows = phoneRows((kind, index) => {
     const rowTop = PORTRAIT.firstRowTop + index * PORTRAIT.rowStep;
-    const width = rowWidth(kind);
+    const width = phoneRowWidth(kind, OPTION_WIDTH);
     return {
       kind,
       optionsLeft: centerX - width / 2,
       centerY: rowTop + PORTRAIT.optionHeight / 2,
+      optionWidth: OPTION_WIDTH,
       optionHeight: PORTRAIT.optionHeight,
       optionFontSize: PORTRAIT.optionFontSize,
       label: {
