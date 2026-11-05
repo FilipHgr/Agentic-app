@@ -149,3 +149,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-05 Systémová klávesnice se nepoužívá vůbec, všechno dotykem.
   Přezdívka profilu se ťuká vlastní mřížkou velkých písmen A–Ž (64 px)
   se smazáním. Na PC jde psát i fyzickou klávesnicí.
+- 2026-11-05 Obrázky k menu schválené podle doporučení (#67–#73): hvězdičky
+  na telefonu na výšku ve 2 řadách po 5 mezi domečkem a kolečkem, menu na
+  šířku s kategoriemi vlevo, paleta 8 barev s kontrastem aspoň 3 : 1,
+  výběr profilu na šířku v 1 řadě a na výšku ve 2 sloupcích, mřížka písmen
+  ve 2 vrstvách, 2. krok formuláře barva s košem jen při úpravě, plné „CS“
+  i na výběru profilu, potvrzení smazání se „Zpět“ na místě ✓.
