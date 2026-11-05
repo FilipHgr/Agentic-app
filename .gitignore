@@ -11,3 +11,10 @@ coverage/
 *.log
 .DS_Store
 .idea/
+
+# Stav rozpracovaného úkolu a místní nastavení Claude Code
+.claude/state/
+.claude/settings.local.json
+
+# Snímky obrazovky z tools/screenshots (jen ke kontrole, necommitují se)
+snimky/
