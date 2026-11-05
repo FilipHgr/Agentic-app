@@ -1,5 +1,5 @@
 /**
- * Uložení postupu hráče (hvězdičky a postavička) v zařízení. Když prohlížeč
+ * Uložení postupu hráče (hvězdičky) v zařízení. Když prohlížeč
  * úložiště nedovolí, hra jede dál a hráč nevidí chybu.
  */
 

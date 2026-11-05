@@ -6,16 +6,10 @@ import {
   layoutDeviceWritingScreen,
   sceneryLayoutFor,
 } from '../logic/deviceLayout';
-import type {
-  DeviceScreenLayout,
-  DeviceSizes,
-  DeviceWritingLayout,
-  GameArea,
-} from '../logic/deviceLayout';
+import type { DeviceScreenLayout, DeviceWritingLayout, GameArea } from '../logic/deviceLayout';
 import { isWritingActive } from '../logic/settings';
 import type { GameSettings } from '../logic/settings';
 import { STARS_PER_SET } from '../logic/stars';
-import type { MascotLook } from './Mascot';
 
 /** Co scéna právě ukazuje; podle toho se vybírá rozložení. */
 export interface LayoutInputs {
@@ -23,15 +17,6 @@ export interface LayoutInputs {
   readonly settings: GameSettings;
   readonly round: AnswerRound | undefined;
   readonly hintIsShown: boolean;
-}
-
-/** Velikost postavičky a jejích pohybů z rozložení. */
-export function mascotLookOf(sizes: DeviceSizes): MascotLook {
-  return {
-    size: sizes.mascotSize,
-    jumpHeight: sizes.mascotJumpHeight,
-    danceSway: sizes.mascotDanceSway,
-  };
 }
 
 /** Herní plocha z registru; dokud tam není, dnešní 1024 × 768. */
@@ -117,7 +102,7 @@ export class SceneLayouts {
   }
 
   /**
-   * Rozložení pro hvězdičky, postavičku a příklad. Na telefonu (na šířku
+   * Rozložení pro hvězdičky a příklad. Na telefonu (na šířku
    * i na výšku) rozložení se skutečným ovládáním, jinde jako dřív
    * s číselníkem (viz `sceneryLayoutFor`).
    */

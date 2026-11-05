@@ -1,13 +1,11 @@
 /**
- * Prvky rozložení telefonu (V2, #54) v CSS px: hvězdičky, postavička,
- * příklad a tečky nápovědy. Čistý TypeScript.
+ * Prvky rozložení telefonu (V2, #54) v CSS px: hvězdičky, příklad
+ * a tečky nápovědy. Čistý TypeScript.
  */
 
 import { hintBlockSize, visibleGroups } from './phoneHint';
 import type { GroupArrangement, HintGrid, Region } from './phoneHint';
 import {
-  MIN_MASCOT_SIZE,
-  MIN_MASCOT_SIZE_WITH_HINT,
   STAR_ROW_BOTTOM,
   STAR_ROW_TOP,
   STAR_ROW_WIDTH,
@@ -15,13 +13,7 @@ import {
   STAR_SPACING,
 } from './phonePlan';
 import type { FreeSize, PhonePlan, PhonePlanRequest } from './phonePlan';
-import {
-  MASCOT_DANCE_SWAY,
-  MASCOT_JUMP_HEIGHT,
-  MASCOT_SIZE,
-  problemMaxWidth,
-  problemTextHeight,
-} from './screenLayout';
+import { problemMaxWidth, problemTextHeight } from './screenLayout';
 import type { Point } from './screenLayout';
 import type { MaxNumber } from './settings';
 
@@ -44,44 +36,8 @@ export function starRowRect(free: FreeSize): Region {
 }
 
 // ---------------------------------------------------------------------------
-// Postavička a příklad
+// Příklad
 // ---------------------------------------------------------------------------
-
-/** Postavička je zhruba stejně velká jako písmo příkladu. */
-const MASCOT_PER_FONT_SIZE = 1.1;
-
-function mascotJump(size: number): number {
-  return (size * MASCOT_JUMP_HEIGHT) / MASCOT_SIZE;
-}
-
-function mascotSway(size: number): number {
-  return (size * MASCOT_DANCE_SWAY) / MASCOT_SIZE;
-}
-
-/** Šířka postavičky i s tancem do stran. */
-export function mascotWidth(size: number): number {
-  return size + 2 * mascotSway(size);
-}
-
-/** Výška postavičky i se skokem nahoru. */
-export function mascotHeight(size: number): number {
-  return size + mascotJump(size);
-}
-
-/** Místo, které postavička zabere i při skoku a tanci. */
-export function mascotRect(center: Point, size: number): Region {
-  return {
-    left: center.x - mascotWidth(size) / 2,
-    right: center.x + mascotWidth(size) / 2,
-    top: center.y - size / 2 - mascotJump(size),
-    bottom: center.y + size / 2,
-  };
-}
-
-/** Střed postavičky, jejíž místo i se skokem začíná nahoře na `top`. */
-export function mascotCenterBelow(x: number, top: number, size: number): Point {
-  return { x, y: top + mascotJump(size) + size / 2 };
-}
 
 /** Místo pro nejdelší příklad v rozsahu (stejný odhad jako na iPadu, s přesností na půl px). */
 export function problemBox(font: number, maxNumber: MaxNumber): FreeSize {
@@ -91,25 +47,15 @@ export function problemBox(font: number, maxNumber: MaxNumber): FreeSize {
   };
 }
 
-/** Písmo příkladu, místo pro něj a velikost postavičky. */
-export interface ProblemAndMascot {
+/** Písmo příkladu a místo pro něj. */
+export interface ProblemSizes {
   readonly font: number;
   readonly problem: FreeSize;
-  readonly mascotSize: number;
 }
 
-/** Možné velikosti písma a postavičky od největších; s nápovědou smí být postavička 48 px. */
-export function problemAndMascotOptions(
-  fonts: readonly number[],
-  maxNumber: MaxNumber,
-  withHint: boolean,
-): ProblemAndMascot[] {
-  return fonts.flatMap((font) => {
-    const regular = Math.max(MIN_MASCOT_SIZE, Math.round(font * MASCOT_PER_FONT_SIZE));
-    const mascotSizes = withHint ? [regular, MIN_MASCOT_SIZE_WITH_HINT] : [regular];
-    const problem = problemBox(font, maxNumber);
-    return mascotSizes.map((mascotSize) => ({ font, problem, mascotSize }));
-  });
+/** Možné velikosti písma příkladu od největších. */
+export function problemOptions(fonts: readonly number[], maxNumber: MaxNumber): ProblemSizes[] {
+  return fonts.map((font) => ({ font, problem: problemBox(font, maxNumber) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -191,13 +137,12 @@ export function hintBlocksFor(request: PhonePlanRequest): (HintBlock | null)[] {
 /** Hvězdičky, písmo a velikosti; zbytek doplní konkrétní rozložení. */
 export function basePlan(
   request: PhonePlanRequest,
-  sizes: ProblemAndMascot,
+  sizes: ProblemSizes,
   grid: DotGrid | null,
-): Omit<PhonePlan, 'mascot' | 'problem' | 'hintDots' | 'answerButtons' | 'writing'> {
+): Omit<PhonePlan, 'problem' | 'hintDots' | 'answerButtons' | 'writing'> {
   return {
     stars: layoutStars(request.free, request.starCount),
     starSize: STAR_SIZE,
-    mascotSize: sizes.mascotSize,
     problemFontSize: sizes.font,
     problemWidth: sizes.problem.width,
     problemHeight: sizes.problem.height,

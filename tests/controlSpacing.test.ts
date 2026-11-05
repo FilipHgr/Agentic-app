@@ -5,9 +5,6 @@ import type { Problem } from '../src/logic/problems';
 import { CHECK_BUTTON_COLOR, buttonCornerRadius, checkButtonStyle } from '../src/logic/checkButton';
 import {
   ANSWER_BUTTON_SIZE,
-  MASCOT_DANCE_SWAY,
-  MASCOT_JUMP_HEIGHT,
-  MASCOT_SIZE,
   SMALL_ANSWER_BUTTON_SIZE,
   STAR_SIZE,
   WRITING_BUTTON_SIZE,
@@ -56,18 +53,21 @@ const STAR_COUNTS = [0, STARS_PER_SET];
 
 const BOTTOM_MARGIN = 24;
 
-/** Spodní hrana číslic příkladu je 0,36 × velikost písma pod jeho středem (#44). */
-const GLYPH_BOTTOM_RATIO = 0.36;
+/**
+ * Spodek boxu textu příkladu je 0,6 × velikost písma pod jeho středem (box
+ * je vysoký 1,2 × písmo). Od #63 se od něj měří mezera nad nápovědou.
+ */
+const TEXT_BOTTOM_RATIO = 0.6;
 
-/** Nejmenší mezera nad i pod nápovědou z #44 (AC1). */
+/**
+ * Nejmenší mezera nad i pod nápovědou: kontrolní výpočet z #63 (AC2) pro
+ * nejvyšší nápovědu v rozsahu, dolů zaokrouhlený. Bez výjimky pro rozsah 20.
+ */
 const MIN_HINT_GAP: Record<MaxNumber, Record<Mode, number>> = {
-  5: { číselník: 140, psaní: 50 },
-  10: { číselník: 40, psaní: 50 },
-  20: { číselník: 28, psaní: 75 },
+  5: { číselník: 116, psaní: 26 },
+  10: { číselník: 20, psaní: 30 },
+  20: { číselník: 14, psaní: 62 },
 };
-
-/** Výjimka z #44 u rozsahu 20 s číselníkem: nápověda na dvě řady pod postavičkou. */
-const EXCEPTION_MIN_GAP_BELOW = 16;
 
 /** Tolerance ±1 px u zaoblení a tloušťky fajfky (upřesnění AC5). */
 const STYLE_TOLERANCE = 1;
@@ -215,17 +215,6 @@ function variantFor(maxNumber: MaxNumber, mode: Mode, starCount: number): Varian
   };
 }
 
-/** Postavička i se skokem nahoru a tancem do stran. */
-function mascotBox(layout: AnyLayout): Box {
-  const { mascot } = layout;
-  return {
-    left: mascot.x - MASCOT_SIZE / 2 - MASCOT_DANCE_SWAY,
-    right: mascot.x + MASCOT_SIZE / 2 + MASCOT_DANCE_SWAY,
-    top: mascot.y - MASCOT_SIZE / 2 - MASCOT_JUMP_HEIGHT,
-    bottom: mascot.y + MASCOT_SIZE / 2,
-  };
-}
-
 /** Příklad s místem pro nejdelší výsledek (#40). */
 function problemBox(layout: AnyLayout): Box {
   return box(
@@ -236,11 +225,10 @@ function problemBox(layout: AnyLayout): Box {
   );
 }
 
-/** Vše kromě nápovědy: postavička, příklad, hvězdičky a ovládání. */
+/** Vše kromě nápovědy: příklad, hvězdičky a ovládání. */
 function fixedBoxes(variant: Variant): Box[] {
   const { layout } = variant;
   return [
-    mascotBox(layout),
     problemBox(layout),
     ...layout.stars.map((star) => box(star.x, star.y, STAR_SIZE, STAR_SIZE)),
     ...variant.controls,
@@ -260,15 +248,6 @@ function hintBounds(dots: readonly HintDot[], layout: AnyLayout): Box {
     top: Math.min(...boxes.map((b) => b.top)),
     bottom: Math.max(...boxes.map((b) => b.bottom)),
   };
-}
-
-/** Výjimka z #44: u rozsahu 20 s číselníkem nápověda na dvě řady sahající pod postavičku. */
-function isUnderMascotException(variant: Variant, dots: readonly HintDot[]): boolean {
-  const rows = new Set(dots.map((dot) => dot.y)).size;
-  if (variant.maxNumber !== 20 || variant.mode !== 'číselník' || rows < 2) {
-    return false;
-  }
-  return hintBounds(dots, variant.layout).left < mascotBox(variant.layout).right;
 }
 
 describe('AC1: číselník do 5 a do 10 má mezi tlačítky v řadě 24 px', () => {
@@ -576,12 +555,12 @@ describe('AC6: okrajové případy ve všech šesti kombinacích', () => {
     );
 
     it.each(ALL_VARIANTS)(
-      `rozsah %i (%s), ${starCount} hvězdiček: nad nápovědou i pod ní zůstává nejmenší mezera z #44`,
+      `rozsah %i (%s), ${starCount} hvězdiček: nad nápovědou i pod ní zůstává nejmenší mezera z #63`,
       (maxNumber, mode) => {
         const variant = variantFor(maxNumber, mode, starCount);
         const minimum = MIN_HINT_GAP[maxNumber][mode];
-        const glyphBottom =
-          variant.layout.problem.y + GLYPH_BOTTOM_RATIO * variant.layout.problemFontSize;
+        const textBottom =
+          variant.layout.problem.y + TEXT_BOTTOM_RATIO * variant.layout.problemFontSize;
 
         for (const problem of allProblems(maxNumber)) {
           const dots = layoutHint(variant.layout, hintDotGroups(problem));
@@ -589,16 +568,7 @@ describe('AC6: okrajové případy ve všech šesti kombinacích', () => {
           const gapBelow = variant.controlsTop - bounds.bottom;
           const label = `${problemName(problem)}: pod ${gapBelow}`;
 
-          if (isUnderMascotException(variant, dots)) {
-            // Výjimka z #44: nápověda začíná pod postavičkou a nepřekryje ji.
-            expect(bounds.top, label).toBeGreaterThanOrEqual(
-              variant.layout.mascot.y + MASCOT_SIZE / 2 - 1,
-            );
-            expect(overlaps(bounds, mascotBox(variant.layout)), label).toBe(false);
-            expect(gapBelow, label).toBeGreaterThanOrEqual(EXCEPTION_MIN_GAP_BELOW);
-            continue;
-          }
-          expect(bounds.top - glyphBottom, label).toBeGreaterThanOrEqual(minimum);
+          expect(bounds.top - textBottom, label).toBeGreaterThanOrEqual(minimum);
           expect(gapBelow, label).toBeGreaterThanOrEqual(minimum);
         }
       },

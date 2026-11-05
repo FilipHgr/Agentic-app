@@ -3,7 +3,6 @@
  * vybral a jak má vypadat stránka kolem. Čistý TypeScript bez Phaseru i DOM.
  */
 
-import { nextCharacter } from './characters';
 import type { GameProgress } from './progress';
 import { answerInputOf } from './settings';
 import type { AnswerInput, GameSettings, MaxNumber, OperationMode } from './settings';
@@ -84,7 +83,7 @@ export function selectedOptions(session: SettingsSession): SelectedOptions | nul
 /**
  * Ťuknutí na ✓: nastavení se zavře, volby platí a přijde nový příklad.
  * Když právě běžela oslava (plná řada hvězdiček), přeruší se: řada se
- * vyprázdní a postavička se vystřídá jako po dokončené oslavě.
+ * vyprázdní jako po dokončené oslavě.
  */
 export function confirmSettings(
   session: SettingsSession,
@@ -98,7 +97,7 @@ export function confirmSettings(
   return {
     session: CLOSED_SETTINGS,
     settings: session.choice,
-    progress: celebrating ? { earned: 0, character: nextCharacter(progress.character) } : progress,
+    progress: celebrating ? { earned: 0 } : progress,
     startNewProblem: true,
   };
 }

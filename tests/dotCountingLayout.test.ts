@@ -3,9 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { hintDotGroups } from '../src/logic/answerRound';
 import type { Problem } from '../src/logic/problems';
 import {
-  MASCOT_DANCE_SWAY,
-  MASCOT_JUMP_HEIGHT,
-  MASCOT_SIZE,
   STAR_SIZE,
   hintDotAt,
   hintDotHitArea,
@@ -21,8 +18,8 @@ import { STARS_PER_SET } from '../src/logic/stars';
  * Testy ploch pro ťuknutí na tečky nápovědy (#43, AC7): u rozsahu 5 a 10,
  * s číselníkem i při psaní, má každá tečka plochu aspoň 64 × 64 px. Plochy
  * se smí dotýkat, ale nepřekrývat, jsou celé na obrazovce 1024 × 768
- * a nepotkají se s příkladem, číselníkem, okénky na psaní, postavičkou
- * (i s tancem a skokem) ani s hvězdičkami.
+ * a nepotkají se s příkladem, číselníkem, okénky na psaní ani
+ * s hvězdičkami.
  */
 
 const SCREEN_WIDTH = 1024;
@@ -72,16 +69,10 @@ function allProblems(maxNumber: number): Problem[] {
 
 type Top = Omit<ScreenLayout, 'answerButtons'>;
 
-/** Postavička i se skokem a tancem, příklad a hvězdičky. */
+/** Příklad a hvězdičky. */
 function topBoxes(layout: Top): Box[] {
-  const { mascot, problem } = layout;
+  const { problem } = layout;
   return [
-    {
-      left: mascot.x - MASCOT_SIZE / 2 - MASCOT_DANCE_SWAY,
-      right: mascot.x + MASCOT_SIZE / 2 + MASCOT_DANCE_SWAY,
-      top: mascot.y - MASCOT_SIZE / 2 - MASCOT_JUMP_HEIGHT,
-      bottom: mascot.y + MASCOT_SIZE / 2,
-    },
     box(problem.x, problem.y, layout.problemSize.width, layout.problemSize.height),
     ...layout.stars.map((star) => box(star.x, star.y, STAR_SIZE, STAR_SIZE)),
   ];
@@ -161,7 +152,7 @@ describe('AC7: každá tečka má plochu pro ťuknutí aspoň 64 × 64 px', () =
   );
 
   it.each(COUNTING_RANGES)(
-    'rozsah %i: plochy teček se nepotkají s příkladem, číselníkem ani okénky, postavičkou a hvězdičkami',
+    'rozsah %i: plochy teček se nepotkají s příkladem, číselníkem ani okénky a hvězdičkami',
     (max) => {
       for (const { screen, others } of variants(max)) {
         for (const problem of allProblems(max)) {

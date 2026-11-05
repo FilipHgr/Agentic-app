@@ -42,7 +42,6 @@ import {
   settingsOptionLook,
 } from '../src/logic/theme';
 import type { SettingsOptionLook } from '../src/logic/theme';
-import { FIRST_CHARACTER } from '../src/logic/characters';
 
 /**
  * Testy k #53 (světlý vzhled nastavení, průvodce a oslavy, dokončení A3):
@@ -51,8 +50,8 @@ import { FIRST_CHARACTER } from '../src/logic/characters';
  * konfety (AC5) a nic tmavě zeleného nezůstane (AC6).
  *
  * Ručně se kontroluje: ztlumení kolečka za 150 ms, že ťuknutí neprojdou
- * pod panel do hry, pulzování reproduktoru, počet konfet, délka oslavy
- * a střídání postaviček, čitelnost ztlumených řad a konfet v Safari na
+ * pod panel do hry, pulzování reproduktoru, počet konfet, délka oslavy,
+ * čitelnost ztlumených řad a konfet v Safari na
  * iPadu a na telefonu.
  */
 
@@ -156,7 +155,7 @@ describe('#53 AC1: stránka při otevřeném nastavení a průvodci je světlá'
 
   it('po zavření nastavení je stránka #F5F5F7 a kolečko plně vidět', () => {
     const open = openSettings(CLOSED_SETTINGS, SAVED);
-    const { session } = confirmSettings(open, SAVED, { earned: 3, character: FIRST_CHARACTER });
+    const { session } = confirmSettings(open, SAVED, { earned: 3 });
     const appearance = pageAppearance(session);
     expectColor(appearance.background, '#F5F5F7');
     expect(appearance.gearOpacity).toBe(1);
@@ -164,7 +163,7 @@ describe('#53 AC1: stránka při otevřeném nastavení a průvodci je světlá'
 
   it('po pětinásobném otevření a zavření nastavení je stránka pořád světlá a kolečko se vrátí na 1', () => {
     let session: SettingsSession = CLOSED_SETTINGS;
-    const progress = { earned: 3, character: FIRST_CHARACTER };
+    const progress = { earned: 3 };
     for (let round = 0; round < 5; round += 1) {
       session = openSettings(session, SAVED);
       expectColor(pageAppearance(session).background, '#F5F5F7');
@@ -185,10 +184,7 @@ describe('#53 AC1: stránka při otevřeném nastavení a průvodci je světlá'
     let session: SettingsSession = CLOSED_SETTINGS;
     for (let round = 0; round < 3; round += 1) {
       session = openSettings(session, DEFAULT_SETTINGS);
-      session = confirmSettings(session, DEFAULT_SETTINGS, {
-        earned: 0,
-        character: FIRST_CHARACTER,
-      }).session;
+      session = confirmSettings(session, DEFAULT_SETTINGS, { earned: 0 }).session;
       expectColor(pageAppearance(session).background, '#F5F5F7');
       expect(pageAppearance(session).gearOpacity).toBe(1);
     }

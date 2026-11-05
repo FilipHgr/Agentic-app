@@ -1,28 +1,19 @@
 /**
  * Rozložení V2 na telefonu (#54) v CSS px: nahoře uprostřed hvězdičky,
- * pod nimi uprostřed postavička a příklad s nápovědou vpravo od něj,
+ * pod nimi uprostřed příklad s nápovědou vpravo od něj,
  * dole přes šířku číselník nebo okénka na psaní. Čistý TypeScript.
  */
 
 import { controlsOptions } from './phoneControls';
 import type { Controls } from './phoneControls';
-import {
-  basePlan,
-  hintBlocksFor,
-  mascotCenterBelow,
-  mascotHeight,
-  mascotWidth,
-  problemAndMascotOptions,
-} from './phoneElements';
-import type { HintBlock, ProblemAndMascot } from './phoneElements';
-import { placeHintBlock, visibleGroups } from './phoneHint';
+import { basePlan, hintBlocksFor, problemOptions } from './phoneElements';
+import type { HintBlock, ProblemSizes } from './phoneElements';
+import { placeHintBlock } from './phoneHint';
 import {
   EDGE_MARGIN,
   FONT_SIZES,
   GEAR_CORNER_GAP,
   GEAR_CORNER_SIZE,
-  MASCOT_ABOVE_PROBLEM_GAP,
-  MASCOT_PROBLEM_GAP,
   MIN_GAP_ABOVE_CONTROLS,
   MIN_GAP_BELOW_STARS,
   MIN_GAP_BOTTOM,
@@ -32,16 +23,11 @@ import {
 import type { FreeSize, PhonePlan, PhonePlanRequest } from './phonePlan';
 import type { HintDot, Point } from './screenLayout';
 
-/** Postavička vedle příkladu, nebo nad ním (jen s nápovědou). */
-type MascotPlace = 'beside' | 'above';
-
-interface MiddleRowSpec extends ProblemAndMascot {
-  readonly mascotPlace: MascotPlace;
+interface MiddleRowSpec extends ProblemSizes {
   readonly hint: HintBlock | null;
 }
 
 interface MiddlePlacement {
-  readonly mascot: Point;
   readonly problem: Point;
   readonly hintDots: HintDot[];
 }
@@ -52,47 +38,26 @@ interface MiddleRow {
   readonly place: (left: number, top: number) => MiddlePlacement;
 }
 
-/** Postavička vlevo vedle příkladu, tečky vpravo od něj; vše svisle uprostřed řady. */
-function besideRow(spec: MiddleRowSpec): MiddleRow {
-  const { problem, mascotSize, hint } = spec;
-  const mascotW = mascotWidth(mascotSize);
-  const mascotH = mascotHeight(mascotSize);
-  const problemRightOffset = mascotW + MASCOT_PROBLEM_GAP + problem.width;
-  const width = problemRightOffset + (hint ? PROBLEM_HINT_GAP + hint.width : 0);
-  const height = Math.max(mascotH, problem.height, hint?.height ?? 0);
+/**
+ * Nejmenší výška prostřední řady (#63). Řada je aspoň tak vysoká jako
+ * před #63, aby uvolněné místo nezabralo větší ovládání na úkor písma
+ * příkladu.
+ */
+const MIN_MIDDLE_ROW_HEIGHT = 76;
+
+/** Příklad a tečky vpravo od něj; obojí svisle uprostřed řady. */
+function middleRow(spec: MiddleRowSpec): MiddleRow {
+  const { problem, hint } = spec;
+  const width = problem.width + (hint ? PROBLEM_HINT_GAP + hint.width : 0);
+  const height = Math.max(MIN_MIDDLE_ROW_HEIGHT, problem.height, hint?.height ?? 0);
 
   return {
     width,
     height,
     place: (left, top) => ({
-      mascot: mascotCenterBelow(left + mascotW / 2, top + (height - mascotH) / 2, mascotSize),
-      problem: { x: left + problemRightOffset - problem.width / 2, y: top + height / 2 },
-      hintDots: placeRowHint(hint, left + problemRightOffset, top, height),
+      problem: { x: left + problem.width / 2, y: top + height / 2 },
+      hintDots: placeRowHint(hint, left + problem.width, top, height),
     }),
-  };
-}
-
-/** Postavička nad příkladem, tečky vpravo od příkladu. */
-function aboveRow(spec: MiddleRowSpec): MiddleRow {
-  const { problem, mascotSize, hint } = spec;
-  const columnWidth = Math.max(problem.width, mascotWidth(mascotSize));
-  const mascotH = mascotHeight(mascotSize);
-  const columnHeight = mascotH + MASCOT_ABOVE_PROBLEM_GAP + problem.height;
-  const width = columnWidth + (hint ? PROBLEM_HINT_GAP + hint.width : 0);
-  const height = Math.max(columnHeight, hint?.height ?? 0);
-
-  return {
-    width,
-    height,
-    place: (left, top) => {
-      const columnTop = top + (height - columnHeight) / 2;
-      const centerX = left + columnWidth / 2;
-      return {
-        mascot: mascotCenterBelow(centerX, columnTop, mascotSize),
-        problem: { x: centerX, y: columnTop + columnHeight - problem.height / 2 },
-        hintDots: placeRowHint(hint, centerX + problem.width / 2, top, height),
-      };
-    },
   };
 }
 
@@ -116,15 +81,19 @@ function placeRowHint(
   );
 }
 
-function middleRow(spec: MiddleRowSpec): MiddleRow {
-  return spec.mascotPlace === 'beside' ? besideRow(spec) : aboveRow(spec);
+/** Nejvyšší místo, které příklad a buňky teček v řadě opravdu zaberou (tečky jsou na celých px). */
+function placedTop(spec: MiddleRowSpec, placement: MiddlePlacement): number {
+  const halfCell = (spec.hint?.grid.cell ?? 0) / 2;
+  const dotTops = placement.hintDots.map((dot) => dot.y - halfCell);
+  return Math.min(placement.problem.y - spec.problem.height / 2, ...dotTops);
 }
 
 /** Levý okraj prostřední řady: uprostřed, a když by zasáhla do rohu s kolečkem, posune se doleva. */
-function middleRowLeft(free: FreeSize, row: MiddleRow, top: number): number {
+function middleRowLeft(free: FreeSize, spec: MiddleRowSpec, row: MiddleRow, top: number): number {
   const centered = (free.width - row.width) / 2;
   const limit = free.width - GEAR_CORNER_SIZE - GEAR_CORNER_GAP;
-  if (top >= GEAR_CORNER_SIZE || centered + row.width <= limit) {
+  const reachesCorner = placedTop(spec, row.place(centered, top)) < GEAR_CORNER_SIZE;
+  if (!reachesCorner || centered + row.width <= limit) {
     return centered;
   }
   return Math.max(EDGE_MARGIN, limit - row.width);
@@ -154,24 +123,44 @@ function planStacked(
 
   return {
     ...basePlan(request, spec, spec.hint?.grid ?? null),
-    ...row.place(middleRowLeft(free, row, rowTop), rowTop),
+    ...row.place(middleRowLeft(free, spec, row, rowTop), rowTop),
     ...controls.place((free.width - controls.width) / 2, controlsTop),
   };
 }
 
-/** Všechny možnosti prostřední řady od největšího písma a postavičky. */
+/** Všechny možnosti prostřední řady od největšího písma. */
 function middleRowSpecs(request: PhonePlanRequest): MiddleRowSpec[] {
-  const withHint = visibleGroups(request.hintGroups).length > 0;
-  const places: MascotPlace[] = withHint ? ['beside', 'above'] : ['beside'];
   const hints = hintBlocksFor(request);
-  return problemAndMascotOptions(FONT_SIZES, request.maxNumber, withHint).flatMap((sizes) =>
-    places.flatMap((mascotPlace) => hints.map((hint) => ({ ...sizes, mascotPlace, hint }))),
+  return problemOptions(FONT_SIZES, request.maxNumber).flatMap((sizes) =>
+    hints.map((hint) => ({ ...sizes, hint })),
   );
 }
 
-/** Kandidáti rozložení V2 od největšího ovládání a písma. */
+/**
+ * Písmo příkladu aspoň takhle velké má přednost před větším ovládáním (#63).
+ * Bez toho by se větší číselník nebo okénka vešly jen s mnohem menším
+ * příkladem než před #63.
+ */
+const PREFERRED_MIN_FONT_SIZE = 56;
+
+/**
+ * Kandidáti rozložení V2: nejdřív s písmem aspoň `PREFERRED_MIN_FONT_SIZE`,
+ * pak s menším; v každé skupině od největšího ovládání a písma.
+ */
 export function* stackedCandidates(request: PhonePlanRequest): Generator<PhonePlan> {
   const specs = middleRowSpecs(request);
+  const preferred = specs.filter((spec) => spec.font >= PREFERRED_MIN_FONT_SIZE);
+  const smaller = specs.filter((spec) => spec.font < PREFERRED_MIN_FONT_SIZE);
+  for (const tier of [preferred, smaller]) {
+    yield* candidatesFor(request, tier);
+  }
+}
+
+/** Kandidáti od největšího ovládání a v něm od největšího písma. */
+function* candidatesFor(
+  request: PhonePlanRequest,
+  specs: readonly MiddleRowSpec[],
+): Generator<PhonePlan> {
   for (const controls of controlsOptions(request)) {
     for (const spec of specs) {
       const plan = planStacked(request, controls, spec);

@@ -709,7 +709,7 @@ describe('AC7: otočení s otevřeným nastavením nic neztratí', () => {
     return {
       round,
       settings: SAVED,
-      progress: { earned: 3, character: 'hvezdik' },
+      progress: { earned: 3 },
       counting: startDotCounting(round.problem),
       writing: null,
       settingsSession: session,
@@ -739,7 +739,7 @@ describe('AC7: otočení s otevřeným nastavením nic neztratí', () => {
       session = openSettings(session, SAVED);
       expect(isSettingsOpen(session)).toBe(true);
       expect(cssOf(PORTRAIT_IPHONE)).toEqual(first);
-      session = confirmSettings(session, SAVED, { earned: 0, character: 'hvezdik' }).session;
+      session = confirmSettings(session, SAVED, { earned: 0 }).session;
       expect(isSettingsOpen(session)).toBe(false);
     }
   });

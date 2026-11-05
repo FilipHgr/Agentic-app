@@ -30,7 +30,7 @@ import type { Box, TestWindow } from './viewportFixtures';
 
 /**
  * Oprava k #54 (AC „nic se nepřekrývá“): při psaní prstem na telefonu se
- * příklad a postavička kreslí ze stejného rozložení jako okénka a tečky
+ * příklad kreslí ze stejného rozložení jako okénka a tečky
  * nápovědy. Dřív je scéna na šířku brala z rozložení pro číselník, a když
  * nápověda zabrala dvě řady (např. 2 + 6 na 844×340), příklad zasahoval do
  * okének. Na iPadu a ve zmenšeném zobrazení zůstává rozložení s číselníkem.
@@ -89,7 +89,7 @@ function playScreen(window: TestWindow, maxNumber: MaxNumber, groups: number[]):
   };
 }
 
-/** Co hráč při psaní vidí: příklad a postavička z rozložení, které vybere scéna. */
+/** Co hráč při psaní vidí: příklad z rozložení, které vybere scéna. */
 function sceneryWhileWriting(screen: PlayScreen): DeviceScreenLayout | DeviceWritingLayout {
   return sceneryLayoutFor(screen.area.mode, screen.keypad, screen.writing);
 }
@@ -97,17 +97,6 @@ function sceneryWhileWriting(screen: PlayScreen): DeviceScreenLayout | DeviceWri
 function problemBox(layout: DeviceScreenLayout | DeviceWritingLayout): Box {
   const { problem, problemSize } = layout;
   return box(problem.x, problem.y, problemSize.width, problemSize.height);
-}
-
-/** Postavička i se skokem nahoru a tancem do stran. */
-function mascotBox(layout: DeviceScreenLayout | DeviceWritingLayout): Box {
-  const { mascot, mascotSize, mascotJumpHeight, mascotDanceSway } = layout;
-  return {
-    left: mascot.x - mascotSize / 2 - mascotDanceSway,
-    right: mascot.x + mascotSize / 2 + mascotDanceSway,
-    top: mascot.y - mascotSize / 2 - mascotJumpHeight,
-    bottom: mascot.y + mascotSize / 2,
-  };
 }
 
 /** Okénka na psaní a tečky nápovědy, jak je scéna nakreslí. */
@@ -134,9 +123,9 @@ function phoneCases(windows: readonly TestWindow[]): [string, TestWindow, MaxNum
 
 const PHONE_CASES = [...phoneCases(PHONE_WINDOWS), ...phoneCases(PHONE_PORTRAIT_WINDOWS)];
 
-describe('při psaní prstem na telefonu je příklad i postavička tam, kde s nimi počítají okénka', () => {
+describe('při psaní prstem na telefonu je příklad tam, kde s ním počítají okénka', () => {
   it.each(PHONE_CASES)(
-    'příklad ani postavička nezasahují do okének ani do teček nápovědy (%s)',
+    'příklad nezasahuje do okének ani do teček nápovědy (%s)',
     (_name, window, maxNumber, groups) => {
       const screen = playScreen(window, maxNumber, groups);
       const scenery = sceneryWhileWriting(screen);
@@ -144,7 +133,6 @@ describe('při psaní prstem na telefonu je příklad i postavička tam, kde s n
 
       for (const other of others) {
         expect(overlaps(problemBox(scenery), other)).toBe(false);
-        expect(overlaps(mascotBox(scenery), other)).toBe(false);
       }
     },
   );
@@ -162,14 +150,14 @@ describe('při psaní prstem na telefonu je příklad i postavička tam, kde s n
   });
 });
 
-describe('na iPadu a ve zmenšeném zobrazení zůstává příklad i postavička jako dřív', () => {
+describe('na iPadu a ve zmenšeném zobrazení se příklad kreslí z rozložení s číselníkem jako dřív', () => {
   const windows = [...IPAD_WINDOWS, SCALED_WINDOW];
   const cases = windows.flatMap((window) =>
     RANGES.map((maxNumber): [string, TestWindow, MaxNumber] => [window.name, window, maxNumber]),
   );
 
   it.each(cases)(
-    'při psaní se příklad a postavička kreslí z rozložení s číselníkem (%s, do %i)',
+    'při psaní se příklad kreslí z rozložení s číselníkem (%s, do %i)',
     (_name, window, maxNumber) => {
       const screen = playScreen(window, maxNumber, []);
       const expectedModes: LayoutMode[] = ['tablet', 'scaled'];

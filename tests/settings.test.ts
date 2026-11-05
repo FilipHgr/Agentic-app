@@ -9,14 +9,7 @@ import {
 } from '../src/logic/answerRound';
 import { createProblem, formatProblem } from '../src/logic/problems';
 import type { Problem } from '../src/logic/problems';
-import {
-  MASCOT_DANCE_SWAY,
-  MASCOT_JUMP_HEIGHT,
-  MASCOT_SIZE,
-  STAR_SIZE,
-  layoutHint,
-  layoutScreen,
-} from '../src/logic/screenLayout';
+import { STAR_SIZE, layoutHint, layoutScreen } from '../src/logic/screenLayout';
 import type { ScreenLayout } from '../src/logic/screenLayout';
 import {
   DEFAULT_SETTINGS,
@@ -79,16 +72,10 @@ function insideScreen(b: Box): boolean {
   return b.left >= 0 && b.top >= 0 && b.right <= SCREEN_WIDTH && b.bottom <= SCREEN_HEIGHT;
 }
 
-/** Vše na herní ploše kromě nápovědy: postavička i se skokem a tancem, příklad, hvězdičky, tlačítka. */
+/** Vše na herní ploše kromě nápovědy: příklad, hvězdičky, tlačítka. */
 function fixedBoxes(layout: ScreenLayout): Box[] {
-  const { mascot, problem } = layout;
+  const { problem } = layout;
   return [
-    {
-      left: mascot.x - MASCOT_SIZE / 2 - MASCOT_DANCE_SWAY,
-      right: mascot.x + MASCOT_SIZE / 2 + MASCOT_DANCE_SWAY,
-      top: mascot.y - MASCOT_SIZE / 2 - MASCOT_JUMP_HEIGHT,
-      bottom: mascot.y + MASCOT_SIZE / 2,
-    },
     box(problem.x, problem.y, layout.problemSize.width, layout.problemSize.height),
     ...layout.stars.map((star) => box(star.x, star.y, STAR_SIZE, STAR_SIZE)),
     ...layout.answerButtons.map((button) => box(button.x, button.y, button.size, button.size)),

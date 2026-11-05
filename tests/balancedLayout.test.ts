@@ -4,9 +4,6 @@ import { hintDotGroups, isHintVisible, tapAnswer } from '../src/logic/answerRoun
 import type { AnswerRound } from '../src/logic/answerRound';
 import type { Problem } from '../src/logic/problems';
 import {
-  MASCOT_DANCE_SWAY,
-  MASCOT_JUMP_HEIGHT,
-  MASCOT_SIZE,
   STAR_SIZE,
   hintDotHitArea,
   layoutHint,
@@ -21,9 +18,10 @@ import { STARS_PER_SET } from '../src/logic/stars';
  * Testy vyváženého rozložení herní obrazovky (#44) na herní ploše 1024 × 768:
  * nápověda svisle uprostřed mezi příkladem a ovládáním podle skutečného počtu
  * řad teček, skupinky teček zarovnané nahoře, nápověda vodorovně pod středem
- * příkladu, postavička ve výšce příkladu, hvězdičky 37 px od horního okraje (od #52)
- * a větší příklad i tečky u rozsahu 5. Vyrovnaný dojem na iPadu a telefonu
- * (AC7) se kontroluje ručně.
+ * příkladu, hvězdičky 37 px od horního okraje (od #52) a větší tečky
+ * u rozsahu 5. Od #63 je vedle příkladu volno: příklad je větší
+ * a uprostřed a nápověda se počítá od spodku boxu textu příkladu.
+ * Vyrovnaný dojem na iPadu a telefonu (AC7) se kontroluje ručně.
  */
 
 const SCREEN_WIDTH = 1024;
@@ -37,23 +35,25 @@ const COUNTING_RANGES: MaxNumber[] = [5, 10];
 type Mode = 'číselník' | 'psaní';
 const MODES: Mode[] = ['číselník', 'psaní'];
 
-/** Spodní hrana číslic příkladu je 0,36 × velikost písma pod jeho středem. */
-const GLYPH_BOTTOM_RATIO = 0.36;
+/** Box textu příkladu je vysoký 1,2 × písmo, spodek je tedy 0,6 × písmo pod středem (#63). */
+const TEXT_BOTTOM_RATIO = 0.6;
 
-/** Nejmenší mezera nad i pod nápovědou podle AC1. */
+/**
+ * Nejmenší mezera nad i pod nápovědou. Od #63 se měří od spodku boxu textu
+ * příkladu; hodnoty jsou kontrolní výpočet z #63 AC2 pro nejvyšší nápovědu
+ * v rozsahu (dolů zaokrouhlené), nižší nápověda má mezery větší.
+ */
 const MIN_GAP: Record<MaxNumber, Record<Mode, number>> = {
-  5: { číselník: 140, psaní: 50 },
-  10: { číselník: 40, psaní: 50 },
-  20: { číselník: 28, psaní: 75 },
+  5: { číselník: 116, psaní: 26 },
+  10: { číselník: 20, psaní: 30 },
+  20: { číselník: 14, psaní: 62 },
 };
 
 /** Jak moc se smí lišit mezera nad a pod nápovědou. */
 const GAP_TOLERANCE = 2;
 
-/** Výjimka u rozsahu 20 s číselníkem: nápověda na dvě řady pod postavičkou. */
-const EXCEPTION_MIN_GAP_BELOW = 16;
-const EXCEPTION_GAP_TOLERANCE = 24;
-const EXCEPTION_TOP_TOLERANCE = 1;
+/** Okraj příkladu i nápovědy od levé a pravé hrany herní plochy (#63, AC2). */
+const MIN_SIDE_MARGIN = 24;
 
 /**
  * Horní okraj hvězdiček od horního okraje herní plochy. Od #52 jsou
@@ -170,17 +170,6 @@ const ALL_VARIANTS: Array<[MaxNumber, Mode]> = RANGES.flatMap((maxNumber) =>
   MODES.map((mode): [MaxNumber, Mode] => [maxNumber, mode]),
 );
 
-/** Postavička i se skokem nahoru a tancem do stran. */
-function mascotBox(layout: AnyLayout): Box {
-  const { mascot } = layout;
-  return {
-    left: mascot.x - MASCOT_SIZE / 2 - MASCOT_DANCE_SWAY,
-    right: mascot.x + MASCOT_SIZE / 2 + MASCOT_DANCE_SWAY,
-    top: mascot.y - MASCOT_SIZE / 2 - MASCOT_JUMP_HEIGHT,
-    bottom: mascot.y + MASCOT_SIZE / 2,
-  };
-}
-
 /** Celá výška textu příkladu i s rezervou (místo pro nejdelší příklad). */
 function problemBox(layout: AnyLayout): Box {
   return box(
@@ -195,9 +184,9 @@ function starBoxes(layout: AnyLayout): Box[] {
   return layout.stars.map((star) => box(star.x, star.y, STAR_SIZE, STAR_SIZE));
 }
 
-/** Spodní hrana číslic příkladu, kterou dítě vidí. */
-function glyphBottom(layout: AnyLayout): number {
-  return layout.problem.y + GLYPH_BOTTOM_RATIO * layout.problemFontSize;
+/** Spodní hrana boxu textu příkladu (1,2 × písmo vysokého), od které se měří nápověda. */
+function textBottom(layout: AnyLayout): number {
+  return layout.problem.y + TEXT_BOTTOM_RATIO * layout.problemFontSize;
 }
 
 function dotBox(dot: HintDot, layout: AnyLayout): Box {
@@ -225,17 +214,6 @@ function rowCount(dots: readonly HintDot[]): number {
   return new Set(dots.map((dot) => dot.y)).size;
 }
 
-/**
- * Výjimka z AC1: u rozsahu 20 s číselníkem nápověda na dvě řady, která
- * vodorovně sahá pod postavičku (i při tanci).
- */
-function isUnderMascotException(variant: Variant, dots: readonly HintDot[]): boolean {
-  if (variant.maxNumber !== 20 || variant.mode !== 'číselník' || rowCount(dots) < 2) {
-    return false;
-  }
-  return hintBounds(dots, variant.layout).left < mascotBox(variant.layout).right;
-}
-
 describe('AC1: nápověda je svisle uprostřed mezi příkladem a ovládáním', () => {
   it.each(ALL_VARIANTS)(
     'rozsah %i (%s): u každého příkladu je nad i pod nápovědou stejně místa a dost místa',
@@ -245,11 +223,8 @@ describe('AC1: nápověda je svisle uprostřed mezi příkladem a ovládáním',
 
       for (const problem of problemsWithDots(maxNumber)) {
         const dots = hintFor(variant, problem);
-        if (isUnderMascotException(variant, dots)) {
-          continue;
-        }
         const bounds = hintBounds(dots, variant.layout);
-        const gapAbove = bounds.top - glyphBottom(variant.layout);
+        const gapAbove = bounds.top - textBottom(variant.layout);
         const gapBelow = variant.controlsTop - bounds.bottom;
         const label = `${problemName(problem)}: nad ${gapAbove}, pod ${gapBelow}`;
 
@@ -260,33 +235,27 @@ describe('AC1: nápověda je svisle uprostřed mezi příkladem a ovládáním',
     },
   );
 
-  it('rozsah 20 s číselníkem: široká nápověda na dvě řady začíná hned pod postavičkou a nepřekrývá ji', () => {
+  it('rozsah 20 s číselníkem: i široká nápověda na dvě řady je uprostřed, žádná výjimka (#63)', () => {
     const variant = variantFor(20, 'číselník');
-    const mascot = mascotBox(variant.layout);
-    const mascotBottom = variant.layout.mascot.y + MASCOT_SIZE / 2;
-    let exceptions = 0;
+    let wideTwoRows = 0;
 
     for (const problem of problemsWithDots(20)) {
       const dots = hintFor(variant, problem);
-      if (!isUnderMascotException(variant, dots)) {
+      if (rowCount(dots) < 2) {
         continue;
       }
-      exceptions += 1;
+      wideTwoRows += 1;
       const bounds = hintBounds(dots, variant.layout);
-      const gapAbove = bounds.top - glyphBottom(variant.layout);
+      const gapAbove = bounds.top - textBottom(variant.layout);
       const gapBelow = variant.controlsTop - bounds.bottom;
       const label = `${problemName(problem)}: nad ${gapAbove}, pod ${gapBelow}`;
 
-      expect(Math.abs(bounds.top - mascotBottom), label).toBeLessThanOrEqual(
-        EXCEPTION_TOP_TOLERANCE,
-      );
-      expect(overlaps(bounds, mascot), label).toBe(false);
-      expect(gapBelow, label).toBeGreaterThanOrEqual(EXCEPTION_MIN_GAP_BELOW);
-      expect(Math.abs(gapAbove - gapBelow), label).toBeLessThanOrEqual(EXCEPTION_GAP_TOLERANCE);
+      expect(Math.abs(gapAbove - gapBelow), label).toBeLessThanOrEqual(GAP_TOLERANCE);
+      expect(gapAbove, label).toBeGreaterThanOrEqual(MIN_GAP[20]['číselník']);
     }
 
-    // Výjimka opravdu nastává (třeba 20 teček nebo 10 + 10 na dvě řady).
-    expect(exceptions).toBeGreaterThan(0);
+    // Široké nápovědy na dvě řady opravdu nastávají (třeba 20 teček nebo 10 + 10).
+    expect(wideTwoRows).toBeGreaterThan(0);
   });
 
   it('nápověda na jednu řadu je níž než nápověda na dvě řady (sedí podle skutečného počtu řad)', () => {
@@ -453,12 +422,7 @@ describe('AC3: nápověda je vodorovně pod středem příkladu a nic není v ro
     (maxNumber, mode) => {
       const variant = variantFor(maxNumber, mode);
       const { layout } = variant;
-      const fixed = [
-        mascotBox(layout),
-        problemBox(layout),
-        ...starBoxes(layout),
-        ...variant.controls,
-      ];
+      const fixed = [problemBox(layout), ...starBoxes(layout), ...variant.controls];
 
       for (const element of fixed) {
         expect(overlaps(element, SETTINGS_CORNER)).toBe(false);
@@ -477,49 +441,28 @@ describe('AC3: nápověda je vodorovně pod středem příkladu a nic není v ro
   );
 });
 
-describe('AC4: postavička je ve výšce příkladu a hvězdičky 37 px od horního okraje (#52: střed řady 52 px)', () => {
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): střed postavičky je ve stejné výšce jako střed příkladu',
+describe('AC4: příklad je ve stejné výšce jako dřív a hvězdičky 37 px od horního okraje (#52: střed řady 52 px)', () => {
+  it.each(COUNTING_RANGES.flatMap((maxNumber) => MODES.map((mode) => [maxNumber, mode] as const)))(
+    'rozsah %i (%s): příklad má střed na y 199,68 (0,26 výšky plochy)',
     (maxNumber, mode) => {
       const { layout } = variantFor(maxNumber, mode);
 
-      expect(layout.mascot.y).toBe(layout.problem.y);
+      expect(layout.problem.y).toBeCloseTo(199.68, 6);
     },
   );
 
-  it.each(MODES)('rozsah 20 (%s): příklad i postavička mají střed na y 194', (mode) => {
+  it.each(MODES)('rozsah 20 (%s): příklad má střed na y 194', (mode) => {
     const { layout } = variantFor(20, mode);
 
     expect(layout.problem.y).toBe(194);
-    expect(layout.mascot.y).toBe(194);
   });
 
   it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): postavička ani při skoku a tanci nepřekryje hvězdičky ani příklad',
+    'rozsah %i (%s): příklad je vodorovně uprostřed herní plochy (#63)',
     (maxNumber, mode) => {
       const { layout } = variantFor(maxNumber, mode);
-      const mascot = mascotBox(layout);
 
-      expect(layout.stars).toHaveLength(STARS_PER_SET);
-      for (const star of starBoxes(layout)) {
-        expect(overlaps(mascot, star)).toBe(false);
-      }
-      expect(overlaps(mascot, problemBox(layout))).toBe(false);
-      expect(insideScreen(mascot)).toBe(true);
-    },
-  );
-
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): postavička ani při skoku a tanci nepřekryje tečky u žádného příkladu',
-    (maxNumber, mode) => {
-      const variant = variantFor(maxNumber, mode);
-      const mascot = mascotBox(variant.layout);
-
-      for (const problem of problemsWithDots(maxNumber)) {
-        for (const dot of hintFor(variant, problem)) {
-          expect(overlaps(mascot, dotBox(dot, variant.layout)), problemName(problem)).toBe(false);
-        }
-      }
+      expect(Math.abs(layout.problem.x - SCREEN_WIDTH / 2)).toBeLessThanOrEqual(1);
     },
   );
 
@@ -549,8 +492,8 @@ describe('AC4: postavička je ve výšce příkladu a hvězdičky 37 px od horn�
 });
 
 describe('AC5: u rozsahu 5 je příklad i tečky větší', () => {
-  it.each(MODES)('rozsah 5 (%s): příklad má písmo 160 px', (mode) => {
-    expect(variantFor(5, mode).layout.problemFontSize).toBe(160);
+  it.each(MODES)('rozsah 5 (%s): příklad má písmo 184 (od #63, dřív 160)', (mode) => {
+    expect(variantFor(5, mode).layout.problemFontSize).toBe(184);
   });
 
   it.each(MODES)(
@@ -577,44 +520,50 @@ describe('AC5: u rozsahu 5 je příklad i tečky větší', () => {
   });
 
   it.each(MODES)(
-    'rozsah 5 (%s): nejdelší vyřešený příklad se vejde mezi postavičku a pravý okraj a nepřekryje hvězdičky',
+    'rozsah 5 (%s): nejdelší vyřešený příklad se vejde s okrajem aspoň 24 na každé straně a nepřekryje hvězdičky',
     (mode) => {
       const { layout } = variantFor(5, mode);
       const problem = problemBox(layout);
 
-      expect(problem.left).toBeGreaterThanOrEqual(mascotBox(layout).right);
-      expect(problem.right).toBeLessThanOrEqual(SCREEN_WIDTH);
+      expect(problem.left).toBeGreaterThanOrEqual(MIN_SIDE_MARGIN);
+      expect(problem.right).toBeLessThanOrEqual(SCREEN_WIDTH - MIN_SIDE_MARGIN);
       for (const star of starBoxes(layout)) {
         expect(overlaps(problem, star)).toBe(false);
       }
     },
   );
 
-  it.each(MODES)('rozsah 10 (%s): písmo i tečky zůstávají jako dosud', (mode) => {
-    const { layout } = variantFor(10, mode);
+  it.each(MODES)(
+    'rozsah 10 (%s): písmo je 150 (od #63, dřív 130) a tečky zůstávají jako dosud',
+    (mode) => {
+      const { layout } = variantFor(10, mode);
 
-    expect(layout.problemFontSize).toBe(130);
-    expect(layout.hintStyle).toEqual({
-      dotSize: 50,
-      spacing: 64,
-      dotsPerRow: 5,
-      fiveGap: 0,
-      groupGap: 60,
-    });
-  });
+      expect(layout.problemFontSize).toBe(150);
+      expect(layout.hintStyle).toEqual({
+        dotSize: 50,
+        spacing: 64,
+        dotsPerRow: 5,
+        fiveGap: 0,
+        groupGap: 60,
+      });
+    },
+  );
 
-  it.each(MODES)('rozsah 20 (%s): písmo i tečky zůstávají jako dosud', (mode) => {
-    const { layout } = variantFor(20, mode);
+  it.each(MODES)(
+    'rozsah 20 (%s): písmo je 116 (od #63, dřív 110) a tečky zůstávají jako dosud',
+    (mode) => {
+      const { layout } = variantFor(20, mode);
 
-    expect(layout.problemFontSize).toBe(110);
-    expect(layout.hintStyle).toEqual({
-      dotSize: 34,
-      spacing: 42,
-      dotsPerRow: 10,
-      fiveGap: 10,
-      groupGap: 40,
-    });
-  });
+      expect(layout.problemFontSize).toBe(116);
+      expect(layout.hintStyle).toEqual({
+        dotSize: 34,
+        spacing: 42,
+        dotsPerRow: 10,
+        fiveGap: 10,
+        groupGap: 40,
+      });
+    },
+  );
 });
 
 /** Kolo s pevným příkladem, aby testy nezávisely na náhodě. */
@@ -622,14 +571,13 @@ function roundFor(problem: Problem, maxNumber: MaxNumber): AnswerRound {
   return { problem, maxNumber, wrongAnswers: 0, solved: false };
 }
 
-/** Rozložení bez nápovědy: příklad, postavička, ovládání a výška hvězdiček. */
+/** Rozložení bez nápovědy: příklad, ovládání a výška hvězdiček. */
 function fixedPart(variant: Variant): unknown {
   const { layout } = variant;
   return {
     problem: layout.problem,
     problemFontSize: layout.problemFontSize,
     problemSize: layout.problemSize,
-    mascot: layout.mascot,
     hintStyle: layout.hintStyle,
     controls: variant.controls,
     starTops: [...new Set(starBoxes(layout).map((star) => star.top))],
@@ -674,7 +622,7 @@ describe('AC6: okrajové případy a návaznosti', () => {
       expect(variantFor(maxNumber, 'číselník').layout).toEqual(before);
       const dots = layoutHint(variant.layout, hintDotGroups(round.problem));
       const bounds = hintBounds(dots, variant.layout);
-      const gapAbove = bounds.top - glyphBottom(variant.layout);
+      const gapAbove = bounds.top - textBottom(variant.layout);
       const gapBelow = variant.controlsTop - bounds.bottom;
       expect(dots).toHaveLength(5);
       expect(Math.abs(gapAbove - gapBelow)).toBeLessThanOrEqual(GAP_TOLERANCE);

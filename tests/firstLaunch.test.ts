@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { FIRST_CHARACTER, nextCharacter } from '../src/logic/characters';
 import type { GameProgress } from '../src/logic/progress';
 import { DEFAULT_SETTINGS, isFirstLaunch, parseSettings } from '../src/logic/settings';
 import type { GameSettings } from '../src/logic/settings';
@@ -48,8 +47,8 @@ const SUMMARY_STEP = 4;
 /** Výchozí volby, které průvodce při prvním spuštění předvyplní: „10“, „+“ a „123“. */
 const FIRST_LAUNCH_CHOICE = { maxNumber: 10, operations: 'plus', answerInput: 'keypad' } as const;
 
-const PROGRESS_MID_SET: GameProgress = { earned: 4, character: nextCharacter(FIRST_CHARACTER) };
-const PROGRESS_ALMOST_FULL: GameProgress = { earned: 9, character: FIRST_CHARACTER };
+const PROGRESS_MID_SET: GameProgress = { earned: 4 };
+const PROGRESS_ALMOST_FULL: GameProgress = { earned: 9 };
 
 interface Page {
   readonly launch: LaunchState;
@@ -364,7 +363,7 @@ describe('okrajové případy prvního spuštění (#48 AC6, #49 AC6)', () => {
     expect(guideAtStart(launchAfterGuide(launch))).toBeNull();
   });
 
-  it('hvězdičky a postavička uložené z dřívějška po průvodci zůstanou', () => {
+  it('hvězdičky uložené z dřívějška po průvodci zůstanou', () => {
     const storage = memoryStorage();
     saveProgress(storage, PROGRESS_MID_SET);
 

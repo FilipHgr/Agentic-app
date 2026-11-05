@@ -31,8 +31,6 @@ export interface WritingControls {
 export interface PhonePlan {
   readonly stars: readonly Point[];
   readonly starSize: number;
-  readonly mascot: Point;
-  readonly mascotSize: number;
   readonly problem: Point;
   readonly problemFontSize: number;
   readonly problemWidth: number;
@@ -69,14 +67,9 @@ export const MIN_GAP_BELOW_STARS = 4;
 export const MIN_GAP_ABOVE_CONTROLS = 6;
 export const MIN_GAP_BOTTOM = 4;
 
-export const MASCOT_PROBLEM_GAP = 8;
-export const MASCOT_ABOVE_PROBLEM_GAP = 4;
 export const PROBLEM_HINT_GAP = 12;
 /** Odstup teček od okolí, když mají vlastní volné místo. */
 export const HINT_REGION_GAP = 4;
-
-export const MIN_MASCOT_SIZE = 64;
-export const MIN_MASCOT_SIZE_WITH_HINT = 48;
 
 export const FONT_SIZES = [72, 64, 56, 48, 44, 40, 36, 32];
 export const MIN_FONT_SIZE = 32;

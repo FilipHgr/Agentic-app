@@ -51,7 +51,7 @@ import { NO_NOTCH, PHONE_WINDOWS, viewportOf } from './viewportFixtures';
 /**
  * Testy k #54, AC7 (otočení telefonu a lišta prohlížeče): přepočet
  * rozložení je čistá funkce stavu a plochy. Rozehraný příklad, chyby,
- * nápověda, hvězdičky, postavička, otevřené nastavení i průvodce zůstanou,
+ * nápověda, hvězdičky, otevřené nastavení i průvodce zůstanou,
  * nezapočítá se žádná odpověď a nepřijde nový příklad. Rozepsané tahy
  * v okénku se smažou bez chyby. Že scéna přepočet opravdu spustí při
  * otočení a změně lišty, se kontroluje ručně v náhledu.
@@ -103,7 +103,7 @@ function playState(writing: WritingRound | TwoBoxRound | null, round: AnswerRoun
   return {
     round,
     settings,
-    progress: { earned: 7, character: 'robik' },
+    progress: { earned: 7 },
     counting,
     writing,
     settingsSession: openSettings(CLOSED_SETTINGS, settings),
@@ -116,7 +116,7 @@ function isTwoBox(writing: WritingRound | TwoBoxRound | null): writing is TwoBox
 }
 
 describe('AC7: otočení telefonu nebo změna lišty nezmění rozehrané kolo', () => {
-  it('zůstane stejný příklad, počet chyb, nápověda, hvězdičky, postavička, nastavení i průvodce', () => {
+  it('zůstane stejný příklad, počet chyb, nápověda, hvězdičky, nastavení i průvodce', () => {
     const round = roundWithHint(SETTINGS_5);
     const state = playState(writingWithDigit(round), round);
     const before = structuredClone({ ...state, writing: null });

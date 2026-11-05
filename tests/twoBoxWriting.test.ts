@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { isHintVisible, problemText, tapAnswer } from '../src/logic/answerRound';
 import type { AnswerRound } from '../src/logic/answerRound';
-import { FIRST_CHARACTER } from '../src/logic/characters';
 import type { Stroke } from '../src/logic/digitRecognition';
 import type { Problem } from '../src/logic/problems';
 import { START_PROGRESS, parseProgress, serializeProgress } from '../src/logic/progress';
@@ -489,8 +488,8 @@ describe('AC4: potvrzená odpověď se vyhodnotí jako na číselníku', () => {
 
     const saved = serializeProgress(progress);
 
-    expect(parseProgress(saved)).toEqual({ earned: 1, character: FIRST_CHARACTER });
-    expect(Object.keys(JSON.parse(saved) as object).sort()).toEqual(['character', 'earned']);
+    expect(parseProgress(saved)).toEqual({ earned: 1 });
+    expect(Object.keys(JSON.parse(saved) as object)).toEqual(['earned']);
   });
 
   it('špatné číslo je chyba, hvězdičku nedá a obě okénka se vyprázdní', () => {

@@ -82,7 +82,6 @@ const MAX_CONTROLS_BOTTOM_GAP = 24;
 const MIN_BUTTON_SIDE = 64;
 const MIN_BUTTON_GAP = 8;
 const MIN_STAR_SIZE = 24;
-const MIN_MASCOT_SIZE = 64;
 const MIN_PROBLEM_FONT_SIZE = 40;
 
 /** AC5 v CSS px. */
@@ -317,17 +316,6 @@ function buttonsCss(variant: PortraitVariant): Box[] {
   return buttonsOf(variant).map((slot) => slotCss(variant, slot));
 }
 
-/** Postavička i se skokem nahoru a tancem do stran (viz src/scenes/Mascot.ts). */
-function mascotCss(variant: PortraitVariant): Box {
-  const { mascot, mascotSize, mascotJumpHeight, mascotDanceSway } = variant.layout;
-  return css(variant, {
-    left: mascot.x - mascotSize / 2 - mascotDanceSway,
-    right: mascot.x + mascotSize / 2 + mascotDanceSway,
-    top: mascot.y - mascotSize / 2 - mascotJumpHeight,
-    bottom: mascot.y + mascotSize / 2,
-  });
-}
-
 /** Místo pro nejdelší vyřešený příklad v rozsahu (#40). */
 function problemCss(variant: PortraitVariant): Box {
   const { problem, problemSize } = variant.layout;
@@ -367,7 +355,6 @@ function fixedElements(variant: PortraitVariant): Element[] {
   const elements: Element[] = [
     { name: 'kolečko', css: gearHitCss(variant.window) },
     ...starsCss(variant).map((css, index) => ({ name: `hvězdička ${index + 1}`, css })),
-    { name: 'postavička i se skokem a tancem', css: mascotCss(variant) },
     { name: 'příklad', css: problemCss(variant) },
     { name: 'místo pro nápovědu', css: hintRegionCss(variant) },
   ];
@@ -493,8 +480,6 @@ function expectMinSide(b: Box, minSide: number, where: string): void {
 function placementOf(layout: PortraitLayout): unknown {
   const common = {
     starSize: layout.starSize,
-    mascot: layout.mascot,
-    mascotSize: layout.mascotSize,
     problem: layout.problem,
     problemSize: layout.problemSize,
     problemFontSize: layout.problemFontSize,
@@ -658,42 +643,34 @@ describe('AC2: rozložení P2 shora dolů', () => {
   );
 
   it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): postavička je pod hvězdičkami vlevo od příkladu, ve výšce příkladu',
+    '%s, rozsah %i (%s): příklad je pod hvězdičkami',
     (_, maxNumber, mode, window) => {
       const variant = portraitVariant(window, maxNumber, mode);
       const stars = boundsOf(starsCss(variant));
-      const mascot = mascotCss(variant);
       const problem = problemCss(variant);
-      const drawnMascotY = variant.area.offsetY + variant.layout.mascot.y * variant.area.scale;
 
-      expect(mascot.top, label(variant, ', postavička pod hvězdičkami')).toBeGreaterThanOrEqual(
-        stars.bottom - TOLERANCE,
-      );
       expect(problem.top, label(variant, ', příklad pod hvězdičkami')).toBeGreaterThanOrEqual(
         stars.bottom - TOLERANCE,
-      );
-      expect(mascot.right, label(variant, ', postavička vlevo od příkladu')).toBeLessThanOrEqual(
-        problem.left + TOLERANCE,
-      );
-      expect(drawnMascotY, label(variant, ', postavička ve výšce příkladu')).toBeGreaterThanOrEqual(
-        problem.top - TOLERANCE,
-      );
-      expect(drawnMascotY, label(variant, ', postavička ve výšce příkladu')).toBeLessThanOrEqual(
-        problem.bottom + TOLERANCE,
       );
     },
   );
 
   it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): postavička s příkladem jsou jako dvojice vodorovně uprostřed',
+    '%s, rozsah %i (%s): příklad je vodorovně uprostřed volné plochy, s nápovědou i bez ní (#63)',
     (_, maxNumber, mode, window) => {
       const variant = portraitVariant(window, maxNumber, mode);
-      const pair = { ...problemCss(variant), left: mascotCss(variant).left };
+      const freeCenter = centerX(freeAreaOf(window));
 
       expect(
-        Math.abs(centerX(pair) - centerX(freeAreaOf(window))),
+        Math.abs(centerX(problemCss(variant)) - freeCenter),
         label(variant),
       ).toBeLessThanOrEqual(CENTER_TOLERANCE);
+      for (const screen of sampleHintScreens(variant)) {
+        expect(
+          Math.abs(centerX(problemCss(screen.variant)) - freeCenter),
+          hintLabel(screen),
+        ).toBeLessThanOrEqual(CENTER_TOLERANCE);
+      }
     },
   );
 
@@ -702,7 +679,6 @@ describe('AC2: rozložení P2 shora dolů', () => {
     (_, maxNumber, mode, window) => {
       const variant = portraitVariant(window, maxNumber, mode);
       const problem = problemCss(variant);
-      const mascot = mascotCss(variant);
       const hint = hintRegionCss(variant);
       const controls = boundsOf(controlsCss(variant));
 
@@ -712,9 +688,6 @@ describe('AC2: rozložení P2 shora dolů', () => {
       );
       expect(controls.top, label(variant, ', ovládání pod nápovědou')).toBeGreaterThanOrEqual(
         hint.bottom - TOLERANCE,
-      );
-      expect(controls.top, label(variant, ', ovládání pod postavičkou')).toBeGreaterThanOrEqual(
-        mascot.bottom - TOLERANCE,
       );
     },
   );
@@ -732,7 +705,7 @@ describe('AC2: rozložení P2 shora dolů', () => {
 
   for (const starCount of STAR_COUNTS) {
     it.each(ALL_CASES)(
-      `%s, rozsah %i (%s), ${starCount} hvězdiček: nic se nepřekrývá, ani postavička při skoku a tanci`,
+      `%s, rozsah %i (%s), ${starCount} hvězdiček: nic se nepřekrývá`,
       (_, maxNumber, mode, window) => {
         const variant = portraitVariant(window, maxNumber, mode, 'mixed', starCount);
         expectNoOverlaps(fixedElements(variant), label(variant));
@@ -810,23 +783,6 @@ describe('AC3: velikosti na telefonu na výšku', () => {
 
       for (const star of starsCss(variant)) {
         expectMinSide(star, MIN_STAR_SIZE, label(variant));
-      }
-    },
-  );
-
-  it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): postavička má aspoň 64 px, i když je vidět nápověda',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
-      const size = (layout: PortraitLayout): number => layout.mascotSize * variant.area.scale;
-
-      expect(size(variant.layout), label(variant)).toBeGreaterThanOrEqual(
-        MIN_MASCOT_SIZE - TOLERANCE,
-      );
-      for (const screen of sampleHintScreens(variant)) {
-        expect(size(screen.variant.layout), hintLabel(screen)).toBeGreaterThanOrEqual(
-          MIN_MASCOT_SIZE - TOLERANCE,
-        );
       }
     },
   );
@@ -1186,12 +1142,7 @@ describe('AC6: psaní prstem na telefonu na výšku', () => {
         }
       });
 
-      for (const point of [
-        layout.clearButton,
-        layout.confirmButton,
-        layout.problem,
-        layout.mascot,
-      ]) {
+      for (const point of [layout.clearButton, layout.confirmButton, layout.problem]) {
         expect(writingAreaAt(layout, point), label(variant, ', dotyk mimo okénka')).toBeNull();
       }
     },

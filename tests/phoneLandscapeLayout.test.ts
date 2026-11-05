@@ -9,14 +9,7 @@ import {
 } from '../src/logic/deviceLayout';
 import type { GameArea, PhoneScreenLayout, PhoneWritingLayout } from '../src/logic/deviceLayout';
 import type { Problem } from '../src/logic/problems';
-import {
-  MASCOT_DANCE_SWAY,
-  MASCOT_JUMP_HEIGHT,
-  MASCOT_SIZE,
-  layoutScreen,
-  layoutWritingScreen,
-  writingAreaAt,
-} from '../src/logic/screenLayout';
+import { layoutScreen, layoutWritingScreen, writingAreaAt } from '../src/logic/screenLayout';
 import type { ButtonSlot, HintDot, WritingAreaSlot } from '../src/logic/screenLayout';
 import type { MaxNumber } from '../src/logic/settings';
 import { STARS_PER_SET } from '../src/logic/stars';
@@ -44,8 +37,9 @@ import type { Box, TestWindow } from './viewportFixtures';
  * skutečném displeji) a ověří na zkušebních oknech 744×296, 800×300,
  * 844×340 (výřez 47/47/21), 932×430 (výřez 59/59/21) a 932×499, pro
  * rozsahy 5, 10 a 20, s číselníkem i s psaním, bez nápovědy i s nápovědou
- * u okrajových a typických příkladů (viz `sampleHintProblems`). Oslava (konfety, tanec) a skok postavičky se
- * kontrolují i ručně v náhledu na iPhonu a Samsungu.
+ * u okrajových a typických příkladů (viz `sampleHintProblems`). Oslava
+ * (konfety) se kontroluje i ručně v náhledu na iPhonu a Samsungu. Od #63
+ * je příklad bez nikoho vedle (viz `phoneBiggerProblem.test.ts`).
  *
  * Rozložení s nápovědou: `layoutPhoneScreen` a `layoutPhoneWritingScreen`
  * dostanou skupinky teček nápovědy (prázdné = bez nápovědy) a smí pro ně
@@ -67,8 +61,6 @@ const MIN_BUTTON_GAP = 8;
 
 /** AC3 v CSS px. */
 const MIN_STAR_SIZE = 24;
-const MIN_MASCOT_SIZE = 64;
-const MIN_MASCOT_SIZE_WITH_HINT = 48;
 const MIN_PROBLEM_FONT_SIZE = 32;
 
 /** AC4 v CSS px (nové znění po rozhodnutí vlastníka v #54: jedno okénko 180 px). */
@@ -235,17 +227,6 @@ function buttonsOf(variant: PhoneVariant): ButtonSlot[] {
     : [...(layout as PhoneScreenLayout).answerButtons];
 }
 
-/** Postavička i se skokem nahoru a tancem do stran (viz src/scenes/Mascot.ts). */
-function mascotCss(variant: PhoneVariant): Box {
-  const { mascot, mascotSize, mascotJumpHeight, mascotDanceSway } = variant.layout;
-  return css(variant, {
-    left: mascot.x - mascotSize / 2 - mascotDanceSway,
-    right: mascot.x + mascotSize / 2 + mascotDanceSway,
-    top: mascot.y - mascotSize / 2 - mascotJumpHeight,
-    bottom: mascot.y + mascotSize / 2,
-  });
-}
-
 /** Místo pro nejdelší příklad v rozsahu. */
 function problemCss(variant: PhoneVariant): Box {
   const { problem, problemSize } = variant.layout;
@@ -273,7 +254,6 @@ function fixedElements(variant: PhoneVariant): Element[] {
   const { layout } = variant;
   const elements: Element[] = [
     ...starsCss(variant).map((css, index) => ({ name: `hvězdička ${index + 1}`, css })),
-    { name: 'postavička i se skokem a tancem', css: mascotCss(variant) },
     { name: 'příklad', css: problemCss(variant) },
   ];
   if (isWriting(layout)) {
@@ -357,7 +337,7 @@ function rowsByY<T extends { readonly y: number }>(items: readonly T[]): T[][] {
   return rows;
 }
 
-/** U rozsahu 20 s číselníkem jsou postavička a příklad vlevo od číselníku (výjimka V2). */
+/** U rozsahu 20 s číselníkem je příklad vlevo od číselníku (výjimka V2). */
 function isWideKeypad(maxNumber: MaxNumber, mode: Mode): boolean {
   return maxNumber === 20 && mode === 'číselník';
 }
@@ -367,7 +347,6 @@ function expectControlsBelowStarsAndProblem(variant: PhoneVariant, where: string
   const controls = boundsOf(controlsCss(variant));
   const stars = boundsOf(starsCss(variant));
   const problem = problemCss(variant);
-  const mascot = mascotCss(variant);
 
   expect(controls.top, `${where}: ovládání pod hvězdičkami`).toBeGreaterThanOrEqual(
     stars.bottom - TOLERANCE,
@@ -375,9 +354,6 @@ function expectControlsBelowStarsAndProblem(variant: PhoneVariant, where: string
   if (isWideKeypad(variant.maxNumber, variant.mode)) {
     expect(controls.left, `${where}: číselník vpravo od příkladu`).toBeGreaterThanOrEqual(
       problem.right - TOLERANCE,
-    );
-    expect(controls.left, `${where}: číselník vpravo od postavičky`).toBeGreaterThanOrEqual(
-      mascot.right - TOLERANCE,
     );
   } else {
     expect(controls.top, `${where}: ovládání pod příkladem`).toBeGreaterThanOrEqual(
@@ -535,46 +511,36 @@ describe('AC2: rozložení V2 na telefonu na šířku', () => {
   );
 
   it.each(ALL_VARIANTS.filter(([, maxNumber, mode]) => !isWideKeypad(maxNumber, mode)))(
-    '%s, rozsah %i (%s): postavička a příklad jsou pod hvězdičkami vodorovně uprostřed',
+    '%s, rozsah %i (%s): příklad je pod hvězdičkami vodorovně uprostřed (#63)',
     (_, maxNumber, mode, window) => {
       const variant = phoneVariant(window, maxNumber, mode);
       const free = freeAreaOf(window);
       const stars = boundsOf(starsCss(variant));
-      const mascot = mascotCss(variant);
       const problem = problemCss(variant);
 
-      expect(mascot.top, label(variant, ', postavička pod hvězdičkami')).toBeGreaterThanOrEqual(
-        stars.bottom - TOLERANCE,
-      );
       expect(problem.top, label(variant, ', příklad pod hvězdičkami')).toBeGreaterThanOrEqual(
         stars.bottom - TOLERANCE,
       );
-      const mascotAndProblem = boundsOf([mascot, problem]);
-      expect(
-        Math.abs(centerX(mascotAndProblem) - centerX(free)),
-        label(variant),
-      ).toBeLessThanOrEqual(CENTER_TOLERANCE);
+      expect(Math.abs(centerX(problem) - centerX(free)), label(variant)).toBeLessThanOrEqual(
+        CENTER_TOLERANCE,
+      );
     },
   );
 
   it.each(KEYPAD_VARIANTS.filter(([, maxNumber]) => maxNumber === 20))(
-    '%s, rozsah %i (%s): postavička a příklad jsou pod hvězdičkami vlevo od číselníku',
+    '%s, rozsah %i (%s): příklad je pod hvězdičkami vlevo od číselníku',
     (_, maxNumber, mode, window) => {
       const variant = phoneVariant(window, maxNumber, mode);
       const stars = boundsOf(starsCss(variant));
       const keypad = boundsOf(controlsCss(variant));
+      const problem = problemCss(variant);
 
-      for (const [name, item] of [
-        ['postavička', mascotCss(variant)],
-        ['příklad', problemCss(variant)],
-      ] as const) {
-        expect(item.top, label(variant, `, ${name} pod hvězdičkami`)).toBeGreaterThanOrEqual(
-          stars.bottom - TOLERANCE,
-        );
-        expect(item.right, label(variant, `, ${name} vlevo od číselníku`)).toBeLessThanOrEqual(
-          keypad.left + TOLERANCE,
-        );
-      }
+      expect(problem.top, label(variant, ', příklad pod hvězdičkami')).toBeGreaterThanOrEqual(
+        stars.bottom - TOLERANCE,
+      );
+      expect(problem.right, label(variant, ', příklad vlevo od číselníku')).toBeLessThanOrEqual(
+        keypad.left + TOLERANCE,
+      );
     },
   );
 
@@ -655,7 +621,7 @@ describe('AC2: rozložení V2 na telefonu na šířku', () => {
     );
 
     it.each(ALL_VARIANTS)(
-      `%s, rozsah %i (%s), ${starCount} hvězdiček: hvězdičky, postavička při skoku i tanci, příklad a ovládání se nepřekrývají`,
+      `%s, rozsah %i (%s), ${starCount} hvězdiček: hvězdičky, příklad a ovládání se nepřekrývají`,
       (_, maxNumber, mode, window) => {
         const variant = phoneVariant(window, maxNumber, mode, starCount);
         expectNoOverlaps(fixedElements(variant), label(variant));
@@ -808,23 +774,9 @@ describe('AC2: rozložení V2 na telefonu na šířku', () => {
       }
     },
   );
-
-  it.each(ALL_VARIANTS)(
-    '%s, rozsah %i (%s): postavička skáče a tančí aspoň tak výrazně jako na iPadu',
-    (_, maxNumber, mode, window) => {
-      const { layout } = phoneVariant(window, maxNumber, mode);
-
-      expect(layout.mascotJumpHeight / layout.mascotSize).toBeGreaterThanOrEqual(
-        MASCOT_JUMP_HEIGHT / MASCOT_SIZE - TOLERANCE,
-      );
-      expect(layout.mascotDanceSway / layout.mascotSize).toBeGreaterThanOrEqual(
-        MASCOT_DANCE_SWAY / MASCOT_SIZE - TOLERANCE,
-      );
-    },
-  );
 });
 
-describe('AC3: hvězdičky, postavička a příklad jsou na telefonu dobře vidět', () => {
+describe('AC3: hvězdičky a příklad jsou na telefonu dobře vidět', () => {
   it.each(ALL_VARIANTS)(
     '%s, rozsah %i (%s): hvězdička má aspoň 24 px a všech deset je v jedné řadě',
     (_, maxNumber, mode, window) => {
@@ -847,25 +799,11 @@ describe('AC3: hvězdičky, postavička a příklad jsou na telefonu dobře vid�
   );
 
   it.each(ALL_VARIANTS)(
-    '%s, rozsah %i (%s): postavička má aspoň 64 px',
-    (_, maxNumber, mode, window) => {
-      const variant = phoneVariant(window, maxNumber, mode);
-
-      expect(variant.layout.mascotSize * variant.area.scale, label(variant)).toBeGreaterThanOrEqual(
-        MIN_MASCOT_SIZE - TOLERANCE,
-      );
-    },
-  );
-
-  it.each(ALL_VARIANTS)(
-    '%s, rozsah %i (%s): s nápovědou má postavička aspoň 48 px a písmo příkladu aspoň 32 px',
+    '%s, rozsah %i (%s): s nápovědou má písmo příkladu aspoň 32 px',
     (_, maxNumber, mode, window) => {
       for (const screen of sampleHintScreens(window, maxNumber, mode)) {
         const { layout, area } = screen.variant;
 
-        expect(layout.mascotSize * area.scale, hintLabel(screen)).toBeGreaterThanOrEqual(
-          MIN_MASCOT_SIZE_WITH_HINT - TOLERANCE,
-        );
         expect(layout.problemFontSize * area.scale, hintLabel(screen)).toBeGreaterThanOrEqual(
           MIN_PROBLEM_FONT_SIZE - TOLERANCE,
         );
@@ -1055,10 +993,6 @@ describe('AC4: psaní prstem na telefonu na šířku', () => {
       expect(
         writingAreaAt(layout, layout.problem),
         label(variant, ', dotyk na příklad'),
-      ).toBeNull();
-      expect(
-        writingAreaAt(layout, layout.mascot),
-        label(variant, ', dotyk na postavičku'),
       ).toBeNull();
     },
   );

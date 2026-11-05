@@ -1,5 +1,5 @@
 /**
- * Rozmístění hvězdiček, postavičky, příkladu, nápovědy a číselníku na herní
+ * Rozmístění hvězdiček, příkladu, nápovědy a číselníku na herní
  * ploše. Je tady, a ne ve scéně, aby šlo bez prohlížeče ověřit, že tlačítka
  * jsou dost velká na prst a všechno se vejde. Kolečko nastavení je mimo herní
  * plochu, v rohu stránky (index.html, src/ui/settingsButton.ts).
@@ -32,20 +32,23 @@ const MAX_BUTTONS_IN_TWO_ROWS = 11;
 /** Okraj pod spodní řadou tlačítek. */
 const BOTTOM_MARGIN = 24;
 
-/** Odhadová velikost písma pro PROBLEM_TEXT_HEIGHT a PROBLEM_MAX_WIDTH (rozsah 5 má 160, viz PROBLEM_FONT_SIZE_LARGE). */
+/** Odhadová velikost písma pro PROBLEM_TEXT_HEIGHT a PROBLEM_MAX_WIDTH. */
 export const PROBLEM_FONT_SIZE = 140;
 
-/** Při rozsahu do 5 je pod příkladem nejvíc místa, příklad je větší (#44). */
-const PROBLEM_FONT_SIZE_LARGE = 160;
+/** Při rozsahu do 5 je pod příkladem nejvíc místa, příklad je největší (#44, #63). */
+const PROBLEM_FONT_SIZE_LARGE = 184;
 
 /** Počet tlačítek číselníku při rozsahu do 5 (0–5). */
 const BUTTONS_UP_TO_FIVE = 6;
 
-/** Písmo příkladu, když se v něm může objevit dvakrát dvouciferné číslo („10 − 10 = ?“). */
-const PROBLEM_FONT_SIZE_TWO_DIGITS = 130;
+/** Písmo příkladu, když se v něm může objevit dvakrát dvouciferné číslo („10 − 10 = ?“, #63). */
+const PROBLEM_FONT_SIZE_TWO_DIGITS = 150;
 
-/** Písmo příkladu při rozsahu do 20, aby se vešly tři řady tlačítek. */
-const PROBLEM_FONT_SIZE_SMALL = 110;
+/**
+ * Písmo příkladu při rozsahu do 20, aby se vešly tři řady tlačítek a nad
+ * i pod nápovědou zůstala mezera aspoň 14 (#63).
+ */
+const PROBLEM_FONT_SIZE_SMALL = 116;
 
 /** Výška, kterou text příkladu zabere (písmo i s rezervou nad a pod). */
 export function problemTextHeight(fontSize: number): number {
@@ -110,21 +113,6 @@ const PROBLEM_HEIGHT_RATIO = 0.26;
 
 /** Při rozsahu do 20 je příklad o kousek výš, aby se vešly tři řady tlačítek. */
 const PROBLEM_Y_SMALL = 194;
-
-/** Velikost maskota (šířka i výška čtverce, do kterého se vejde). */
-export const MASCOT_SIZE = 160;
-
-/** Jak vysoko maskot vyskočí radostí. */
-export const MASCOT_JUMP_HEIGHT = 30;
-
-/** Jak daleko do stran se maskot pohne při tanci. */
-export const MASCOT_DANCE_SWAY = 12;
-
-/** Odstup maskota od levého okraje obrazovky. */
-const MASCOT_LEFT_MARGIN = 20;
-
-/** O kolik je příklad posunutý doprava od středu, aby se vlevo vešel maskot. */
-const PROBLEM_SHIFT_RIGHT = 40;
 
 /** Vzhled teček nápovědy. */
 export interface HintStyle {
@@ -209,8 +197,6 @@ export interface ScreenLayout {
   readonly hintStyle: HintStyle;
   /** Místa hvězdiček nahoře, zleva doprava. */
   readonly stars: readonly Point[];
-  /** Střed maskota vlevo vedle příkladu. */
-  readonly mascot: Point;
   /** Místa tlačítek ve stejném pořadí, v jakém jsou čísla na číselníku. */
   readonly answerButtons: readonly ButtonSlot[];
 }
@@ -284,8 +270,8 @@ function problemFontSizeFor(buttonCount: number): number {
 }
 
 /**
- * Úplně nahoře hvězdičky, pod nimi
- * vlevo postavička vedle příkladu, pod příkladem nápověda a dole číselník.
+ * Úplně nahoře hvězdičky, pod nimi uprostřed příklad, pod příkladem
+ * nápověda a dole číselník.
  *
  * @param buttonCount Počet tlačítek číselníku (rozsah + 1).
  */
@@ -301,7 +287,7 @@ export function layoutScreen(
   const problemFontSize = problemFontSizeFor(buttonCount);
 
   return {
-    problem: { x: centerX + PROBLEM_SHIFT_RIGHT, y: problemY },
+    problem: { x: centerX, y: problemY },
     problemFontSize,
     problemSize: {
       width: problemMaxWidth(problemFontSize, buttonCount - 1),
@@ -309,8 +295,6 @@ export function layoutScreen(
     },
     hintStyle: hintStyleFor(buttonCount),
     stars: layoutStars(starCount, centerX),
-    // Postavička stojí ve stejné výšce jako příklad (#44).
-    mascot: { x: MASCOT_LEFT_MARGIN + MASCOT_DANCE_SWAY + MASCOT_SIZE / 2, y: problemY },
     answerButtons: layoutKeypad(
       buttonCount,
       centerX,
@@ -425,7 +409,7 @@ export interface WritingLayout extends Omit<ScreenLayout, 'answerButtons'> {
 
 /**
  * Rozložení při psaní: nahoře stejné jako s číselníkem (hvězdičky,
- * postavička, příklad, nápověda), dole místo číselníku okénka na psaní,
+ * příklad, nápověda), dole místo číselníku okénka na psaní,
  * vlevo od nich smazání a vpravo ✓.
  */
 export function layoutWritingScreen(
@@ -441,7 +425,6 @@ export function layoutWritingScreen(
     problemSize: keypadLayout.problemSize,
     hintStyle: keypadLayout.hintStyle,
     stars: keypadLayout.stars,
-    mascot: keypadLayout.mascot,
   };
   const twoBoxes = writingBoxCount(maxNumber) === 2;
   const side = twoBoxes ? TWO_BOX_AREA_SIZE : WRITING_AREA_SIZE;
@@ -501,17 +484,14 @@ export function hintDotAt(dots: readonly HintDot[], point: Point): number | null
   return index < 0 ? null : index;
 }
 
-/** Spodní hrana číslic příkladu jako část velikosti písma pod jeho středem. */
-const DIGIT_BOTTOM_RATIO = 0.36;
+/** Výška boxu textu příkladu jako část velikosti písma (stejně jako `problemTextHeight`). */
+const TEXT_BOX_RATIO = 1.2;
 
 /**
- * Tečky nápovědy pro skupinky `groups` (#44). Všechny skupinky začínají
+ * Tečky nápovědy pro skupinky `groups` (#44, #63). Všechny skupinky začínají
  * stejnou horní řadou, vodorovně jsou pod středem příkladu a svisle
- * uprostřed mezi spodkem číslic příkladu a horní hranou ovládání (číselník
- * nebo okénka na psaní), podle skutečného počtu řad.
- *
- * Výjimka: u rozsahu 20 s číselníkem by široká nápověda na dvě řady
- * překryla postavičku, proto začne hned pod ní.
+ * uprostřed mezi spodkem boxu textu příkladu a horní hranou ovládání
+ * (číselník nebo okénka na psaní), podle skutečného počtu řad.
  */
 export function layoutHint(
   layout: ScreenLayout | WritingLayout,
@@ -525,15 +505,11 @@ export function layoutHint(
   const style = layout.hintStyle;
   const rowCount = Math.max(...visibleGroups.map((count) => Math.ceil(count / style.dotsPerRow)));
   const height = (rowCount - 1) * style.spacing + style.dotSize;
-  const digitBottom = layout.problem.y + DIGIT_BOTTOM_RATIO * layout.problemFontSize;
+  const textBottom = layout.problem.y + (TEXT_BOX_RATIO * layout.problemFontSize) / 2;
   const controlsTop = controlsTopOf(layout);
-  let top = digitBottom + (controlsTop - digitBottom - height) / 2;
+  const top = textBottom + (controlsTop - textBottom - height) / 2;
 
   const dots = layoutHintDots(visibleGroups, { x: layout.problem.x, y: 0 }, style);
-  if ('answerButtons' in layout && rowCount > 1 && reachesUnderMascot(dots, layout, style)) {
-    top = Math.max(top, layout.mascot.y + MASCOT_SIZE / 2);
-  }
-
   return alignRowsToTop(dots, visibleGroups, style, top + style.dotSize / 2);
 }
 
@@ -544,16 +520,6 @@ function controlsTopOf(layout: ScreenLayout | WritingLayout): number {
       ? layout.answerButtons.map((button) => button.y - button.size / 2)
       : layout.writingAreas.map((area) => area.y - area.height / 2);
   return Math.min(...tops);
-}
-
-/** Sahá nápověda vodorovně pod postavičku (i s jejím tancem)? */
-function reachesUnderMascot(
-  dots: readonly HintDot[],
-  layout: ScreenLayout | WritingLayout,
-  style: HintStyle,
-): boolean {
-  const left = Math.min(...dots.map((dot) => dot.x)) - style.dotSize / 2;
-  return left < layout.mascot.x + MASCOT_SIZE / 2 + MASCOT_DANCE_SWAY;
 }
 
 /** Řady všech skupinek pod sebou od stejné horní řady se středem `firstRowY`. */

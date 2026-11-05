@@ -45,7 +45,7 @@ import type { TestWindow } from './viewportFixtures';
  * Testy k #56, AC7 (otočení mezi výškou a šířkou a změna lišty prohlížeče
  * na telefonu na výšku). Navazuje na #54 (`resizeKeepsRound.test.ts`):
  * po přepočtu rozložení zůstane příklad, chyby, nápověda i se spočítanými
- * tečkami, hvězdičky, postavička, otevřené nastavení i průvodce; žádná
+ * tečkami, hvězdičky, otevřené nastavení i průvodce; žádná
  * odpověď se nezapočítá a rozepsané tahy se smažou bez chyby. Že scéna
  * přepočet při otočení opravdu spustí, se kontroluje ručně v náhledu.
  */
@@ -115,7 +115,7 @@ function landscapePlayState(round: AnswerRound): PlayState {
   return {
     round,
     settings: SETTINGS_10,
-    progress: { earned: 7, character: 'plaminek' },
+    progress: { earned: 7 },
     counting: countDot(round, startDotCounting(round.problem), 0).counting,
     writing: boxes,
     settingsSession: openSettings(CLOSED_SETTINGS, SETTINGS_10),
@@ -124,7 +124,7 @@ function landscapePlayState(round: AnswerRound): PlayState {
 }
 
 describe('AC7: otočení telefonu na výšku zachová rozehrané kolo', () => {
-  it('po otočení ze šířky na výšku zůstane příklad, chyby, nápověda, spočítané tečky, hvězdičky, postavička, nastavení i průvodce', () => {
+  it('po otočení ze šířky na výšku zůstane příklad, chyby, nápověda, spočítané tečky, hvězdičky, nastavení i průvodce', () => {
     const round = roundWithHint();
     const state = landscapePlayState(round);
     const before = structuredClone({ ...state, writing: null });

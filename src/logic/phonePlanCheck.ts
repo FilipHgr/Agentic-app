@@ -4,7 +4,6 @@
  * Čistý TypeScript.
  */
 
-import { mascotRect } from './phoneElements';
 import type { Region } from './phoneHint';
 import { GEAR_CORNER_SIZE } from './phonePlan';
 import type { ControlsPlacement, FreeSize, PhonePlan } from './phonePlan';
@@ -47,11 +46,10 @@ function controlsRects(placement: ControlsPlacement): Region[] {
   ];
 }
 
-/** Hvězdičky, postavička i se skokem a tancem, příklad a ovládání. */
+/** Hvězdičky, příklad a ovládání. */
 function fixedRects(plan: PhonePlan, controls: readonly Region[]): Region[] {
   return [
     ...plan.stars.map((star) => rectAround(star, plan.starSize, plan.starSize)),
-    mascotRect(plan.mascot, plan.mascotSize),
     rectAround(plan.problem, plan.problemWidth, plan.problemHeight),
     ...controls,
   ];

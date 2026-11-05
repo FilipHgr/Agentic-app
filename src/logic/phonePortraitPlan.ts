@@ -2,9 +2,9 @@
  * Rozložení telefonu na výšku podle návrhu P2 (#56), v CSS px volné plochy
  * (bez výřezu a lišty, levý horní roh je 0, 0).
  *
- * Shora dolů: vlevo od kolečka nastavení řada hvězdiček, pod ní postavička
- * vlevo od příkladu (dvojice je vodorovně uprostřed), pod příkladem
- * vyhrazené místo pro nápovědu a dole u palce číselník nebo okénka na psaní.
+ * Shora dolů: vlevo od kolečka nastavení řada hvězdiček, pod ní vodorovně
+ * uprostřed příklad, pod příkladem vyhrazené místo pro nápovědu a dole
+ * u palce číselník nebo okénka na psaní.
  * Rozložení závisí jen na velikosti plochy a nastavení, ne na nápovědě,
  * takže se po ukázání nápovědy nic neposune (AC5).
  *
@@ -14,19 +14,13 @@
  */
 
 import type { Controls } from './phoneControls';
-import {
-  dotGridsFor,
-  mascotCenterBelow,
-  mascotWidth,
-  problemAndMascotOptions,
-  problemBox,
-} from './phoneElements';
-import type { DotGrid, ProblemAndMascot } from './phoneElements';
+import { dotGridsFor, problemBox, problemOptions } from './phoneElements';
+import type { DotGrid, ProblemSizes } from './phoneElements';
 import type { Region } from './phoneHint';
 import { portraitControlsOptions, smallestPortraitControls } from './phonePortraitControls';
 import { HINT_GROUP_GAP, possibleHintGroups, reservedHintSize } from './phonePortraitHint';
 import type { PortraitLayoutSettings } from './phonePortraitHint';
-import { FONT_SIZES, MASCOT_PROBLEM_GAP, MIN_MASCOT_SIZE, STAR_SIZE } from './phonePlan';
+import { FONT_SIZES, STAR_SIZE } from './phonePlan';
 import type { FreeSize, PhonePlan, PhonePlanRequest } from './phonePlan';
 import type { Point } from './screenLayout';
 import { STARS_PER_SET } from './stars';
@@ -46,7 +40,7 @@ const EDGE_MARGIN = 4;
 const GEAR_HIT_SIZE = 64;
 const GEAR_INSET = 8;
 const GEAR_BOTTOM = GEAR_INSET + GEAR_HIT_SIZE;
-/** Hvězdičky aspoň 4 px od plochy kolečka, postavička 4 px pod ní. */
+/** Hvězdičky aspoň 4 px od plochy kolečka, příklad 4 px pod ní. */
 const GEAR_GAP = 4;
 
 /** Svislý střed řady hvězdiček je ve výšce středu plochy kolečka (AC2). */
@@ -83,26 +77,21 @@ function layoutPortraitStars(free: FreeSize, starCount: number): Point[] {
 }
 
 // ---------------------------------------------------------------------------
-// Postavička a příklad
+// Příklad
 // ---------------------------------------------------------------------------
 
 interface MiddleRow {
-  readonly sizes: ProblemAndMascot;
-  readonly mascot: Point;
+  readonly sizes: ProblemSizes;
   readonly problem: Point;
   readonly width: number;
   readonly bottom: number;
 }
 
-/** Postavička vlevo od příkladu pod kolečkem; dvojice vodorovně uprostřed. */
-function middleRow(free: FreeSize, sizes: ProblemAndMascot): MiddleRow {
-  const mascotSpan = mascotWidth(sizes.mascotSize);
-  const width = mascotSpan + MASCOT_PROBLEM_GAP + sizes.problem.width;
-  const left = (free.width - width) / 2;
-  const mascot = mascotCenterBelow(left + mascotSpan / 2, GEAR_BOTTOM + GEAR_GAP, sizes.mascotSize);
-  const problem = { x: left + width - sizes.problem.width / 2, y: mascot.y };
-  const bottom = Math.max(mascot.y + sizes.mascotSize / 2, problem.y + sizes.problem.height / 2);
-  return { sizes, mascot, problem, width, bottom };
+/** Příklad pod kolečkem, vodorovně uprostřed volné plochy. */
+function middleRow(free: FreeSize, sizes: ProblemSizes): MiddleRow {
+  const top = GEAR_BOTTOM + GEAR_GAP;
+  const problem = { x: free.width / 2, y: top + sizes.problem.height / 2 };
+  return { sizes, problem, width: sizes.problem.width, bottom: top + sizes.problem.height };
 }
 
 // ---------------------------------------------------------------------------
@@ -149,7 +138,7 @@ function* portraitCandidates(
     size: reservedHintSize(allGroups, { cell: grid.cell, groupGap: HINT_GROUP_GAP }, inner),
   }));
 
-  for (const sizes of problemAndMascotOptions(PORTRAIT_FONT_SIZES, settings.maxNumber, false)) {
+  for (const sizes of problemOptions(PORTRAIT_FONT_SIZES, settings.maxNumber)) {
     const row = middleRow(free, sizes);
     for (const { grid, size: hint } of hints) {
       const hintRegion = hintRegionBelow(free, row.bottom, hint.height);
@@ -185,8 +174,6 @@ function planParts(
   return {
     stars,
     starSize: STAR_SIZE,
-    mascot: row.mascot,
-    mascotSize: row.sizes.mascotSize,
     problem: row.problem,
     problemFontSize: row.sizes.font,
     problemWidth: row.sizes.problem.width,
@@ -208,10 +195,9 @@ const FALLBACK_DOT_GRID: DotGrid = {
 /** Nouzové rozložení: všechno co nejmenší, ovládání dole. */
 function fallbackPlan(request: PhonePlanRequest, settings: PortraitLayoutSettings): PortraitPlan {
   const { free } = request;
-  const sizes: ProblemAndMascot = {
+  const sizes: ProblemSizes = {
     font: MIN_PORTRAIT_FONT_SIZE,
     problem: problemBox(MIN_PORTRAIT_FONT_SIZE, settings.maxNumber),
-    mascotSize: MIN_MASCOT_SIZE,
   };
   const row = middleRow(free, sizes);
   const grid = FALLBACK_DOT_GRID;

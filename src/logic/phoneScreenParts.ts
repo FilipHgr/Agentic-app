@@ -8,7 +8,6 @@ import type { DeviceSizes, GameSize } from './deviceLayout';
 import { DOTS_PER_ROW } from './phoneHint';
 import type { Region } from './phoneHint';
 import type { PhonePlan, PhonePlanRequest } from './phonePlan';
-import { MASCOT_DANCE_SWAY, MASCOT_JUMP_HEIGHT, MASCOT_SIZE } from './screenLayout';
 import type {
   ButtonSlot,
   HintDot,
@@ -97,11 +96,7 @@ export function phoneParts(
     problemSize: { width: units(plan.problemWidth), height: units(plan.problemHeight) },
     hintStyle: hintStyleOf(plan),
     stars: plan.stars.map(pointInUnits),
-    mascot: pointInUnits(plan.mascot),
     starSize: units(plan.starSize),
-    mascotSize: units(plan.mascotSize),
-    mascotJumpHeight: (units(plan.mascotSize) * MASCOT_JUMP_HEIGHT) / MASCOT_SIZE,
-    mascotDanceSway: (units(plan.mascotSize) * MASCOT_DANCE_SWAY) / MASCOT_SIZE,
     hintDotHitSize: units(plan.hintCell),
     hintDotsCountable: plan.hintDotsCountable,
     dotNumberFontSize: units(Math.round(plan.hintDotSize * DOT_NUMBER_RATIO)),

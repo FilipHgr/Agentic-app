@@ -26,7 +26,7 @@ import { seededRandom } from './seededRandom';
 /**
  * Testy počítání teček ťukáním v nápovědě (#43). Rozložení ploch pro ťuknutí
  * (AC7) je v dotCountingLayout.test.ts. Čitelnost čísla v tečce (AC8)
- * a reakce postavičky se kontrolují ručně.
+ * se kontroluje ručně.
  */
 
 const THREE_PLUS_FOUR: Problem = { first: 3, second: 4, operation: 'plus', result: 7 };

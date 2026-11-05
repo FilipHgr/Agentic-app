@@ -426,7 +426,7 @@ async function shootPhoneCelebration(browser, url, device, layoutModule) {
       'agentic-app.settings',
       JSON.stringify({ maxNumber: 10, operations: 'plus', answerInput: 'keypad' }),
     );
-    localStorage.setItem('agentic-app.progress', JSON.stringify({ earned: 9, character: 'robik' }));
+    localStorage.setItem('agentic-app.progress', JSON.stringify({ earned: 9 }));
   });
   const map = phoneMapper(layoutModule, device);
   const keypad = layoutModule.layoutPhoneScreen(map.area, 11, 10);

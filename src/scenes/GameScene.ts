@@ -13,11 +13,8 @@ import {
   playStateAfterResize,
 } from '../logic/deviceLayout';
 import type { GameArea, PlayState } from '../logic/deviceLayout';
-import { mascotReactionToTap } from '../logic/mascot';
 import { STARS_PER_SET, startNewStarSet, starsAfterTap } from '../logic/stars';
 import type { StarProgress } from '../logic/stars';
-import { nextCharacter } from '../logic/characters';
-import type { CharacterId } from '../logic/characters';
 import { createRecognizerLoading, loadDigitRecognizer } from '../logic/recognizerLoading';
 import type { RecognizerLoadStatus } from '../logic/recognizerLoading';
 import { isWritingActive } from '../logic/settings';
@@ -33,10 +30,9 @@ import { GAME_AREA_KEY } from '../ui/viewport';
 import { highlightCorrectButton, shakeWrongButton } from './AnswerButton';
 import type { AnswerButton } from './AnswerButton';
 import { Confetti } from './Confetti';
-import { Mascot } from './Mascot';
 import { ParentPanels } from './ParentPanels';
 import { RoundView } from './RoundView';
-import { SceneLayouts, gameAreaFromRegistry, mascotLookOf } from './SceneLayouts';
+import { SceneLayouts, gameAreaFromRegistry } from './SceneLayouts';
 import { StarRow } from './StarRow';
 import type { Origin } from './StarRow';
 
@@ -62,11 +58,8 @@ export class GameScene extends Phaser.Scene {
   private hintIsShown = false;
   /** Které tečky nápovědy už dítě spočítalo ťuknutím (#43). */
   private dotCounting: DotCounting = { numbers: [] };
-  // Hvězdičky a postavička přežijí zavření hry (načtou se ze zařízení).
-  private readonly savedProgress = loadProgress(browserStorage());
-  private starProgress: StarProgress = { earned: this.savedProgress.earned };
-  private mascot: Mascot | undefined;
-  private character: CharacterId = this.savedProgress.character;
+  // Hvězdičky přežijí zavření hry (načtou se ze zařízení).
+  private starProgress: StarProgress = loadProgress(browserStorage());
   private readonly settingsState = loadSettingsState(browserStorage());
   private settings: GameSettings = this.settingsState.settings;
   /** Stahování rozpoznávání psaní na pozadí (#58). */
@@ -116,11 +109,6 @@ export class GameScene extends Phaser.Scene {
     super('game');
   }
 
-  preload(): void {
-    // Když se obrázek nenačte, hra běží dál bez postavičky (viz Mascot.showMood).
-    Mascot.preload(this);
-  }
-
   create(): void {
     this.gameArea = this.readGameArea();
     this.registry.events.on(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
@@ -133,8 +121,6 @@ export class GameScene extends Phaser.Scene {
     });
     this.starRow.create();
     this.starRow.paint();
-    const layout = this.layouts.scenery();
-    this.mascot = new Mascot(this, layout.mascot, mascotLookOf(layout), this.character);
     // Kolečko je tlačítko stránky v rohu obrazovky, mimo herní plochu.
     const settingsButton = document.getElementById('settings-button');
     if (settingsButton) {
@@ -186,7 +172,7 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Otočení telefonu nebo změna lišty (AC7): všechno se překreslí podle
-   * nové plochy. Příklad, chyby, nápověda, hvězdičky, postavička i otevřené
+   * nové plochy. Příklad, chyby, nápověda, hvězdičky i otevřené
    * nastavení nebo průvodce zůstanou; rozepsané tahy v okénkách se smažou.
    */
   private onGameAreaChanged(): void {
@@ -199,14 +185,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Postavička a rozehrané kolo podle nového rozložení, bez nového příkladu
+   * Rozehrané kolo podle nového rozložení, bez nového příkladu
    * a bez započtení odpovědi. Rozepsané tahy se smažou.
    *
    * @param animateHint Tečky nápovědy naskočí (nápověda se právě ukázala).
    */
   private relayoutRound(animateHint: boolean): void {
-    const layout = this.layouts.scenery();
-    this.mascot?.moveTo(layout.mascot, mascotLookOf(layout));
     if (!this.round) {
       return;
     }
@@ -242,10 +226,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private currentProgress(): GameProgress {
-    return { earned: this.starProgress.earned, character: this.character };
+    return { earned: this.starProgress.earned };
   }
 
-  /** Uloží hvězdičky a postavičku do zařízení; když to nejde, hra jede dál. */
+  /** Uloží hvězdičky do zařízení; když to nejde, hra jede dál. */
   private saveProgress(): void {
     saveProgress(browserStorage(), this.currentProgress());
   }
@@ -258,16 +242,14 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Když nastavení přerušilo oslavu, dokončí se jako po oslavě (nová řada, další postavička). */
+  /** Když nastavení přerušilo oslavu, dokončí se jako po oslavě (nová prázdná řada). */
   private applyProgressAfterSettings(progress: GameProgress): void {
-    if (progress.earned === this.starProgress.earned && progress.character === this.character) {
+    if (progress.earned === this.starProgress.earned) {
       return;
     }
     this.stopCelebration();
     this.starProgress = { earned: progress.earned };
-    this.character = progress.character;
     this.saveProgress();
-    this.mascot?.switchTo(this.character);
     this.starRow.paint();
   }
 
@@ -285,26 +267,11 @@ export class GameScene extends Phaser.Scene {
     this.hintIsShown = false;
     this.dotCounting = startDotCounting(this.round.problem);
     this.roundInput = this.recognizerLoading.answerInput(this.settings);
-    this.placeMascotAfterSettings();
     this.drawRound();
     // Stahování rozpoznávání nesmí zdržet první obrázek: začne po vykreslení (#58 AC2).
     this.game.events.once(Phaser.Core.Events.POST_RENDER, () =>
       this.recognizerLoading.problemDrawn(),
     );
-  }
-
-  /**
-   * Na telefonu závisí místo a velikost postavičky na nastavení (rozsah,
-   * druh příkladů, psaní, #54, #56) a na šířku i na nápovědě. Po změně se
-   * postavička přesune; jinak zůstane, jak je, a rozběhnutá radost se nepřeruší.
-   */
-  private placeMascotAfterSettings(): void {
-    const layout = this.layouts.scenery();
-    const look = mascotLookOf(layout);
-    const isPhone = layout.device === 'phone';
-    if (isPhone && this.mascot && !this.mascot.isPlacedAt(layout.mascot, look)) {
-      this.mascot.moveTo(layout.mascot, look);
-    }
   }
 
   /** Nakreslí rozehrané kolo (viz `RoundView.draw`). */
@@ -355,7 +322,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Společné vyhodnocení pro číselník i psaní: zvuk, hvězdička, postavička,
+   * Společné vyhodnocení pro číselník i psaní: zvuk, hvězdička,
    * výsledek v příkladu a nápověda po 2. chybě.
    */
   private applyOutcome(
@@ -380,13 +347,6 @@ export class GameScene extends Phaser.Scene {
     } else if (outcome === 'wrong') {
       visuals.onWrong();
       this.showHintWhenNeeded();
-    }
-
-    // Až po nápovědě: na telefonu nápověda postavičku přesune (#54) a reakce by se ztratila.
-    // Tanec začne až s oslavou, po doletu poslední hvězdičky.
-    const reaction = mascotReactionToTap(outcome, stars.setCompleted);
-    if (reaction && reaction !== 'dance') {
-      this.mascot?.react(reaction);
     }
   }
 
@@ -441,15 +401,12 @@ export class GameScene extends Phaser.Scene {
     }
     this.sounds.play(SOUNDS.celebration);
     this.confetti.throw(this.gameArea, this.layouts.keypad().detailScale);
-    this.mascot?.react('dance', CELEBRATION_MS);
 
     this.celebrationTimer = this.time.delayedCall(CELEBRATION_MS, () => {
       this.celebrationTimer = undefined;
       this.confetti.forget();
       this.starProgress = startNewStarSet();
-      this.character = nextCharacter(this.character);
       this.saveProgress();
-      this.mascot?.switchTo(this.character);
       this.starRow.paint();
       this.startRound();
     });

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { createAnswerRound, tapAnswer } from '../src/logic/answerRound';
 import type { TapOutcome } from '../src/logic/answerRound';
-import { CHARACTERS, FIRST_CHARACTER, nextCharacter } from '../src/logic/characters';
 import { START_PROGRESS, parseProgress, serializeProgress } from '../src/logic/progress';
 import type { GameProgress } from '../src/logic/progress';
 import { DEFAULT_SETTINGS } from '../src/logic/settings';
@@ -38,18 +37,18 @@ function brokenStorage(): KeyValueStorage {
   };
 }
 
+/** Klíč, pod kterým hra ukládá postup v zařízení (stejný před #63 i po něm). */
+const PROGRESS_KEY = 'agentic-app.progress';
+
 /** Uložený záznam tak, jak by ho mohl nechat starší nebo poškozený stav hry. */
 function savedRecord(record: unknown): string {
   return JSON.stringify(record);
 }
 
-/** Stav po jednom ťuknutí tak, jak ho hra počítá: hvězdičky a po oslavě další postavička. */
+/** Stav po jednom ťuknutí tak, jak ho hra počítá: hvězdičky a po oslavě prázdná řada. */
 function progressAfterTap(progress: GameProgress, outcome: TapOutcome): GameProgress {
   const stars = starsAfterTap(progress, outcome);
-  if (stars.setCompleted) {
-    return { ...startNewStarSet(), character: nextCharacter(progress.character) };
-  }
-  return { ...stars.progress, character: progress.character };
+  return stars.setCompleted ? startNewStarSet() : stars.progress;
 }
 
 /** Stav po řadě ťuknutí od zadaného začátku. */
@@ -88,11 +87,9 @@ describe('AC1: rozsvícené hvězdičky vydrží zavření hry', () => {
 
   it('každý rozpracovaný počet hvězdiček 0 až 9 se po znovuotevření vrátí stejný', () => {
     for (let earned = 0; earned < STARS_PER_SET; earned += 1) {
-      for (const character of CHARACTERS) {
-        const progress: GameProgress = { earned, character };
-        expect(closeAndReopen(progress)).toEqual(progress);
-        expect(parseProgress(serializeProgress(progress))).toEqual(progress);
-      }
+      const progress: GameProgress = { earned };
+      expect(closeAndReopen(progress)).toEqual(progress);
+      expect(parseProgress(serializeProgress(progress))).toEqual(progress);
     }
   });
 
@@ -110,47 +107,15 @@ describe('AC1: rozsvícené hvězdičky vydrží zavření hry', () => {
   });
 });
 
-describe('AC2: vystřídaná postavička vydrží zavření hry', () => {
-  it('po první oslavě je na obrazovce Robík i po znovuotevření hry', () => {
-    const afterCelebration = progressAfter(correctAnswers(STARS_PER_SET), START_PROGRESS);
-    expect(afterCelebration.character).toBe('robik');
+describe('AC3: hra zavřená uprostřed oslavy začne prázdnou řadou', () => {
+  it('plná řada se po znovuotevření změní na prázdnou řadu', () => {
+    const afterReopen = closeAndReopen({ earned: STARS_PER_SET });
 
-    const afterReopen = closeAndReopen(afterCelebration);
-
-    expect(afterReopen.character).toBe('robik');
-    expect(afterReopen.earned).toBe(0);
-  });
-
-  it('po další oslavě po znovuotevření přijde Plamínek', () => {
-    const afterReopen = closeAndReopen({ earned: 0, character: 'robik' });
-
-    const afterNextCelebration = progressAfter(correctAnswers(STARS_PER_SET), afterReopen);
-
-    expect(afterNextCelebration.character).toBe('plaminek');
-  });
-
-  it('každá postavička se po znovuotevření vrátí ta samá', () => {
-    for (const character of CHARACTERS) {
-      expect(closeAndReopen({ earned: 3, character }).character).toBe(character);
-    }
-  });
-});
-
-describe('AC3: hra zavřená uprostřed oslavy začne prázdnou řadou s další postavičkou', () => {
-  it('plná řada s Robíkem se po znovuotevření změní na prázdnou řadu s Plamínkem', () => {
-    const afterReopen = closeAndReopen({ earned: STARS_PER_SET, character: 'robik' });
-
-    expect(afterReopen).toEqual({ earned: 0, character: 'plaminek' });
-  });
-
-  it('po Plamínkovi s plnou řadou přijde znovu Hvězdík', () => {
-    const afterReopen = closeAndReopen({ earned: STARS_PER_SET, character: 'plaminek' });
-
-    expect(afterReopen).toEqual({ earned: 0, character: 'hvezdik' });
+    expect(afterReopen).toEqual({ earned: 0 });
   });
 
   it('oslava se po znovuotevření nezopakuje a další správná odpověď dá 1 hvězdičku', () => {
-    const afterReopen = closeAndReopen({ earned: STARS_PER_SET, character: 'hvezdik' });
+    const afterReopen = closeAndReopen({ earned: STARS_PER_SET });
 
     const next = starsAfterTap(afterReopen, 'correct');
 
@@ -159,29 +124,26 @@ describe('AC3: hra zavřená uprostřed oslavy začne prázdnou řadou s další
   });
 
   it('hvězdička se neztratí ani nepřidá: další oslava přijde přesně po 10 správných odpovědích', () => {
-    let progress = closeAndReopen({ earned: STARS_PER_SET, character: 'hvezdik' });
+    let progress = closeAndReopen({ earned: STARS_PER_SET });
 
     for (let answer = 1; answer < STARS_PER_SET; answer += 1) {
       const result = starsAfterTap(progress, 'correct');
       expect(result.setCompleted).toBe(false);
-      progress = { ...result.progress, character: progress.character };
+      progress = result.progress;
     }
 
     expect(starsAfterTap(progress, 'correct').setCompleted).toBe(true);
   });
 
-  it('přesně 10 hvězdiček je platný záznam, ne poškozený (postavička se posune, nezačne se Hvězdíkem)', () => {
-    expect(parseProgress(savedRecord({ earned: 10, character: 'robik' }))).toEqual({
-      earned: 0,
-      character: 'plaminek',
-    });
+  it('přesně 10 hvězdiček je platný záznam, ne poškozený: dá prázdnou řadu', () => {
+    expect(parseProgress(savedRecord({ earned: 10 }))).toEqual({ earned: 0 });
   });
 });
 
 describe('AC4: špatná odpověď ani nápověda uložený stav nezmění', () => {
   it('po chybách a nápovědě má hráč po znovuotevření stejně hvězdiček jako před chybou', () => {
     const storage = memoryStorage();
-    const beforeMistake: GameProgress = { earned: 4, character: 'robik' };
+    const beforeMistake: GameProgress = { earned: 4 };
     saveProgress(storage, beforeMistake);
     const savedBefore = storage.data.get([...storage.data.keys()][0] ?? '');
 
@@ -202,25 +164,21 @@ describe('AC4: špatná odpověď ani nápověda uložený stav nezmění', () =
   });
 
   it('ťuknutí, které nic nedělá, uložený stav nezmění', () => {
-    const before: GameProgress = { earned: 7, character: 'plaminek' };
+    const before: GameProgress = { earned: 7 };
 
     expect(closeAndReopen(progressAfterTap(before, 'ignored'))).toEqual(before);
   });
 
   it('správná odpověď po nápovědě hvězdičku přidá a ta se uloží', () => {
-    const afterHint = progressAfter(['wrong', 'wrong', 'correct'], {
-      earned: 4,
-      character: 'robik',
-    });
+    const afterHint = progressAfter(['wrong', 'wrong', 'correct'], { earned: 4 });
 
-    expect(closeAndReopen(afterHint)).toEqual({ earned: 5, character: 'robik' });
+    expect(closeAndReopen(afterHint)).toEqual({ earned: 5 });
   });
 });
 
-describe('AC5: chybějící nebo poškozený záznam: hra začne normálně s Hvězdíkem', () => {
-  it('začátek hry je prázdná řada a Hvězdík', () => {
-    expect(START_PROGRESS).toEqual({ earned: 0, character: FIRST_CHARACTER });
-    expect(FIRST_CHARACTER).toBe('hvezdik');
+describe('AC5: chybějící nebo poškozený záznam: hra začne normálně', () => {
+  it('začátek hry je prázdná řada hvězdiček', () => {
+    expect(START_PROGRESS).toEqual({ earned: 0 });
   });
 
   it('při prvním spuštění bez uloženého záznamu začne hra od začátku', () => {
@@ -233,7 +191,7 @@ describe('AC5: chybějící nebo poškozený záznam: hra začne normálně s Hv
     expect(loadProgress(undefined)).toEqual(START_PROGRESS);
   });
 
-  it('poškozený záznam hra nerozbije a začne od začátku', () => {
+  it('poškozený záznam hru nerozbije a začne od začátku', () => {
     for (const saved of ['', 'nesmysl', '{', 'null', '42', '"4"', '[]', '[4,"robik"]', '{}']) {
       expect(parseProgress(saved)).toEqual(START_PROGRESS);
     }
@@ -242,38 +200,15 @@ describe('AC5: chybějící nebo poškozený záznam: hra začne normálně s Hv
   it('nesmyslný počet hvězdiček (záporný, víc než 10, necelý, jiný typ) se zahodí', () => {
     const badCounts: unknown[] = [-1, 11, 100, 2.5, '4', null, true, undefined];
     for (const earned of badCounts) {
-      expect(parseProgress(savedRecord({ earned, character: 'robik' }))).toEqual(START_PROGRESS);
+      expect(parseProgress(savedRecord({ earned }))).toEqual(START_PROGRESS);
     }
     // Příliš velké číslo se v JSON přečte jako nekonečno.
-    expect(parseProgress('{"earned":1e999,"character":"robik"}')).toEqual(START_PROGRESS);
-  });
-
-  it('neznámá postavička nebo jiný typ se zahodí', () => {
-    const badCharacters: unknown[] = [
-      'sovicka',
-      '',
-      'Robik',
-      'ROBIK',
-      1,
-      null,
-      ['robik'],
-      undefined,
-    ];
-    for (const character of badCharacters) {
-      expect(parseProgress(savedRecord({ earned: 4, character }))).toEqual(START_PROGRESS);
-    }
-  });
-
-  it('jedna špatná položka zahodí celý záznam, ani platná část se nepoužije', () => {
-    expect(parseProgress(savedRecord({ earned: 4, character: 'sovicka' }))).toEqual(START_PROGRESS);
-    expect(parseProgress(savedRecord({ earned: -3, character: 'plaminek' }))).toEqual(
-      START_PROGRESS,
-    );
+    expect(parseProgress('{"earned":1e999}')).toEqual(START_PROGRESS);
   });
 
   it('poškozený záznam v úložišti hra po otevření nahradí začátkem', () => {
     const storage = memoryStorage();
-    saveProgress(storage, { earned: 4, character: 'robik' });
+    saveProgress(storage, { earned: 4 });
     for (const key of storage.data.keys()) {
       storage.data.set(key, '{"earned":');
     }
@@ -286,25 +221,25 @@ describe('AC5: chybějící nebo poškozený záznam: hra začne normálně s Hv
 
     expect(() => loadProgress(storage)).not.toThrow();
     expect(loadProgress(storage)).toEqual(START_PROGRESS);
-    expect(() => saveProgress(storage, { earned: 4, character: 'robik' })).not.toThrow();
-    expect(saveProgress(storage, { earned: 4, character: 'robik' })).toBe(false);
+    expect(() => saveProgress(storage, { earned: 4 })).not.toThrow();
+    expect(saveProgress(storage, { earned: 4 })).toBe(false);
   });
 
   it('uložení bez úložiště prohlížeče jen vrátí, že se neuložilo', () => {
-    expect(saveProgress(undefined, { earned: 4, character: 'robik' })).toBe(false);
+    expect(saveProgress(undefined, { earned: 4 })).toBe(false);
   });
 
   it('úspěšné uložení to ohlásí', () => {
-    expect(saveProgress(memoryStorage(), { earned: 4, character: 'robik' })).toBe(true);
+    expect(saveProgress(memoryStorage(), { earned: 4 })).toBe(true);
   });
 });
 
-describe('AC6: změna nastavení nezmění hvězdičky ani postavičku', () => {
+describe('AC6: změna nastavení nezmění hvězdičky', () => {
   const changedSettings: GameSettings = { maxNumber: 20, operations: 'mixed' };
 
-  it('po změně rozsahu a druhu příkladů zůstanou hvězdičky i postavička', () => {
+  it('po změně rozsahu a druhu příkladů zůstanou hvězdičky', () => {
     const storage = memoryStorage();
-    const progress: GameProgress = { earned: 6, character: 'plaminek' };
+    const progress: GameProgress = { earned: 6 };
     saveProgress(storage, progress);
 
     saveSettings(storage, changedSettings);
@@ -317,8 +252,103 @@ describe('AC6: změna nastavení nezmění hvězdičky ani postavičku', () => {
     const storage = memoryStorage();
     saveSettings(storage, changedSettings);
 
-    saveProgress(storage, { earned: 9, character: 'robik' });
+    saveProgress(storage, { earned: 9 });
 
     expect(loadSettings(storage)).toEqual(changedSettings);
+  });
+});
+
+/**
+ * #63, AC6: postup uložený hrou s postavičkami. Jen tady smí zůstat pole
+ * `character` a jména postaviček (#63, AC7), protože tak vypadají záznamy,
+ * které hráči v zařízení už mají.
+ */
+describe('#63 AC6: starý uložený postup s postavičkou se načte', () => {
+  /** Úložiště, ve kterém je postup uložený starší verzí hry. */
+  function storageWithOldRecord(record: unknown): ReturnType<typeof memoryStorage> {
+    const storage = memoryStorage();
+    storage.data.set(PROGRESS_KEY, savedRecord(record));
+    return storage;
+  }
+
+  it('záznam {"earned":4,"character":"robik"} se načte se 4 hvězdičkami a postavička se ignoruje', () => {
+    const storage = storageWithOldRecord({ earned: 4, character: 'robik' });
+
+    expect(() => loadProgress(storage)).not.toThrow();
+    expect(loadProgress(storage)).toEqual({ earned: 4 });
+    expect(parseProgress('{"earned":4,"character":"robik"}')).toEqual({ earned: 4 });
+  });
+
+  it('hvězdičky se nezahodí kvůli postavičce: platné jméno, neznámé jméno, číslo, null i chybějící pole', () => {
+    const oldCharacters: unknown[] = [
+      'hvezdik',
+      'robik',
+      'plaminek',
+      'sovicka',
+      '',
+      'ROBIK',
+      1,
+      0,
+      null,
+      ['robik'],
+      { name: 'robik' },
+    ];
+    for (const character of oldCharacters) {
+      const label = JSON.stringify(character);
+      expect(parseProgress(savedRecord({ earned: 4, character })), label).toEqual({ earned: 4 });
+      expect(loadProgress(storageWithOldRecord({ earned: 4, character })), label).toEqual({
+        earned: 4,
+      });
+    }
+    expect(parseProgress(savedRecord({ earned: 4 }))).toEqual({ earned: 4 });
+  });
+
+  it('každý rozpracovaný počet 0 až 9 se starou postavičkou se načte celý', () => {
+    for (let earned = 0; earned < STARS_PER_SET; earned += 1) {
+      for (const character of ['hvezdik', 'robik', 'plaminek']) {
+        expect(parseProgress(savedRecord({ earned, character }))).toEqual({ earned });
+      }
+    }
+  });
+
+  it('starý záznam s 10 hvězdičkami dá prázdnou řadu bez oslavy', () => {
+    for (const character of ['hvezdik', 'robik', 'plaminek', 'sovicka', null]) {
+      const afterReopen = loadProgress(storageWithOldRecord({ earned: 10, character }));
+
+      expect(afterReopen, String(character)).toEqual({ earned: 0 });
+      expect(starsAfterTap(afterReopen, 'correct').setCompleted).toBe(false);
+    }
+  });
+
+  it('chybějící, poškozený nebo nesmyslný počet hvězdiček u starého záznamu dá začátek hry', () => {
+    const badCounts: unknown[] = [-1, -3, 2.5, 11, 100, '4', 'čtyři', null, true, undefined];
+    for (const earned of badCounts) {
+      expect(parseProgress(savedRecord({ earned, character: 'robik' })), String(earned)).toEqual(
+        START_PROGRESS,
+      );
+    }
+    expect(parseProgress(savedRecord({ character: 'robik' }))).toEqual(START_PROGRESS);
+    expect(parseProgress('{"earned":1e999,"character":"robik"}')).toEqual(START_PROGRESS);
+    expect(parseProgress('{"earned":4,"character":')).toEqual(START_PROGRESS);
+  });
+
+  it('nově uložený postup obsahuje jen hvězdičky', () => {
+    const storage = storageWithOldRecord({ earned: 4, character: 'robik' });
+
+    saveProgress(storage, progressAfterTap(loadProgress(storage), 'correct'));
+
+    const saved = storage.data.get(PROGRESS_KEY) ?? '';
+    expect(JSON.parse(saved)).toEqual({ earned: 5 });
+    expect(JSON.parse(serializeProgress({ earned: 3 }))).toEqual({ earned: 3 });
+  });
+
+  it('postup se ukládá pod stejným klíčem jako dřív, takže hráč o hvězdičky nepřijde', () => {
+    const storage = storageWithOldRecord({ earned: 7, character: 'plaminek' });
+
+    expect(loadProgress(storage).earned).toBe(7);
+    saveProgress(storage, { earned: 8 });
+
+    expect([...storage.data.keys()]).toEqual([PROGRESS_KEY]);
+    expect(loadProgress(storage)).toEqual({ earned: 8 });
   });
 });

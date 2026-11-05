@@ -25,7 +25,7 @@ import { SetupGuidePanel } from './SetupGuidePanel';
 export interface ParentPanelsHost {
   /** Současné nastavení hry. */
   readonly settings: () => GameSettings;
-  /** Současné hvězdičky a postavička. */
+  /** Současné hvězdičky. */
   readonly progress: () => GameProgress;
   /** Současná herní plocha (iPad, telefon na šířku nebo na výšku, zmenšené). */
   readonly gameArea: () => GameArea;

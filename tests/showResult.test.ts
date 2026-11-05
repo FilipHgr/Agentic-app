@@ -10,13 +10,7 @@ import {
 } from '../src/logic/answerRound';
 import type { AnswerRound } from '../src/logic/answerRound';
 import type { Problem } from '../src/logic/problems';
-import {
-  MASCOT_DANCE_SWAY,
-  MASCOT_JUMP_HEIGHT,
-  MASCOT_SIZE,
-  STAR_SIZE,
-  layoutScreen,
-} from '../src/logic/screenLayout';
+import { STAR_SIZE, layoutScreen } from '../src/logic/screenLayout';
 import type { ScreenLayout } from '../src/logic/screenLayout';
 import { MAX_NUMBER_OPTIONS, OPERATION_OPTIONS } from '../src/logic/settings';
 import type { GameSettings } from '../src/logic/settings';
@@ -26,6 +20,9 @@ import { seededRandom } from './seededRandom';
 
 const SCREEN_WIDTH = 1024;
 const SCREEN_HEIGHT = 768;
+
+/** Okraj místa pro příklad od levé i pravé hrany herní plochy (#63, AC2). */
+const MIN_SIDE_MARGIN = 24;
 
 /** Nové kolo s pevným příkladem, aby testy ťukání nezávisely na náhodě. */
 function roundFor(problem: Problem, maxNumber = 10): AnswerRound {
@@ -269,17 +266,6 @@ function layoutFor(maxNumber: number): ScreenLayout {
   return layoutScreen(SCREEN_WIDTH, SCREEN_HEIGHT, answerChoices(maxNumber).length, STARS_PER_SET);
 }
 
-/** Postavička i se skokem a tancem. */
-function mascotBox(layout: ScreenLayout): Box {
-  const { mascot } = layout;
-  return {
-    left: mascot.x - MASCOT_SIZE / 2 - MASCOT_DANCE_SWAY,
-    right: mascot.x + MASCOT_SIZE / 2 + MASCOT_DANCE_SWAY,
-    top: mascot.y - MASCOT_SIZE / 2 - MASCOT_JUMP_HEIGHT,
-    bottom: mascot.y + MASCOT_SIZE / 2,
-  };
-}
-
 function problemBox(layout: ScreenLayout): Box {
   const { problem, problemSize } = layout;
   return box(problem.x, problem.y, problemSize.width, problemSize.height);
@@ -317,11 +303,15 @@ describe('AC6: příklad i s nejširším výsledkem se vejde na herní plochu 1
     },
   );
 
-  it.each(MAX_NUMBER_OPTIONS)('v rozsahu %i příklad nezasahuje do postavičky', (maxNumber) => {
-    const layout = layoutFor(maxNumber);
+  it.each(MAX_NUMBER_OPTIONS)(
+    'v rozsahu %i má místo pro příklad okraj aspoň 24 vlevo i vpravo (#63)',
+    (maxNumber) => {
+      const problem = problemBox(layoutFor(maxNumber));
 
-    expect(overlaps(problemBox(layout), mascotBox(layout))).toBe(false);
-  });
+      expect(problem.left).toBeGreaterThanOrEqual(MIN_SIDE_MARGIN);
+      expect(problem.right).toBeLessThanOrEqual(SCREEN_WIDTH - MIN_SIDE_MARGIN);
+    },
+  );
 
   it.each(MAX_NUMBER_OPTIONS)('v rozsahu %i příklad nezasahuje do hvězdiček', (maxNumber) => {
     const layout = layoutFor(maxNumber);

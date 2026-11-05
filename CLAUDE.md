@@ -31,10 +31,6 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
 - `src/logic/` čistý TypeScript bez Phaseru (příklady, vyhodnocení,
   obtížnost, body). `src/scenes/` Phaser scény, které logiku jen volají.
   Testy logiky jsou v `tests/`.
-- Postavičky (Hvězdík, Robík, Plamínek) jsou společné pro všechny hry:
-  obrázky `public/characters/<postavička>/<nálada>.svg`, seznam
-  `src/logic/characters.ts`, kresby generuje
-  `tools/characters/make_characters.py`. Nové hry je použijí, nekreslí vlastní.
 - `npm run dev` vývojový server
 - `npm test` testy
 - `npm run lint` ESLint a kontrola formátování

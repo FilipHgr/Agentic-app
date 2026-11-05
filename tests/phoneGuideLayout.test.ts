@@ -1016,7 +1016,7 @@ function stateWithOpenGuide(guide: GuideState): PlayState {
   return {
     round,
     settings: SAVED,
-    progress: { earned: 0, character: 'hvezdik' },
+    progress: { earned: 0 },
     counting: startDotCounting(round.problem),
     writing: null,
     settingsSession: CLOSED_SETTINGS,

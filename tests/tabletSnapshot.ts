@@ -6,9 +6,6 @@
 import { hintDotGroups } from '../src/logic/answerRound';
 import type { Problem } from '../src/logic/problems';
 import {
-  MASCOT_DANCE_SWAY,
-  MASCOT_JUMP_HEIGHT,
-  MASCOT_SIZE,
   STAR_SIZE,
   hintDotHitArea,
   layoutHint,
@@ -83,12 +80,6 @@ function cssTop(layout: ScreenLayout | WritingLayout, placement: Placement): obj
       ...cssPoint(star, placement),
       size: cssSize(STAR_SIZE, placement),
     })),
-    mascot: {
-      ...cssPoint(layout.mascot, placement),
-      size: cssSize(MASCOT_SIZE, placement),
-      jump: cssSize(MASCOT_JUMP_HEIGHT, placement),
-      sway: cssSize(MASCOT_DANCE_SWAY, placement),
-    },
   };
 }
 

@@ -2,10 +2,10 @@
  * Rozložení telefonu na šířku podle návrhu V2 (#54), v CSS px volné
  * plochy (bez výřezu a lišty, levý horní roh je 0, 0).
  *
- * Nahoře uprostřed hvězdičky, pod nimi uprostřed postavička a příklad,
- * dole přes šířku číselník nebo okénka na psaní (`phoneStackedPlan.ts`).
- * Nápověda je vpravo od příkladu. Výjimka: číselník do 20 je vpravo
- * a příklad s postavičkou vlevo od něj (`phoneWideKeypadPlan.ts`).
+ * Nahoře uprostřed hvězdičky, pod nimi uprostřed příklad, dole přes šířku
+ * číselník nebo okénka na psaní (`phoneStackedPlan.ts`). Nápověda je
+ * vpravo od příkladu. Výjimka: číselník do 20 je vpravo a příklad vlevo
+ * od něj (`phoneWideKeypadPlan.ts`).
  *
  * Velikosti se zkouší od největších; použije se první rozložení, které
  * projde kontrolou (`phonePlanCheck.ts`). Převod na herní jednotky je
@@ -19,8 +19,8 @@ import {
   keypadControls,
   writingControls,
 } from './phoneControls';
-import { basePlan, mascotCenterBelow, problemBox } from './phoneElements';
-import { EDGE_MARGIN, MIN_FONT_SIZE, MIN_MASCOT_SIZE, STAR_ROW_BOTTOM } from './phonePlan';
+import { basePlan, problemBox } from './phoneElements';
+import { EDGE_MARGIN, MIN_FONT_SIZE, STAR_ROW_BOTTOM } from './phonePlan';
 import type { PhonePlan, PhonePlanRequest } from './phonePlan';
 import { isValidPlan } from './phonePlanCheck';
 import { stackedCandidates } from './phoneStackedPlan';
@@ -60,7 +60,6 @@ function fallbackPlan(request: PhonePlanRequest): PhonePlan {
   const sizes = {
     font: MIN_FONT_SIZE,
     problem: problemBox(MIN_FONT_SIZE, request.maxNumber),
-    mascotSize: MIN_MASCOT_SIZE,
   };
   const controls =
     request.answerInput === 'keypad'
@@ -68,7 +67,6 @@ function fallbackPlan(request: PhonePlanRequest): PhonePlan {
       : writingControls(writingBoxCount(request.maxNumber), MIN_TWO_BOX_SIDE);
   return {
     ...basePlan(request, sizes, null),
-    mascot: mascotCenterBelow(EDGE_MARGIN + MIN_MASCOT_SIZE, STAR_ROW_BOTTOM, MIN_MASCOT_SIZE),
     problem: { x: request.free.width / 2, y: STAR_ROW_BOTTOM + sizes.problem.height / 2 },
     hintDots: [],
     ...controls.place(EDGE_MARGIN, request.free.height - controls.height),

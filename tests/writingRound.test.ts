@@ -4,7 +4,6 @@ import { createAnswerRound, isHintVisible, problemText, tapAnswer } from '../src
 import type { AnswerRound } from '../src/logic/answerRound';
 import type { Stroke } from '../src/logic/digitRecognition';
 import type { Problem } from '../src/logic/problems';
-import { FIRST_CHARACTER } from '../src/logic/characters';
 import { START_PROGRESS, parseProgress, serializeProgress } from '../src/logic/progress';
 import type { GameProgress } from '../src/logic/progress';
 import type { GameSettings } from '../src/logic/settings';
@@ -298,8 +297,8 @@ describe('AC4: potvrzená odpověď se vyhodnotí stejně jako na číselníku',
 
     const saved = serializeProgress(progress);
 
-    expect(parseProgress(saved)).toEqual({ earned: 1, character: FIRST_CHARACTER });
-    expect(Object.keys(JSON.parse(saved) as object).sort()).toEqual(['character', 'earned']);
+    expect(parseProgress(saved)).toEqual({ earned: 1 });
+    expect(Object.keys(JSON.parse(saved) as object)).toEqual(['earned']);
   });
 
   it('špatná potvrzená odpověď je chyba a hvězdičku nedá', () => {

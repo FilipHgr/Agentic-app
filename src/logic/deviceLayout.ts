@@ -39,9 +39,6 @@ import type { PhoneParts } from './phoneScreenParts';
 import type { GameProgress } from './progress';
 import {
   HINT_DOT_HIT_SIZE,
-  MASCOT_DANCE_SWAY,
-  MASCOT_JUMP_HEIGHT,
-  MASCOT_SIZE,
   STAR_SIZE,
   layoutHint,
   layoutScreen,
@@ -259,11 +256,6 @@ export function safeAreaOrNone(safeArea: SafeArea | undefined): SafeArea {
 /** Velikosti, které scéna potřebuje k rozložení navíc (v herních jednotkách). */
 export interface DeviceSizes {
   readonly starSize: number;
-  readonly mascotSize: number;
-  /** Jak vysoko postavička vyskočí radostí. */
-  readonly mascotJumpHeight: number;
-  /** Jak daleko do stran se postavička pohne při tanci. */
-  readonly mascotDanceSway: number;
   /** Strana plochy pro ťuknutí na tečku nápovědy. */
   readonly hintDotHitSize: number;
   /** Jde na tečky nápovědy ťukat a počítat je (#43)? */
@@ -281,9 +273,6 @@ const TABLET_DOT_NUMBER_FONT_SIZE = 30;
 function tabletSizes(maxNumber: number): DeviceSizes {
   return {
     starSize: STAR_SIZE,
-    mascotSize: MASCOT_SIZE,
-    mascotJumpHeight: MASCOT_JUMP_HEIGHT,
-    mascotDanceSway: MASCOT_DANCE_SWAY,
     hintDotHitSize: HINT_DOT_HIT_SIZE,
     hintDotsCountable: canCountDots(maxNumber),
     dotNumberFontSize: TABLET_DOT_NUMBER_FONT_SIZE,
@@ -463,10 +452,10 @@ export function hintMovesLayout(layout: DeviceScreenLayout | DeviceWritingLayout
 }
 
 /**
- * Rozložení, ze kterého se kreslí hvězdičky, postavička a příklad. Na
- * telefonu (na šířku #54 i na výšku #56) se psaní rozvrhne jinak než
- * číselník, proto se bere rozložení se skutečným ovládáním `answerLayout`,
- * aby příklad ani postavička nezasahovaly do okének a teček nápovědy. Na
+ * Rozložení, ze kterého se kreslí hvězdičky a příklad. Na telefonu (na
+ * šířku #54 i na výšku #56) se psaní rozvrhne jinak než číselník, proto
+ * se bere rozložení se skutečným ovládáním `answerLayout`, aby příklad
+ * nezasahoval do okének a teček nápovědy. Na
  * iPadu a ve zmenšeném zobrazení zůstává rozložení s číselníkem.
  */
 export function sceneryLayoutFor(
@@ -608,7 +597,7 @@ export function isTwoBoxRound(writing: WritingRound | TwoBoxRound): writing is T
 
 /**
  * Stav po změně velikosti okna. Příklad, chyby, nápověda, hvězdičky,
- * postavička, nastavení i průvodce zůstanou. Okénka na psaní se vyprázdní
+ * nastavení i průvodce zůstanou. Okénka na psaní se vyprázdní
  * a dostanou novou velikost `writingArea`; není to chyba ani odpověď.
  */
 export function playStateAfterResize(state: PlayState, writingArea: WritingAreaSize): PlayState {

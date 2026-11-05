@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { FIRST_CHARACTER, nextCharacter } from '../src/logic/characters';
 import type { GameProgress } from '../src/logic/progress';
 import { DEFAULT_SETTINGS } from '../src/logic/settings';
 import type { GameSettings } from '../src/logic/settings';
@@ -32,8 +31,8 @@ const FADE_MS = 150;
 
 const SAVED: GameSettings = { maxNumber: 20, operations: 'mixed', answerInput: 'writing' };
 
-const PROGRESS_MID_SET: GameProgress = { earned: 4, character: FIRST_CHARACTER };
-const PROGRESS_CELEBRATING: GameProgress = { earned: STARS_PER_SET, character: FIRST_CHARACTER };
+const PROGRESS_MID_SET: GameProgress = { earned: 4 };
+const PROGRESS_CELEBRATING: GameProgress = { earned: STARS_PER_SET };
 
 describe('hra ví, kdy je nastavení otevřené (#45 AC6)', () => {
   it('na začátku hry je nastavení zavřené', () => {
@@ -77,7 +76,7 @@ describe('hra ví, kdy je nastavení otevřené (#45 AC6)', () => {
     expect(result.startNewProblem).toBe(true);
   });
 
-  it('během hry mimo oslavu zůstanou po ✓ hvězdičky i postavička', () => {
+  it('během hry mimo oslavu zůstanou po ✓ hvězdičky', () => {
     const open = openSettings(CLOSED_SETTINGS, SAVED);
     const result = confirmSettings(open, SAVED, PROGRESS_MID_SET);
     expect(result.progress).toEqual(PROGRESS_MID_SET);
@@ -116,10 +115,10 @@ describe('nastavení během oslavy po 10. hvězdičce (#45 AC8)', () => {
     expect(result.progress.earned).toBe(0);
   });
 
-  it('po ✓ se postavička vystřídá stejně jako po dokončené oslavě', () => {
+  it('po ✓ přijde prázdná řada hvězdiček stejně jako po dokončené oslavě, nic jiného se nevystřídá (#63 AC5)', () => {
     const open = openSettings(CLOSED_SETTINGS, SAVED);
     const result = confirmSettings(open, SAVED, PROGRESS_CELEBRATING);
-    expect(result.progress.character).toBe(nextCharacter(FIRST_CHARACTER));
+    expect(result.progress).toEqual({ earned: 0 });
   });
 
   it('po ✓ během oslavy začne nový příklad a stránka je zase světlá', () => {

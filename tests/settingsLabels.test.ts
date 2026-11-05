@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { FIRST_CHARACTER } from '../src/logic/characters';
 import type { GameProgress } from '../src/logic/progress';
 import type { GameSettings } from '../src/logic/settings';
 import { layoutSettingsPanel } from '../src/logic/settingsLayout';
@@ -331,8 +330,8 @@ describe('barva popisků (#47 AC6, #53 AC2)', () => {
 describe('popisky jsou pořád na místě (#47 AC7)', () => {
   const REPEATS = 5;
   const SAVED: GameSettings = { maxNumber: 20, operations: 'mixed', answerInput: 'writing' };
-  const PROGRESS_MID_SET: GameProgress = { earned: 4, character: FIRST_CHARACTER };
-  const PROGRESS_CELEBRATING: GameProgress = { earned: STARS_PER_SET, character: FIRST_CHARACTER };
+  const PROGRESS_MID_SET: GameProgress = { earned: 4 };
+  const PROGRESS_CELEBRATING: GameProgress = { earned: STARS_PER_SET };
   const expectedLabels = layout.rows.map((row) => row.label);
 
   /** Popisky v právě otevřeném nastavení; bez popisků test selže. */

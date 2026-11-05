@@ -14,6 +14,11 @@ import {
  * snapshotem z rozložení před změnou (Phaser Scale.FIT 1024 × 768 na střed
  * okna). Test používá jen dnešní funkce, takže projde před změnou i po ní.
  * Že nová volba rozložení dá iPadu právě tohle, ověřuje deviceLayout.test.ts.
+ *
+ * #63: snapshot herní obrazovky se vědomě aktualizuje
+ * (větší příklad uprostřed, nápověda od spodku boxu textu). Že se hvězdičky
+ * a ovládání nepohnuly, hlídá natvrdo `biggerProblem.test.ts`. Snapshot
+ * herní plochy (první test) zůstává beze změny.
  */
 
 describe('AC5: na iPadu na šířku se nic nemění', () => {
@@ -31,7 +36,7 @@ describe('AC5: na iPadu na šířku se nic nemění', () => {
   );
 
   it.each(IPAD_WINDOWS)(
-    '$name: hvězdičky, postavička, příklad, nápověda, číselník i okénka na psaní mají stejnou velikost a polohu jako před změnou',
+    '$name: hvězdičky, příklad, nápověda, číselník i okénka na psaní mají velikost a polohu podle snapshotu',
     (window) => {
       const placement = todayFitPlacement(window.width, window.height);
 
