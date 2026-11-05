@@ -10,6 +10,9 @@ import { loadDigitRecognizer } from '../../../src/games/counting/logic/recognize
  * (bez `import type` a bez dynamického `import()`). Test ten řetěz projde nad
  * zdrojovými texty, bez buildu, aby `npm test` zůstal rychlý. Skutečné
  * velikosti a obsah `dist/` se kontrolují z výstupu `npm run build`.
+ *
+ * #67 AC4: řetěz se prochází ze startu stránky i ze vstupu každé hry,
+ * protože hra se od #67 stahuje zvlášť až po ťuknutí v menu.
  */
 
 const SOURCES: Record<string, string> = Object.fromEntries(
@@ -23,6 +26,14 @@ const SOURCES: Record<string, string> = Object.fromEntries(
 );
 
 const ENTRY = 'src/main.ts';
+/**
+ * Vstupy her (#67 AC4): hra se stahuje až z menu, ale ani při jejím
+ * spuštění se rozpoznávání nesmí stáhnout. Proto se řetěz prochází ze
+ * startu stránky i ze vstupu každé hry.
+ */
+const GAME_ENTRIES = Object.keys(SOURCES).filter((path) =>
+  /^src\/games\/[^/]+\/index\.ts$/.test(path),
+);
 const TEMPLATES = 'src/games/counting/logic/digitTemplates.ts';
 const RECOGNITION = 'src/games/counting/logic/digitRecognition.ts';
 
@@ -85,10 +96,10 @@ function resolve(fromFile: string, specifier: string): string | null {
   return null;
 }
 
-/** Všechny soubory, které Vite zabalí do startovních souborů. */
+/** Všechny soubory, které Vite zabalí do startovních souborů stránky a her. */
 function startupFiles(): Set<string> {
   const reached = new Set<string>();
-  const queue = [ENTRY];
+  const queue = [ENTRY, ...GAME_ENTRIES];
   while (queue.length > 0) {
     const file = queue.pop();
     if (file === undefined || reached.has(file)) {
@@ -109,6 +120,7 @@ describe('hra s číselníkem se spustí bez vzorů číslic (AC2)', () => {
   it('kontrola importů najde hru i scénu, tedy opravdu prochází startovní soubory', () => {
     const files = startupFiles();
 
+    expect(GAME_ENTRIES).toContain('src/games/counting/index.ts');
     expect(files.has(ENTRY)).toBe(true);
     expect(files.has('src/games/counting/scenes/GameScene.ts')).toBe(true);
     expect(files.has('src/games/counting/logic/answerRound.ts')).toBe(true);

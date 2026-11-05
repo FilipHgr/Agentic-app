@@ -76,7 +76,7 @@ describe('#65 AC1: texty jsou na jednom místě, po jazycích', () => {
 
   it('kontrola opravdu vidí texty ze souborů jazyků (sdílené i Počítání)', () => {
     const texts = languageTexts(SOURCES);
-    for (const text of ['Počítání do 10', 'Nastavení pro rodiče', 'Počítání', 'Do kolika']) {
+    for (const text of ['Matematika', 'Nastavení pro rodiče', 'Počítání', 'Do kolika']) {
       expect(texts.has(text), text).toBe(true);
     }
   });
@@ -186,8 +186,9 @@ describe('#65 AC1 a AC3: stránka index.html odpovídá českým textům', () =>
     expect(/<html[^>]*\slang="([^"]*)"/.exec(indexHtml)?.[1]).toBe(currentLanguage());
   });
 
-  it('název stránky je přesně „Počítání do 10“ ze sdílených textů', () => {
-    expect(texts.pageTitle).toBe('Počítání do 10');
+  // #67 AC2: stránka začíná v menu, proto se jmenuje „Matematika“ (dřív „Počítání do 10“).
+  it('název stránky je přesně „Matematika“ ze sdílených textů', () => {
+    expect(texts.pageTitle).toBe('Matematika');
     expect(/<title>([^<]*)<\/title>/.exec(indexHtml)?.[1]).toBe(texts.pageTitle);
   });
 

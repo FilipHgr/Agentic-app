@@ -154,8 +154,9 @@ describe('#65 AC3: volba jazyka se nikam neukládá', () => {
 });
 
 describe('#65 AC1: sdílené české texty', () => {
-  it('název stránky je „Počítání do 10“', () => {
-    expect(sharedTexts('cs').pageTitle).toBe('Počítání do 10');
+  // #67 AC2: název stránky v menu je „Matematika“ (dřív „Počítání do 10“).
+  it('název stránky je „Matematika“', () => {
+    expect(sharedTexts('cs').pageTitle).toBe('Matematika');
   });
 
   it('popis kolečka pro čtečku obrazovky je „Nastavení pro rodiče“', () => {

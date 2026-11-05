@@ -33,16 +33,30 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
 - Projekt má oddělené části:
   - `src/shared/` společné věci stránky (herní plocha podle okna, kolečko
     nastavení, společné barvy, úložiště, přehrávač tónů),
-  - `src/games/<hra>/` jednotlivé hry (dnes `counting` = Počítání) s jediným
-    vstupem `src/games/<hra>/index.ts`,
-  - později `src/menu/` úvodní menu.
-  `src/main.ts` je vstup stránky a z hry importuje jen její `index.ts`.
+  - `src/games/<hra>/` jednotlivé hry (dnes `counting` = Počítání) se
+    vstupem `index.ts` (scény hry, stahuje se až po ťuknutí v menu)
+    a `meta.ts` (id, kategorie, symbol dlaždice a název z textů hry, nic
+    dalšího, žádný Phaser),
+  - `src/menu/` úvodní menu s výběrem her (logika, scéna, texty).
+  `src/main.ts` je vstup stránky a startuje menu. Seznam her je
+  `src/gameList.ts`, registr (tvar záznamu, kategorie) je
+  `src/shared/logic/gameRegistry.ts`. Hra se spouští jen přes
+  `src/menu/ui/launchGame.ts`.
 - Hra smí importovat jen sama sebe a `src/shared/`, sdílená část nic z her,
-  menu ani `src/main.ts`. Hlídá to `tests/shared/boundaries.test.ts`.
+  menu ani `src/main.ts`. Zvenku se z hry importuje jen `index.ts`
+  a `meta.ts`. Hlídá to `tests/shared/boundaries.test.ts`.
+- Přidání hry:
+  1. složka `src/games/<id>/` (id malými písmeny bez diakritiky) se vstupem
+     `index.ts`, který vydává `scenes`, a s `meta.ts`,
+  2. kategorie z `GAME_CATEGORIES`; nová kategorie potřebuje název
+     v `src/menu/texts/<jazyk>.ts`,
+  3. záznam v `src/gameList.ts` (`gameEntry(meta, () => import('./games/<id>'))`),
+  4. název hry `title` v textech hry ve všech jazycích,
+  5. testy v `tests/games/<id>/` a skript `test:<id>` v `package.json`.
 - Ve složkách `logic/` (`src/shared/logic/`, `src/games/<hra>/logic/`) je čistý
   TypeScript bez Phaseru (příklady, vyhodnocení, obtížnost, body), ve
   `scenes/` hry Phaser scény, které logiku jen volají. Testy jsou
-  v `tests/shared/` a `tests/games/<hra>/`.
+  v `tests/shared/`, `tests/menu/` a `tests/games/<hra>/`.
 - Texty jsou po jazycích, soubor jazyka se jmenuje podle kódu (`cs.ts`)
   a vrací slovník přes `export default { … } satisfies <typ>`:
   - `src/shared/texts/` seznam jazyků a výběr aktuálního jazyka
@@ -50,11 +64,13 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
     např. název stránky a jednopísmenné předložky; typ a přístup
     v `sharedTexts.ts`),
   - `src/games/<hra>/texts/` texty hry; každá hra má v textech `title`
-    (název hry pro menu).
+    (název hry pro menu),
+  - `src/menu/texts/` texty menu („Vše“ a názvy kategorií).
   Symboly (číslice, +, −, ✓ a podobně) nejsou texty jazyka a zůstávají
   v kódu. Nahrávky jsou v `public/voice/<jazyk>/<hra>/`.
 - Přidání jazyka:
-  1. soubor textů ve sdílené části a v každé hře,
+  1. soubor textů ve sdílené části, v menu a v každé hře (a jazyk
+     v `titles` každého `meta.ts`),
   2. projdou testy textů (klíče, prázdné texty, vejde se do rozložení); běží
      pro každý jazyk se souborem textů, i mimo seznam, kontrola nahrávek jen
      pro jazyky ze seznamu,
@@ -67,9 +83,10 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
      commitu.
 - `npm run dev` vývojový server
 - `npm test` všechny testy
-- `npm run test:shared` testy sdílené části, `npm run test:<hra>` (např.
-  `test:counting`) testy jedné hry a test hranic. Práce na hře pouští jen
-  její testy, při změně v `src/shared/` se pouští celé `npm test`.
+- `npm run test:shared` testy sdílené části, `npm run test:menu` testy menu
+  a test hranic, `npm run test:<hra>` (např. `test:counting`) testy jedné
+  hry a test hranic. Práce na menu nebo hře pouští jen její testy, při
+  změně v `src/shared/` se pouští celé `npm test`.
 - `npm run lint` ESLint a kontrola formátování
 - `npm run build` produkční build
 - CI (GitHub Actions) volá jen tyto skripty, nemá vlastní příkazy

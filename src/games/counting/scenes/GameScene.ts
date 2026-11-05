@@ -51,7 +51,7 @@ const CELEBRATION_MS = 2600;
  */
 export class GameScene extends Phaser.Scene {
   private round: AnswerRound | undefined;
-  /** Herní plocha podle okna; nastavuje ji src/main.ts do registru. */
+  /** Herní plocha podle okna; nastavuje ji src/shared/ui/gameRunner.ts do registru. */
   private gameArea: GameArea = gameAreaFor(undefined);
   private hintIsShown = false;
   /** Které tečky nápovědy už dítě spočítalo ťuknutím (#43). */

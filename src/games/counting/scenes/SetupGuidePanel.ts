@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
-import { createBrowserVoiceContext, createVoicePlayer } from '../audio/voicePlayer';
+import { createSharedVoiceContext, createVoicePlayer } from '../audio/voicePlayer';
+import { isSharedAudioUnlocked } from '../../../shared/audio/sharedAudio';
 import type { VoicePlayer } from '../audio/voicePlayer';
 import { buttonCornerRadius } from '../logic/checkButton';
 import { createGuideVoice, handleGuideVoice, speakerPulses } from '../logic/guideVoice';
@@ -98,7 +99,8 @@ export class SetupGuidePanel {
   /** Násobek tloušťky okraje tlačítek proti iPadu (na telefonu 2 jednotky na CSS px). */
   private borderScale = 1;
   private speakerPulse: Phaser.Tweens.Tween | undefined;
-  private voice: GuideVoiceState = createGuideVoice();
+  /** Zvuk odemklo už ťuknutí v menu: věta 1. kroku zazní sama (#67 AC6). */
+  private voice: GuideVoiceState = createGuideVoice({ audioUnlocked: isSharedAudioUnlocked() });
   private readonly voicePlayer: VoicePlayer;
   /** Ťuknutí už zpracovalo tlačítko nebo volba; jinak jde o ťuknutí „jinam“. */
   private tapHandled = false;
@@ -137,7 +139,7 @@ export class SetupGuidePanel {
     // Nahrávky se stahují až s otevřeným průvodcem, jen z vlastních souborů hry.
     this.voicePlayer = createVoicePlayer({
       fetch: (url) => window.fetch(url),
-      createContext: createBrowserVoiceContext,
+      createContext: createSharedVoiceContext,
       events: {
         onLoaded: (id) => this.sendVoice({ kind: 'loaded', id }),
         onLoadFailed: (id) => this.sendVoice({ kind: 'loadFailed', id }),

@@ -7,7 +7,18 @@ import { describe, expect, it } from 'vitest';
  * a zbytek `src/` z hry jen její vstup `src/games/<hra>/index.ts`. Logika
  * (`logic/`) nesmí importovat Phaser. Test projde zdrojové texty, u každého
  * importu dohledá skutečný cílový soubor a hlídá i to, aby každý test ležel
- * v `tests/shared/` nebo v `tests/games/<hra>/`, kde ho pustí skripty po částech.
+ * v `tests/shared/`, `tests/menu/` nebo v `tests/games/<hra>/`, kde ho pustí
+ * skripty po částech.
+ *
+ * #67: přibývá menu (`src/menu/`) a seznam her vedle vstupu stránky
+ * (`src/gameList.ts`). Menu smí importovat sdílenou část a seznam her, ale
+ * žádný vnitřní soubor hry. Seznam her importuje hry, proto ho hry ani
+ * sdílená část importovat nesmějí, stejně jako menu a `src/main.ts`.
+ *
+ * #67, rozhodnutí o `meta.ts`: menu potřebuje název, kategorii a symbol hry
+ * dřív, než se hra stáhne. Proto smí zvenku kromě `index.ts` importovat ještě
+ * `src/games/<hra>/meta.ts`. Ten sám smí importovat jen texty své hry
+ * (`texts/`) a sdílenou část, nic dalšího z hry ani Phaser.
  */
 
 /** Zdrojové texty všech `.ts` souborů v `src/` podle cesty od kořene repa. */
@@ -84,7 +95,7 @@ function gameOf(file: string): string | null {
 }
 
 function isMenuOrPage(target: string): boolean {
-  return target.startsWith('src/menu/') || target === 'src/main.ts';
+  return target.startsWith('src/menu/') || target === 'src/main.ts' || target === 'src/gameList.ts';
 }
 
 function isPhaser(specifier: string): boolean {
@@ -96,11 +107,17 @@ function brokenRule(file: string, specifier: string, target: string | null): str
   if (file.split('/').includes('logic') && isPhaser(specifier)) {
     return 'logika importuje Phaser';
   }
+  if (isGameMeta(file) && isPhaser(specifier)) {
+    return 'meta.ts hry importuje Phaser';
+  }
   if (target === null) {
     return null;
   }
   const game = gameOf(file);
   const targetGame = gameOf(target);
+  if (isGameMeta(file) && targetGame === game && !target.startsWith(`src/games/${game}/texts/`)) {
+    return 'meta.ts hry importuje z hry víc než texty';
+  }
   if (game !== null) {
     if (targetGame !== null && targetGame !== game) {
       return 'hra importuje jinou hru';
@@ -110,10 +127,20 @@ function brokenRule(file: string, specifier: string, target: string | null): str
   if (file.startsWith('src/shared/') && (targetGame !== null || isMenuOrPage(target))) {
     return 'sdílená část importuje hru, menu nebo src/main.ts';
   }
-  if (targetGame !== null && target !== `src/games/${targetGame}/index.ts`) {
-    return 'z hry se importuje jen její index.ts';
+  if (targetGame !== null && !isGameEntry(target, targetGame)) {
+    return 'z hry se importuje jen její index.ts nebo meta.ts';
   }
   return null;
+}
+
+/** Vstupy hry, které smí importovat zbytek `src/`: celá hra a její údaje pro menu. */
+function isGameEntry(target: string, game: string): boolean {
+  return target === `src/games/${game}/index.ts` || target === `src/games/${game}/meta.ts`;
+}
+
+/** Je soubor `meta.ts` hry (údaje pro menu, #67)? */
+function isGameMeta(file: string): boolean {
+  return /^src\/games\/[^/]+\/meta\.ts$/.test(file);
 }
 
 /** Všechna porušení hranic v souborech `files` (cesta od kořene repa → text). */
@@ -126,10 +153,13 @@ function findViolations(files: Record<string, string>): Violation[] {
   );
 }
 
-/** Testy, které neleží v `tests/shared/` ani v `tests/games/<hra>/`. */
+/** Testy, které neleží v `tests/shared/`, `tests/menu/` ani v `tests/games/<hra>/`. */
 function misplacedTests(testFiles: readonly string[]): string[] {
   return testFiles.filter(
-    (file) => !file.startsWith('tests/shared/') && !/^tests\/games\/[^/]+\//.test(file),
+    (file) =>
+      !file.startsWith('tests/shared/') &&
+      !file.startsWith('tests/menu/') &&
+      !/^tests\/games\/[^/]+\//.test(file),
   );
 }
 
@@ -140,7 +170,13 @@ const FAKE_PROJECT: Record<string, string> = {
   'src/games/counting/scenes/GameScene.ts':
     "import { gameAreaFor } from '../../../shared/logic/viewportLayout';",
   'src/games/counting/logic/problems.ts': "import { TEXT } from '../../../shared/logic/theme';",
+  'src/games/counting/meta.ts': "import cs from './texts/cs';",
+  'src/games/counting/texts/cs.ts': 'export default { title: 1 };',
   'src/games/jina/x.ts': 'export const x = 1;',
+  'src/gameList.ts':
+    "import { COUNTING_META } from './games/counting/meta';\nexport const GAMES = [() => import('./games/counting')];",
+  'src/menu/logic/menu.ts': "import { findGame } from '../../shared/logic/gameRegistry';",
+  'src/shared/logic/gameRegistry.ts': 'export const findGame = 1;',
   'src/shared/logic/viewportLayout.ts': 'export const gameAreaFor = 1;',
   'src/shared/logic/theme.ts': 'export const TEXT = 1;',
 };
@@ -156,12 +192,14 @@ describe('AC2: hranice mezi částmi hlídá test', () => {
     expect(findViolations(SOURCES)).toEqual([]);
   });
 
-  it('kontrola opravdu prochází zdrojáky a vidí, že stránka spouští Počítání přes index.ts', () => {
-    expect(SOURCES['src/main.ts']).toBeDefined();
-    const targets = importsOf(SOURCES['src/main.ts'] ?? '').map((specifier) =>
-      targetOf('src/main.ts', specifier, SOURCES),
+  // #67: Počítání se od menu nespouští ze `src/main.ts`, ale ze seznamu her.
+  it('kontrola opravdu prochází zdrojáky a vidí, že seznam her stahuje Počítání přes index.ts a menu zná jeho meta.ts', () => {
+    expect(SOURCES['src/gameList.ts']).toBeDefined();
+    const targets = importsOf(SOURCES['src/gameList.ts'] ?? '').map((specifier) =>
+      targetOf('src/gameList.ts', specifier, SOURCES),
     );
     expect(targets).toContain('src/games/counting/index.ts');
+    expect(targets).toContain('src/games/counting/meta.ts');
   });
 
   it('umělý projekt bez porušení projde', () => {
@@ -214,7 +252,7 @@ describe('AC2: hranice mezi částmi hlídá test', () => {
       ['relativní cesta oklikou', "import { x } from './shared/../games/counting/logic/problems';"],
     ])('%s se nesmí', (_form, code) => {
       expect(violationsWith('src/main.ts', code)).toEqual([
-        expect.objectContaining({ rule: 'z hry se importuje jen její index.ts' }),
+        expect.objectContaining({ rule: 'z hry se importuje jen její index.ts nebo meta.ts' }),
       ]);
     });
 
@@ -235,9 +273,113 @@ describe('AC2: hranice mezi částmi hlídá test', () => {
     const entry = "import { GameScene } from '../games/counting';";
 
     expect(violationsWith('src/menu/MenuScene.ts', inner)).toEqual([
-      expect.objectContaining({ rule: 'z hry se importuje jen její index.ts' }),
+      expect.objectContaining({ rule: 'z hry se importuje jen její index.ts nebo meta.ts' }),
     ]);
     expect(violationsWith('src/menu/MenuScene.ts', entry)).toEqual([]);
+  });
+
+  describe('#67: menu a seznam her', () => {
+    it('seznam her smí stáhnout hru přes její index.ts dynamickým import()', () => {
+      expect(
+        violationsWith('src/gameList.ts', "const later = import('./games/counting/index');"),
+      ).toEqual([]);
+    });
+
+    it('seznam her smí importovat meta.ts hry (název, kategorie a symbol pro menu)', () => {
+      expect(
+        violationsWith('src/gameList.ts', "import { COUNTING_META } from './games/counting/meta';"),
+      ).toEqual([]);
+    });
+
+    it.each([
+      ['texty hry', "import cs from './games/counting/texts/cs';"],
+      ['soubor s podobným jménem', "import { x } from './games/counting/metaData';"],
+      ['meta.ts v podsložce', "import { x } from './games/counting/logic/meta';"],
+    ])('seznam her nesmí kromě index.ts a meta.ts importovat ani %s', (_name, code) => {
+      expect(violationsWith('src/gameList.ts', code)).toEqual([
+        expect.objectContaining({ rule: 'z hry se importuje jen její index.ts nebo meta.ts' }),
+      ]);
+    });
+
+    it('meta.ts hry smí importovat texty své hry a sdílenou část', () => {
+      expect(
+        violationsWith(
+          'src/games/counting/meta.ts',
+          "import type { GameMeta } from '../../shared/logic/gameRegistry';",
+        ),
+      ).toEqual([]);
+    });
+
+    it.each([
+      ['logiku hry', "import { x } from './logic/problems';"],
+      ['scénu hry', "import { GameScene } from './scenes/GameScene';"],
+      ['vstup hry index.ts', "import { GameScene } from './index';"],
+    ])('meta.ts hry nesmí importovat %s', (_name, code) => {
+      expect(violationsWith('src/games/counting/meta.ts', code)).toEqual([
+        expect.objectContaining({ rule: 'meta.ts hry importuje z hry víc než texty' }),
+      ]);
+    });
+
+    it('meta.ts hry nesmí importovat Phaser', () => {
+      expect(violationsWith('src/games/counting/meta.ts', "import Phaser from 'phaser';")).toEqual([
+        expect.objectContaining({ rule: 'meta.ts hry importuje Phaser' }),
+      ]);
+    });
+
+    it('seznam her nesmí importovat vnitřní soubor hry', () => {
+      expect(
+        violationsWith('src/gameList.ts', "import { x } from './games/counting/logic/problems';"),
+      ).toEqual([
+        expect.objectContaining({ rule: 'z hry se importuje jen její index.ts nebo meta.ts' }),
+      ]);
+    });
+
+    it.each([
+      ['sdílenou část', "import { gameAreaFor } from '../../shared/logic/viewportLayout';"],
+      ['seznam her', "import { GAMES } from '../../gameList';"],
+      ['seznam her přes import type', "import type { GAMES } from '../../gameList';"],
+    ])('menu smí importovat %s', (_name, code) => {
+      expect(violationsWith('src/menu/logic/menu.ts', code)).toEqual([]);
+    });
+
+    it.each([
+      ['vnitřní soubor hry', "import { x } from '../../games/counting/logic/problems';"],
+      ['texty hry', "import cs from '../../games/counting/texts/cs';"],
+      [
+        'vnitřní soubor přes import()',
+        "const later = import('../../games/counting/scenes/GameScene');",
+      ],
+    ])('menu nesmí importovat %s', (_name, code) => {
+      expect(violationsWith('src/menu/logic/menu.ts', code)).toEqual([
+        expect.objectContaining({ rule: 'z hry se importuje jen její index.ts nebo meta.ts' }),
+      ]);
+    });
+
+    it('sdílená část nesmí importovat seznam her', () => {
+      expect(
+        violationsWith(
+          'src/shared/logic/gameRegistry.ts',
+          "import { GAMES } from '../../gameList';",
+        ),
+      ).toEqual([
+        expect.objectContaining({ rule: 'sdílená část importuje hru, menu nebo src/main.ts' }),
+      ]);
+    });
+
+    it('hra nesmí importovat seznam her', () => {
+      expect(
+        violationsWith(
+          'src/games/counting/scenes/GameScene.ts',
+          "import { GAMES } from '../../../gameList';",
+        ),
+      ).toEqual([expect.objectContaining({ rule: 'hra importuje menu nebo src/main.ts' })]);
+    });
+
+    it('logika menu nesmí importovat Phaser', () => {
+      expect(violationsWith('src/menu/logic/menu.ts', "import Phaser from 'phaser';")).toEqual([
+        expect.objectContaining({ rule: 'logika importuje Phaser' }),
+      ]);
+    });
   });
 
   it.each([
@@ -260,16 +402,18 @@ describe('AC2: hranice mezi částmi hlídá test', () => {
     expect(violationsWith('src/games/counting/logic/problems.ts', code)).toEqual([]);
   });
 
-  it('každý test leží v tests/shared/ nebo v tests/games/<hra>/, aby ho pustily skripty po částech', () => {
+  it('každý test leží v tests/shared/, tests/menu/ nebo v tests/games/<hra>/, aby ho pustily skripty po částech', () => {
     expect(TEST_FILES).toContain('tests/shared/settings.test.ts');
+    expect(TEST_FILES).toContain('tests/menu/gameRegistry.test.ts');
     expect(TEST_FILES).toContain('tests/games/counting/settings.test.ts');
     expect(misplacedTests(TEST_FILES)).toEqual([]);
   });
 
-  it('test mimo tests/shared/ a tests/games/<hra>/ kontrola najde', () => {
+  it('test mimo tests/shared/, tests/menu/ a tests/games/<hra>/ kontrola najde', () => {
     expect(
       misplacedTests([
         'tests/shared/a.test.ts',
+        'tests/menu/f.test.ts',
         'tests/games/counting/b.test.ts',
         'tests/c.test.ts',
         'tests/games/d.test.ts',

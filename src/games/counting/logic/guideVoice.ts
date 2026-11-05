@@ -5,6 +5,8 @@
  *
  * Pravidla:
  * - Po otevření se nic neozve; zvuk odemkne až první ťuknutí (Safari).
+ *   Když zvuk odemklo už ťuknutí v menu (#67 AC6), věta 1. kroku zazní
+ *   hned po otevření.
  * - Při příchodu na krok zazní jeho věta; nahrávka se stáhne, pokud ještě
  *   není, a přednačte se věta dalšího kroku.
  * - Úspěšně stažená nahrávka se už znovu nestahuje, nepovedená se zkusí
@@ -66,8 +68,13 @@ export function guideVoiceUrl(id: GuideLineId, language: Language = currentLangu
   return `voice/${language}/counting/guide/${id}.mp3`;
 }
 
+export interface GuideVoiceOptions {
+  /** Zvuk už odemklo ťuknutí v menu (#67 AC6); bez zadání neodemčený jako dřív. */
+  readonly audioUnlocked?: boolean;
+}
+
 /** Hlas před otevřením průvodce: nic nestahuje, nic nehraje. */
-export function createGuideVoice(): GuideVoiceState {
+export function createGuideVoice(options: GuideVoiceOptions = {}): GuideVoiceState {
   const loads = Object.fromEntries(GUIDE_SCRIPT.map((line) => [line.id, 'none'])) as Record<
     GuideLineId,
     LoadStatus
@@ -75,7 +82,7 @@ export function createGuideVoice(): GuideVoiceState {
   return {
     phase: 'beforeOpen',
     step: 1,
-    unlocked: false,
+    unlocked: options.audioUnlocked ?? false,
     tappedOnce: false,
     hidden: false,
     loads,
@@ -94,7 +101,7 @@ export function handleGuideVoice(state: GuideVoiceState, event: GuideVoiceEvent)
   }
   if (event.kind === 'opened') {
     return state.phase === 'beforeOpen'
-      ? arriveAtStep({ ...state, phase: 'open' }, 1, false)
+      ? arriveAtStep({ ...state, phase: 'open' }, 1, state.unlocked)
       : unchanged(state);
   }
   if (state.phase !== 'open') {

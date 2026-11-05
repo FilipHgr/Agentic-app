@@ -55,8 +55,11 @@ export function placeGameParent(parent: HTMLElement, area: GameArea): void {
   style.height = '100%';
 }
 
-/** Zavolá `onSettled`, až se okno po otočení nebo změně lišty přestane měnit. */
-export function watchViewport(onSettled: () => void): void {
+/**
+ * Zavolá `onSettled`, až se okno po otočení nebo změně lišty přestane měnit.
+ * Vrátí funkci, která sledování ukončí (menu po spuštění hry, #67).
+ */
+export function watchViewport(onSettled: () => void): () => void {
   let timer: number | undefined;
   const schedule = (): void => {
     window.clearTimeout(timer);
@@ -65,6 +68,12 @@ export function watchViewport(onSettled: () => void): void {
   window.addEventListener('resize', schedule);
   window.addEventListener('orientationchange', schedule);
   window.visualViewport?.addEventListener('resize', schedule);
+  return () => {
+    window.clearTimeout(timer);
+    window.removeEventListener('resize', schedule);
+    window.removeEventListener('orientationchange', schedule);
+    window.visualViewport?.removeEventListener('resize', schedule);
+  };
 }
 
 /**

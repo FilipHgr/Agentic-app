@@ -7,6 +7,7 @@
 
 import { guideVoiceUrl } from '../logic/guideVoice';
 import type { GuideLineId } from '../logic/guideScript';
+import { sharedAudioContext } from '../../../shared/audio/sharedAudio';
 import type { AudioNodeLike } from '../../../shared/audio/tonePlayer';
 import { currentLanguage } from '../../../shared/texts/languages';
 import type { Language } from '../../../shared/texts/languages';
@@ -175,10 +176,27 @@ export function createVoicePlayer(options: VoicePlayerOptions): VoicePlayer {
   };
 }
 
-/** Skutečný zvukový kontext prohlížeče, nebo `undefined`, když ho nemá. */
-export function createBrowserVoiceContext(): VoiceAudioContextLike | undefined {
-  if (typeof window === 'undefined' || typeof window.AudioContext !== 'function') {
+/**
+ * Společný zvukový kontext stránky (#67 AC6), který odemklo už ťuknutí
+ * v menu. Je bez `close`, aby zavření průvodce nevypnulo zvuk celé stránky.
+ */
+export function createSharedVoiceContext(): VoiceAudioContextLike | undefined {
+  const audio = sharedAudioContext();
+  if (audio === undefined) {
     return undefined;
   }
-  return new window.AudioContext();
+  return {
+    get currentTime() {
+      return audio.currentTime;
+    },
+    get destination() {
+      return audio.destination;
+    },
+    get state() {
+      return audio.state;
+    },
+    resume: () => audio.resume(),
+    decodeAudioData: (data) => audio.decodeAudioData(data),
+    createBufferSource: () => audio.createBufferSource(),
+  };
 }

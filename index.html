@@ -7,7 +7,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
-    <title>Počítání do 10</title>
+    <title>Matematika</title>
     <style>
       html,
       body {
@@ -47,14 +47,29 @@
           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
       }
 
-      #game canvas {
+      /* Menu s výběrem her (#67) přes celé okno; po spuštění hry se skryje. */
+      #menu {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      #menu[hidden] {
+        display: none;
+      }
+
+      #game canvas,
+      #menu canvas {
         display: block;
       }
 
       /* Kolečko nastavení pro rodiče: v pravém horním rohu obrazovky, mimo
          herní plochu. Otevře se až podržením (src/shared/ui/settingsButton.ts).
          Rozměry a poloha jsou jen výchozí, po spuštění je podle okna
-         přepíše src/shared/ui/settingsGear.ts (#55). */
+         přepíše src/shared/ui/settingsGear.ts (#55). V menu je skryté (hidden),
+         ukáže ho až spuštěná hra (#67). */
       #settings-button {
         position: fixed;
         top: calc(env(safe-area-inset-top, 0px) + 12px);
@@ -67,6 +82,10 @@
         background: transparent;
         touch-action: none;
         -webkit-tap-highlight-color: transparent;
+      }
+
+      #settings-button[hidden] {
+        display: none;
       }
 
       #settings-button svg {
@@ -101,9 +120,10 @@
     </style>
   </head>
   <body>
+    <div id="menu"></div>
     <div id="game"></div>
     <div id="safe-area-probe" aria-hidden="true"></div>
-    <button id="settings-button" type="button" aria-label="Nastavení pro rodiče">
+    <button id="settings-button" type="button" aria-label="Nastavení pro rodiče" hidden>
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <g class="gear-art">
           <g class="gear">
