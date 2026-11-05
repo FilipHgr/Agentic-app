@@ -141,8 +141,11 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   1 s, ťuknutí domeček jen zhoupne.
 - 2026-11-05 Profil zakládá rodič: formulář se otevře podržením „+“ 1 s,
   přezdívka se píše systémovou klávesnicí jen v tomto poli. Výjimka
-  z „žádná klávesnice“ v CLAUDE.md.
+  z „žádná klávesnice“ v CLAUDE.md. (klávesnice nahrazena)
 - 2026-11-05 Výběr profilu (P) se při startu ukáže jen při dvou a více
   profilech, s jedním se jde rovnou do menu.
 - 2026-11-05 Počítání je v kategorii „Sčítání a odčítání“, první kategorie
   je „Vše“, název stránky v menu „Matematika“, ve hře název hry.
+- 2026-11-05 Systémová klávesnice se nepoužívá vůbec, všechno dotykem.
+  Přezdívka profilu se ťuká vlastní mřížkou velkých písmen A–Ž (64 px)
+  se smazáním. Na PC jde psát i fyzickou klávesnicí.
