@@ -100,3 +100,30 @@ export function addProfile(screens: ProfileScreens, nickname: string, color?: Pr
 export function pickerNicknames(screens: ProfileScreens): Array<string | null> {
   return screens.pickerItems().map((item) => item.nickname);
 }
+
+/** Jak dlouho rodič drží kolečko profilu, aby otevřel úpravu (#73, 1 s). */
+export const EDIT_PROFILE_HOLD_MS = 1000;
+
+/**
+ * Rodič drží kolečko profilu `id` na výběru `ms` milisekund a pustí (#73).
+ * Potřebuje falešné hodiny Vitestu.
+ */
+export function holdProfile(
+  screens: ProfileScreens,
+  id: string,
+  ms = EDIT_PROFILE_HOLD_MS,
+  pointerId = 1,
+): void {
+  const button = screens.profileButton(id);
+  button.press(pointerId);
+  vi.advanceTimersByTime(ms);
+  button.release(pointerId);
+}
+
+/** Smaže z formuláře úpravy všechna písmena přezdívky (#73). */
+export function clearNickname(screens: ProfileScreens): void {
+  // Pevný počet pokusů, aby test bez hotové úpravy neuvízl ve smyčce.
+  for (let attempt = 0; attempt < 20 && screens.nickname() !== ''; attempt += 1) {
+    screens.tapBackspace();
+  }
+}

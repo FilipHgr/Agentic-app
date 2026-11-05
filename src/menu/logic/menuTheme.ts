@@ -48,6 +48,13 @@ export const PROFILE_SCREEN_STYLE = {
   addBackground: '#C7C7CC',
   addSymbol: WHITE,
   holdRing: BLUE,
+  /**
+   * Kroužek podržení kolečka profilu (#73): bílý s jemným tmavým okrajem,
+   * aby byl vidět na všech barvách palety.
+   */
+  profileHoldRing: WHITE,
+  profileHoldRingOutline: TEXT,
+  profileHoldRingOutlineAlpha: 0.35,
   title: TEXT,
   stepCounter: '#6E6E73',
   keyBackground: WHITE,
@@ -71,4 +78,19 @@ export const PROFILE_SCREEN_STYLE = {
   /** Mezera mezi zvolenou barvou a jejím kroužkem. */
   swatchGap: WHITE,
   swatchCheck: WHITE,
+  /** Koš v úpravě profilu (#73, obrázek 6): světle červené kolečko, červený koš. */
+  trashBackground: '#FFE5E7',
+  trashSymbol: '#D70015',
+  /** Potvrzení smazání (#73, obrázek 8): ztmavený formulář pod bílým rámečkem. */
+  dimAlpha: 0.35,
+  confirmPanelBackground: WHITE,
+  confirmPanelShadowAlpha: 0.12,
+  confirmNickname: '#6E6E73',
+  confirmQuestion: TEXT,
+  /** „Smazat“: červené tlačítko s bílým textem (kontrast 5 : 1). */
+  confirmDeleteBackground: '#D70015',
+  confirmDeleteText: WHITE,
+  /** „Zpět“: šedé tlačítko jako zpět ve formuláři. */
+  cancelDeleteBackground: '#E8E8ED',
+  cancelDeleteText: TEXT,
 } as const;

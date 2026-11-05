@@ -16,6 +16,14 @@
  *   zapisuje jen do paměti.
  * - Co se nepodaří uložit, platí v paměti do zavření stránky (sdílené pro
  *   stejný profil a hru). Žádná výjimka z úložiště neunikne.
+ * - Úprava a smazání profilu (#73): profil je smazaný, až když je uložený
+ *   nový seznam; pak se aktivním stane první zbývající profil a smažou se
+ *   data jeho her. Poslední profil smazat nejde, seznam nikdy nezůstane
+ *   prázdný (`[]` by znovu přeneslo dnešní data). Co se smazat nepodařilo,
+ *   uklidí další načtení stránky, ale jen při platném seznamu a jen pod
+ *   předponou dat profilů; staré záznamy z doby před profily nikdy.
+ *   Úklid smaže i data profilu, který žil jen v paměti, protože se jeho
+ *   seznam neuložil.
  */
 
 import {
@@ -48,6 +56,16 @@ const TEMPORARY_PROFILE_ID = 'temporary';
 const LEGACY_GAME_ID = 'counting';
 const LEGACY_KEYS: readonly string[] = ['agentic-app.settings', 'agentic-app.progress'];
 
+/**
+ * Úložiště zařízení pro profily: navíc ke čtení a zápisu umí jako
+ * `localStorage` mazat a projít klíče (#73), aby šla smazat data profilu.
+ */
+export interface ProfileDeviceStorage extends KeyValueStorage {
+  removeItem(key: string): void;
+  key(index: number): string | null;
+  readonly length: number;
+}
+
 export interface NewProfile {
   readonly nickname?: string;
   readonly color: ProfileColor;
@@ -61,6 +79,18 @@ export interface ProfileStore {
   createProfile(profile: NewProfile): Profile;
   /** Aktivní bude profil s označením `id`; neznámé označení nic nezmění. */
   selectProfile(id: string): void;
+  /**
+   * Nová přezdívka (bez ní profil bez přezdívky) a barva profilu `id`;
+   * označení a data her zůstanou. Neznámé označení nic nezmění. Co se
+   * nepodaří uložit, platí do zavření stránky.
+   */
+  updateProfile(id: string, profile: NewProfile): void;
+  /**
+   * Smaže profil `id` i s daty jeho her; aktivní bude první zbývající
+   * profil. `false` (a beze změny), když je to poslední nebo neznámý
+   * profil, profil je dočasný nebo se nový seznam nepodařilo uložit.
+   */
+  deleteProfile(id: string): boolean;
   /** Úložiště hry `gameId` pro profil, který je teď aktivní. */
   gameStorage(gameId: string): KeyValueStorage;
 }
@@ -68,7 +98,7 @@ export interface ProfileStore {
 /** Výsledek čtení: hodnota (i `null` bez záznamu), nebo `undefined`, když číst nejde. */
 type ReadResult = { readonly value: string | null } | undefined;
 
-function read(storage: KeyValueStorage | undefined, key: string): ReadResult {
+function read(storage: ProfileDeviceStorage | undefined, key: string): ReadResult {
   if (storage === undefined) {
     return undefined;
   }
@@ -81,7 +111,7 @@ function read(storage: KeyValueStorage | undefined, key: string): ReadResult {
 }
 
 /** Zapíše záznam; `false`, když to nejde (plné nebo zakázané úložiště). */
-function write(storage: KeyValueStorage | undefined, key: string, value: string): boolean {
+function write(storage: ProfileDeviceStorage | undefined, key: string, value: string): boolean {
   if (storage === undefined) {
     return false;
   }
@@ -95,7 +125,76 @@ function write(storage: KeyValueStorage | undefined, key: string, value: string)
 }
 
 function dataKey(profileId: string, gameId: string, key: string): string {
-  return `${PROFILE_DATA_PREFIX}${profileId}.${gameId}.${key}`;
+  return `${profileDataPrefix(profileId)}${gameId}.${key}`;
+}
+
+/** Předpona všech dat jednoho profilu, i s tečkou: „p“ nesmí zasáhnout „p1“. */
+function profileDataPrefix(profileId: string): string {
+  return `${PROFILE_DATA_PREFIX}${profileId}.`;
+}
+
+/** Všechny klíče úložiště; `undefined`, když je projít nejde. */
+function allKeys(storage: ProfileDeviceStorage): string[] | undefined {
+  try {
+    const keys: string[] = [];
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (key !== null) {
+        keys.push(key);
+      }
+    }
+    return keys;
+  } catch {
+    // Nečitelné úložiště: nic se nesmaže, úklid se zkusí při dalším načtení.
+    return undefined;
+  }
+}
+
+/** Smaže záznam; `false`, když to nejde (záznam zůstane a uklidí ho další načtení). */
+function remove(storage: ProfileDeviceStorage, key: string): boolean {
+  try {
+    storage.removeItem(key);
+    return true;
+  } catch {
+    // Data smazaného profilu nikdo nečte; úklid je zkusí znovu příště.
+    return false;
+  }
+}
+
+/** Smaže data her profilu `profileId` (jen klíče s jeho přesnou předponou). */
+function removeProfileData(storage: ProfileDeviceStorage, profileId: string): void {
+  const prefix = profileDataPrefix(profileId);
+  for (const key of allKeys(storage) ?? []) {
+    if (key.startsWith(prefix)) {
+      remove(storage, key);
+    }
+  }
+}
+
+/** Označení profilu z klíče jeho dat, `null` u jiných klíčů. */
+function profileIdOfDataKey(key: string): string | null {
+  if (!key.startsWith(PROFILE_DATA_PREFIX)) {
+    return null;
+  }
+  const rest = key.slice(PROFILE_DATA_PREFIX.length);
+  const end = rest.indexOf('.');
+  return end > 0 ? rest.slice(0, end) : null;
+}
+
+/**
+ * Úklid po smazání, které se nepovedlo celé: smaže data profilů, které
+ * v platném seznamu nejsou. Sahá jen na klíče `agentic-app.profile.…`.
+ */
+function removeDataOfMissingProfiles(
+  storage: ProfileDeviceStorage,
+  profiles: readonly Profile[],
+): void {
+  for (const key of allKeys(storage) ?? []) {
+    const id = profileIdOfDataKey(key);
+    if (id !== null && !profiles.some((profile) => profile.id === id)) {
+      remove(storage, key);
+    }
+  }
 }
 
 /** Co je uložené pod seznamem profilů. */
@@ -152,7 +251,7 @@ function newProfileId(taken: readonly Profile[]): string {
 }
 
 interface StoreState {
-  readonly storage: KeyValueStorage | undefined;
+  readonly storage: ProfileDeviceStorage | undefined;
   readonly profiles: Profile[];
   activeId: string;
   /** Dočasný profil (poškozený nebo nečitelný seznam): do úložiště se nezapisuje nic. */
@@ -240,12 +339,56 @@ function storeOf(state: StoreState): ProfileStore {
       }
     },
 
+    updateProfile(id: string, profile: NewProfile): void {
+      const index = state.profiles.findIndex((existing) => existing.id === id);
+      if (index < 0) {
+        return;
+      }
+      state.profiles[index] = makeProfile(id, profile.color, profile.nickname);
+      if (state.canSaveList) {
+        // Neuložená úprava platí aspoň do zavření stránky.
+        write(state.storage, PROFILE_LIST_KEY, serializeList(state.profiles));
+      }
+    },
+
+    deleteProfile(id: string): boolean {
+      return deleteFrom(state, id);
+    },
+
     gameStorage: (gameId) => gameStorageOf(state, activeProfile().id, gameId),
   };
 }
 
+/** Smazání profilu (viz `ProfileStore.deleteProfile`). */
+function deleteFrom(state: StoreState, id: string): boolean {
+  const storage = state.storage;
+  const remaining = state.profiles.filter((profile) => profile.id !== id);
+  const first = remaining[0];
+  const isKnown = remaining.length < state.profiles.length;
+  if (storage === undefined || !state.canSaveList || !isKnown || first === undefined) {
+    // Dočasný, neznámý nebo poslední profil: nic se nemaže.
+    return false;
+  }
+  if (!write(storage, PROFILE_LIST_KEY, serializeList(remaining))) {
+    // Bez uloženého seznamu profil smazaný není a nic se nezmění.
+    return false;
+  }
+  state.profiles.splice(0, state.profiles.length, ...remaining);
+  state.activeId = first.id;
+  // Neuložený výběr nevadí: smazaný profil po načtení aktivní nebude.
+  write(storage, ACTIVE_PROFILE_KEY, first.id);
+  const prefix = profileDataPrefix(id);
+  for (const key of [...state.memory.keys()]) {
+    if (key.startsWith(prefix)) {
+      state.memory.delete(key);
+    }
+  }
+  removeProfileData(storage, id);
+  return true;
+}
+
 /** Dočasný výchozí profil jen v paměti; úložiště se jen čte (staré záznamy). */
-function temporaryStore(storage: KeyValueStorage | undefined): ProfileStore {
+function temporaryStore(storage: ProfileDeviceStorage | undefined): ProfileStore {
   return storeOf({
     storage,
     profiles: [makeProfile(TEMPORARY_PROFILE_ID, DEFAULT_PROFILE_COLOR)],
@@ -263,7 +406,7 @@ function temporaryStore(storage: KeyValueStorage | undefined): ProfileStore {
  * přečíst, nekopíruje se nic a přenos se zopakuje příště, aby se nepřepsalo
  * něco, co nebylo vidět. Vrátí `true`, když je všechno uložené.
  */
-function copyLegacyData(storage: KeyValueStorage, memory: Map<string, string>): boolean {
+function copyLegacyData(storage: ProfileDeviceStorage, memory: Map<string, string>): boolean {
   let allSaved = true;
   for (const key of LEGACY_KEYS) {
     const legacy = read(storage, key);
@@ -285,7 +428,7 @@ function copyLegacyData(storage: KeyValueStorage, memory: Map<string, string>): 
 }
 
 /** Bez profilů vznikne výchozí profil s dnešními daty; seznam se uloží až po datech. */
-function storeWithDefaultProfile(storage: KeyValueStorage): ProfileStore {
+function storeWithDefaultProfile(storage: ProfileDeviceStorage): ProfileStore {
   const memory = new Map<string, string>();
   const profiles = [makeProfile(DEFAULT_PROFILE_ID, DEFAULT_PROFILE_COLOR)];
   const dataSaved = copyLegacyData(storage, memory);
@@ -304,7 +447,7 @@ function storeWithDefaultProfile(storage: KeyValueStorage): ProfileStore {
 }
 
 /** Otevře profily zařízení; `undefined` = prohlížeč úložiště nepovolil. */
-export function openProfiles(storage: KeyValueStorage | undefined): ProfileStore {
+export function openProfiles(storage: ProfileDeviceStorage | undefined): ProfileStore {
   const savedList = read(storage, PROFILE_LIST_KEY);
   if (storage === undefined || savedList === undefined) {
     return temporaryStore(storage);
@@ -318,6 +461,7 @@ export function openProfiles(storage: KeyValueStorage | undefined): ProfileStore
     case 'profiles': {
       const savedActive = read(storage, ACTIVE_PROFILE_KEY)?.value;
       const active = list.profiles.find((profile) => profile.id === savedActive);
+      removeDataOfMissingProfiles(storage, list.profiles);
       return storeOf({
         storage,
         profiles: list.profiles,

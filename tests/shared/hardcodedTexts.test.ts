@@ -9,7 +9,8 @@ import { languageOfFile } from './textChecks';
 
 /**
  * Testy k #65 AC1: texty jsou jen v souborech jazyků, ve sdílené části
- * (`src/shared/texts/<jazyk>.ts`) a u každé hry (`src/games/<hra>/texts/<jazyk>.ts`).
+ * (`src/shared/texts/<jazyk>.ts`), v menu (`src/menu/texts/<jazyk>.ts`)
+ * a u každé hry (`src/games/<hra>/texts/<jazyk>.ts`).
  * Test projde řetězce v kódu `src/` (v uvozovkách i v šablonách, bez
  * komentářů) a selže, když se některý celý řetězec přesně shoduje s textem
  * ze souborů jazyků. Soubory ve složkách `texts/` se nekontrolují.
@@ -29,9 +30,13 @@ const SOURCES: Record<string, string> = Object.fromEntries(
   ).map(([path, text]) => [path.replace('../../', ''), text]),
 );
 
-/** Soubory ve složce textů: sdílené texty a texty her se nekontrolují. */
+/** Soubory ve složce textů: sdílené texty, texty menu a texty her se nekontrolují. */
 function isInTextsFolder(path: string): boolean {
-  return /^src\/shared\/texts\//.test(path) || /^src\/games\/[^/]+\/texts\//.test(path);
+  return (
+    /^src\/shared\/texts\//.test(path) ||
+    /^src\/menu\/texts\//.test(path) ||
+    /^src\/games\/[^/]+\/texts\//.test(path)
+  );
 }
 
 /** Soubor jazyka ve sdílené části nebo u hry (`…/texts/cs.ts`). */

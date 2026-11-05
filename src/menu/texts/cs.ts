@@ -10,5 +10,8 @@ export default {
   profiles: {
     nicknameTitle: 'Přezdívka',
     colorTitle: 'Barva',
+    deleteQuestion: 'Smazat profil?',
+    deleteConfirm: 'Smazat',
+    deleteCancel: 'Zpět',
   },
 } satisfies MenuTexts;

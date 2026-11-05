@@ -18,6 +18,12 @@
  *   a →; ve 2. kroku náhled 180 px a paleta v jedné řadě.
  * Přepínač vrstvy a ⌫ jsou na konci poslední řady mřížky, v obou vrstvách
  * na stejném místě, takže se při přepnutí nic nepohne.
+ *
+ * Úprava profilu (#73, obrázky 6 a 8): ve 2. kroku je vpravo vedle náhledu
+ * koš 64 px, ostatní plochy zůstanou, kde jsou bez něj. Potvrzení smazání
+ * je bílý rámeček uprostřed nad formulářem: kolečko profilu, přezdívka,
+ * otázka a dole „Smazat“ vlevo a „Zpět“ vpravo, na straně ✓. Na telefonu
+ * na šířku je kolečko vlevo vedle textů, aby se rámeček vešel na výšku.
  */
 
 import { boxAt, freeAreaOf, languagePanelFor } from './menuLayout';
@@ -284,6 +290,27 @@ export interface ColorStepLayout extends StepHeading {
   readonly swatches: readonly MenuBox[];
   readonly back: MenuBox;
   readonly save: MenuBox;
+  /** Koš vpravo vedle náhledu (#73); bez koše (nový nebo poslední profil) `null`. */
+  readonly trash: MenuBox | null;
+}
+
+/** Potvrzení smazání profilu (#73, obrázek 8). */
+export interface DeleteConfirmLayout {
+  /** Bílý rámeček nad ztmaveným formulářem. */
+  readonly panel: MenuBox;
+  readonly panelRadius: number;
+  readonly preview: MenuBox;
+  readonly previewSymbolFontSize: number;
+  readonly nickname: MenuBox;
+  readonly nicknameFontSize: number;
+  /** „Smazat profil?“ */
+  readonly question: MenuBox;
+  readonly questionFontSize: number;
+  /** „Smazat“ (červené), vlevo. */
+  readonly confirm: MenuBox;
+  /** „Zpět“ (šedé), vpravo na straně ✓. */
+  readonly cancel: MenuBox;
+  readonly buttonFontSize: number;
 }
 
 /** Jak je formulář rozložený: telefon na výšku, telefon na šířku, nebo iPad. */
@@ -633,7 +660,26 @@ function previewBox(free: MenuBox, top: number, size: number): MenuBox {
   return boxAt(centeredLeft(free, size), top, size, size);
 }
 
-function portraitColorStep(free: MenuBox): ColorStepLayout {
+/** Koš 64 px: mezera od náhledu 32 px jako na obrázku, v úzkém okně menší. */
+const TRASH_SIZE = BUTTON_SIZE;
+const TRASH_PREVIEW_GAP = 32;
+
+/**
+ * Koš vpravo vedle náhledu, svisle uprostřed náhledu. Nikdy nepřeteče za
+ * okraj volné plochy: v úzkém okně se mezera od náhledu zmenší.
+ */
+function trashBox(preview: MenuBox, usable: MenuBox): MenuBox {
+  const room = usable.right - TRASH_SIZE - preview.right;
+  const gap = Math.min(TRASH_PREVIEW_GAP, Math.max(0, room));
+  const left = Math.min(preview.right + gap, usable.right - TRASH_SIZE);
+  const middle = (preview.top + preview.bottom) / 2;
+  return boxAt(left, middle - TRASH_SIZE / 2, TRASH_SIZE, TRASH_SIZE);
+}
+
+/** Bez koše `ColorStepLayout`, ale s ním (`trash`) doplní volající. */
+type ColorStepWithoutTrash = Omit<ColorStepLayout, 'trash'>;
+
+function portraitColorStep(free: MenuBox): ColorStepWithoutTrash {
   const width = gridWidth(PORTRAIT_COLUMNS, PHONE_KEY, PHONE_KEY_GAP);
   const left = centeredLeft(free, width);
   const preview = previewBox(free, free.top + PORTRAIT_FIELD_TOP, PHONE_PREVIEW_PORTRAIT);
@@ -659,7 +705,7 @@ function portraitColorStep(free: MenuBox): ColorStepLayout {
   };
 }
 
-function landscapeColorStep(free: MenuBox): ColorStepLayout {
+function landscapeColorStep(free: MenuBox): ColorStepWithoutTrash {
   const width = gridWidth(LANDSCAPE_COLUMNS, PHONE_KEY, PHONE_KEY_GAP);
   const gap = 12;
   const height = PHONE_KEY + gap + PHONE_PREVIEW_LANDSCAPE + gap + PHONE_SWATCH;
@@ -679,7 +725,7 @@ function landscapeColorStep(free: MenuBox): ColorStepLayout {
   };
 }
 
-function tabletColorStep(free: MenuBox, usable: MenuBox): ColorStepLayout {
+function tabletColorStep(free: MenuBox, usable: MenuBox): ColorStepWithoutTrash {
   const width = tabletContentWidth(usable);
   const left = centeredLeft(free, width);
   const count = PROFILE_COLORS.length;
@@ -728,10 +774,8 @@ function tabletColorStep(free: MenuBox, usable: MenuBox): ColorStepLayout {
   };
 }
 
-export function colorStepLayoutFor(viewport: Viewport | undefined): ColorStepLayout {
-  const free = freeAreaOf(viewport);
-  const usable = insetBox(free, EDGE);
-  switch (formFamilyFor(chooseLayoutMode(viewport), usable)) {
+function colorStepWithoutTrash(free: MenuBox, usable: MenuBox, family: FormFamily) {
+  switch (family) {
     case 'portrait':
       return portraitColorStep(free);
     case 'landscape':
@@ -739,4 +783,182 @@ export function colorStepLayoutFor(viewport: Viewport | undefined): ColorStepLay
     case 'tablet':
       return tabletColorStep(free, usable);
   }
+}
+
+/** 2. krok formuláře; `withTrash` jen u úpravy profilu, když nejde o poslední profil. */
+export function colorStepLayoutFor(
+  viewport: Viewport | undefined,
+  options: { readonly withTrash?: boolean } = {},
+): ColorStepLayout {
+  const free = freeAreaOf(viewport);
+  const usable = insetBox(free, EDGE);
+  const family = formFamilyFor(chooseLayoutMode(viewport), usable);
+  const layout = colorStepWithoutTrash(free, usable, family);
+  return {
+    ...layout,
+    trash: options.withTrash === true ? trashBox(layout.preview, usable) : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Potvrzení smazání profilu (#73)
+// ---------------------------------------------------------------------------
+
+interface ConfirmMetrics {
+  readonly maxWidth: number;
+  readonly height: number;
+  readonly radius: number;
+  readonly padding: number;
+  readonly preview: number;
+  readonly nicknameFontSize: number;
+  readonly nicknameHeight: number;
+  readonly questionFontSize: number;
+  readonly questionHeight: number;
+  readonly buttonHeight: number;
+  /** Šířka tlačítka; `null` = polovina rámečku bez okrajů a mezery. */
+  readonly buttonWidth: number | null;
+  readonly buttonFontSize: number;
+}
+
+/** iPad podle obrázku 8: rámeček 520 × 420, kolečko 140, tlačítka 200 × 76. */
+const TABLET_CONFIRM: ConfirmMetrics = {
+  maxWidth: 520,
+  height: 420,
+  radius: 28,
+  padding: 24,
+  preview: 140,
+  nicknameFontSize: 20,
+  nicknameHeight: 28,
+  questionFontSize: 30,
+  questionHeight: 40,
+  buttonHeight: 76,
+  buttonWidth: 200,
+  buttonFontSize: 24,
+};
+
+/** Telefon na výšku podle obrázku 8: rámeček přes šířku, výška 360, kolečko 110. */
+const PORTRAIT_CONFIRM: ConfirmMetrics = {
+  maxWidth: 400,
+  height: 360,
+  radius: 28,
+  padding: 24,
+  preview: 110,
+  nicknameFontSize: 20,
+  nicknameHeight: 28,
+  questionFontSize: 26,
+  questionHeight: 34,
+  buttonHeight: BUTTON_SIZE,
+  buttonWidth: null,
+  buttonFontSize: 22,
+};
+
+/** Telefon na šířku: kolečko vlevo vedle přezdívky a otázky, tlačítka pod nimi. */
+const LANDSCAPE_CONFIRM: ConfirmMetrics = {
+  maxWidth: 480,
+  height: 216,
+  radius: 24,
+  padding: 20,
+  preview: 96,
+  nicknameFontSize: 20,
+  nicknameHeight: 28,
+  questionFontSize: 26,
+  questionHeight: 34,
+  buttonHeight: BUTTON_SIZE,
+  buttonWidth: null,
+  buttonFontSize: 22,
+};
+
+/** Okraj rámečku od volné plochy na telefonu (obrázek 8: 16 px). */
+const CONFIRM_SIDE_MARGIN = 16;
+/** Mezery mezi kolečkem, přezdívkou a otázkou. */
+const CONFIRM_TOP = 36;
+const CONFIRM_NICKNAME_GAP = 12;
+const CONFIRM_QUESTION_GAP = 8;
+const CONFIRM_BUTTON_GAP = 16;
+
+function confirmMetricsFor(family: FormFamily): ConfirmMetrics {
+  switch (family) {
+    case 'portrait':
+      return PORTRAIT_CONFIRM;
+    case 'landscape':
+      return LANDSCAPE_CONFIRM;
+    case 'tablet':
+      return TABLET_CONFIRM;
+  }
+}
+
+/** „Smazat“ vlevo dole a „Zpět“ vpravo dole v rámečku. */
+function confirmButtons(
+  panel: MenuBox,
+  metrics: ConfirmMetrics,
+): { confirm: MenuBox; cancel: MenuBox } {
+  const inner = widthOf(panel) - 2 * metrics.padding;
+  const width = metrics.buttonWidth ?? (inner - CONFIRM_BUTTON_GAP) / 2;
+  const top = panel.bottom - metrics.padding - metrics.buttonHeight;
+  return {
+    confirm: boxAt(panel.left + metrics.padding, top, width, metrics.buttonHeight),
+    cancel: boxAt(panel.right - metrics.padding - width, top, width, metrics.buttonHeight),
+  };
+}
+
+export function deleteConfirmLayoutFor(viewport: Viewport | undefined): DeleteConfirmLayout {
+  const free = freeAreaOf(viewport);
+  const usable = insetBox(free, EDGE);
+  const family = formFamilyFor(chooseLayoutMode(viewport), usable);
+  const metrics = confirmMetricsFor(family);
+  const width = Math.min(metrics.maxWidth, widthOf(free) - 2 * CONFIRM_SIDE_MARGIN);
+  const height = Math.min(metrics.height, heightOf(usable));
+  const panel = boxAt(
+    centeredLeft(free, width),
+    free.top + (heightOf(free) - height) / 2,
+    width,
+    height,
+  );
+  const buttons = confirmButtons(panel, metrics);
+  const innerLeft = panel.left + metrics.padding;
+  const innerWidth = width - 2 * metrics.padding;
+  const shared = {
+    panel,
+    panelRadius: metrics.radius,
+    previewSymbolFontSize: metrics.preview / 2,
+    nicknameFontSize: metrics.nicknameFontSize,
+    questionFontSize: metrics.questionFontSize,
+    buttonFontSize: metrics.buttonFontSize,
+    ...buttons,
+  };
+  if (family === 'landscape') {
+    // Kolečko vlevo, vedle něj přezdívka a otázka svisle uprostřed kolečka.
+    const preview = boxAt(innerLeft, panel.top + metrics.padding, metrics.preview, metrics.preview);
+    const textLeft = preview.right + CONFIRM_BUTTON_GAP;
+    const textWidth = panel.right - metrics.padding - textLeft;
+    const textHeight = metrics.nicknameHeight + CONFIRM_QUESTION_GAP + metrics.questionHeight;
+    const textTop = (preview.top + preview.bottom - textHeight) / 2;
+    const nickname = boxAt(textLeft, textTop, textWidth, metrics.nicknameHeight);
+    const question = boxAt(
+      textLeft,
+      nickname.bottom + CONFIRM_QUESTION_GAP,
+      textWidth,
+      metrics.questionHeight,
+    );
+    return { ...shared, preview, nickname, question };
+  }
+  const preview = boxAt(
+    panel.left + (width - metrics.preview) / 2,
+    panel.top + CONFIRM_TOP,
+    metrics.preview,
+    metrics.preview,
+  );
+  const nickname = boxAt(
+    innerLeft,
+    preview.bottom + CONFIRM_NICKNAME_GAP,
+    innerWidth,
+    metrics.nicknameHeight,
+  );
+  const question = boxAt(
+    innerLeft,
+    nickname.bottom + CONFIRM_QUESTION_GAP,
+    innerWidth,
+    metrics.questionHeight,
+  );
+  return { ...shared, preview, nickname, question };
 }

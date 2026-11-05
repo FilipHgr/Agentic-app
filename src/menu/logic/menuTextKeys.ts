@@ -11,3 +11,12 @@ export const NICKNAME_TITLE_KEY = 'profiles.nicknameTitle';
 
 /** Nadpis 2. kroku formuláře nového profilu („Barva“, #72). */
 export const COLOR_TITLE_KEY = 'profiles.colorTitle';
+
+/** Otázka v potvrzení smazání profilu („Smazat profil?“, #73). */
+export const DELETE_QUESTION_KEY = 'profiles.deleteQuestion';
+
+/** Červené tlačítko potvrzení smazání („Smazat“, #73). */
+export const DELETE_CONFIRM_KEY = 'profiles.deleteConfirm';
+
+/** Šedé tlačítko, které smazání zruší („Zpět“, #73). */
+export const DELETE_CANCEL_KEY = 'profiles.deleteCancel';

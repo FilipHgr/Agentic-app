@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { isSharedAudioUnlocked, sharedToneContext } from '../../shared/audio/sharedAudio';
 import { createTonePlayer } from '../../shared/audio/tonePlayer';
 import type { Tone } from '../../shared/audio/tonePlayer';
+import type { HoldButton } from '../../shared/logic/holdButton';
 import type { ProfileColor } from '../../shared/logic/profiles';
 import { colorNumber } from '../../shared/logic/theme';
 import { readViewport } from '../../shared/ui/viewport';
@@ -11,19 +12,27 @@ import type { LetterKey } from '../logic/letterGrid';
 import type { Menu } from '../logic/menu';
 import type { MenuBox } from '../logic/menuLayout';
 import { MENU_SOUNDS } from '../logic/menuSounds';
-import { COLOR_TITLE_KEY, NICKNAME_TITLE_KEY } from '../logic/menuTextKeys';
+import {
+  COLOR_TITLE_KEY,
+  DELETE_CANCEL_KEY,
+  DELETE_CONFIRM_KEY,
+  DELETE_QUESTION_KEY,
+  NICKNAME_TITLE_KEY,
+} from '../logic/menuTextKeys';
 import { PROFILE_SCREEN_STYLE } from '../logic/menuTheme';
 import {
   colorStepLayoutFor,
+  deleteConfirmLayoutFor,
   nicknameStepLayoutFor,
   profilePickerLayoutFor,
 } from '../logic/profileLayout';
 import type {
   ColorStepLayout,
+  DeleteConfirmLayout,
   NicknameStepLayout,
   ProfilePickerLayout,
 } from '../logic/profileLayout';
-import { ADD_PROFILE_HOLD_MS } from '../logic/profileScreens';
+import { ADD_PROFILE_HOLD_MS, EDIT_PROFILE_HOLD_MS } from '../logic/profileScreens';
 import type { ProfileFeedback, ProfileScreens } from '../logic/profileScreens';
 import {
   LANGUAGE_PANEL_SHADOW,
@@ -49,8 +58,12 @@ const PRESS = { scale: 0.92, durationMs: 70 };
 const HELD_SCALE = 0.95;
 const SHAKE = { distance: 8, durationMs: 50, repeat: 3 };
 const WOBBLE = { angle: 8, durationMs: 90 };
-/** Kroužek podržení „+“: uvnitř kolečka jako u kolečka nastavení. */
+/** Kroužek podržení „+“ a kolečka profilu: uvnitř kolečka jako u kolečka nastavení. */
 const HOLD_RING = { inset: 7, width: 6 };
+/** Kroužek začíná nahoře. */
+const HOLD_RING_START = -Math.PI / 2;
+/** Tmavý okraj bílého kroužku kolem kolečka profilu, z každé strany. */
+const HOLD_RING_OUTLINE = 1;
 const FIELD_TEXT_INSET = 14;
 const CARET_WIDTH = 3;
 /** Kroužek kolem zvolené barvy: bílá mezera a tmavý okraj. */
@@ -74,10 +87,11 @@ interface Tappable {
   readonly homeX: number;
 }
 
-/** Ťukací plocha v CSS px okna: ťuknutí, nebo podržení (jen „+“). */
+/** Ťukací plocha v CSS px okna: ťuknutí, nebo podržení („+“ a kolečka profilů). */
 interface Region {
   readonly box: MenuBox;
-  readonly kind: 'tap' | 'hold';
+  /** Tlačítko s podržením; bez něj se plocha jen ťuká. */
+  readonly hold: HoldButton | undefined;
   readonly item: Tappable | undefined;
   /** Patří k tlačítku nebo nabídce jazyků (fungují i s otevřenou nabídkou). */
   readonly language: boolean;
@@ -99,6 +113,18 @@ interface ForwardParts {
   readonly height: number;
   enabled: boolean;
 }
+
+/** Kroužek, který se plní během podržení (kolem „+“ nebo kolečka profilu). */
+interface HoldRing {
+  readonly graphics: Phaser.GameObjects.Graphics;
+  readonly radius: number;
+  readonly holdMs: number;
+  /** Bílý kroužek s tmavým okrajem (kolečko profilu), jinak modrý („+“). */
+  readonly onColor: boolean;
+}
+
+/** Klíč kroužku „+“ mezi kroužky koleček profilů (ty mají klíč podle označení). */
+const ADD_RING_KEY = '+';
 
 /** Prst, který se dotkl plochy (nebo zavřel nabídku jazyků a už nic nedělá). */
 interface HeldPointer {
@@ -153,10 +179,12 @@ export class ProfileScene extends Phaser.Scene {
   private forward: ForwardParts | undefined;
   private drawnNickname = '';
   private addItem: Tappable | undefined;
-  private addRing: Phaser.GameObjects.Graphics | undefined;
-  private addRingRadius = 0;
-  private holdStartedAt: number | null = null;
+  /** Kroužky podržení podle klíče („+“ nebo označení profilu). */
+  private holdRings = new Map<string, HoldRing>();
+  /** Který kroužek se právě plní a od kdy. */
+  private holding: { readonly key: string; readonly startedAt: number } | null = null;
   private selectedSwatch: Tappable | undefined;
+  private trashItem: Tappable | undefined;
 
   private keyboardListening = false;
   private readonly onKeyDown = (event: KeyboardEvent): void => this.handleKey(event);
@@ -195,7 +223,7 @@ export class ProfileScene extends Phaser.Scene {
     const events = this.queued;
     this.queued = [];
     events.forEach((event) => this.playNow(event));
-    this.drawHoldRing();
+    this.drawHoldRings();
   }
 
   /** Nakreslí se znovu v dalším snímku (otočení, změna okna, otevření). */
@@ -218,11 +246,15 @@ export class ProfileScene extends Phaser.Scene {
    */
   private stateKey(): string {
     const { screens, menu } = this.host;
+    const onColorStep = screens.screen() === 'color' || screens.screen() === 'confirmDelete';
     return JSON.stringify([
       screens.screen(),
+      screens.formMode(),
       screens.screen() === 'nickname' ? '' : screens.nickname(),
       screens.letterLayer(),
-      screens.screen() === 'color' ? screens.selectedColor() : '',
+      onColorStep ? screens.selectedColor() : '',
+      screens.canDeleteProfile(),
+      screens.deleteConfirmProfile(),
       screens.canAddProfile(),
       screens.pickerItems(),
       menu.isLanguageMenuOpen(),
@@ -298,11 +330,8 @@ export class ProfileScene extends Phaser.Scene {
     if (region === null) {
       return;
     }
-    if (region.kind === 'hold') {
-      this.host.screens.addButton.press(id);
-    } else {
-      this.setHeld(region.item, true);
-    }
+    region.hold?.press(id);
+    this.setHeld(region.item, region.hold === undefined || region.hold.isHolding());
   }
 
   private fingerMove(id: number, x: number, y: number): void {
@@ -310,9 +339,7 @@ export class ProfileScene extends Phaser.Scene {
     if (region === undefined || region === null || contains(region.box, x, y)) {
       return;
     }
-    if (region.kind === 'hold') {
-      this.host.screens.addButton.leave(id);
-    }
+    region.hold?.leave(id);
     this.setHeld(region.item, false);
   }
 
@@ -322,15 +349,15 @@ export class ProfileScene extends Phaser.Scene {
     if (region === undefined || region === null) {
       return;
     }
-    if (region.kind === 'hold') {
+    this.setHeld(region.item, false);
+    if (region.hold !== undefined) {
       if (canceled) {
-        this.host.screens.addButton.cancel(id);
+        region.hold.cancel(id);
       } else {
-        this.host.screens.addButton.release(id);
+        region.hold.release(id);
       }
       return;
     }
-    this.setHeld(region.item, false);
     if (!canceled && contains(region.box, x, y)) {
       region.onTap();
     }
@@ -361,8 +388,9 @@ export class ProfileScene extends Phaser.Scene {
     this.forward = undefined;
     this.drawnNickname = this.host.screens.nickname();
     this.addItem = undefined;
-    this.addRing = undefined;
+    this.holdRings = new Map();
     this.selectedSwatch = undefined;
+    this.trashItem = undefined;
     this.drawnState = state;
 
     const viewport = readViewport();
@@ -381,7 +409,13 @@ export class ProfileScene extends Phaser.Scene {
         this.drawNicknameStep(nicknameStepLayoutFor(viewport, { layer: screens.letterLayer() }));
         break;
       case 'color':
-        this.drawColorStep(colorStepLayoutFor(viewport));
+        this.drawColorStep(colorStepLayoutFor(viewport, { withTrash: screens.canDeleteProfile() }));
+        break;
+      case 'confirmDelete':
+        // Pod potvrzením je ztmavený 2. krok i s košem, ťukat jde jen na potvrzení.
+        this.drawColorStep(colorStepLayoutFor(viewport, { withTrash: true }));
+        this.regions = [];
+        this.drawDeleteConfirm(deleteConfirmLayoutFor(viewport));
         break;
       case 'closed':
         break;
@@ -404,13 +438,13 @@ export class ProfileScene extends Phaser.Scene {
     box: MenuBox,
     item: Tappable | undefined,
     onTap: () => void,
-    options: { kind?: 'tap' | 'hold'; language?: boolean } = {},
+    options: { hold?: HoldButton; language?: boolean } = {},
   ): void {
     this.regions.push({
       box,
       item,
       onTap,
-      kind: options.kind ?? 'tap',
+      hold: options.hold,
       language: options.language ?? false,
     });
   }
@@ -468,7 +502,9 @@ export class ProfileScene extends Phaser.Scene {
         profile.symbol,
         layout.symbolFontSize,
       );
-      this.region(slot.circle, item, () => screens.tapProfile(profile.id));
+      // Ťuknutí profil vybere, podržení 1 s otevře úpravu (#73).
+      this.addHoldRing(profile.id, item, slot.circle, EDIT_PROFILE_HOLD_MS, true);
+      this.region(slot.circle, item, () => undefined, { hold: screens.profileButton(profile.id) });
       if (profile.nickname !== null) {
         this.drawNicknameLines(slot.nickname, profile.nickname, layout);
       }
@@ -531,30 +567,67 @@ export class ProfileScene extends Phaser.Scene {
   private drawAddButton(box: MenuBox, fontSize: number): void {
     const item = this.drawCircle(box, PROFILE_SCREEN_STYLE.addBackground, '', fontSize);
     const plus = this.text(ADD_SYMBOL, fontSize, PROFILE_SCREEN_STYLE.addSymbol).setOrigin(0.5);
-    const ring = this.add.graphics();
-    item.container.add([plus, ring]);
+    item.container.add(plus);
     this.addItem = item;
-    this.addRing = ring;
-    this.addRingRadius = (box.right - box.left) / 2 - HOLD_RING.inset;
-    this.region(box, item, () => undefined, { kind: 'hold' });
+    this.addHoldRing(ADD_RING_KEY, item, box, ADD_PROFILE_HOLD_MS, false);
+    this.region(box, item, () => undefined, { hold: this.host.screens.addButton });
   }
 
-  /** Kroužek kolem „+“ se během podržení plní (jako u kolečka nastavení). */
-  private drawHoldRing(): void {
-    const ring = this.addRing;
-    if (ring === undefined || !ring.active) {
-      return;
+  /** Prázdný kroužek podržení uvnitř kolečka; plní se v `drawHoldRings`. */
+  private addHoldRing(
+    key: string,
+    item: Tappable,
+    box: MenuBox,
+    holdMs: number,
+    onColor: boolean,
+  ): void {
+    const graphics = this.add.graphics();
+    item.container.add(graphics);
+    const radius = (box.right - box.left) / 2 - HOLD_RING.inset;
+    this.holdRings.set(key, { graphics, radius, holdMs, onColor });
+  }
+
+  /** Kroužek drženého kolečka se během podržení plní (jako u kolečka nastavení). */
+  private drawHoldRings(): void {
+    for (const [key, ring] of this.holdRings) {
+      if (!ring.graphics.active) {
+        continue;
+      }
+      ring.graphics.clear();
+      if (this.holding?.key !== key) {
+        continue;
+      }
+      const elapsed = performance.now() - this.holding.startedAt;
+      const progress = Math.min(1, elapsed / ring.holdMs);
+      const end = HOLD_RING_START + progress * 2 * Math.PI;
+      if (ring.onColor) {
+        // Tmavý okraj pod bílým kroužkem, aby byl vidět i na světlé barvě.
+        this.strokeArc(
+          ring,
+          HOLD_RING.width + 2 * HOLD_RING_OUTLINE,
+          PROFILE_SCREEN_STYLE.profileHoldRingOutline,
+          PROFILE_SCREEN_STYLE.profileHoldRingOutlineAlpha,
+          end,
+        );
+        this.strokeArc(ring, HOLD_RING.width, PROFILE_SCREEN_STYLE.profileHoldRing, 1, end);
+      } else {
+        this.strokeArc(ring, HOLD_RING.width, PROFILE_SCREEN_STYLE.holdRing, 1, end);
+      }
     }
-    ring.clear();
-    if (this.holdStartedAt === null) {
-      return;
-    }
-    const progress = Math.min(1, (performance.now() - this.holdStartedAt) / ADD_PROFILE_HOLD_MS);
-    const start = -Math.PI / 2;
-    ring.lineStyle(HOLD_RING.width * UNIT, colorNumber(PROFILE_SCREEN_STYLE.holdRing), 1);
-    ring.beginPath();
-    ring.arc(0, 0, this.addRingRadius * UNIT, start, start + progress * 2 * Math.PI);
-    ring.strokePath();
+  }
+
+  /** Oblouk kroužku podržení od horního bodu po úhel `end`. */
+  private strokeArc(
+    ring: HoldRing,
+    width: number,
+    color: string,
+    alpha: number,
+    end: number,
+  ): void {
+    ring.graphics.lineStyle(width * UNIT, colorNumber(color), alpha);
+    ring.graphics.beginPath();
+    ring.graphics.arc(0, 0, ring.radius * UNIT, HOLD_RING_START, end);
+    ring.graphics.strokePath();
   }
 
   /** Plné tlačítko jazyka „CS“ vpravo nahoře a otevřená nabídka jazyků (#70). */
@@ -872,6 +945,148 @@ export class ProfileScene extends Phaser.Scene {
     });
     this.drawBack(layout.back);
     this.drawForward(layout.save, 'check', true, () => screens.tapSave());
+    if (layout.trash !== null) {
+      this.drawTrash(layout.trash);
+    }
+  }
+
+  /** Červený koš ve světle červeném kolečku (#73, obrázek 6). */
+  private drawTrash(box: MenuBox): void {
+    const item = this.tappable(box);
+    const radius = ((box.right - box.left) / 2) * UNIT;
+    const background = this.add.graphics();
+    background
+      .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.trashBackground), 1)
+      .fillCircle(0, 0, radius);
+    item.container.add([background, this.trashIcon(radius * 0.9)]);
+    this.trashItem = item;
+    this.region(box, item, () => this.host.screens.tapDelete());
+  }
+
+  /** Koš jako čáry (víko, ucho, nádoba a dva proužky) v ploše `size` × `size`. */
+  private trashIcon(size: number): Phaser.GameObjects.Graphics {
+    // Souřadnice z obrázku 6 v mřížce 32 × 32 se středem v počátku.
+    const unit = size / 32;
+    const at = (value: number): number => (value - 16) * unit;
+    const icon = this.add.graphics();
+    icon.lineStyle(2.5 * unit, colorNumber(PROFILE_SCREEN_STYLE.trashSymbol), 1);
+    icon.beginPath();
+    icon.moveTo(at(5), at(9));
+    icon.lineTo(at(27), at(9));
+    icon.moveTo(at(12), at(9));
+    icon.lineTo(at(12), at(5));
+    icon.lineTo(at(20), at(5));
+    icon.lineTo(at(20), at(9));
+    icon.moveTo(at(8), at(9));
+    icon.lineTo(at(9.5), at(27));
+    icon.lineTo(at(22.5), at(27));
+    icon.lineTo(at(24), at(9));
+    icon.moveTo(at(13.5), at(13));
+    icon.lineTo(at(13.5), at(23));
+    icon.moveTo(at(18.5), at(13));
+    icon.lineTo(at(18.5), at(23));
+    icon.strokePath();
+    return icon;
+  }
+
+  // --- Potvrzení smazání -----------------------------------------------------
+
+  /**
+   * Ztmavený formulář a nad ním bílý rámeček s kolečkem profilu, přezdívkou,
+   * otázkou, červeným „Smazat“ a šedým „Zpět“ na místě ✓ (obrázek 8).
+   */
+  private drawDeleteConfirm(layout: DeleteConfirmLayout): void {
+    const screens = this.host.screens;
+    const profile = screens.deleteConfirmProfile();
+    if (profile === null) {
+      return;
+    }
+    const dim = this.keep(this.add.graphics());
+    dim
+      .fillStyle(0x000000, PROFILE_SCREEN_STYLE.dimAlpha)
+      .fillRect(0, 0, this.scale.width, this.scale.height);
+    const panel = layout.panel;
+    const panelCenter = centerOf(panel);
+    const card = this.keep(
+      this.roundedRect(
+        panel.right - panel.left,
+        panel.bottom - panel.top,
+        layout.panelRadius,
+        PROFILE_SCREEN_STYLE.confirmPanelBackground,
+        PROFILE_SCREEN_STYLE.confirmPanelShadowAlpha,
+      ),
+    );
+    card.setPosition(panelCenter.x, panelCenter.y);
+    this.drawCircle(layout.preview, profile.color, profile.symbol, layout.previewSymbolFontSize);
+    if (profile.nickname !== null) {
+      this.centeredText(
+        profile.nickname,
+        layout.nickname,
+        layout.nicknameFontSize,
+        PROFILE_SCREEN_STYLE.confirmNickname,
+        'normal',
+      );
+    }
+    this.centeredText(
+      this.host.translate(DELETE_QUESTION_KEY),
+      layout.question,
+      layout.questionFontSize,
+      PROFILE_SCREEN_STYLE.confirmQuestion,
+      'bold',
+    );
+    this.drawPillButton(
+      layout.confirm,
+      DELETE_CONFIRM_KEY,
+      layout.buttonFontSize,
+      {
+        background: PROFILE_SCREEN_STYLE.confirmDeleteBackground,
+        text: PROFILE_SCREEN_STYLE.confirmDeleteText,
+      },
+      () => screens.tapConfirmDelete(),
+    );
+    this.drawPillButton(
+      layout.cancel,
+      DELETE_CANCEL_KEY,
+      layout.buttonFontSize,
+      {
+        background: PROFILE_SCREEN_STYLE.cancelDeleteBackground,
+        text: PROFILE_SCREEN_STYLE.cancelDeleteText,
+      },
+      () => screens.tapCancelDelete(),
+    );
+  }
+
+  /** Text uprostřed plochy, zmenšený, aby se vešel. */
+  private centeredText(
+    content: string,
+    box: MenuBox,
+    fontSize: number,
+    color: string,
+    fontStyle: string,
+  ): void {
+    const text = this.keep(this.text(content, fontSize, color, fontStyle)).setOrigin(0.5);
+    const center = centerOf(box);
+    text.setPosition(center.x, center.y);
+    this.fitText(text, box.right - box.left);
+  }
+
+  /** Tlačítko jako pilulka s textem jazyka. */
+  private drawPillButton(
+    box: MenuBox,
+    textKey: string,
+    fontSize: number,
+    colors: { readonly background: string; readonly text: string },
+    onTap: () => void,
+  ): void {
+    const item = this.tappable(box);
+    const width = box.right - box.left;
+    const height = box.bottom - box.top;
+    const background = this.roundedRect(width, height, height / 2, colors.background);
+    const label = this.text(this.host.translate(textKey), fontSize, colors.text, '600');
+    label.setOrigin(0.5);
+    this.fitText(label, width - 16);
+    item.container.add([background, label]);
+    this.region(box, item, onTap);
   }
 
   private drawSwatch(box: MenuBox, color: ProfileColor, selected: boolean): void {
@@ -919,10 +1134,13 @@ export class ProfileScene extends Phaser.Scene {
         this.playTap(event.target);
         break;
       case 'wobble':
-        this.wobble(event.target === 'add' ? this.addItem : this.keyItems.backspace);
+        this.wobble(this.wobbleItem(event.target));
         break;
       case 'addHolding':
-        this.holdStartedAt = event.holding ? performance.now() : null;
+        this.setHolding(ADD_RING_KEY, event.holding);
+        break;
+      case 'profileHolding':
+        this.setHolding(event.id, event.holding);
         break;
       case 'shake':
         this.shake(this.fieldItem);
@@ -950,7 +1168,30 @@ export class ProfileScene extends Phaser.Scene {
         this.playSound(MENU_SOUNDS.shake);
         break;
       case 'addHolding':
+      case 'profileHolding':
         break;
+    }
+  }
+
+  private wobbleItem(
+    target: Extract<ProfileFeedback, { kind: 'wobble' }>['target'],
+  ): Tappable | undefined {
+    switch (target) {
+      case 'add':
+        return this.addItem;
+      case 'backspace':
+        return this.keyItems.backspace;
+      case 'delete':
+        return this.trashItem;
+    }
+  }
+
+  /** Začne plnit kroužek `key`, nebo ho schová (jen když se plní právě ten). */
+  private setHolding(key: string, holding: boolean): void {
+    if (holding) {
+      this.holding = { key, startedAt: performance.now() };
+    } else if (this.holding?.key === key) {
+      this.holding = null;
     }
   }
 
@@ -965,6 +1206,12 @@ export class ProfileScene extends Phaser.Scene {
       case 'color':
         this.press(this.selectedSwatch);
         break;
+      case 'delete':
+        // Koš je vidět i pod potvrzením, zmáčkne se ve ztmaveném formuláři.
+        this.press(this.trashItem);
+        break;
+      case 'cancelDelete':
+      case 'confirmDelete':
       case 'back':
       case 'next':
       case 'save':

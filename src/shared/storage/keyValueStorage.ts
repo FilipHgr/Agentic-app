@@ -10,8 +10,11 @@ export interface KeyValueStorage {
   setItem(key: string, value: string): void;
 }
 
-/** Úložiště prohlížeče, nebo `undefined`, když ho prohlížeč nepovolí. */
-export function browserStorage(): KeyValueStorage | undefined {
+/**
+ * Úložiště prohlížeče, nebo `undefined`, když ho prohlížeč nepovolí. Celé
+ * `Storage`, protože profily (#73) v něm umí i mazat a procházet klíče.
+ */
+export function browserStorage(): Storage | undefined {
   try {
     return typeof window === 'undefined' ? undefined : window.localStorage;
   } catch {

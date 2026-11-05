@@ -12,6 +12,7 @@ import {
 import { COUNTING_META } from '../../../src/games/counting/meta';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 import { openProfiles } from '../../../src/shared/storage/profileStorage';
+import type { ProfileDeviceStorage } from '../../../src/shared/storage/profileStorage';
 
 /**
  * Testy k #64, AC5: po rozdělení na sdílenou část a Počítání dítě
@@ -27,8 +28,12 @@ import { openProfiles } from '../../../src/shared/storage/profileStorage';
 const SETTINGS_KEY = 'agentic-app.settings';
 const PROGRESS_KEY = 'agentic-app.progress';
 
-/** Úložiště v paměti se záznamy, které v zařízení nechala starší verze hry. */
-function storageWith(saved: Record<string, string>): KeyValueStorage & {
+/**
+ * Úložiště v paměti se záznamy, které v zařízení nechala starší verze hry.
+ * Umí i mazat a projít klíče jako `localStorage`, protože to profily
+ * potřebují na úklid smazaných profilů (#73).
+ */
+function storageWith(saved: Record<string, string>): ProfileDeviceStorage & {
   readonly data: Map<string, string>;
 } {
   const data = new Map(Object.entries(saved));
@@ -37,6 +42,13 @@ function storageWith(saved: Record<string, string>): KeyValueStorage & {
     getItem: (key) => data.get(key) ?? null,
     setItem: (key, value) => {
       data.set(key, value);
+    },
+    removeItem: (key) => {
+      data.delete(key);
+    },
+    key: (index) => [...data.keys()][index] ?? null,
+    get length() {
+      return data.size;
     },
   };
 }
