@@ -5,6 +5,9 @@
  * na stejné kategorii a se stejným posunem mřížky i kategorií (#69).
  * Plátno menu je jedno pro celé načtení stránky, takže
  * opakované vstupy do her a návraty nezakládají nová plátna ani posluchače.
+ * Po výběru jiného jazyka (#70) se menu nakreslí znovu v novém jazyce
+ * a stránka dostane jeho `lang` a název; hra spuštěná potom si jazyk vezme
+ * ze sdílené části.
  */
 
 import Phaser from 'phaser';
@@ -23,6 +26,7 @@ import { menuText } from '../logic/menuTexts';
 import { createMenuTouch } from '../logic/menuTouch';
 import { MENU_UNITS_PER_CSS_PX, MenuScene } from '../scenes/MenuScene';
 import { launchGame } from './launchGame';
+import { showPageLanguage } from './pageLanguage';
 
 export interface MenuPageOptions {
   readonly games: readonly GameEntry[];
@@ -113,16 +117,22 @@ export function startMenuPage(options: MenuPageOptions): void {
       showPageState(menu);
       view.reopen?.();
     },
+    onLanguageChanged: () => {
+      showPageLanguage(document, currentLanguage());
+      showPageState(menu);
+    },
   });
 
-  const categoryTitles = menu.categories().map((category) => category.title);
   // „Vše“ ukáže všechny hry; podle jejich počtu se volí výška dlaždic (#69).
   const allTileCount = options.games.length;
+  // Názvy kategorií a jazyků se berou při každém kreslení, po výběru
+  // jazyka jsou v novém jazyce (#70).
   const layout = (): MenuLayout =>
     menuLayoutFor(readViewport(), {
-      categoryTitles,
+      categoryTitles: menu.categories().map((category) => category.title),
       tileCount: menu.tiles().length,
       allTileCount,
+      languageNames: menu.languages().map((language) => language.name),
     });
   // Posun mřížky a kategorií žije s menu po celé načtení stránky, takže
   // po návratu z hry zůstane, jak ho dítě nechalo (#69 AC5).
@@ -136,6 +146,7 @@ export function startMenuPage(options: MenuPageOptions): void {
   view.scene = scene;
 
   const menuGame = createMenuGame(scene);
+  showPageLanguage(document, currentLanguage());
   showPageState(menu);
   unlockAudioOnTouch();
 

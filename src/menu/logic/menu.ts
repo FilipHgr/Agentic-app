@@ -15,11 +15,18 @@
  *
  * Návrat z hry (#68): po odchodu domečkem menu žádnou hru nehraje
  * a vybraná kategorie zůstane, jak ji dítě nechalo.
+ *
+ * Jazyk (#70): tlačítko se zkratkou aktuálního jazyka otevře nabídku
+ * jazyků. Ťuknutí na jazyk ho vybere a nabídku zavře, ťuknutí mimo nabídku
+ * nebo znovu na tlačítko ji zavře beze změny. Dokud je nabídka otevřená,
+ * dlaždice, kategorie ani zástupná tlačítka nereagují, ťuknutí na ně
+ * nabídku jen zavře. Jazyk se mění jen v menu, ne během hry.
  */
 
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
 import { findGame } from '../../shared/logic/gameRegistry';
 import { ALL_CATEGORY, gamesInCategory, visibleCategories } from './menuCategories';
+import { deviceLanguages } from './menuLanguages';
 import { PAGE_TITLE_KEY } from './menuTextKeys';
 
 /** Po jak dlouhém stahování začne dlaždice pulzovat. */
@@ -39,7 +46,9 @@ export type WobbleTarget =
  * - `pulse` / `stopPulse` dlaždice pulzuje při pomalém stahování,
  * - `shake` dlaždice se jemně zatřese a zazní tichý zvuk jako u špatné odpovědi,
  * - `select` vybrala se jiná kategorie, zazní tichý tón,
- * - `wobble` zhoupnutí a tichý zvuk.
+ * - `wobble` zhoupnutí a tichý zvuk,
+ * - `languageMenu` nabídka jazyků se otevřela nebo zavřela (#70),
+ * - `language` vybral se jiný jazyk (#70).
  */
 export type MenuFeedback =
   | { readonly kind: 'press'; readonly gameId: string }
@@ -47,7 +56,27 @@ export type MenuFeedback =
   | { readonly kind: 'stopPulse'; readonly gameId: string }
   | { readonly kind: 'shake'; readonly gameId: string }
   | { readonly kind: 'select'; readonly categoryId: string }
-  | { readonly kind: 'wobble'; readonly target: WobbleTarget };
+  | { readonly kind: 'wobble'; readonly target: WobbleTarget }
+  | { readonly kind: 'languageMenu'; readonly open: boolean }
+  | { readonly kind: 'language'; readonly language: string };
+
+/** Jazyky v nabídce (#70): seznam, aktuální jazyk, výběr a vlastní názvy. */
+export interface MenuLanguageSource {
+  /** Kódy jazyků v pořadí nabídky. */
+  readonly supported: readonly string[];
+  current(): string;
+  /** Zvolí jazyk; `true`, jen když se jazyk změnil. */
+  select(language: string): boolean;
+  /** Vlastní název jazyka („Čeština“). */
+  nameOf(language: string): string;
+}
+
+export interface MenuLanguageView {
+  readonly code: string;
+  readonly name: string;
+  /** Aktuální jazyk má v nabídce ✓. */
+  readonly selected: boolean;
+}
 
 export interface MenuCategoryView {
   readonly id: string;
@@ -83,6 +112,13 @@ export interface MenuOptions {
    * Stránka podle nich nastaví název, skryje kolečko i domeček a ukáže menu.
    */
   readonly onReturned?: () => void;
+  /** Jazyky nabídky (#70); bez zadání jazyky celého zařízení. */
+  readonly languages?: MenuLanguageSource | undefined;
+  /**
+   * Vybral se jiný jazyk (#70): stránka podle něj nastaví `lang` a název
+   * a menu nakreslí v novém jazyce. Výběr stejného jazyka nic neohlásí.
+   */
+  readonly onLanguageChanged?: (() => void) | undefined;
 }
 
 export interface Menu {
@@ -101,6 +137,17 @@ export interface Menu {
   canGoHome(): boolean;
   /** Hra skončila odchodem domečkem, menu se znovu ukáže (#68). Bez běžící hry nic. */
   returnFromGame(): void;
+  /** Zkratka aktuálního jazyka velkými písmeny na tlačítku („CS“, #70). */
+  languageButtonLabel(): string;
+  /** Jazyky nabídky v jejím pořadí, aktuální s ✓ (#70). */
+  languages(): MenuLanguageView[];
+  isLanguageMenuOpen(): boolean;
+  /** Ťuknutí na tlačítko jazyka: nabídku otevře, otevřenou zavře. */
+  tapLanguageButton(): void;
+  /** Ťuknutí na jazyk v otevřené nabídce: vybere ho a nabídku zavře. */
+  tapLanguage(language: string): void;
+  /** Ťuknutí mimo nabídku: zavře ji beze změny. */
+  closeLanguageMenu(): void;
 }
 
 /** Rozběhnuté stahování a spuštění jedné hry. */
@@ -114,10 +161,12 @@ interface Launch {
 
 export function createMenu(options: MenuOptions): Menu {
   const { games, categories, translate } = options;
+  const languageSource = options.languages ?? deviceLanguages();
   const shownCategoryIds = visibleCategories(games, categories);
   let selectedCategoryId = ALL_CATEGORY.id;
   let launch: Launch | null = null;
   let running: GameEntry | null = null;
+  let languageMenuOpen = false;
 
   function emit(event: MenuFeedback): void {
     options.feedback(event);
@@ -185,6 +234,23 @@ export function createMenu(options: MenuOptions): Menu {
     );
   }
 
+  function setLanguageMenuOpen(open: boolean): void {
+    languageMenuOpen = open;
+    emit({ kind: 'languageMenu', open });
+  }
+
+  /**
+   * Ťuknutí na dlaždici, kategorii nebo zástupné tlačítko s otevřenou
+   * nabídkou jazyků ji jen zavře. Vrátí `true`, když ťuknutí spotřebovala.
+   */
+  function closeLanguageMenuInstead(): boolean {
+    if (!languageMenuOpen) {
+      return false;
+    }
+    setLanguageMenuOpen(false);
+    return true;
+  }
+
   function download(game: GameEntry): void {
     const current: Launch = {
       game,
@@ -233,7 +299,11 @@ export function createMenu(options: MenuOptions): Menu {
     },
 
     tapCategory(categoryId: string): void {
-      if (running !== null || !shownCategoryIds.includes(categoryId)) {
+      if (
+        running !== null ||
+        closeLanguageMenuInstead() ||
+        !shownCategoryIds.includes(categoryId)
+      ) {
         return;
       }
       cancelDownload();
@@ -246,7 +316,7 @@ export function createMenu(options: MenuOptions): Menu {
     },
 
     tapPlaceholder(index: number): void {
-      if (running !== null) {
+      if (running !== null || closeLanguageMenuInstead()) {
         return;
       }
       cancelDownload();
@@ -255,7 +325,7 @@ export function createMenu(options: MenuOptions): Menu {
 
     tapTile(gameId: string): void {
       const game = findGame(games, gameId);
-      if (running !== null || game === undefined) {
+      if (running !== null || closeLanguageMenuInstead() || game === undefined) {
         return;
       }
       emit({ kind: 'press', gameId: game.id });
@@ -292,6 +362,48 @@ export function createMenu(options: MenuOptions): Menu {
       // Vybraná kategorie zůstane, dítě je tam, odkud hru spustilo.
       running = null;
       options.onReturned?.();
+    },
+
+    languageButtonLabel(): string {
+      return languageSource.current().toUpperCase();
+    },
+
+    languages(): MenuLanguageView[] {
+      const current = languageSource.current();
+      return languageSource.supported.map((code) => ({
+        code,
+        name: languageSource.nameOf(code),
+        selected: code === current,
+      }));
+    },
+
+    isLanguageMenuOpen(): boolean {
+      return languageMenuOpen;
+    },
+
+    tapLanguageButton(): void {
+      if (running !== null) {
+        return;
+      }
+      cancelDownload();
+      setLanguageMenuOpen(!languageMenuOpen);
+    },
+
+    tapLanguage(language: string): void {
+      if (running !== null || !languageMenuOpen || !languageSource.supported.includes(language)) {
+        return;
+      }
+      if (languageSource.select(language)) {
+        options.onLanguageChanged?.();
+        emit({ kind: 'language', language });
+      }
+      setLanguageMenuOpen(false);
+    },
+
+    closeLanguageMenu(): void {
+      if (languageMenuOpen) {
+        setLanguageMenuOpen(false);
+      }
     },
   };
 }

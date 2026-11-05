@@ -136,7 +136,9 @@ describe('#65 AC3: platí jen přesný kód ze seznamu (s umělým seznamem dvou
   });
 });
 
-describe('#65 AC3: volba jazyka se nikam neukládá', () => {
+// #70: jazyk jde zvolit v menu a ukládá se, ale jen při výběru (testy
+// v languageChoice.test.ts). Pouhé zjištění jazyka nic neuloží.
+describe('#65 AC3 a #70: zjištění jazyka nic neuloží', () => {
   it('zjištění jazyka ani načtení textů nepřidá do localStorage žádný klíč', () => {
     const storage = watchedLocalStorage();
     for (const requested of [undefined, null, '', 'xx', 'en', 'CS', 'cs-CZ', 'cs']) {
@@ -145,11 +147,14 @@ describe('#65 AC3: volba jazyka se nikam neukládá', () => {
     expect(storage.keys()).toEqual([]);
   });
 
-  it('jazyk se z localStorage ani nečte: uložená jiná hodnota nic nezmění', () => {
+  it('uložený jazyk mimo seznam nic nezmění, jazyk zůstane čeština', async () => {
     watchedLocalStorage();
     localStorage.setItem('language', 'en');
     localStorage.setItem('agentic-app.language', 'en');
-    expect(currentLanguage()).toBe('cs');
+    // Čerstvý modul, aby se uložená hodnota opravdu přečetla (jazyk se pamatuje).
+    vi.resetModules();
+    const fresh = await import('../../src/shared/texts/languages');
+    expect(fresh.currentLanguage()).toBe('cs');
   });
 });
 
@@ -205,6 +210,7 @@ describe('#65 AC4: kontrola sdílených textů opravdu najde chybu (umělé jazy
   const complete = {
     pageTitle: 'Counting to 10',
     settingsButtonLabel: 'Settings for parents',
+    languageName: 'English',
     oneLetterPrepositions: [],
   };
 
@@ -215,6 +221,7 @@ describe('#65 AC4: kontrola sdílených textů opravdu najde chybu (umělé jazy
   it('chybějící klíč najde a napíše jazyk, část a klíč', () => {
     const problems = checkShared('en', {
       pageTitle: complete.pageTitle,
+      languageName: complete.languageName,
       oneLetterPrepositions: complete.oneLetterPrepositions,
     });
     expect(problems).toHaveLength(1);
@@ -226,6 +233,7 @@ describe('#65 AC4: kontrola sdílených textů opravdu najde chybu (umělé jazy
   it('chybějící název stránky najde u jakéhokoli jazyka, i mimo seznam', () => {
     const withoutTitle = {
       settingsButtonLabel: complete.settingsButtonLabel,
+      languageName: complete.languageName,
       oneLetterPrepositions: complete.oneLetterPrepositions,
     };
     const problems = checkShared('xx', withoutTitle);

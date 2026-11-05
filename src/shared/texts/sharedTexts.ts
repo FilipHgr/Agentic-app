@@ -13,6 +13,8 @@ export interface SharedTexts {
   readonly pageTitle: string;
   /** Popis kolečka nastavení pro čtečku obrazovky (`aria-label` v index.html). */
   readonly settingsButtonLabel: string;
+  /** Vlastní název jazyka v nabídce jazyků v menu (#70), třeba „Čeština“. */
+  readonly languageName: string;
   /**
    * Jednopísmenné předložky, které podle pravidel jazyka nezůstávají na
    * konci řádku. Jazyk bez takového pravidla má prázdný seznam.

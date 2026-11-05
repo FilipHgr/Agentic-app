@@ -1,5 +1,5 @@
 import { createMenu } from '../../src/menu/logic/menu';
-import type { Menu, MenuFeedback } from '../../src/menu/logic/menu';
+import type { Menu, MenuFeedback, MenuLanguageSource } from '../../src/menu/logic/menu';
 import { menuLayoutFor } from '../../src/menu/logic/menuLayout';
 import type { MenuBox, MenuLayout } from '../../src/menu/logic/menuLayout';
 import { DRAG_THRESHOLD_PX } from '../../src/menu/logic/menuScroll';
@@ -92,12 +92,62 @@ export function findWindow(name: string): TestWindow {
   return found;
 }
 
+/**
+ * Dvanáct umělých jazyků (#70 AC2), jen v testech, včetně dlouhého názvu
+ * („Português do Brasil“). Kód je zkratka na tlačítku, název je vlastní
+ * název jazyka v nabídce.
+ */
+export const MANY_LANGUAGE_NAMES: Readonly<Record<string, string>> = {
+  cs: 'Čeština',
+  en: 'English',
+  de: 'Deutsch',
+  fr: 'Français',
+  es: 'Español',
+  it: 'Italiano',
+  pl: 'Polski',
+  sk: 'Slovenčina',
+  hu: 'Magyar',
+  nl: 'Nederlands',
+  pt: 'Português do Brasil',
+  uk: 'Українська',
+};
+
+export const MANY_LANGUAGE_CODES: readonly string[] = Object.keys(MANY_LANGUAGE_NAMES);
+
+/** Nejdelší název jazyka ze zkušebních jazyků. */
+export const LONGEST_LANGUAGE_NAME = 'Português do Brasil';
+
+/** Zkušební jazyky menu: pamatují si zvolený jazyk, nic neukládají. */
+export function manyLanguages(initial = 'cs'): MenuLanguageSource & { selections: string[] } {
+  let chosen = initial;
+  const selections: string[] = [];
+  return {
+    supported: MANY_LANGUAGE_CODES,
+    selections,
+    current: () => chosen,
+    select(language: string): boolean {
+      selections.push(language);
+      if (language === chosen || !MANY_LANGUAGE_CODES.includes(language)) {
+        return false;
+      }
+      chosen = language;
+      return true;
+    },
+    nameOf: (language) => MANY_LANGUAGE_NAMES[language] ?? language,
+  };
+}
+
 /** Rozložení zkušebního menu s hrami vybrané kategorie. */
-export function manyGamesLayout(window: TestWindow, tileCount = MANY_GAMES_COUNT): MenuLayout {
+export function manyGamesLayout(
+  window: TestWindow,
+  tileCount = MANY_GAMES_COUNT,
+  languageNames: readonly string[] = [],
+): MenuLayout {
   return menuLayoutFor(viewportOf(window), {
     categoryTitles: MANY_MENU_CATEGORY_TITLES,
     tileCount,
     allTileCount: MANY_GAMES_COUNT,
+    languageNames,
   });
 }
 
@@ -124,7 +174,11 @@ export class FingerMenu {
   window: TestWindow;
   now = 0;
 
-  constructor(window: TestWindow, games: readonly GameEntry[] = MANY_GAMES) {
+  constructor(
+    window: TestWindow,
+    games: readonly GameEntry[] = MANY_GAMES,
+    languages?: MenuLanguageSource,
+  ) {
     this.window = window;
     this.gameCount = games.length;
     this.menu = createMenu({
@@ -135,6 +189,7 @@ export class FingerMenu {
         this.started.push(game.id);
       },
       feedback: (event) => this.feedback.push(event),
+      languages,
     });
     this.touch = createMenuTouch({ menu: this.menu });
     this.relayout();
@@ -147,6 +202,7 @@ export class FingerMenu {
       categoryTitles,
       tileCount: this.menu.tiles().length,
       allTileCount: this.gameCount,
+      languageNames: this.menu.languages().map((language) => language.name),
     });
   }
 
@@ -255,6 +311,26 @@ export class FingerMenu {
   /** Střed viditelné plochy mřížky. */
   gridCenter(): Point {
     return centerOf(this.layout().gridScroll.viewport);
+  }
+
+  /** Střed tlačítka jazyka (#70). */
+  languageButtonCenter(): Point {
+    return centerOf(this.layout().languageSlot);
+  }
+
+  /** Střed řádku jazyka v nabídce, jak je teď posunutý (#70). */
+  languageRowCenter(index: number): Point {
+    const row = this.layout().languagePanel.rows[index];
+    if (row === undefined) {
+      throw new Error(`jazyk ${index} v nabídce není`);
+    }
+    const center = centerOf(row);
+    return { x: center.x, y: center.y - this.touch.languageOffset() };
+  }
+
+  /** Střed viditelné plochy seznamu jazyků (#70). */
+  languageListCenter(): Point {
+    return centerOf(this.layout().languagePanel.list.viewport);
   }
 
   selectedCategory(): string | undefined {

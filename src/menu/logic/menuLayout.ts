@@ -16,6 +16,12 @@
  * kategorie, mají mezi sebou takovou mezeru, aby z další skryté kategorie
  * bylo vidět aspoň 24 px. Když se všechno vejde (dnes), je rozložení stejné
  * jako bez posouvání.
+ *
+ * Jazyk (#70): kulaté tlačítko se zkratkou jazyka je v místě pro jazyk.
+ * Panel nabídky jazyků je pod ním, zarovnaný k jeho pravému okraji,
+ * a vejde se do volné plochy. Když se seznam jazyků nevejde, posouvá se
+ * jako mřížka a z prvního skrytého jazyka je vidět 55 % řádku. Panel
+ * leží nad mřížkou a kategoriemi, jejich polohy se kvůli němu nemění.
  */
 
 import {
@@ -54,10 +60,28 @@ export interface MenuScrollArea {
   readonly maxOffset: number;
 }
 
+/** Panel nabídky jazyků (#70). */
+export interface MenuLanguagePanel {
+  /** Bílá karta panelu. */
+  readonly panel: MenuBox;
+  /** Ťukací plochy jazyků (64 px vysoké) bez posunu, v pořadí nabídky. */
+  readonly rows: readonly MenuBox[];
+  /** Seznam jazyků se posouvá svisle. */
+  readonly list: MenuScrollArea;
+  readonly fontSize: number;
+  /** Odsazení názvu od levého okraje řádku a ✓ od pravého. */
+  readonly textInset: number;
+  /** Místo pro ✓ u pravého okraje řádku. */
+  readonly checkWidth: number;
+}
+
 export interface MenuLayout {
   readonly mode: LayoutMode;
   readonly profileSlot: MenuBox;
   readonly languageSlot: MenuBox;
+  /** Písmo zkratky jazyka na tlačítku (#70). */
+  readonly languageButtonFontSize: number;
+  readonly languagePanel: MenuLanguagePanel;
   readonly placeholders: readonly MenuBox[];
   readonly placeholderFontSize: number;
   readonly categoryDirection: 'row' | 'column';
@@ -86,6 +110,8 @@ export interface MenuContent {
    * aby se po výběru jiné kategorie neměnila. Bez něj platí `tileCount`.
    */
   readonly allTileCount?: number;
+  /** Vlastní názvy jazyků v pořadí nabídky (#70); bez nich je panel prázdný. */
+  readonly languageNames?: readonly string[];
 }
 
 /** Odhad šířky textu jako v #65: znaky × 0,6 × velikost písma. */
@@ -204,6 +230,24 @@ const PHONE_PORTRAIT_COLUMNS = 2;
 const PHONE_LANDSCAPE_VISIBLE_ROWS = 2.5;
 const PHONE_LANDSCAPE_MIN_TILE_HEIGHT = 80;
 const PHONE_LANDSCAPE_MAX_TILE_HEIGHT = 160;
+
+/** Nabídka jazyků (#70): řádky po 64 px s mezerou 8 px, okraj panelu 8 px. */
+const LANGUAGE_BUTTON_FONT_SIZE = 20;
+const LANGUAGE_FONT_SIZE = 17;
+const LANGUAGE_TEXT_INSET = 20;
+const LANGUAGE_CHECK_WIDTH = 24;
+const LANGUAGE_ROW_GAP = 8;
+const LANGUAGE_PANEL_PADDING = 8;
+/** Panel je od tlačítka jazyka 8 px. */
+const LANGUAGE_PANEL_GAP = 8;
+const LANGUAGE_PANEL_MIN_WIDTH = 240;
+/** Panel je od okraje volné plochy aspoň 8 px (pravidlo říká 4 px). */
+const LANGUAGE_PANEL_EDGE = 8;
+/**
+ * Z prvního skrytého jazyka je vidět 55 % řádku, aby byla vidět i část
+ * jeho názvu a bylo poznat, že seznam pokračuje (pravidlo z #69: 20–60 %).
+ */
+const LANGUAGE_ROW_PEEK = 0.55;
 
 /** Volná plocha okna v CSS px (bez výřezu a lišty domů). */
 function freeAreaOf(viewport: Viewport | undefined): MenuBox {
@@ -447,6 +491,68 @@ function maxOffsetFor(contentEnd: number, viewportEnd: number, scrolledEnd: numb
   return contentEnd > viewportEnd ? contentEnd - scrolledEnd : 0;
 }
 
+/** Výška viditelné části seznamu: celý, nebo celé řady a 55 % další. */
+function languageListHeight(count: number, available: number): number {
+  const step = BUTTON_SIZE + LANGUAGE_ROW_GAP;
+  const content = Math.max(0, count * step - LANGUAGE_ROW_GAP);
+  if (content <= available) {
+    return content;
+  }
+  const peek = LANGUAGE_ROW_PEEK * BUTTON_SIZE;
+  const fullRows = Math.max(1, Math.floor((available - peek) / step));
+  return Math.min(available, fullRows * step + peek);
+}
+
+/**
+ * Panel nabídky jazyků pod tlačítkem jazyka, zarovnaný k jeho pravému
+ * okraji. Široký je podle nejdelšího názvu, nejvýš přes celou volnou plochu.
+ */
+function languagePanelFor(
+  free: MenuBox,
+  button: MenuBox,
+  names: readonly string[],
+): MenuLanguagePanel {
+  const longest = Math.max(0, ...names.map((name) => textWidth(name, LANGUAGE_FONT_SIZE)));
+  const rowWidth = Math.ceil(longest + 2 * LANGUAGE_TEXT_INSET + LANGUAGE_CHECK_WIDTH);
+  const maxWidth = free.right - free.left - 2 * LANGUAGE_PANEL_EDGE;
+  const width = Math.min(
+    maxWidth,
+    Math.max(LANGUAGE_PANEL_MIN_WIDTH, rowWidth + 2 * LANGUAGE_PANEL_PADDING),
+  );
+  const right = Math.min(button.right, free.right - LANGUAGE_PANEL_EDGE);
+  const left = Math.max(free.left + LANGUAGE_PANEL_EDGE, right - width);
+  const top = button.bottom + LANGUAGE_PANEL_GAP;
+  const available = free.bottom - LANGUAGE_PANEL_EDGE - top - 2 * LANGUAGE_PANEL_PADDING;
+  const listHeight = languageListHeight(names.length, available);
+  const list: MenuBox = {
+    left: left + LANGUAGE_PANEL_PADDING,
+    right: left + width - LANGUAGE_PANEL_PADDING,
+    top: top + LANGUAGE_PANEL_PADDING,
+    bottom: top + LANGUAGE_PANEL_PADDING + listHeight,
+  };
+  const rows = names.map((_, index) =>
+    boxAt(
+      list.left,
+      list.top + index * (BUTTON_SIZE + LANGUAGE_ROW_GAP),
+      list.right - list.left,
+      BUTTON_SIZE,
+    ),
+  );
+  const last = rows[rows.length - 1];
+  return {
+    panel: { left, right: left + width, top, bottom: list.bottom + LANGUAGE_PANEL_PADDING },
+    rows,
+    list: {
+      viewport: list,
+      clip: list,
+      maxOffset: last === undefined ? 0 : Math.max(0, last.bottom - list.bottom),
+    },
+    fontSize: LANGUAGE_FONT_SIZE,
+    textInset: LANGUAGE_TEXT_INSET,
+    checkWidth: LANGUAGE_CHECK_WIDTH,
+  };
+}
+
 export function menuLayoutFor(viewport: Viewport | undefined, content: MenuContent): MenuLayout {
   const mode = chooseLayoutMode(viewport);
   const metrics = metricsFor(mode);
@@ -572,6 +678,8 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     mode,
     profileSlot,
     languageSlot,
+    languageButtonFontSize: LANGUAGE_BUTTON_FONT_SIZE,
+    languagePanel: languagePanelFor(free, languageSlot, content.languageNames ?? []),
     placeholders,
     placeholderFontSize: 22,
     categoryDirection: direction,

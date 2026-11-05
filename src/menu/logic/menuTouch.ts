@@ -17,6 +17,10 @@
  *   posun nechá. Jiné rozložení (otočení, změna okna) mřížku posune tak,
  *   aby byla vidět první dlaždice, která byla celá vidět předtím
  *   (u kategorií stejně).
+ * - Nabídka jazyků (#70): ťuknutí na tlačítko jazyka nabídku otevře
+ *   a zavře. Dokud je otevřená, ťuká se jen na jazyky v ní a tah po
+ *   seznamu ho posouvá jako mřížku. Ťuknutí mimo panel nabídku zavře,
+ *   tah mimo panel nic neposune. Po otevření začíná seznam nahoře.
  */
 
 import type { Menu } from './menu';
@@ -48,6 +52,8 @@ export interface MenuTouch {
   gridOffset(): number;
   /** O kolik px jsou kategorie posunuté (v řadě doleva, ve sloupci nahoru). */
   categoryOffset(): number;
+  /** O kolik px je seznam jazyků v nabídce posunutý nahoru (#70). */
+  languageOffset(): number;
   /** Dlaždice nebo kategorie, která je právě zmáčknutá prstem, jinak `undefined`. */
   pressed(): PressedTarget | undefined;
 }
@@ -55,7 +61,8 @@ export interface MenuTouch {
 /** Co může být zmáčknuté prstem. */
 export type PressedTarget =
   | { readonly kind: 'tile'; readonly gameId: string }
-  | { readonly kind: 'category'; readonly categoryId: string };
+  | { readonly kind: 'category'; readonly categoryId: string }
+  | { readonly kind: 'language'; readonly language: string };
 
 /** Jak dlouho zpátky se počítá rychlost prstu při puštění. */
 const SPEED_WINDOW_MS = 100;
@@ -65,7 +72,11 @@ type Axis = 'x' | 'y';
 type TapTarget =
   | { readonly kind: 'tile'; readonly gameId: string }
   | { readonly kind: 'category'; readonly categoryId: string }
-  | { readonly kind: 'placeholder'; readonly index: number };
+  | { readonly kind: 'placeholder'; readonly index: number }
+  | { readonly kind: 'languageButton' }
+  | { readonly kind: 'language'; readonly language: string }
+  /** Ťuknutí mimo otevřenou nabídku jazyků. */
+  | { readonly kind: 'outsideLanguageMenu' };
 
 interface Sample {
   readonly timeMs: number;
@@ -182,6 +193,7 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
   const { menu } = options;
   const grid = createPart();
   const categories = createPart();
+  const languages = createPart();
   let layout: MenuLayout | undefined;
   let gesture: Gesture | null = null;
 
@@ -189,10 +201,36 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
     return menu.categories().find((category) => category.selected)?.id;
   }
 
-  /** Co je pod prstem: posouvaná plocha a dlaždice, kategorie nebo zástupné tlačítko. */
+  /** Co je pod prstem s otevřenou nabídkou jazyků: tlačítko, jazyk, panel nebo nic z toho. */
+  function findLanguageTarget(
+    current: MenuLayout,
+    point: TouchPoint,
+  ): { part?: ScrollPart; target?: TapTarget } {
+    if (contains(current.languageSlot, point)) {
+      return { target: { kind: 'languageButton' } };
+    }
+    if (languages.viewport !== undefined && contains(languages.viewport, point)) {
+      const offset = languages.scroller.offset();
+      const index = languages.boxes.findIndex((box) => contains(shifted(box, 'y', offset), point));
+      const language = menu.languages()[index]?.code;
+      return {
+        part: languages,
+        target: language === undefined ? undefined : { kind: 'language', language },
+      };
+    }
+    if (contains(current.languagePanel.panel, point)) {
+      return {};
+    }
+    return { target: { kind: 'outsideLanguageMenu' } };
+  }
+
+  /** Co je pod prstem: posouvaná plocha a dlaždice, kategorie nebo tlačítko v liště. */
   function findTarget(point: TouchPoint): { part?: ScrollPart; target?: TapTarget } {
     if (layout === undefined) {
       return {};
+    }
+    if (menu.isLanguageMenuOpen()) {
+      return findLanguageTarget(layout, point);
     }
     for (const part of [grid, categories]) {
       if (part.viewport === undefined || !contains(part.viewport, point)) {
@@ -209,6 +247,9 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
         part,
         target: categoryId === undefined ? undefined : { kind: 'category', categoryId },
       };
+    }
+    if (contains(layout.languageSlot, point)) {
+      return { target: { kind: 'languageButton' } };
     }
     const index = layout.placeholders.findIndex((box) => contains(box, point));
     return index < 0 ? {} : { target: { kind: 'placeholder', index } };
@@ -229,6 +270,18 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
       }
       case 'placeholder':
         menu.tapPlaceholder(target.index);
+        break;
+      case 'languageButton':
+        menu.tapLanguageButton();
+        if (menu.isLanguageMenuOpen()) {
+          languages.scroller.jumpTo(0);
+        }
+        break;
+      case 'language':
+        menu.tapLanguage(target.language);
+        break;
+      case 'outsideLanguageMenu':
+        menu.closeLanguageMenu();
         break;
     }
   }
@@ -251,7 +304,11 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
   }
 
   function isMoving(): boolean {
-    return grid.scroller.isCoasting() || categories.scroller.isCoasting();
+    return (
+      grid.scroller.isCoasting() ||
+      categories.scroller.isCoasting() ||
+      languages.scroller.isCoasting()
+    );
   }
 
   return {
@@ -272,7 +329,14 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
         next.categories.map((category) => category.hit),
         next.categoryScroll.maxOffset,
       );
-      if (gridChanged || categoriesChanged) {
+      const languagesChanged = updatePart(
+        languages,
+        'y',
+        next.languagePanel.list.viewport,
+        next.languagePanel.rows,
+        next.languagePanel.list.maxOffset,
+      );
+      if (gridChanged || categoriesChanged || languagesChanged) {
         // Pod prstem je teď něco jiného: rozběhnutý dotyk nic neudělá.
         gesture = null;
       }
@@ -285,6 +349,7 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
       const wasMoving = isMoving();
       grid.scroller.stop();
       categories.scroller.stop();
+      languages.scroller.stop();
       const { part, target } = findTarget(point);
       gesture = {
         pointerId,
@@ -331,16 +396,28 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
     frame(nowMs: number): void {
       grid.scroller.step(nowMs);
       categories.scroller.step(nowMs);
+      languages.scroller.step(nowMs);
     },
 
     gridOffset: () => grid.scroller.offset(),
     categoryOffset: () => categories.scroller.offset(),
+    languageOffset: () => languages.scroller.offset(),
 
     pressed(): PressedTarget | undefined {
-      if (gesture === null || !gesture.canTap || gesture.target?.kind === 'placeholder') {
+      const target = gesture?.target;
+      if (gesture === null || !gesture.canTap || target === undefined) {
         return undefined;
       }
-      return gesture.target;
+      switch (target.kind) {
+        case 'tile':
+        case 'category':
+        case 'language':
+          return target;
+        case 'placeholder':
+        case 'languageButton':
+        case 'outsideLanguageMenu':
+          return undefined;
+      }
     },
   };
 }

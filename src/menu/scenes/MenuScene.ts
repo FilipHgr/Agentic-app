@@ -5,7 +5,7 @@ import { isSharedAudioUnlocked, sharedToneContext } from '../../shared/audio/sha
 import type { Tone } from '../../shared/audio/tonePlayer';
 import { FONT_FAMILY, colorNumber } from '../../shared/logic/theme';
 import type { Menu, MenuFeedback } from '../logic/menu';
-import type { MenuBox, MenuLayout } from '../logic/menuLayout';
+import type { MenuBox, MenuLanguagePanel, MenuLayout } from '../logic/menuLayout';
 import { MENU_SOUNDS } from '../logic/menuSounds';
 import type { MenuTouch, TouchPoint } from '../logic/menuTouch';
 import { MENU_STYLE, PLACEHOLDER_BORDER_WIDTH } from '../logic/menuTheme';
@@ -16,6 +16,12 @@ export const MENU_UNITS_PER_CSS_PX = 2;
 /** Symbol zástupného tlačítka (není to text jazyka). */
 const PLACEHOLDER_SYMBOL = '…';
 const PLACEHOLDER_DASHES = 14;
+/** Symbol u aktuálního jazyka v nabídce (není to text jazyka). */
+const CHECK_SYMBOL = '✓';
+const LANGUAGE_PANEL_RADIUS = 20;
+const LANGUAGE_ROW_RADIUS = 14;
+/** Jak daleko od karty nabídky sahá její stín (px). */
+const LANGUAGE_PANEL_SHADOW = 6;
 
 const PRESS = { scale: 0.94, durationMs: 70 };
 /** Zmáčknutí hned po dotyku prstem, ještě před zvednutím (#69). */
@@ -52,24 +58,38 @@ interface Tappable {
  * Mřížka a kategorie mají každá svou kameru s výřezem podle viditelné
  * plochy z rozložení. Posun je jen posun kamery, nic se nepřekresluje,
  * takže posouvání zůstane plynulé.
+ *
+ * Nabídka jazyků (#70) má dvě kamery přidané až po mřížce, aby ležela nad
+ * ní: jedna kreslí kartu panelu, druhá posouvaný seznam jazyků. Otevření
+ * a zavření nabídky překreslí jen ji, výběr jiného jazyka celé menu.
  */
 export class MenuScene extends Phaser.Scene {
   private readonly sounds = createTonePlayer(sharedToneContext);
   private tiles = new Map<string, Tappable>();
   private categories = new Map<string, Tappable>();
   private placeholders: Tappable[] = [];
+  private languageButton: Tappable | undefined;
+  private languageRows = new Map<string, Tappable>();
   private drawn: Phaser.GameObjects.GameObject[] = [];
+  /** Nakreslená nabídka jazyků; překresluje se zvlášť od zbytku menu. */
+  private drawnPanel: Phaser.GameObjects.GameObject[] = [];
   /** Vrstvy: lišta (hlavní kamera), kategorie a mřížka (každá svou kamerou). */
   private barLayer!: Phaser.GameObjects.Container;
   private categoryLayer!: Phaser.GameObjects.Container;
   private tileLayer!: Phaser.GameObjects.Container;
+  private panelLayer!: Phaser.GameObjects.Container;
+  private languageLayer!: Phaser.GameObjects.Container;
   private categoryCamera!: Phaser.Cameras.Scene2D.Camera;
   private gridCamera!: Phaser.Cameras.Scene2D.Camera;
+  private panelCamera!: Phaser.Cameras.Scene2D.Camera;
+  private languageCamera!: Phaser.Cameras.Scene2D.Camera;
   private layout: MenuLayout | undefined;
   /** Dlaždice nebo kategorie, která je teď nakreslená jako zmáčknutá. */
   private held: Tappable | undefined;
   /** Překreslí se až v dalším snímku, ne uprostřed zpracování ťuknutí. */
   private redrawWanted = false;
+  /** Nabídka jazyků se otevřela nebo zavřela: překreslí se v dalším snímku. */
+  private panelRedrawWanted = false;
   /** Kategorie vybraná při posledním kreslení. */
   private drawnSelection: string | undefined;
 
@@ -83,11 +103,28 @@ export class MenuScene extends Phaser.Scene {
     this.barLayer = this.add.container(0, 0);
     this.categoryLayer = this.add.container(0, 0);
     this.tileLayer = this.add.container(0, 0);
-    this.cameras.main.ignore([this.categoryLayer, this.tileLayer]);
+    this.panelLayer = this.add.container(0, 0);
+    this.languageLayer = this.add.container(0, 0);
+    const layers = [
+      this.barLayer,
+      this.categoryLayer,
+      this.tileLayer,
+      this.panelLayer,
+      this.languageLayer,
+    ];
+    const onlyLayer = (camera: Phaser.Cameras.Scene2D.Camera, shown: unknown): void => {
+      camera.ignore(layers.filter((layer) => layer !== shown));
+    };
+    onlyLayer(this.cameras.main, this.barLayer);
     this.categoryCamera = this.cameras.add(0, 0, 1, 1);
-    this.categoryCamera.ignore([this.barLayer, this.tileLayer]);
+    onlyLayer(this.categoryCamera, this.categoryLayer);
     this.gridCamera = this.cameras.add(0, 0, 1, 1);
-    this.gridCamera.ignore([this.barLayer, this.categoryLayer]);
+    onlyLayer(this.gridCamera, this.tileLayer);
+    // Nabídka jazyků až po mřížce, aby ležela nad ní.
+    this.panelCamera = this.cameras.add(0, 0, 1, 1);
+    onlyLayer(this.panelCamera, this.panelLayer);
+    this.languageCamera = this.cameras.add(0, 0, 1, 1);
+    onlyLayer(this.languageCamera, this.languageLayer);
     this.listenToFingers();
     this.redraw();
   }
@@ -96,7 +133,11 @@ export class MenuScene extends Phaser.Scene {
     this.host.touch.frame(performance.now());
     if (this.redrawWanted) {
       this.redrawWanted = false;
+      this.panelRedrawWanted = false;
       this.redraw();
+    } else if (this.panelRedrawWanted) {
+      this.panelRedrawWanted = false;
+      this.redrawLanguagePanel();
     }
     this.scrollCameras();
     this.showHeld();
@@ -114,6 +155,8 @@ export class MenuScene extends Phaser.Scene {
       item = this.tiles.get(target.gameId);
     } else if (target?.kind === 'category') {
       item = this.categories.get(target.categoryId);
+    } else if (target?.kind === 'language') {
+      item = this.languageRows.get(target.language);
     }
     if (item === this.held) {
       return;
@@ -174,16 +217,25 @@ export class MenuScene extends Phaser.Scene {
     } else {
       this.categoryCamera.setScroll(left, top + offset * unit);
     }
+    const languages = layout.languagePanel.list.clip;
+    this.languageCamera.setScroll(
+      Math.round(languages.left * unit),
+      Math.round(languages.top * unit) + this.host.touch.languageOffset() * unit,
+    );
   }
 
-  /** Kamera kreslí jen do plochy ořezu, obsah mimo ni ořízne. */
-  private fitCamera(camera: Phaser.Cameras.Scene2D.Camera, clip: MenuBox): void {
+  /** Kamera kreslí jen do plochy ořezu (rozšířené o `margin` px), obsah mimo ni ořízne. */
+  private fitCamera(camera: Phaser.Cameras.Scene2D.Camera, clip: MenuBox, margin = 0): void {
     const unit = MENU_UNITS_PER_CSS_PX;
     camera.setViewport(
-      Math.round(clip.left * unit),
-      Math.round(clip.top * unit),
-      Math.round((clip.right - clip.left) * unit),
-      Math.round((clip.bottom - clip.top) * unit),
+      Math.round((clip.left - margin) * unit),
+      Math.round((clip.top - margin) * unit),
+      Math.round((clip.right - clip.left + 2 * margin) * unit),
+      Math.round((clip.bottom - clip.top + 2 * margin) * unit),
+    );
+    camera.setScroll(
+      Math.round((clip.left - margin) * unit),
+      Math.round((clip.top - margin) * unit),
     );
   }
 
@@ -220,6 +272,9 @@ export class MenuScene extends Phaser.Scene {
     this.host.touch.setLayout(layout);
     this.fitCamera(this.gridCamera, layout.gridScroll.clip);
     this.fitCamera(this.categoryCamera, layout.categoryScroll.clip);
+    this.fitCamera(this.panelCamera, layout.languagePanel.panel, LANGUAGE_PANEL_SHADOW);
+    this.fitCamera(this.languageCamera, layout.languagePanel.list.clip);
+    this.drawLanguageButton(layout, layout.languageSlot);
     layout.placeholders.forEach((box, index) => this.drawPlaceholder(layout, box, index));
     const categories = this.host.menu.categories();
     categories.forEach((category, index) => {
@@ -235,6 +290,7 @@ export class MenuScene extends Phaser.Scene {
         this.drawTile(layout, box, tile.gameId, tile.symbol, tile.title);
       }
     });
+    this.redrawLanguagePanel();
   }
 
   /** Zahraje odezvu, kterou ohlásila logika menu. */
@@ -256,6 +312,15 @@ export class MenuScene extends Phaser.Scene {
         break;
       case 'select':
         this.playSound(MENU_SOUNDS.select);
+        break;
+      case 'languageMenu':
+        this.playSound(MENU_SOUNDS.select);
+        this.press(this.languageButton);
+        this.panelRedrawWanted = true;
+        break;
+      case 'language':
+        // Texty menu jsou teď v novém jazyce.
+        this.requestRedraw();
         break;
       case 'wobble':
         this.playSound(MENU_SOUNDS.wobble);
@@ -308,6 +373,118 @@ export class MenuScene extends Phaser.Scene {
       fontStyle,
       color,
     });
+  }
+
+  /** Plné bílé kolečko se stínem a zkratkou jazyka (obrázek B, #70). */
+  private drawLanguageButton(layout: MenuLayout, box: MenuBox): void {
+    const item = this.tappable(box, this.barLayer);
+    const unit = MENU_UNITS_PER_CSS_PX;
+    const radius = ((box.right - box.left) / 2) * unit;
+    const circle = this.add.graphics();
+    for (const spread of [3, 1]) {
+      circle
+        .fillStyle(0x000000, MENU_STYLE.languageButtonShadowAlpha)
+        .fillCircle(0, 1.5 * unit, radius + spread * unit);
+    }
+    circle.fillStyle(colorNumber(MENU_STYLE.languageButtonBackground), 1).fillCircle(0, 0, radius);
+    const label = this.text(
+      this.host.menu.languageButtonLabel(),
+      layout.languageButtonFontSize,
+      MENU_STYLE.languageButtonText,
+    ).setOrigin(0.5);
+    item.container.add([circle, label]);
+    this.languageButton = item;
+  }
+
+  /** Nabídka jazyků podle logiky menu: otevřená se nakreslí, zavřená nic. */
+  private redrawLanguagePanel(): void {
+    for (const object of this.drawnPanel) {
+      this.tweens.killTweensOf(object);
+      object.destroy();
+    }
+    this.drawnPanel = [];
+    if (this.held !== undefined && [...this.languageRows.values()].includes(this.held)) {
+      this.held = undefined;
+    }
+    this.languageRows = new Map();
+    const open = this.host.menu.isLanguageMenuOpen();
+    this.panelCamera.setVisible(open);
+    this.languageCamera.setVisible(open);
+    const layout = this.layout;
+    if (!open || layout === undefined) {
+      return;
+    }
+    this.drawLanguageCard(layout.languagePanel.panel);
+    const languages = this.host.menu.languages();
+    languages.forEach((language, index) => {
+      const row = layout.languagePanel.rows[index];
+      if (row !== undefined) {
+        this.drawLanguageRow(layout.languagePanel, row, language);
+      }
+    });
+  }
+
+  private drawLanguageCard(panel: MenuBox): void {
+    const unit = MENU_UNITS_PER_CSS_PX;
+    const width = (panel.right - panel.left) * unit;
+    const height = (panel.bottom - panel.top) * unit;
+    const radius = LANGUAGE_PANEL_RADIUS * unit;
+    const card = this.add.graphics({ x: panel.left * unit, y: panel.top * unit });
+    for (const spread of [LANGUAGE_PANEL_SHADOW, LANGUAGE_PANEL_SHADOW / 2, 1]) {
+      card
+        .fillStyle(0x000000, MENU_STYLE.languagePanelShadowAlpha / 3)
+        .fillRoundedRect(
+          -spread * unit,
+          -spread * unit + 2 * unit,
+          width + 2 * spread * unit,
+          height + 2 * spread * unit,
+          radius + spread * unit,
+        );
+    }
+    card
+      .fillStyle(colorNumber(MENU_STYLE.languagePanelBackground), 1)
+      .fillRoundedRect(0, 0, width, height, radius);
+    this.panelLayer.add(card);
+    this.drawnPanel.push(card);
+  }
+
+  private drawLanguageRow(
+    panel: MenuLanguagePanel,
+    row: MenuBox,
+    language: { code: string; name: string; selected: boolean },
+  ): void {
+    const unit = MENU_UNITS_PER_CSS_PX;
+    const x = ((row.left + row.right) / 2) * unit;
+    const y = ((row.top + row.bottom) / 2) * unit;
+    const container = this.add.container(x, y);
+    this.languageLayer.add(container);
+    this.drawnPanel.push(container);
+    const width = (row.right - row.left) * unit;
+    const height = (row.bottom - row.top) * unit;
+    const color = language.selected ? MENU_STYLE.selectedLanguageText : MENU_STYLE.languageText;
+    const parts: Phaser.GameObjects.GameObject[] = [];
+    if (language.selected) {
+      const background = this.add.graphics();
+      background
+        .fillStyle(colorNumber(MENU_STYLE.selectedLanguageBackground), 1)
+        .fillRoundedRect(-width / 2, -height / 2, width, height, LANGUAGE_ROW_RADIUS * unit);
+      parts.push(background);
+    }
+    const name = this.text(
+      language.name,
+      panel.fontSize,
+      color,
+      language.selected ? '600' : 'normal',
+    ).setOrigin(0, 0.5);
+    name.x = -width / 2 + panel.textInset * unit;
+    parts.push(name);
+    if (language.selected) {
+      const check = this.text(CHECK_SYMBOL, panel.fontSize + 3, color, '600').setOrigin(1, 0.5);
+      check.x = width / 2 - panel.textInset * unit;
+      parts.push(check);
+    }
+    container.add(parts);
+    this.languageRows.set(language.code, { container, homeX: x });
   }
 
   private drawPlaceholder(layout: MenuLayout, box: MenuBox, index: number): void {

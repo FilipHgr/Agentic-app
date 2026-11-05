@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 
 import { createMenu } from '../../src/menu/logic/menu';
-import type { Menu, MenuFeedback } from '../../src/menu/logic/menu';
+import type { Menu, MenuFeedback, MenuLanguageSource } from '../../src/menu/logic/menu';
 import type { GameCategory, GameEntry } from '../../src/shared/logic/gameRegistry';
 
 /**
@@ -154,6 +154,49 @@ export interface TestMenuOptions {
   readonly games?: readonly GameEntry[];
   readonly categories?: readonly GameCategory[];
   readonly translate?: (key: string) => string;
+  readonly languages?: MenuLanguageSource;
+  readonly onLanguageChanged?: () => void;
+}
+
+/** Umělé jazyky menu jen pro testy (#70): kód a vlastní název jazyka. */
+export const TEST_LANGUAGE_NAMES: Readonly<Record<string, string>> = {
+  cs: 'Čeština',
+  xx: 'Xxština',
+};
+
+/**
+ * Zkušební jazyky menu (#70), jen v testech: pamatují si zvolený jazyk
+ * a každý výběr. Úložiště tu není, to testuje sdílená volba jazyka.
+ */
+export class TestLanguages implements MenuLanguageSource {
+  readonly supported: readonly string[];
+  readonly selections: string[] = [];
+  private chosen: string;
+
+  constructor(
+    private readonly names: Readonly<Record<string, string>> = TEST_LANGUAGE_NAMES,
+    initial = 'cs',
+  ) {
+    this.supported = Object.keys(names);
+    this.chosen = initial;
+  }
+
+  current(): string {
+    return this.chosen;
+  }
+
+  select(language: string): boolean {
+    this.selections.push(language);
+    if (language === this.chosen || !this.supported.includes(language)) {
+      return false;
+    }
+    this.chosen = language;
+    return true;
+  }
+
+  nameOf(language: string): string {
+    return this.names[language] ?? language;
+  }
 }
 
 /** Menu nad zkušebními hrami; všechny hry se stahují falešným stahováním. */
@@ -168,6 +211,8 @@ export function testMenu(options: TestMenuOptions = {}): TestMenu {
     translate: options.translate ?? translatorOf(TEST_TEXTS_CS),
     start: game.start,
     feedback: (event) => feedback.push(event),
+    languages: options.languages,
+    onLanguageChanged: options.onLanguageChanged,
   });
   return { menu, download, game, feedback, kinds: () => feedback.map((event) => event.kind) };
 }
