@@ -7,6 +7,7 @@
  */
 
 import type { GameSize } from '../../../shared/logic/viewportLayout';
+import { sharedTexts } from '../../../shared/texts/sharedTexts';
 import { cssSizeOf, units } from './phoneScreenParts';
 import { PHONE_OPTION_LOOK, phoneRowWidth, phoneRows } from './phoneSettingsLayout';
 import type { SettingsLayout } from './settingsLayout';
@@ -135,16 +136,16 @@ function frameInUnits(edges: CssEdges): GuideFrame {
   };
 }
 
-/** Jednopísmenné předložky, které podle české sazby nezůstávají na konci řádku. */
-const ONE_LETTER_PREPOSITIONS = new Set(['k', 's', 'v', 'z', 'o', 'u']);
-
-/** Slova věty, ve kterých je jednopísmenná předložka spojená s dalším slovem. */
-function wrapUnits(sentence: string): string[] {
+/**
+ * Slova věty, ve kterých je jednopísmenná předložka spojená s dalším slovem.
+ * Které předložky to jsou, je pravidlo jazyka ve sdílených textech (#65).
+ */
+function wrapUnits(sentence: string, prepositions: ReadonlySet<string>): string[] {
   const wrapped: string[] = [];
   let preposition: string | null = null;
   for (const word of sentence.split(' ').filter((part) => part !== '')) {
     const unit = preposition === null ? word : `${preposition} ${word}`;
-    if (ONE_LETTER_PREPOSITIONS.has(word.toLowerCase()) && preposition === null) {
+    if (prepositions.has(word.toLowerCase()) && preposition === null) {
       preposition = word;
       continue;
     }
@@ -161,10 +162,14 @@ function wrapUnits(sentence: string): string[] {
  * Zalomí větu jen mezi slovy na řádky nejvýš `maxCharacters` znaků.
  * Jednopísmenná předložka zůstane na řádku se slovem za ní.
  */
-function wrapSentence(sentence: string, maxCharacters: number): string[] {
+function wrapSentence(
+  sentence: string,
+  maxCharacters: number,
+  prepositions: ReadonlySet<string>,
+): string[] {
   const lines: string[] = [];
   let current = '';
-  for (const word of wrapUnits(sentence)) {
+  for (const word of wrapUnits(sentence, prepositions)) {
     const candidate = current === '' ? word : `${current} ${word}`;
     if (candidate.length <= maxCharacters || current === '') {
       current = candidate;
@@ -181,15 +186,18 @@ function wrapSentence(sentence: string, maxCharacters: number): string[] {
 
 /**
  * Řádky rady: každá věta od nového řádku, zalomená jen mezi slovy, na řádek
- * nejvýš floor(šířka / 9,6) znaků (AC2 v #59).
+ * nejvýš floor(šířka / 9,6) znaků (AC2 v #59). Jednopísmenné předložky
+ * jsou pravidlo jazyka; bez zadání se vezmou z aktuálního jazyka (#65).
  */
 export function wrapGuideMessage(
   sentences: readonly string[],
   widthCssPx: number,
+  oneLetterPrepositions: readonly string[] = sharedTexts().oneLetterPrepositions,
 ): readonly string[] {
+  const prepositions = new Set(oneLetterPrepositions);
   // Malá rezerva, aby 288 / 9,6 dalo přesně 30 i při chybě v plovoucí čárce.
   const maxCharacters = Math.floor(widthCssPx / MESSAGE_CHARACTER_WIDTH + 1e-9);
-  return sentences.flatMap((sentence) => wrapSentence(sentence, maxCharacters));
+  return sentences.flatMap((sentence) => wrapSentence(sentence, maxCharacters, prepositions));
 }
 
 function messageInUnits(

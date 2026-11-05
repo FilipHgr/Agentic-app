@@ -26,7 +26,7 @@ const ALL_IDS: readonly GuideLineId[] = GUIDE_SCRIPT.map((line) => line.id);
 
 /** Nahrávky, které jsou v projektu, podle cesty v `public/`. */
 const VOICE_FILES: readonly string[] = Object.keys(
-  import.meta.glob('../../../public/voice/guide/*.mp3'),
+  import.meta.glob('../../../public/voice/cs/counting/guide/*.mp3'),
 ).map((path) => path.replace('../../../public/', ''));
 
 /** Nahrávka v paměti; délka dat prozradí, ke které větě patří. */
@@ -196,8 +196,8 @@ async function readyWith(ids: readonly GuideLineId[]): Promise<Harness> {
 
 describe('AC4: stahují se jen vlastní soubory hry', () => {
   for (const id of ALL_IDS) {
-    it(`nahrávka „${id}“ se stahuje z vlastního souboru hry voice/guide/${id}.mp3`, () => {
-      expect(guideVoiceUrl(id)).toBe(`voice/guide/${id}.mp3`);
+    it(`nahrávka „${id}“ se stahuje z vlastního souboru hry voice/cs/counting/guide/${id}.mp3`, () => {
+      expect(guideVoiceUrl(id)).toBe(`voice/cs/counting/guide/${id}.mp3`);
     });
 
     it(`soubor nahrávky „${id}“ je v repozitáři`, () => {

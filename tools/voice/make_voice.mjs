@@ -9,18 +9,20 @@
  *
  * - Klíč se čte jen z proměnné prostředí a nikam se nezapisuje.
  * - Hlas a jeho nastavení jsou v tools/voice/voice.config.json.
- * - Nahrávky se uloží do public/voice/guide/<id>.mp3 a otisky do
+ * - Zatím jen čeština: nahrávky se uloží do
+ *   public/voice/cs/counting/guide/<id>.mp3 (nahrávky po jazycích, #65) a otisky do
  *   tools/voice/fingerprints.json. Věty beze změny se znovu neplatí.
  *
  * Skript je v JavaScriptu, aby šel spustit bez další závislosti. Jádro
- * (voiceCore.ts) a scénář (src/games/counting/logic/guideScript.ts) jsou v TypeScriptu,
- * proto je načte Vite, který už je v projektu.
+ * (voiceCore.ts) a scénář (src/games/counting/logic/guideScript.ts, věty
+ * z textů src/games/counting/texts/) jsou v TypeScriptu, proto je načte Vite,
+ * který už je v projektu.
  */
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createServer } from 'vite';
 
-const OUTPUT_DIR = 'public/voice/guide';
+const OUTPUT_DIR = 'public/voice/cs/counting/guide';
 const MANIFEST_PATH = 'tools/voice/fingerprints.json';
 const CONFIG_PATH = 'tools/voice/voice.config.json';
 

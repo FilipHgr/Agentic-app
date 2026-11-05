@@ -1,9 +1,11 @@
 /**
- * Scénář průvodce nastavením (#50): jediný zdroj vět, které průvodce ukáže
- * na obrazovce a které skript `tools/voice/` nechá namluvit. Mluvený text je
- * oba řádky věty za sebou, proto jsou číslice a značky vypsané slovy.
+ * Scénář průvodce nastavením (#50): které věty průvodce ukáže na obrazovce
+ * a které skript `tools/voice/` nechá namluvit. Samotné věty jsou v textech
+ * Počítání (`texts/`, #65), obrazovka i nahrávka je berou odtamtud. Mluvený
+ * text je oba řádky věty za sebou.
  */
 
+import { countingTexts } from '../texts/countingTexts';
 import type { SettingsRowKind } from './settingsLayout';
 import type { GuideStep } from './setupGuide';
 
@@ -16,45 +18,21 @@ export interface GuideLine {
   readonly lines: readonly [string, string];
 }
 
-/** Věty podle scénáře v #50 (po zrušení otázky na třídu), ve stejném pořadí. */
-const LINES: Record<GuideLineId, Omit<GuideLine, 'id'>> = {
-  maxNumber: {
-    step: 1,
-    lines: [
-      'Největší číslo, které se v příkladech objeví.',
-      'Začněte menším číslem a přidávejte, až to dítě zvládá.',
-    ],
-  },
-  operations: {
-    step: 2,
-    lines: [
-      'Sčítání, odčítání, nebo obojí zamíchané.',
-      'Začněte sčítáním. Obojí, až dítě zvládne odčítat.',
-    ],
-  },
-  answerInput: {
-    step: 3,
-    lines: [
-      'S číselníkem dítě ťuká na čísla, s tužkou píše prstem.',
-      'Tužku zvolte, až dítě umí psát všechny číslice.',
-    ],
-  },
-  summary: {
-    step: 4,
-    lines: [
-      'Hotovo. Volby můžete ještě změnit ťuknutím.',
-      'Později je změníte podržením kolečka vpravo nahoře.',
-    ],
-  },
+/** Krok průvodce každé věty, ve stejném pořadí jako scénář v #50 (po zrušení otázky na třídu). */
+const STEP_OF_LINE: Record<GuideLineId, GuideStep> = {
+  maxNumber: 1,
+  operations: 2,
+  answerInput: 3,
+  summary: 4,
 };
 
-export const GUIDE_SCRIPT: readonly GuideLine[] = (Object.keys(LINES) as GuideLineId[]).map(
-  (id) => ({ id, ...LINES[id] }),
+export const GUIDE_SCRIPT: readonly GuideLine[] = (Object.keys(STEP_OF_LINE) as GuideLineId[]).map(
+  (id) => ({ id, step: STEP_OF_LINE[id], lines: scriptLines(id) }),
 );
 
 /** Dva řádky věty na obrazovce. */
 export function scriptLines(id: GuideLineId): readonly [string, string] {
-  return LINES[id].lines;
+  return countingTexts().guideLines[id];
 }
 
 /** Co zazní v nahrávce: oba řádky za sebou. */

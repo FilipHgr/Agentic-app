@@ -8,6 +8,8 @@
 import { guideVoiceUrl } from '../logic/guideVoice';
 import type { GuideLineId } from '../logic/guideScript';
 import type { AudioNodeLike } from '../../../shared/audio/tonePlayer';
+import { currentLanguage } from '../../../shared/texts/languages';
+import type { Language } from '../../../shared/texts/languages';
 
 export interface AudioBufferLike {
   readonly duration: number;
@@ -55,9 +57,12 @@ export interface VoicePlayerOptions {
     onLoaded(id: GuideLineId): void;
     onLoadFailed(id: GuideLineId): void;
   };
+  /** Jazyk nahrávek (#65); bez zadání aktuální jazyk. Jiné jazyky se nestahují. */
+  readonly language?: Language;
 }
 
 export function createVoicePlayer(options: VoicePlayerOptions): VoicePlayer {
+  const language = options.language ?? currentLanguage();
   let context: VoiceAudioContextLike | undefined;
   let contextFailed = false;
   const buffers = new Map<GuideLineId, AudioBufferLike>();
@@ -102,7 +107,7 @@ export function createVoicePlayer(options: VoicePlayerOptions): VoicePlayer {
     if (audio === undefined) {
       throw new Error('bez zvuku');
     }
-    const response = await options.fetch(guideVoiceUrl(id));
+    const response = await options.fetch(guideVoiceUrl(id, language));
     if (!response.ok) {
       throw new Error('nahrávka chybí');
     }

@@ -7,6 +7,6 @@ Licence: CC BY 4.0, https://creativecommons.org/licenses/by/4.0/
 Úprava: použita trénovací část sady (30 pisatelů), 200 vzorů od každé číslice,
 převedených na formát pro hru.
 
-Hlas v průvodci nastavením (public/voice/guide/) je vytvořený službou
+Hlas v průvodci nastavením (public/voice/cs/counting/guide/) je vytvořený službou
 ElevenLabs (https://elevenlabs.io), hlas ID 7JbZPqJGWUfXXBim0T8U, model
 eleven_multilingual_v2. Použito v rámci komerčního tarifu vlastníka hry.

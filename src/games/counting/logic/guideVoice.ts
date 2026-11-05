@@ -14,6 +14,8 @@
  *   a stránka je vidět.
  */
 
+import { currentLanguage } from '../../../shared/texts/languages';
+import type { Language } from '../../../shared/texts/languages';
 import { GUIDE_SCRIPT } from './guideScript';
 import type { GuideLineId } from './guideScript';
 import type { GuideStep } from './setupGuide';
@@ -56,9 +58,12 @@ export interface GuideVoiceResult {
   readonly commands: readonly GuideVoiceCommand[];
 }
 
-/** Nahrávka věty jako vlastní soubor hry (`public/voice/guide/`). */
-export function guideVoiceUrl(id: GuideLineId): string {
-  return `voice/guide/${id}.mp3`;
+/**
+ * Nahrávka věty jako vlastní soubor hry v jazyce průvodce
+ * (`public/voice/<jazyk>/counting/guide/`, #65).
+ */
+export function guideVoiceUrl(id: GuideLineId, language: Language = currentLanguage()): string {
+  return `voice/${language}/counting/guide/${id}.mp3`;
 }
 
 /** Hlas před otevřením průvodce: nic nestahuje, nic nehraje. */

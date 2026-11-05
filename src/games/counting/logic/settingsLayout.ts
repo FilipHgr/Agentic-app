@@ -3,6 +3,7 @@
  * scéně, aby šlo bez prohlížeče ověřit rozměry a mezery. Čistý TypeScript.
  */
 
+import { countingTexts } from '../texts/countingTexts';
 import type { ButtonSlot, Point } from './screenLayout';
 import { ANSWER_INPUT_OPTIONS, MAX_NUMBER_OPTIONS, OPERATION_OPTIONS } from './settings';
 import type { AnswerInput, MaxNumber, OperationMode } from './settings';
@@ -30,11 +31,8 @@ export interface SettingsRowLabel extends Point {
   readonly align: SettingsLabelAlign;
 }
 
-export const ROW_LABELS: Record<SettingsRowKind, string> = {
-  maxNumber: 'Do kolika',
-  operations: 'Příklady',
-  answerInput: 'Odpověď',
-};
+/** Popisky řad z textů Počítání (#65). */
+export const ROW_LABELS: Readonly<Record<SettingsRowKind, string>> = countingTexts().rowLabels;
 
 export interface SettingsRow {
   readonly kind: SettingsRowKind;

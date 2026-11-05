@@ -4,6 +4,7 @@
  * TypeScript bez Phaseru; čas se předává jako číslo v ms.
  */
 
+import { countingTexts } from '../texts/countingTexts';
 import { scriptLines } from './guideScript';
 import { GUIDE_STYLE } from './theme';
 import type { Point } from './screenLayout';
@@ -21,9 +22,9 @@ const LAST_STEP: GuideStep = 4;
 /** Pojistka: „Začít hrát“ po zobrazení shrnutí chvíli nereaguje (dvojí ťuknutí na „Další“). */
 export const START_PLAYING_GUARD_MS = 500;
 
-/** Texty tlačítek; věty pod řadami jsou ve scénáři `guideScript.ts` (#50). */
+/** Texty tlačítek z textů Počítání (#65); věty pod řadami jsou ve scénáři `guideScript.ts` (#50). */
 export const GUIDE_TEXTS = {
-  buttons: { back: 'Zpět', next: 'Další', startPlaying: 'Začít hrát' },
+  buttons: countingTexts().guideButtons,
 } as const;
 
 export interface GuideState {

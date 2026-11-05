@@ -12,7 +12,9 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
   Výjimka: nastavení pro rodiče (rozsah, druh příkladů) za ozubeným kolečkem,
   které se otevře až po podržení, aby se tam dítě nedostalo omylem.
 - Plynulost: cíl 60 fps i na levnějším tabletu, žádné zbytečně velké assety.
-- Texty ve hře česky. Názvy v kódu anglicky, komentáře a commity česky.
+- Texty ve hře jsou jen v souborech jazyků (zatím jen čeština), nikdy natvrdo
+  v kódu. Nový text se přidá do všech jazyků naráz. Názvy v kódu anglicky,
+  komentáře a commity česky.
 
 ## Safari na iPadu
 - Používej pointer události (Phaser input), ne mouse/hover.
@@ -41,6 +43,25 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
   TypeScript bez Phaseru (příklady, vyhodnocení, obtížnost, body), ve
   `scenes/` hry Phaser scény, které logiku jen volají. Testy jsou
   v `tests/shared/` a `tests/games/<hra>/`.
+- Texty jsou po jazycích, soubor jazyka se jmenuje podle kódu (`cs.ts`)
+  a vrací slovník přes `export default { … } satisfies <typ>`:
+  - `src/shared/texts/` seznam jazyků a výběr aktuálního jazyka
+    (`languages.ts`) a sdílené texty stránky a jazyka (`<jazyk>.ts`,
+    např. název stránky a jednopísmenné předložky; typ a přístup
+    v `sharedTexts.ts`),
+  - `src/games/<hra>/texts/` texty hry; každá hra má v textech `title`
+    (název hry pro menu).
+  Symboly (číslice, +, −, ✓ a podobně) nejsou texty jazyka a zůstávají
+  v kódu. Nahrávky jsou v `public/voice/<jazyk>/<hra>/`.
+- Přidání jazyka:
+  1. soubor textů ve sdílené části a v každé hře,
+  2. projdou testy textů (klíče, prázdné texty, vejde se do rozložení); běží
+     pro každý jazyk se souborem textů, i mimo seznam, kontrola nahrávek jen
+     pro jazyky ze seznamu,
+  3. vlastník u sebe vytvoří nahrávky skriptem `npm run voice` (až po úkolu
+     Skript na nahrávky po jazycích),
+  4. jazyk se přidá do seznamu v `languages.ts` až s nahrávkami, v jednom
+     commitu.
 - `npm run dev` vývojový server
 - `npm test` všechny testy
 - `npm run test:shared` testy sdílené části, `npm run test:<hra>` (např.

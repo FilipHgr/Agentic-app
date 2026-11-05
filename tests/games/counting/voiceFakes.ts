@@ -196,7 +196,7 @@ export function alwaysMp3(bytes: Uint8Array = fakeMp3()): FakeServer {
 // ---------------------------------------------------------------------------
 
 /** Složka s nahrávkami, jak ji skript používá v repozitáři. */
-export const OUTPUT_DIR = 'public/voice/guide';
+export const OUTPUT_DIR = 'public/voice/cs/counting/guide';
 /** Soubor s otisky nahrávek. */
 export const MANIFEST_PATH = 'tools/voice/fingerprints.json';
 
