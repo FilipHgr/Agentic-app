@@ -110,3 +110,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-04 Pravidla „ask“ v `.claude/settings.json` zrušena, vlastníka
   obtěžovaly dotazy na povolení. Pravidla „deny“ (hlavní větve, force push,
   deploy, `.env`) zůstávají.
+- 2026-11-05 Vlastník nechává: na telefonu na výšku vyhrazené místo pro
+  nápovědu i bez nápovědy (#56), čísla ve volbách nastavení netučná (#59)
+  a okénko na psaní po výpadku stahování až od dalšího příkladu (#58).
