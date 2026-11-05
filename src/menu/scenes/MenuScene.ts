@@ -9,19 +9,22 @@ import type { MenuBox, MenuLanguagePanel, MenuLayout } from '../logic/menuLayout
 import { MENU_SOUNDS } from '../logic/menuSounds';
 import type { MenuTouch, TouchPoint } from '../logic/menuTouch';
 import { MENU_STYLE, PLACEHOLDER_BORDER_WIDTH } from '../logic/menuTheme';
+import {
+  LANGUAGE_PANEL_SHADOW,
+  languageButtonArt,
+  languageCardArt,
+  languageRowArt,
+} from './languageArt';
 
 /** Herní jednotky na 1 CSS px: plátno menu má dvojnásobné rozlišení okna. */
 export const MENU_UNITS_PER_CSS_PX = 2;
 
+/** Klíč scény menu ve hře Phaseru. */
+export const MENU_SCENE_KEY = 'menu';
+
 /** Symbol zástupného tlačítka (není to text jazyka). */
 const PLACEHOLDER_SYMBOL = '…';
 const PLACEHOLDER_DASHES = 14;
-/** Symbol u aktuálního jazyka v nabídce (není to text jazyka). */
-const CHECK_SYMBOL = '✓';
-const LANGUAGE_PANEL_RADIUS = 20;
-const LANGUAGE_ROW_RADIUS = 14;
-/** Jak daleko od karty nabídky sahá její stín (px). */
-const LANGUAGE_PANEL_SHADOW = 6;
 /** Barevné kolečko profilu je 48 px v bílém kolečku 64 px (obrázek palety, #71). */
 const PROFILE_COLOR_INSET = 8;
 
@@ -72,7 +75,6 @@ export class MenuScene extends Phaser.Scene {
   private placeholders: Tappable[] = [];
   private languageButton: Tappable | undefined;
   private profileBadge: Tappable | undefined;
-  private profileWobbleAngle = WOBBLE.angle;
   private languageRows = new Map<string, Tappable>();
   private drawn: Phaser.GameObjects.GameObject[] = [];
   /** Nakreslená nabídka jazyků; překresluje se zvlášť od zbytku menu. */
@@ -98,7 +100,7 @@ export class MenuScene extends Phaser.Scene {
   private drawnSelection: string | undefined;
 
   constructor(private readonly host: MenuSceneHost) {
-    super('menu');
+    super(MENU_SCENE_KEY);
   }
 
   create(): void {
@@ -324,6 +326,10 @@ export class MenuScene extends Phaser.Scene {
         this.press(this.languageButton);
         this.panelRedrawWanted = true;
         break;
+      case 'profilePress':
+        this.playSound(MENU_SOUNDS.press);
+        this.press(this.profileBadge);
+        break;
       case 'language':
         // Texty menu jsou teď v novém jazyce.
         this.requestRedraw();
@@ -332,8 +338,6 @@ export class MenuScene extends Phaser.Scene {
         this.playSound(MENU_SOUNDS.wobble);
         if (event.target.kind === 'placeholder') {
           this.wobble(this.placeholders[event.target.index], WOBBLE.angle);
-        } else if (event.target.kind === 'profile') {
-          this.wobble(this.profileBadge, this.profileWobbleAngle);
         } else {
           this.wobble(this.categories.get(event.target.categoryId), CATEGORY_WOBBLE_ANGLE);
         }
@@ -454,28 +458,20 @@ export class MenuScene extends Phaser.Scene {
       item.container.add(nickname);
     }
     this.profileBadge = item;
-    // Široká pilulka se zhoupne méně, jako kategorie.
-    this.profileWobbleAngle = label === null ? WOBBLE.angle : CATEGORY_WOBBLE_ANGLE;
   }
 
   /** Plné bílé kolečko se stínem a zkratkou jazyka (obrázek B, #70). */
   private drawLanguageButton(layout: MenuLayout, box: MenuBox): void {
     const item = this.tappable(box, this.barLayer);
-    const unit = MENU_UNITS_PER_CSS_PX;
-    const radius = ((box.right - box.left) / 2) * unit;
-    const circle = this.add.graphics();
-    for (const spread of [3, 1]) {
-      circle
-        .fillStyle(0x000000, MENU_STYLE.languageButtonShadowAlpha)
-        .fillCircle(0, 1.5 * unit, radius + spread * unit);
-    }
-    circle.fillStyle(colorNumber(MENU_STYLE.languageButtonBackground), 1).fillCircle(0, 0, radius);
-    const label = this.text(
-      this.host.menu.languageButtonLabel(),
-      layout.languageButtonFontSize,
-      MENU_STYLE.languageButtonText,
-    ).setOrigin(0.5);
-    item.container.add([circle, label]);
+    item.container.add(
+      languageButtonArt(
+        this,
+        box,
+        this.host.menu.languageButtonLabel(),
+        layout.languageButtonFontSize,
+        MENU_UNITS_PER_CSS_PX,
+      ),
+    );
     this.languageButton = item;
   }
 
@@ -508,25 +504,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private drawLanguageCard(panel: MenuBox): void {
-    const unit = MENU_UNITS_PER_CSS_PX;
-    const width = (panel.right - panel.left) * unit;
-    const height = (panel.bottom - panel.top) * unit;
-    const radius = LANGUAGE_PANEL_RADIUS * unit;
-    const card = this.add.graphics({ x: panel.left * unit, y: panel.top * unit });
-    for (const spread of [LANGUAGE_PANEL_SHADOW, LANGUAGE_PANEL_SHADOW / 2, 1]) {
-      card
-        .fillStyle(0x000000, MENU_STYLE.languagePanelShadowAlpha / 3)
-        .fillRoundedRect(
-          -spread * unit,
-          -spread * unit + 2 * unit,
-          width + 2 * spread * unit,
-          height + 2 * spread * unit,
-          radius + spread * unit,
-        );
-    }
-    card
-      .fillStyle(colorNumber(MENU_STYLE.languagePanelBackground), 1)
-      .fillRoundedRect(0, 0, width, height, radius);
+    const card = languageCardArt(this, panel, MENU_UNITS_PER_CSS_PX);
     this.panelLayer.add(card);
     this.drawnPanel.push(card);
   }
@@ -542,31 +520,7 @@ export class MenuScene extends Phaser.Scene {
     const container = this.add.container(x, y);
     this.languageLayer.add(container);
     this.drawnPanel.push(container);
-    const width = (row.right - row.left) * unit;
-    const height = (row.bottom - row.top) * unit;
-    const color = language.selected ? MENU_STYLE.selectedLanguageText : MENU_STYLE.languageText;
-    const parts: Phaser.GameObjects.GameObject[] = [];
-    if (language.selected) {
-      const background = this.add.graphics();
-      background
-        .fillStyle(colorNumber(MENU_STYLE.selectedLanguageBackground), 1)
-        .fillRoundedRect(-width / 2, -height / 2, width, height, LANGUAGE_ROW_RADIUS * unit);
-      parts.push(background);
-    }
-    const name = this.text(
-      language.name,
-      panel.fontSize,
-      color,
-      language.selected ? '600' : 'normal',
-    ).setOrigin(0, 0.5);
-    name.x = -width / 2 + panel.textInset * unit;
-    parts.push(name);
-    if (language.selected) {
-      const check = this.text(CHECK_SYMBOL, panel.fontSize + 3, color, '600').setOrigin(1, 0.5);
-      check.x = width / 2 - panel.textInset * unit;
-      parts.push(check);
-    }
-    container.add(parts);
+    container.add(languageRowArt(this, panel, row, language, unit));
     this.languageRows.set(language.code, { container, homeX: x });
   }
 

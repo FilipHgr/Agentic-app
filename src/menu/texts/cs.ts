@@ -7,4 +7,8 @@ export default {
     all: { title: 'Vše' },
     addingSubtracting: { title: 'Sčítání a odčítání' },
   },
+  profiles: {
+    nicknameTitle: 'Přezdívka',
+    colorTitle: 'Barva',
+  },
 } satisfies MenuTexts;

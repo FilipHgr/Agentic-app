@@ -37,3 +37,38 @@ export const MENU_STYLE = {
 
 /** Tloušťa šedého čárkovaného okraje zástupného tlačítka v CSS px. */
 export const PLACEHOLDER_BORDER_WIDTH = 2;
+
+/**
+ * Výběr profilu a formulář nového profilu (#72) podle obrázků 4–7 v barvách
+ * A3: šedé „+“, bílé klávesy, modrý přepínač vrstvy, šedé zpět a modré →.
+ */
+export const PROFILE_SCREEN_STYLE = {
+  symbol: WHITE,
+  nickname: TEXT,
+  addBackground: '#C7C7CC',
+  addSymbol: WHITE,
+  holdRing: BLUE,
+  title: TEXT,
+  stepCounter: '#6E6E73',
+  keyBackground: WHITE,
+  keyText: TEXT,
+  keyShadowAlpha: 0.1,
+  switchBackground: '#E5F0FF',
+  switchBorder: '#B8D6FF',
+  switchText: BLUE,
+  backspaceBackground: '#E8E8ED',
+  fieldBackground: WHITE,
+  fieldBorder: '#D2D2D7',
+  fieldText: TEXT,
+  caret: BLUE,
+  backBackground: '#E8E8ED',
+  backSymbol: TEXT,
+  forwardBackground: BLUE,
+  /** Ztlumené →, dokud přezdívka nejde uložit. */
+  forwardDimmedBackground: '#B8D6FF',
+  forwardSymbol: WHITE,
+  selectedSwatchRing: TEXT,
+  /** Mezera mezi zvolenou barvou a jejím kroužkem. */
+  swatchGap: WHITE,
+  swatchCheck: WHITE,
+} as const;

@@ -8,6 +8,12 @@
  * Po výběru jiného jazyka (#70) se menu nakreslí znovu v novém jazyce
  * a stránka dostane jeho `lang` a název; hra spuštěná potom si jazyk vezme
  * ze sdílené části.
+ *
+ * Výběr profilu a formulář nového profilu (#72) jsou druhá scéna na
+ * stejném plátně. Při startu se výběr ukáže jen při dvou a více profilech,
+ * z menu ho otevře ťuknutí na kolečko profilu. Dokud je otevřený, menu
+ * spí; po výběru profilu se menu probudí a nakreslí s novým kolečkem
+ * a hra pak dostane úložiště vybraného profilu.
  */
 
 import Phaser from 'phaser';
@@ -25,7 +31,9 @@ import { menuLayoutFor } from '../logic/menuLayout';
 import type { MenuLayout } from '../logic/menuLayout';
 import { menuText } from '../logic/menuTexts';
 import { createMenuTouch } from '../logic/menuTouch';
-import { MENU_UNITS_PER_CSS_PX, MenuScene } from '../scenes/MenuScene';
+import { createProfileScreens, startScreenFor } from '../logic/profileScreens';
+import { MENU_SCENE_KEY, MENU_UNITS_PER_CSS_PX, MenuScene } from '../scenes/MenuScene';
+import { PROFILE_SCENE_KEY, ProfileScene } from '../scenes/ProfileScene';
 import { launchGame } from './launchGame';
 import { showPageLanguage } from './pageLanguage';
 
@@ -59,8 +67,11 @@ function unlockAudioOnTouch(): void {
   }
 }
 
-/** Plátno menu přes celé okno; zvuky menu hraje vlastní přehrávač tónů. */
-function createMenuGame(scene: MenuScene): Phaser.Game {
+/**
+ * Plátno menu přes celé okno se scénou menu a nad ní scénou profilů;
+ * zvuky hrají vlastní přehrávače tónů.
+ */
+function createMenuGame(scenes: readonly Phaser.Scene[]): Phaser.Game {
   const size = canvasSize();
   return new Phaser.Game({
     type: Phaser.AUTO,
@@ -74,7 +85,7 @@ function createMenuGame(scene: MenuScene): Phaser.Game {
       width: size.width,
       height: size.height,
     },
-    scene: [scene],
+    scene: [...scenes],
   });
 }
 
@@ -98,12 +109,23 @@ function showPageState(menu: Menu): void {
 /** Co menu potřebuje až po svém vytvoření: scénu pro odezvu, schování a ukázání menu. */
 interface MenuView {
   scene?: MenuScene;
+  profileScene?: ProfileScene;
   close?: () => void;
   reopen?: () => void;
+  openProfiles?: () => void;
+  closeProfiles?: () => void;
 }
 
 export function startMenuPage(options: MenuPageOptions): void {
   const view: MenuView = {};
+  const screens = createProfileScreens({
+    profiles: options.profiles,
+    feedback: (event) => view.profileScene?.play(event),
+    onProfileChosen: () => view.closeProfiles?.(),
+  });
+  if (startScreenFor(options.profiles.profiles()) === 'profilePicker') {
+    screens.open();
+  }
   const menu: Menu = createMenu({
     games: options.games,
     categories: options.categories,
@@ -117,6 +139,7 @@ export function startMenuPage(options: MenuPageOptions): void {
       }),
     feedback: (event) => view.scene?.play(event),
     profile: () => options.profiles.activeProfile(),
+    onOpenProfilePicker: () => view.openProfiles?.(),
     onStarted: () => showPageState(menu),
     onReturned: () => {
       showPageState(menu);
@@ -150,8 +173,20 @@ export function startMenuPage(options: MenuPageOptions): void {
     onTapped: () => scene.redrawIfSelectionChanged(),
   });
   view.scene = scene;
+  const profileScene = new ProfileScene({
+    screens,
+    menu,
+    translate,
+    isOpen: () => screens.screen() !== 'closed',
+    onCreated: () => {
+      if (screens.screen() !== 'closed') {
+        menuGame.scene.sleep(MENU_SCENE_KEY);
+      }
+    },
+  });
+  view.profileScene = profileScene;
 
-  const menuGame = createMenuGame(scene);
+  const menuGame = createMenuGame([scene, profileScene]);
   showPageLanguage(document, currentLanguage());
   showPageState(menu);
   unlockAudioOnTouch();
@@ -172,8 +207,22 @@ export function startMenuPage(options: MenuPageOptions): void {
   watchViewport(() => {
     if (menuShown) {
       fitToWindow();
+      profileScene.requestRedraw();
     }
   });
+
+  view.openProfiles = () => {
+    screens.open();
+    menuGame.scene.wake(PROFILE_SCENE_KEY);
+    profileScene.requestRedraw();
+    menuGame.scene.sleep(MENU_SCENE_KEY);
+  };
+
+  view.closeProfiles = () => {
+    menuGame.scene.sleep(PROFILE_SCENE_KEY);
+    menuGame.scene.wake(MENU_SCENE_KEY);
+    scene.requestRedraw();
+  };
 
   view.close = () => {
     menuShown = false;

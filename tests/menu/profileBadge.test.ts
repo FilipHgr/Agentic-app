@@ -43,7 +43,7 @@ import {
  * - `createMenu({ …, profile: () => Profile })` dostane aktivní profil
  *   (bez něj výchozí profil), `menu.profileBadge()` vrátí
  *   `{ color, symbol, nickname }` (`nickname` je `null` bez přezdívky),
- *   `menu.tapProfile()` dá jen odezvu `wobble` s cílem `{ kind: 'profile' }`,
+ *   `menu.tapProfile()` od #72 otevře výběr profilu (`onOpenProfilePicker`),
  * - `menuLayoutFor(okno, { …, profileNickname })` vrátí navíc
  *   `profileBadge: { circle, label, symbolFontSize, labelFontSize }`;
  *   `label` je `null` bez přezdívky a na telefonu na výšku.
@@ -197,26 +197,18 @@ describe('#71 AC5: kolečko profilu ukáže aktivní profil', () => {
   });
 });
 
-describe('#71 AC5: ťuknutí na profil dá zatím jen odezvu', () => {
-  it('ťuknutí na profil profil zhoupne a nic neotevře ani nespustí', () => {
+describe('#71 AC5 (změněno v #72): ťuknutí na profil nic nespustí ani nestáhne', () => {
+  // Zhoupnutí z #71 nahradilo v #72 otevření výběru profilu
+  // (`profilePicker.test.ts`); tady zůstává, že ťuknutí nesahá na hry.
+  it('ťuknutí na profil nespustí hru, nic nestáhne a neotevře nabídku jazyků', () => {
     const test = menuWithProfile(() => ({ id: 'p1', color: PROFILE_COLORS[0] }));
 
     test.menu.tapProfile();
 
-    expect(test.feedback).toEqual([{ kind: 'wobble', target: { kind: 'profile' } }]);
     expect(test.menu.runningGame()).toBeNull();
     expect(test.menu.isLanguageMenuOpen()).toBe(false);
     expect(test.download.count).toBe(0);
     expect(test.game.started).toEqual([]);
-  });
-
-  it('každé další ťuknutí dá znovu odezvu', () => {
-    const test = menuWithProfile(() => ({ id: 'p1', nickname: 'ANA', color: PROFILE_COLORS[1] }));
-
-    test.menu.tapProfile();
-    test.menu.tapProfile();
-
-    expect(test.feedback.map((event) => event.kind)).toEqual(['wobble', 'wobble']);
   });
 });
 

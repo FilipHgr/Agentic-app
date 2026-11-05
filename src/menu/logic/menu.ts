@@ -24,7 +24,7 @@
  *
  * Profil (#71): vlevo nahoře kolečko aktivního profilu v jeho barvě
  * s prvním písmenem přezdívky (bez přezdívky ★) a vedle přezdívka.
- * Ťuknutí na něj zatím dá jen zhoupnutí, výběr profilu přidá #72.
+ * Ťuknutí na něj otevře výběr profilu (#72), i s jedním profilem.
  */
 
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
@@ -47,10 +47,9 @@ export const PROFILE_WITHOUT_NICKNAME_SYMBOL = '★';
 /** Profil, když stránka menu žádný nedá: výchozí profil bez přezdívky. */
 const FALLBACK_PROFILE: Profile = { id: DEFAULT_PROFILE_ID, color: DEFAULT_PROFILE_COLOR };
 
-/** Co se zhouplo: zástupné tlačítko, už vybraná kategorie, nebo kolečko profilu. */
+/** Co se zhouplo: zástupné tlačítko, nebo už vybraná kategorie. */
 export type WobbleTarget =
   | { readonly kind: 'placeholder'; readonly index: number }
-  | { readonly kind: 'profile' }
   | { readonly kind: 'category'; readonly categoryId: string };
 
 /**
@@ -60,6 +59,7 @@ export type WobbleTarget =
  * - `shake` dlaždice se jemně zatřese a zazní tichý zvuk jako u špatné odpovědi,
  * - `select` vybrala se jiná kategorie, zazní tichý tón,
  * - `wobble` zhoupnutí a tichý zvuk,
+ * - `profilePress` kolečko profilu se zmáčkne a zazní krátký zvuk (#72),
  * - `languageMenu` nabídka jazyků se otevřela nebo zavřela (#70),
  * - `language` vybral se jiný jazyk (#70).
  */
@@ -70,6 +70,7 @@ export type MenuFeedback =
   | { readonly kind: 'shake'; readonly gameId: string }
   | { readonly kind: 'select'; readonly categoryId: string }
   | { readonly kind: 'wobble'; readonly target: WobbleTarget }
+  | { readonly kind: 'profilePress' }
   | { readonly kind: 'languageMenu'; readonly open: boolean }
   | { readonly kind: 'language'; readonly language: string };
 
@@ -143,6 +144,8 @@ export interface MenuOptions {
   readonly onLanguageChanged?: (() => void) | undefined;
   /** Aktivní profil (#71); čte se při každém kreslení. Bez něj výchozí profil. */
   readonly profile?: (() => Profile) | undefined;
+  /** Ťuknutí na profil (#72): stránka ukáže výběr profilu. */
+  readonly onOpenProfilePicker?: (() => void) | undefined;
 }
 
 export interface Menu {
@@ -174,7 +177,7 @@ export interface Menu {
   closeLanguageMenu(): void;
   /** Kolečko aktivního profilu (#71). */
   profileBadge(): MenuProfileBadge;
-  /** Ťuknutí na profil: zatím jen zhoupnutí (#71). */
+  /** Ťuknutí na profil: otevře výběr profilu (#72). */
   tapProfile(): void;
 }
 
@@ -450,7 +453,8 @@ export function createMenu(options: MenuOptions): Menu {
         return;
       }
       cancelDownload();
-      emit({ kind: 'wobble', target: { kind: 'profile' } });
+      emit({ kind: 'profilePress' });
+      options.onOpenProfilePicker?.();
     },
   };
 }

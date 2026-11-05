@@ -272,7 +272,7 @@ const PROFILE_LABEL_FONT_SIZE = 17;
 const PROFILE_LABEL_INSET = 8;
 
 /** Volná plocha okna v CSS px (bez výřezu a lišty domů). */
-function freeAreaOf(viewport: Viewport | undefined): MenuBox {
+export function freeAreaOf(viewport: Viewport | undefined): MenuBox {
   if (!isValidViewport(viewport)) {
     return { left: 0, right: 1024, top: 0, bottom: 768 };
   }
@@ -297,7 +297,7 @@ function metricsFor(mode: LayoutMode): MenuMetrics {
   }
 }
 
-function boxAt(left: number, top: number, width: number, height: number): MenuBox {
+export function boxAt(left: number, top: number, width: number, height: number): MenuBox {
   return { left, top, right: left + width, bottom: top + height };
 }
 
@@ -551,7 +551,7 @@ function languageListHeight(count: number, available: number): number {
  * Panel nabídky jazyků pod tlačítkem jazyka, zarovnaný k jeho pravému
  * okraji. Široký je podle nejdelšího názvu, nejvýš přes celou volnou plochu.
  */
-function languagePanelFor(
+export function languagePanelFor(
   free: MenuBox,
   button: MenuBox,
   names: readonly string[],
