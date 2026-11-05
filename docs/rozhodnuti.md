@@ -136,4 +136,13 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-05 Vzhled menu podle návrhu B: nahoře profil (barevné kolečko
   s písmenem a přezdívkou), vpravo jazyk a zástupná tlačítka, vlevo kategorie
   (na telefonu nahoře v řadě), vedle mřížka dlaždic her. Při startu výběr
-  profilu (návrh P: velká barevná kolečka a +).
+  profilu (návrh P: velká barevná kolečka a +). (výběr při startu nahrazen)
+- 2026-11-05 Z hry do menu se dítě vrátí domečkem vlevo nahoře podržením
+  1 s, ťuknutí domeček jen zhoupne.
+- 2026-11-05 Profil zakládá rodič: formulář se otevře podržením „+“ 1 s,
+  přezdívka se píše systémovou klávesnicí jen v tomto poli. Výjimka
+  z „žádná klávesnice“ v CLAUDE.md.
+- 2026-11-05 Výběr profilu (P) se při startu ukáže jen při dvou a více
+  profilech, s jedním se jde rovnou do menu.
+- 2026-11-05 Počítání je v kategorii „Sčítání a odčítání“, první kategorie
+  je „Vše“, název stránky v menu „Matematika“, ve hře název hry.
