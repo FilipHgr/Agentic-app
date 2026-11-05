@@ -9,8 +9,11 @@ import { HOLD_TO_OPEN_SETTINGS_MS, isHoldLongEnough } from '../logic/settingsGea
 /** Časovač se pustí o chvilku později, aby měřené držení nevyšlo kratší kvůli zaokrouhlení. */
 const TIMER_SLACK_MS = 50;
 
-/** Napojí podržení kolečka na otevření nastavení. */
-export function attachSettingsButton(button: HTMLElement, onOpen: () => void): void {
+/**
+ * Napojí podržení kolečka na otevření nastavení. Vrátí odpojení: po odchodu
+ * z hry (#68) na kolečku nezůstane žádný posluchač ani časovač.
+ */
+export function attachSettingsButton(button: HTMLElement, onOpen: () => void): () => void {
   let timer: number | undefined;
   let startedAt = 0;
 
@@ -22,7 +25,7 @@ export function attachSettingsButton(button: HTMLElement, onOpen: () => void): v
     button.classList.remove('is-holding');
   };
 
-  button.addEventListener('pointerdown', (event) => {
+  const onPointerDown = (event: PointerEvent): void => {
     event.preventDefault();
     cancelHold();
     keepPointer(button, event.pointerId);
@@ -36,15 +39,25 @@ export function attachSettingsButton(button: HTMLElement, onOpen: () => void): v
         onOpen();
       }
     }, HOLD_TO_OPEN_SETTINGS_MS + TIMER_SLACK_MS);
-  });
+  };
+  // Chrome na Androidu by při dlouhém podržení otevřel vlastní nabídku.
+  const onContextMenu = (event: Event): void => event.preventDefault();
 
+  button.addEventListener('pointerdown', onPointerDown);
   // Podržení končí až puštěním prstu; malé ujetí z kolečka ho nepřeruší.
   for (const type of ['pointerup', 'pointercancel'] as const) {
     button.addEventListener(type, cancelHold);
   }
+  button.addEventListener('contextmenu', onContextMenu);
 
-  // Chrome na Androidu by při dlouhém podržení otevřel vlastní nabídku.
-  button.addEventListener('contextmenu', (event) => event.preventDefault());
+  return () => {
+    cancelHold();
+    button.removeEventListener('pointerdown', onPointerDown);
+    for (const type of ['pointerup', 'pointercancel'] as const) {
+      button.removeEventListener(type, cancelHold);
+    }
+    button.removeEventListener('contextmenu', onContextMenu);
+  };
 }
 
 /** Prst zůstane „na kolečku“, i když z něj trochu ujede. */

@@ -150,6 +150,8 @@ export class SetupGuidePanel {
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     // Kdyby scéna skončila jinak než „Začít hrát“, posluchači nezůstanou viset.
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.removeListeners());
+    // Odchod z hry (#68) scénu rovnou zničí; ani pak nesmí zůstat posluchač na stránce.
+    scene.events.once(Phaser.Scenes.Events.DESTROY, () => this.removeListeners());
 
     this.render();
     this.sendVoice({ kind: 'opened' });
@@ -232,6 +234,11 @@ export class SetupGuidePanel {
         return;
       }
     }
+  }
+
+  /** Ztiší rozmluvenou větu (odchod z hry, #68). */
+  stopVoice(): void {
+    this.voicePlayer.stop();
   }
 
   /** Po „Začít hrát“: hlas skončí a průvodce zmizí. */

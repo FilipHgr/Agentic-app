@@ -128,7 +128,7 @@ async function launchBrowser(playwright) {
 
 /** Převede herní souřadnice na souřadnice stránky. */
 async function toPage(page, point) {
-  const box = await page.locator('canvas').boundingBox();
+  const box = await page.locator('#game canvas').boundingBox();
   return {
     x: box.x + (point.x / GAME_WIDTH) * box.width,
     y: box.y + (point.y / GAME_HEIGHT) * box.height,

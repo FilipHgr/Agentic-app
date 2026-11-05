@@ -2,22 +2,9 @@ import type Phaser from 'phaser';
 
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import type { PlayState } from '../logic/deviceLayout';
-import type { GameProgress } from '../logic/progress';
 import type { GameSettings } from '../logic/settings';
-import {
-  CLOSED_SETTINGS,
-  confirmSettings,
-  createLaunchState,
-  openSettings,
-  pageAppearance,
-} from '../logic/settingsSession';
-import type { ConfirmedSettings, LaunchState } from '../logic/settingsSession';
-import {
-  canOpenSettingsByHold,
-  guideAtStart,
-  guidePageAppearance,
-  launchAfterGuide,
-} from '../logic/setupGuide';
+import { CLOSED_SETTINGS, openSettings, pageAppearance } from '../logic/settingsSession';
+import { guidePageAppearance } from '../logic/setupGuide';
 import { applyPageAppearance } from '../ui/pageAppearance';
 import { SettingsPanel } from './SettingsPanel';
 import { SetupGuidePanel } from './SetupGuidePanel';
@@ -26,28 +13,20 @@ import { SetupGuidePanel } from './SetupGuidePanel';
 export interface ParentPanelsHost {
   /** Současné nastavení hry. */
   readonly settings: () => GameSettings;
-  /** Současné hvězdičky. */
-  readonly progress: () => GameProgress;
   /** Současná herní plocha (iPad, telefon na šířku nebo na výšku, zmenšené). */
   readonly gameArea: () => GameArea;
-  /** Nastavení zvolené rodičem začne platit a uloží se. */
-  readonly useSettings: (chosen: GameSettings) => void;
-  /** Nastavení se právě otevírá podržením kolečka. */
-  readonly onSettingsOpening: () => void;
-  /** Průvodce se zavřel po „Začít hrát“. */
-  readonly onGuideClosed: () => void;
-  /** Nastavení se zavřelo po ✓. */
-  readonly onSettingsClosed: (result: ConfirmedSettings) => void;
+  /** Rodič v nastavení ťukl na ✓ s volbami `chosen`. */
+  readonly onSettingsConfirmed: (chosen: GameSettings) => void;
+  /** Rodič v průvodci ťukl na „Začít hrát“ s volbami `chosen`. */
+  readonly onGuideFinished: (chosen: GameSettings) => void;
 }
 
 /**
  * Nastavení pro rodiče za kolečkem a průvodce nastavením při prvním
- * spuštění (#49). Když je jedno z nich otevřené, oslava se nedohrává.
+ * spuštění (#49). Kdy se otevřou a co volby znamenají, rozhoduje sezení
+ * hry (`countingSession.ts`); tady se panely jen kreslí a zavírají.
  */
 export class ParentPanels {
-  /** Při prvním spuštění se místo příkladu otevře průvodce nastavením (#49). */
-  private launch: LaunchState;
-  private open = false;
   /** Otevřené nastavení pro rodiče, aby šlo po otočení telefonu zmenšit (#54). */
   private settingsPanel: SettingsPanel | undefined;
   /** Průvodce nastavením při prvním spuštění (#49), když je otevřený. */
@@ -55,21 +34,8 @@ export class ParentPanels {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    firstLaunch: boolean,
     private readonly host: ParentPanelsHost,
-  ) {
-    this.launch = createLaunchState(firstLaunch);
-  }
-
-  /** Je otevřené nastavení nebo průvodce? */
-  get isOpen(): boolean {
-    return this.open;
-  }
-
-  /** Má se hned na začátku hry otevřít průvodce (první spuštění)? */
-  get guideAtStart(): boolean {
-    return guideAtStart(this.launch) !== null;
-  }
+  ) {}
 
   /** Stav otevřeného nastavení a průvodce pro přepočet po změně velikosti okna. */
   playStateParts(): Pick<PlayState, 'settingsSession' | 'guide'> {
@@ -88,46 +54,38 @@ export class ParentPanels {
     this.setupGuide?.fitTo(area);
   }
 
-  /**
-   * Průvodce nastavením při prvním spuštění (#49). Během něj podržení kolečka
-   * nic neudělá; po „Začít hrát“ se nastavení uloží a začne první příklad.
-   */
+  /** Ztiší větu průvodce, pokud nějaká hraje (odchod z hry, #68). */
+  stopVoice(): void {
+    this.setupGuide?.stopVoice();
+  }
+
+  /** Průvodce nastavením při prvním spuštění (#49); stránka vypadá jako při nastavení. */
   openSetupGuide(): void {
-    this.open = true;
     const settingsButton = document.getElementById('settings-button');
     applyPageAppearance(guidePageAppearance(), settingsButton);
     this.setupGuide = new SetupGuidePanel(this.scene, this.host.gameArea(), (chosen) => {
       this.setupGuide = undefined;
-      this.launch = launchAfterGuide(this.launch);
-      this.host.useSettings(chosen);
-      this.open = false;
       applyPageAppearance(pageAppearance(CLOSED_SETTINGS), settingsButton);
-      this.host.onGuideClosed();
+      this.host.onGuideFinished(chosen);
     });
   }
 
   /**
-   * Nastavení pro rodiče; po potvrzení se uloží a přijde nový příklad.
-   * Stránka zůstane světlá a kolečko se ztlumí (#45). Druhé podržení kolečka
-   * při otevřeném nastavení nic neudělá.
+   * Nastavení pro rodiče s uloženými volbami. Stránka zůstane světlá
+   * a kolečko se ztlumí (#45); po ✓ se zase rozsvítí.
    */
   openSettings(): void {
-    if (this.open || !canOpenSettingsByHold(this.setupGuide?.state ?? null)) {
+    if (this.settingsPanel || this.setupGuide) {
       return;
     }
-    this.open = true;
-    this.host.onSettingsOpening();
     const settingsButton = document.getElementById('settings-button');
     const session = openSettings(CLOSED_SETTINGS, this.host.settings());
     applyPageAppearance(pageAppearance(session), settingsButton);
 
     this.settingsPanel = new SettingsPanel(this.scene, session, this.host.gameArea(), (chosen) => {
       this.settingsPanel = undefined;
-      const result = confirmSettings(chosen, this.host.settings(), this.host.progress());
-      this.host.useSettings(result.settings);
-      this.open = false;
-      applyPageAppearance(pageAppearance(result.session), settingsButton);
-      this.host.onSettingsClosed(result);
+      applyPageAppearance(pageAppearance(CLOSED_SETTINGS), settingsButton);
+      this.host.onSettingsConfirmed(chosen.open ? chosen.choice : this.host.settings());
     });
   }
 }

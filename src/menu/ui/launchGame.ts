@@ -11,12 +11,14 @@ import { isGameModule, runGame } from '../../shared/ui/gameRunner';
 export interface LaunchContext {
   /** Zavře menu, až hra naběhne. */
   readonly closeMenu: () => void;
+  /** Dítě odešlo z hry domečkem a hra je zničená (#68): menu se znovu ukáže. */
+  readonly returnToMenu: () => void;
 }
 
 export function launchGame(game: GameEntry, loaded: unknown, context: LaunchContext): void {
   if (!isGameModule(loaded)) {
     throw new Error(`stažená hra ${game.id} nemá scény`);
   }
-  runGame(loaded);
+  runGame(loaded, { onLeft: context.returnToMenu });
   context.closeMenu();
 }

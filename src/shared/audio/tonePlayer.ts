@@ -51,6 +51,8 @@ export interface AudioContextLike {
 export interface TonePlayer {
   /** Zahraje tóny hned teď. Nikdy nevyhodí výjimku. */
   play(tones: readonly Tone[]): void;
+  /** Hned ztiší všechno, co hraje (odchod z hry, #68). Nikdy nevyhodí výjimku. */
+  stopAll(): void;
 }
 
 /**
@@ -75,6 +77,15 @@ export function createTonePlayer(createContext: () => AudioContextLike | undefin
       oscillator.stop();
     }
     playingOscillators = [];
+  }
+
+  function stopAll(): void {
+    try {
+      stopPlayingSound();
+    } catch {
+      // Tón už skončil nebo prohlížeč zastavení odmítl: je ticho tak jako tak.
+      playingOscillators = [];
+    }
   }
 
   function scheduleTone(audio: AudioContextLike, tone: Tone, now: number): void {
@@ -132,7 +143,7 @@ export function createTonePlayer(createContext: () => AudioContextLike | undefin
     }
   }
 
-  return { play };
+  return { play, stopAll };
 }
 
 /** Zvukový kontext prohlížeče, nebo `undefined`, když ho prohlížeč nemá. */

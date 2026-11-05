@@ -71,6 +71,39 @@ export function keypadControls(buttonCount: number, size: number, rowLength: num
   };
 }
 
+/**
+ * Číselník se širokými tlačítky přes šířku `width` (#68, návrh C): řady
+ * po `rowLength` zleva od 0, kratší poslední řada začíná vlevo pod 0.
+ * Výška tlačítek je `height`, šířka se dopočítá; mezera aspoň 8 px.
+ */
+export function wideKeypadControls(
+  buttonCount: number,
+  rowLength: number,
+  width: number,
+  height: number,
+): Controls {
+  const gap = MIN_BUTTON_GAP;
+  const columns = Math.min(rowLength, buttonCount);
+  const buttonWidth = Math.floor((width - (columns - 1) * gap) / columns);
+  const rows = keypadRowLengths(buttonCount, rowLength);
+  const usedWidth = columns * buttonWidth + (columns - 1) * gap;
+  const usedHeight = rows.length * height + (rows.length - 1) * gap;
+
+  return {
+    width: usedWidth,
+    height: usedHeight,
+    place: (left, top) => ({
+      answerButtons: Array.from({ length: buttonCount }, (_, index) => ({
+        x: left + (index % rowLength) * (buttonWidth + gap) + buttonWidth / 2,
+        y: top + Math.floor(index / rowLength) * (height + gap) + height / 2,
+        size: height,
+        width: buttonWidth,
+      })),
+      writing: null,
+    }),
+  };
+}
+
 /** Smazání vlevo, okénka uprostřed (desítky vlevo), ✓ vpravo; vše ve výšce středu okének. */
 export function writingControls(boxCount: number, side: number): Controls {
   const boxesWidth = boxCount * side + (boxCount - 1) * BOX_GAP;

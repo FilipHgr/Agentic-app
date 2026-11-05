@@ -42,7 +42,8 @@ export function dotInUnits(dot: HintDot): HintDot {
 }
 
 export function slotInUnits(slot: ButtonSlot): ButtonSlot {
-  return { x: units(slot.x), y: units(slot.y), size: units(slot.size) };
+  const inUnits = { x: units(slot.x), y: units(slot.y), size: units(slot.size) };
+  return slot.width === undefined ? inUnits : { ...inUnits, width: units(slot.width) };
 }
 
 export function areaInUnits(area: WritingAreaSlot): WritingAreaSlot {

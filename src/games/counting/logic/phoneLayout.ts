@@ -1,15 +1,11 @@
 /**
- * Rozložení telefonu na šířku podle návrhu V2 (#54), v CSS px volné
- * plochy (bez výřezu a lišty, levý horní roh je 0, 0).
+ * Rozložení telefonu na šířku podle návrhu C (#68), v CSS px volné
+ * plochy (bez výřezu a lišty, levý horní roh je 0, 0): nahoře pás
+ * s příkladem, tečkami nápovědy a hvězdičkami mezi domečkem a kolečkem,
+ * dole číselník nebo okénka na psaní přes šířku (`phoneBandPlan.ts`).
+ * Dřívější V2 (#54) vlastník po obrázcích nahradil.
  *
- * Nahoře uprostřed hvězdičky, pod nimi uprostřed příklad, dole přes šířku
- * číselník nebo okénka na psaní (`phoneStackedPlan.ts`). Nápověda je
- * vpravo od příkladu. Výjimka: číselník do 20 je vpravo a příklad vlevo
- * od něj (`phoneWideKeypadPlan.ts`).
- *
- * Velikosti se zkouší od největších; použije se první rozložení, které
- * projde kontrolou (`phonePlanCheck.ts`). Převod na herní jednotky je
- * v `deviceLayout.ts`. Čistý TypeScript.
+ * Převod na herní jednotky je v `deviceLayout.ts`. Čistý TypeScript.
  */
 
 import {
@@ -22,37 +18,21 @@ import {
 import { basePlan, problemBox } from './phoneElements';
 import { EDGE_MARGIN, MIN_FONT_SIZE, STAR_ROW_BOTTOM } from './phonePlan';
 import type { PhonePlan, PhonePlanRequest } from './phonePlan';
-import { isValidPlan } from './phonePlanCheck';
-import { stackedCandidates } from './phoneStackedPlan';
-import { wideKeypadCandidates } from './phoneWideKeypadPlan';
+import { planBandScreen } from './phoneBandPlan';
 import { writingBoxCount } from './settings';
 
 export type { FreeSize, PhonePlan, PhonePlanRequest, WritingControls } from './phonePlan';
 
-function allCandidates(request: PhonePlanRequest): Generator<PhonePlan> {
-  if (request.answerInput === 'keypad' && request.maxNumber === 20) {
-    return wideKeypadCandidates(request);
-  }
-  return stackedCandidates(request);
-}
-
 /**
- * Největší rozložení, ve kterém se všechno vejde.
+ * Největší rozložení C (#68), ve kterém se všechno vejde.
  *
- * Kdyby kontrolou neprošel žádný kandidát, použije se vědomě poslední
- * (nejmenší) zkoušený, nebo nouzový plán: hra se tak zobrazí vždy a nespadne.
- * Na zkušebních oknech telefonu (od 744 × 296 px) se to nestane, hlídají to
- * testy v `tests/games/counting/phoneLandscapeLayout.test.ts`.
+ * Kdyby se nevešlo žádné, použije se vědomě nouzový plán: hra se tak
+ * zobrazí vždy a nespadne. Na zkušebních oknech telefonu (od 744 × 296 px)
+ * se to nestane, hlídají to testy v
+ * `tests/games/counting/phoneLandscapeLayout.test.ts`.
  */
 export function planPhoneScreen(request: PhonePlanRequest): PhonePlan {
-  let last: PhonePlan | null = null;
-  for (const plan of allCandidates(request)) {
-    if (isValidPlan(plan, request.free)) {
-      return plan;
-    }
-    last = plan;
-  }
-  return last ?? fallbackPlan(request);
+  return planBandScreen(request) ?? fallbackPlan(request);
 }
 
 /** Nouzový plán, když žádný kandidát nevznikl: všechno co nejmenší, ovládání dole vlevo. */

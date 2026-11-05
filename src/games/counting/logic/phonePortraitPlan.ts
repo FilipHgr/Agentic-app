@@ -2,7 +2,8 @@
  * Rozložení telefonu na výšku podle návrhu P2 (#56), v CSS px volné plochy
  * (bez výřezu a lišty, levý horní roh je 0, 0).
  *
- * Shora dolů: vlevo od kolečka nastavení řada hvězdiček, pod ní vodorovně
+ * Shora dolů: mezi domečkem a kolečkem nastavení hvězdičky ve 2 řadách
+ * po 5 (#68), pod nimi vodorovně
  * uprostřed příklad, pod příkladem vyhrazené místo pro nápovědu a dole
  * u palce číselník nebo okénka na psaní.
  * Rozložení závisí jen na velikosti plochy a nastavení, ne na nápovědě,
@@ -43,9 +44,14 @@ const GEAR_BOTTOM = GEAR_INSET + GEAR_HIT_SIZE;
 /** Hvězdičky aspoň 4 px od plochy kolečka, příklad 4 px pod ní. */
 const GEAR_GAP = 4;
 
-/** Svislý střed řady hvězdiček je ve výšce středu plochy kolečka (AC2). */
-const STAR_ROW_CENTER_Y = GEAR_INSET + GEAR_HIT_SIZE / 2;
-const MAX_STAR_SPACING = 32;
+/**
+ * Hvězdičky ve 2 řadách po 5 v horním pásu mezi domečkem a kolečkem (#68,
+ * schválený obrázek A): 10 hvězdiček v jedné řadě se mezi ně nevejde.
+ * Hvězdička 24 px, rozestup 32 px, řady 14–38 a 42–66 px od horního okraje.
+ */
+const STARS_PER_ROW = 5;
+const STAR_SPACING = 32;
+const STAR_ROW_TOPS = [14, 42];
 
 /** Písmo příkladu aspoň 40 px (AC3). */
 const MIN_PORTRAIT_FONT_SIZE = 40;
@@ -63,17 +69,22 @@ const FIT_TOLERANCE = 0.001;
 // Hvězdičky
 // ---------------------------------------------------------------------------
 
-/** Hvězdičky v řadě vlevo od kolečka; místo je vždy pro celou řadu. */
+/**
+ * Hvězdičky ve 2 řadách po 5 vodorovně uprostřed, tedy uprostřed mezi
+ * domečkem a kolečkem (jsou zrcadlově stejně daleko od okrajů). Nejdřív se
+ * plní horní řada; místo je vždy pro všechny.
+ */
 function layoutPortraitStars(free: FreeSize, starCount: number): Point[] {
-  const rowRight = free.width - GEAR_BOTTOM - GEAR_GAP;
-  const room = rowRight - EDGE_MARGIN;
-  const spacing = Math.min(MAX_STAR_SPACING, Math.floor((room - STAR_SIZE) / (STARS_PER_SET - 1)));
-  const rowWidth = (STARS_PER_SET - 1) * spacing + STAR_SIZE;
-  const firstX = EDGE_MARGIN + (room - rowWidth) / 2 + STAR_SIZE / 2;
-  return Array.from({ length: starCount }, (_, index) => ({
-    x: firstX + index * spacing,
-    y: STAR_ROW_CENTER_Y,
-  }));
+  const rowWidth = (STARS_PER_ROW - 1) * STAR_SPACING + STAR_SIZE;
+  const firstX = (free.width - rowWidth) / 2 + STAR_SIZE / 2;
+  return Array.from({ length: Math.min(starCount, STARS_PER_SET) }, (_, index) => {
+    const row = Math.floor(index / STARS_PER_ROW);
+    const column = index % STARS_PER_ROW;
+    return {
+      x: firstX + column * STAR_SPACING,
+      y: (STAR_ROW_TOPS[row] ?? 0) + STAR_SIZE / 2,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------

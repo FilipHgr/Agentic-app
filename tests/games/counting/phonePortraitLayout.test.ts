@@ -10,6 +10,7 @@ import {
   layoutPhonePortraitScreen,
   layoutPhonePortraitWritingScreen,
 } from '../../../src/games/counting/logic/deviceLayout';
+import { homeButtonFor } from '../../../src/shared/logic/homeButton';
 import { settingsGearFor } from '../../../src/shared/logic/settingsGear';
 import type { GameArea } from '../../../src/shared/logic/viewportLayout';
 import type {
@@ -61,6 +62,11 @@ import type { Box, TestWindow } from '../../shared/viewportFixtures';
  * (AC5). Tečky pro konkrétní příklad vrátí `layoutPhonePortraitHint`.
  * Nápověda se ověřuje na vzorku okrajových a typických příkladů jako v #54
  * (viz `sampleHintProblems`), vyhrazené místo na všech příkladech.
+ *
+ * #68 AC4 vědomě mění AC2: vlevo nahoře přibyl domeček zrcadlově ke
+ * kolečku a hvězdičky jsou místo jedné řady ve 2 řadách po 5 mezi nimi
+ * (schválený obrázek A). Domeček je mezi pevnými prvky, se kterými se nic
+ * nesmí překrývat. Ostatní kritéria #56 zůstávají beze změny.
  */
 
 const RANGES: MaxNumber[] = [5, 10, 20];
@@ -76,8 +82,13 @@ const STAR_COUNTS = [0, STARS_PER_SET];
 const GEAR_HIT_SIZE = 64;
 const GEAR_EDGE_OFFSET = 8;
 
-/** AC2 v CSS px. */
+/** AC2 v CSS px; od #68 platí odstup 4 px i od domečku. */
 const MIN_STARS_TO_GEAR_GAP = 4;
+
+/** #68 AC4, schválený obrázek A: 2 řady po 5 hvězdičkách 24 px s rozestupem 32 px. */
+const STARS_PER_ROW = 5;
+const STAR_SIZE_68 = 24;
+const STAR_SPACING_68 = 32;
 const MIN_EDGE_DISTANCE = 4;
 const MIN_CONTROLS_BOTTOM_GAP = 8;
 const MAX_CONTROLS_BOTTOM_GAP = 24;
@@ -353,11 +364,23 @@ function gearHitCss(window: TestWindow): Box {
   return { left: right - gear.hitSize, right, top: gear.top, bottom: gear.top + gear.hitSize };
 }
 
-/** Všechno, co je na obrazovce kromě teček nápovědy, i s kolečkem. */
+/** Plocha pro prst u domečku v souřadnicích okna (#68). */
+function homeHitCss(window: TestWindow): Box {
+  const home = homeButtonFor(viewportOf(window));
+  return {
+    left: home.left,
+    right: home.left + home.hitSize,
+    top: home.top,
+    bottom: home.top + home.hitSize,
+  };
+}
+
+/** Všechno, co je na obrazovce kromě teček nápovědy, i s kolečkem a domečkem (#68). */
 function fixedElements(variant: PortraitVariant): Element[] {
   const { layout } = variant;
   const elements: Element[] = [
     { name: 'kolečko', css: gearHitCss(variant.window) },
+    { name: 'domeček', css: homeHitCss(variant.window) },
     ...starsCss(variant).map((css, index) => ({ name: `hvězdička ${index + 1}`, css })),
     { name: 'příklad', css: problemCss(variant) },
     { name: 'místo pro nápovědu', css: hintRegionCss(variant) },
@@ -610,26 +633,99 @@ describe('AC2: rozložení P2 shora dolů', () => {
     },
   );
 
+  /**
+   * #68 AC4 (otázka 1, schválený obrázek A): mezi domečkem a kolečkem se 10
+   * hvězdiček do jedné řady nevejde, proto jsou ve 2 řadách po 5 v horním
+   * pásu 72 px. Nejdřív se plní horní řada. Hvězdička 24 px, rozestup
+   * 32 px, řady 14–38 a 42–66 px od horního okraje volné plochy.
+   */
   it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): všech deset hvězdiček je v jedné řadě vlevo od kolečka, aspoň 4 px od něj',
+    '%s, rozsah %i (%s): hvězdičky jsou ve 2 řadách po 5 mezi domečkem a kolečkem, aspoň 4 px od obou (#68)',
     (_, maxNumber, mode, window) => {
       const variant = portraitVariant(window, maxNumber, mode);
       const stars = starsCss(variant);
       const gear = gearHitCss(window);
+      const home = homeHitCss(window);
+      const rows = [stars.slice(0, STARS_PER_ROW), stars.slice(STARS_PER_ROW)];
 
       expect(stars, label(variant)).toHaveLength(STARS_PER_SET);
-      expect(new Set(variant.layout.stars.map((star) => star.y)).size, label(variant)).toBe(1);
-      expect(boundsOf(stars).right, label(variant)).toBeLessThanOrEqual(
+      expect(new Set(variant.layout.stars.map((star) => star.y)).size, label(variant)).toBe(2);
+      expect(boundsOf(stars).left, label(variant, ', od domečku')).toBeGreaterThanOrEqual(
+        home.right + MIN_STARS_TO_GEAR_GAP - TOLERANCE,
+      );
+      expect(boundsOf(stars).right, label(variant, ', od kolečka')).toBeLessThanOrEqual(
         gear.left - MIN_STARS_TO_GEAR_GAP + TOLERANCE,
       );
-      stars.forEach((star, index) => {
-        const next = stars[index + 1];
-        if (next) {
-          expect(star.right, label(variant, `, hvězdička ${index + 1}`)).toBeLessThanOrEqual(
-            next.left + TOLERANCE,
-          );
-        }
+      rows.forEach((row, rowIndex) => {
+        const where = label(variant, `, řada ${rowIndex + 1}`);
+        expect(row, where).toHaveLength(STARS_PER_ROW);
+        expect(new Set(row.map((star) => star.top)).size, where).toBe(1);
+        row.forEach((star, index) => {
+          const next = row[index + 1];
+          if (next) {
+            expect(star.right, `${where}, hvězdička ${index + 1}`).toBeLessThanOrEqual(
+              next.left + TOLERANCE,
+            );
+          }
+        });
       });
+      const [top, bottom] = rows.map((row) => boundsOf(row));
+      expect(top && bottom && top.bottom <= bottom.top + TOLERANCE, label(variant)).toBe(true);
+    },
+  );
+
+  it.each(ALL_CASES)(
+    '%s, rozsah %i (%s): obě řady hvězdiček jsou v horním pásu domečku a kolečka a uprostřed mezi nimi (#68)',
+    (_, maxNumber, mode, window) => {
+      const variant = portraitVariant(window, maxNumber, mode);
+      const stars = boundsOf(starsCss(variant));
+      const gear = gearHitCss(window);
+      const home = homeHitCss(window);
+      const free = freeAreaOf(window);
+
+      expect(stars.top, label(variant)).toBeGreaterThanOrEqual(free.top + MIN_EDGE_DISTANCE);
+      expect(stars.bottom, label(variant)).toBeLessThanOrEqual(gear.bottom + TOLERANCE);
+      expect(
+        Math.abs(centerX(stars) - (home.right + gear.left) / 2),
+        label(variant),
+      ).toBeLessThanOrEqual(CENTER_TOLERANCE);
+    },
+  );
+
+  it.each(PORTRAIT_WINDOWS)(
+    '$name: hvězdičky mají 24 px, rozestup 32 px a řady jsou 14–38 a 42–66 px od horního okraje volné plochy (#68, obrázek A)',
+    (window) => {
+      const variant = portraitVariant(window, 10, 'číselník');
+      const free = freeAreaOf(window);
+      const stars = starsCss(variant);
+      const top = stars.slice(0, STARS_PER_ROW);
+      const bottom = stars.slice(STARS_PER_ROW);
+
+      for (const star of stars) {
+        expect(widthOf(star), window.name).toBeCloseTo(STAR_SIZE_68, 5);
+      }
+      expect((top[1]?.left ?? 0) - (top[0]?.left ?? 0), window.name).toBeCloseTo(
+        STAR_SPACING_68,
+        5,
+      );
+      expect((top[0]?.top ?? 0) - free.top, window.name).toBeCloseTo(14, 5);
+      expect((bottom[0]?.top ?? 0) - free.top, window.name).toBeCloseTo(42, 5);
+    },
+  );
+
+  it.each(PORTRAIT_WINDOWS)(
+    '$name: se 7 hvězdičkami je horní řada plná a ve spodní svítí první dvě (#68)',
+    (window) => {
+      const full = portraitVariant(window, 10, 'číselník', 'mixed', STARS_PER_SET).layout;
+      const seven = portraitVariant(window, 10, 'číselník', 'mixed', 7).layout;
+
+      expect(seven.stars, window.name).toEqual(full.stars.slice(0, 7));
+      const ys = seven.stars.map((star) => star.y);
+      expect(
+        ys.slice(0, STARS_PER_ROW).every((y) => y === ys[0]),
+        window.name,
+      ).toBe(true);
+      expect(ys[STARS_PER_ROW], window.name).toBeGreaterThan(ys[0] ?? 0);
     },
   );
 

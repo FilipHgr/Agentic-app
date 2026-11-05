@@ -1,12 +1,13 @@
 /**
  * Kontrola hotového rozložení telefonu (V2, #54) v CSS px: nic se
- * nepřekrývá, nic nevyčnívá z volné plochy a roh s kolečkem zůstane volný.
- * Čistý TypeScript.
+ * nepřekrývá, nic nevyčnívá z volné plochy a rohy s kolečkem (vpravo
+ * nahoře) i s domečkem (vlevo nahoře, #68) zůstanou volné. Čistý TypeScript.
  */
 
 import type { Region } from './phoneHint';
 import { GEAR_CORNER_SIZE } from './phonePlan';
 import type { ControlsPlacement, FreeSize, PhonePlan } from './phonePlan';
+import { slotWidth } from './screenLayout';
 import type { Point } from './screenLayout';
 
 const TOLERANCE = 0.01;
@@ -41,7 +42,7 @@ function controlsRects(placement: ControlsPlacement): Region[] {
     : placement.answerButtons;
   const areas = placement.writing?.areas ?? [];
   return [
-    ...buttons.map((slot) => rectAround(slot, slot.size, slot.size)),
+    ...buttons.map((slot) => rectAround(slot, slotWidth(slot), slot.size)),
     ...areas.map((area) => rectAround(area, area.width, area.height)),
   ];
 }
@@ -63,15 +64,18 @@ function anyOverlapsBetween(first: readonly Region[], second: readonly Region[])
   return first.some((a) => second.some((b) => overlaps(a, b)));
 }
 
-/** Nic se nepřekrývá, nic nevyčnívá z volné plochy a roh s kolečkem je volný. */
+/** Volné rohy nahoře: vpravo kolečko nastavení, vlevo zrcadlově domeček (#68). */
+export function cornerRects(free: FreeSize): Region[] {
+  return [
+    { left: free.width - GEAR_CORNER_SIZE, right: free.width, top: 0, bottom: GEAR_CORNER_SIZE },
+    { left: 0, right: GEAR_CORNER_SIZE, top: 0, bottom: GEAR_CORNER_SIZE },
+  ];
+}
+
+/** Nic se nepřekrývá, nic nevyčnívá z volné plochy a rohy s kolečkem a domečkem jsou volné. */
 export function isValidPlan(plan: PhonePlan, free: FreeSize): boolean {
   const area: Region = { left: 0, top: 0, right: free.width, bottom: free.height };
-  const corner: Region = {
-    left: free.width - GEAR_CORNER_SIZE,
-    right: free.width,
-    top: 0,
-    bottom: GEAR_CORNER_SIZE,
-  };
+  const corners = cornerRects(free);
   const controls = controlsRects(plan);
   const fixed = fixedRects(plan, controls);
   const dots = plan.hintDots.map((dot) => rectAround(dot, plan.hintDotSize, plan.hintDotSize));
@@ -81,7 +85,9 @@ export function isValidPlan(plan: PhonePlan, free: FreeSize): boolean {
   const all = [...fixed, ...dots, ...hits];
 
   return (
-    all.every((rect) => isInside(rect, area) && !overlaps(rect, corner)) &&
+    all.every(
+      (rect) => isInside(rect, area) && corners.every((corner) => !overlaps(rect, corner)),
+    ) &&
     !anyPairOverlaps(fixed) &&
     !anyOverlapsBetween(dots, fixed) &&
     !anyOverlapsBetween(hits, controls)

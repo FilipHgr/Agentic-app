@@ -12,6 +12,9 @@
  * - pozdě doběhnuté stahování hru nespustí, nový pokus jen po ťuknutí,
  * - ťuknutí jinam během stahování spuštění zruší bez zatřesení.
  * Žádná výjimka z menu neunikne.
+ *
+ * Návrat z hry (#68): po odchodu domečkem menu žádnou hru nehraje
+ * a vybraná kategorie zůstane, jak ji dítě nechalo.
  */
 
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
@@ -74,6 +77,12 @@ export interface MenuOptions {
    * už platí pro ni. Stránka podle nich nastaví název a kolečko.
    */
   readonly onStarted?: (game: GameEntry) => void;
+  /**
+   * Dítě odešlo z hry domečkem (#68): `runningGame()` je zase `null`,
+   * `pageTitle()` název menu a `canGoHome()` i `canOpenSettings()` neplatí.
+   * Stránka podle nich nastaví název, skryje kolečko i domeček a ukáže menu.
+   */
+  readonly onReturned?: () => void;
 }
 
 export interface Menu {
@@ -88,6 +97,10 @@ export interface Menu {
   pageTitle(): string;
   /** Kolečko nastavení jde otevřít, až když hra naběhne. */
   canOpenSettings(): boolean;
+  /** Domeček je vidět jen v běžící hře (#68); v menu ani při stahování ne. */
+  canGoHome(): boolean;
+  /** Hra skončila odchodem domečkem, menu se znovu ukáže (#68). Bez běžící hry nic. */
+  returnFromGame(): void;
 }
 
 /** Rozběhnuté stahování a spuštění jedné hry. */
@@ -266,6 +279,19 @@ export function createMenu(options: MenuOptions): Menu {
 
     canOpenSettings(): boolean {
       return running !== null;
+    },
+
+    canGoHome(): boolean {
+      return running !== null;
+    },
+
+    returnFromGame(): void {
+      if (running === null) {
+        return;
+      }
+      // Vybraná kategorie zůstane, dítě je tam, odkud hru spustilo.
+      running = null;
+      options.onReturned?.();
     },
   };
 }

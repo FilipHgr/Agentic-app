@@ -183,9 +183,19 @@ export interface Point {
   readonly y: number;
 }
 
-/** Čtvercové tlačítko; `x` a `y` je jeho střed. */
+/**
+ * Tlačítko; `x` a `y` je jeho střed. `size` je výška a u čtvercového
+ * tlačítka i šířka. Široké tlačítko číselníku na telefonu na šířku (#68,
+ * návrh C) má navíc `width`.
+ */
 export interface ButtonSlot extends Point {
   readonly size: number;
+  readonly width?: number;
+}
+
+/** Šířka tlačítka (čtvercové má šířku `size`). */
+export function slotWidth(slot: ButtonSlot): number {
+  return slot.width ?? slot.size;
 }
 
 export interface ScreenLayout {

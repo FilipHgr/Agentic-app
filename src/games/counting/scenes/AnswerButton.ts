@@ -4,6 +4,7 @@ import { buttonCornerRadius } from '../logic/checkButton';
 import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
 import { KEYPAD_BUTTON_STYLE, answerButtonLook } from '../logic/theme';
 import type { AnswerButtonState } from '../logic/theme';
+import { slotWidth } from '../logic/screenLayout';
 import type { ButtonSlot } from '../logic/screenLayout';
 
 /** Číslo na tlačítku zabírá asi dvě třetiny jeho výšky. */
@@ -18,7 +19,10 @@ export interface AnswerButton {
   readonly container: Phaser.GameObjects.Container;
   readonly background: Phaser.GameObjects.Graphics;
   readonly label: Phaser.GameObjects.Text;
+  /** Výška tlačítka. */
   readonly size: number;
+  /** Šířka tlačítka (na telefonu na šířku širší než výška, #68). */
+  readonly width: number;
   /** Vodorovná poloha, kam se tlačítko vrací po zatřesení. */
   readonly homeX: number;
   /** Tloušťka okraje a zatřesení proti iPadu (#54). */
@@ -54,12 +58,13 @@ export function createAnswerButton(
     background,
     label,
     size: slot.size,
+    width: slotWidth(slot),
     homeX: slot.x,
     detailScale,
   };
 
   paintAnswerButton(button, 'idle');
-  container.setSize(slot.size, slot.size).setInteractive();
+  container.setSize(button.width, slot.size).setInteractive();
   container.on('pointerdown', (pointer: Phaser.Input.Pointer) => onPressed(button, pointer));
 
   return button;
@@ -68,7 +73,8 @@ export function createAnswerButton(
 /** Tlačítko číselníku podle stavu: světle modré, po správné odpovědi zelené (#52). */
 export function paintAnswerButton(button: AnswerButton, state: AnswerButtonState): void {
   const look = answerButtonLook(state);
-  const half = button.size / 2;
+  const halfWidth = button.width / 2;
+  const halfHeight = button.size / 2;
   const radius = buttonCornerRadius(button.size);
   // Okraj se kreslí dovnitř tlačítka, aby se nezměnila jeho velikost.
   const borderWidth = look.borderWidth * button.detailScale;
@@ -77,12 +83,12 @@ export function paintAnswerButton(button: AnswerButton, state: AnswerButtonState
   button.background
     .clear()
     .fillStyle(colorNumber(look.background), 1)
-    .fillRoundedRect(-half, -half, button.size, button.size, radius)
+    .fillRoundedRect(-halfWidth, -halfHeight, button.width, button.size, radius)
     .lineStyle(borderWidth, colorNumber(look.borderColor), 1)
     .strokeRoundedRect(
-      -half + inset,
-      -half + inset,
-      button.size - borderWidth,
+      -halfWidth + inset,
+      -halfHeight + inset,
+      button.width - borderWidth,
       button.size - borderWidth,
       radius - inset,
     );

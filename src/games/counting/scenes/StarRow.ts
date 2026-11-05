@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 
+import { STAR_FLIGHT_MS } from '../logic/countingSession';
 import { STAR_STYLE, starLooks } from '../logic/theme';
 import { colorNumber } from '../../../shared/logic/theme';
 import type { StarProgress } from '../logic/stars';
@@ -7,9 +8,6 @@ import type { SceneLayouts } from './SceneLayouts';
 
 const STAR_EMPTY_COLOR = colorNumber(STAR_STYLE.emptyColor);
 const STAR_FILLED_COLOR = colorNumber(STAR_STYLE.earnedColor);
-
-/** Jak dlouho letí hvězdička od tlačítka do řady nahoře. */
-const STAR_FLIGHT_MS = 450;
 
 /** Místo, odkud vyletí hvězdička za správnou odpověď. */
 export interface Origin {

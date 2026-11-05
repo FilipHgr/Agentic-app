@@ -16,6 +16,7 @@ import type { Problem } from '../../../src/games/counting/logic/problems';
 import {
   layoutScreen,
   layoutWritingScreen,
+  slotWidth,
   writingAreaAt,
 } from '../../../src/games/counting/logic/screenLayout';
 import type {
@@ -52,6 +53,15 @@ import type { Box, TestWindow } from '../../shared/viewportFixtures';
  * u okrajových a typických příkladů (viz `sampleHintProblems`). Oslava
  * (konfety) se kontroluje i ručně v náhledu na iPhonu a Samsungu. Od #63
  * je příklad bez nikoho vedle (viz `phoneBiggerProblem.test.ts`).
+ *
+ * #68 (návrh C, rozhodnutí vlastníka po obrázcích) vědomě mění AC2 a AC3:
+ * nahoře je pás s příkladem, tečkami nápovědy hned vedle (nebo pod ním,
+ * když se vedle nevejdou) a hvězdičkami ve 2 řadách po 5 u kolečka, mezi
+ * rohem domečku a rohem kolečka. Dole je číselník přes celou šířku se
+ * širokými tlačítky (do 20 už ne vpravo od příkladu), nebo okénka na psaní.
+ * Tečky jdou souvisle po pěti v řadě, druhé číslo pokračuje v řadě prvního.
+ * Ostatní pravidla #54 (64 px, 8 px, 48 px ťukací tečky, hvězdička 24 px,
+ * písmo 32 px, nic v rohu ani mimo volnou plochu) platí dál.
  *
  * Rozložení s nápovědou: `layoutPhoneScreen` a `layoutPhoneWritingScreen`
  * dostanou skupinky teček nápovědy (prázdné = bez nápovědy) a smí pro ně
@@ -223,8 +233,9 @@ function css(variant: PhoneVariant, b: Box): Box {
   return toCss(b, variant.area);
 }
 
+/** Tlačítko; číselník na šířku má od #68 široká tlačítka (`width`). */
 function slotCss(variant: PhoneVariant, slot: ButtonSlot): Box {
-  return css(variant, box(slot.x, slot.y, slot.size, slot.size));
+  return css(variant, box(slot.x, slot.y, slotWidth(slot), slot.size));
 }
 
 function areaCss(variant: PhoneVariant, area: WritingAreaSlot): Box {
@@ -349,12 +360,7 @@ function rowsByY<T extends { readonly y: number }>(items: readonly T[]): T[][] {
   return rows;
 }
 
-/** U rozsahu 20 s číselníkem je příklad vlevo od číselníku (výjimka V2). */
-function isWideKeypad(maxNumber: MaxNumber, mode: Mode): boolean {
-  return maxNumber === 20 && mode === 'číselník';
-}
-
-/** Ovládání je pod hvězdičkami a pod příkladem (u rozsahu 20 s číselníkem vpravo od příkladu). */
+/** Ovládání je pod hvězdičkami a pod příkladem, ve všech rozsazích (#68, C). */
 function expectControlsBelowStarsAndProblem(variant: PhoneVariant, where: string): void {
   const controls = boundsOf(controlsCss(variant));
   const stars = boundsOf(starsCss(variant));
@@ -363,15 +369,16 @@ function expectControlsBelowStarsAndProblem(variant: PhoneVariant, where: string
   expect(controls.top, `${where}: ovládání pod hvězdičkami`).toBeGreaterThanOrEqual(
     stars.bottom - TOLERANCE,
   );
-  if (isWideKeypad(variant.maxNumber, variant.mode)) {
-    expect(controls.left, `${where}: číselník vpravo od příkladu`).toBeGreaterThanOrEqual(
-      problem.right - TOLERANCE,
-    );
-  } else {
-    expect(controls.top, `${where}: ovládání pod příkladem`).toBeGreaterThanOrEqual(
-      problem.bottom - TOLERANCE,
-    );
-  }
+  expect(controls.top, `${where}: ovládání pod příkladem`).toBeGreaterThanOrEqual(
+    problem.bottom - TOLERANCE,
+  );
+}
+
+/** Roh domečku vlevo nahoře na šířku (#68): 88 × 88 px u levého horního okraje volné plochy. */
+const HOME_CORNER_SIZE = 88;
+
+function homeCornerRight(window: TestWindow): number {
+  return freeAreaOf(window).left + HOME_CORNER_SIZE;
 }
 
 function expectNoOverlaps(elements: readonly Element[], where: string): void {
@@ -507,51 +514,38 @@ describe('AC1: tlačítka na telefonu na šířku jsou dost velká na prst', () 
 
 describe('AC2: rozložení V2 na telefonu na šířku', () => {
   it.each(ALL_VARIANTS)(
-    '%s, rozsah %i (%s): hvězdičky jsou nahoře vodorovně uprostřed',
+    '%s, rozsah %i (%s): hvězdičky jsou v horním pásu vlevo vedle kolečka (#68)',
     (_, maxNumber, mode, window) => {
       const variant = phoneVariant(window, maxNumber, mode, STARS_PER_SET);
       const free = freeAreaOf(window);
+      const gear = gearCornerOf(window);
       const stars = boundsOf(starsCss(variant));
 
-      expect(Math.abs(centerX(stars) - centerX(free)), label(variant)).toBeLessThanOrEqual(
-        CENTER_TOLERANCE,
-      );
-      expect((stars.top + stars.bottom) / 2, label(variant)).toBeLessThan(
-        (free.top + free.bottom) / 2,
-      );
+      expect(stars.right, label(variant)).toBeLessThanOrEqual(gear.left + TOLERANCE);
+      expect(gear.left - stars.right, label(variant)).toBeLessThanOrEqual(8);
+      expect(stars.top, label(variant)).toBeGreaterThanOrEqual(free.top + 4 - TOLERANCE);
+      expect(stars.bottom, label(variant)).toBeLessThanOrEqual(gear.bottom + TOLERANCE);
     },
   );
 
-  it.each(ALL_VARIANTS.filter(([, maxNumber, mode]) => !isWideKeypad(maxNumber, mode)))(
-    '%s, rozsah %i (%s): příklad je pod hvězdičkami vodorovně uprostřed (#63)',
+  it.each(ALL_VARIANTS)(
+    '%s, rozsah %i (%s): příklad je v horním pásu uprostřed mezi rohem domečku a hvězdičkami (#68)',
     (_, maxNumber, mode, window) => {
       const variant = phoneVariant(window, maxNumber, mode);
-      const free = freeAreaOf(window);
-      const stars = boundsOf(starsCss(variant));
+      const gear = gearCornerOf(window);
+      const stars = boundsOf(starsCss(phoneVariant(window, maxNumber, mode, STARS_PER_SET)));
       const problem = problemCss(variant);
+      const placeCenter = (homeCornerRight(window) + stars.left) / 2;
 
-      expect(problem.top, label(variant, ', příklad pod hvězdičkami')).toBeGreaterThanOrEqual(
-        stars.bottom - TOLERANCE,
+      expect(problem.left, label(variant, ', vpravo od rohu domečku')).toBeGreaterThanOrEqual(
+        homeCornerRight(window) - TOLERANCE,
       );
-      expect(Math.abs(centerX(problem) - centerX(free)), label(variant)).toBeLessThanOrEqual(
+      expect(problem.right, label(variant, ', vlevo od hvězdiček')).toBeLessThanOrEqual(
+        stars.left + TOLERANCE,
+      );
+      expect(problem.top, label(variant, ', v horním pásu')).toBeLessThan(gear.bottom);
+      expect(Math.abs(centerX(problem) - placeCenter), label(variant)).toBeLessThanOrEqual(
         CENTER_TOLERANCE,
-      );
-    },
-  );
-
-  it.each(KEYPAD_VARIANTS.filter(([, maxNumber]) => maxNumber === 20))(
-    '%s, rozsah %i (%s): příklad je pod hvězdičkami vlevo od číselníku',
-    (_, maxNumber, mode, window) => {
-      const variant = phoneVariant(window, maxNumber, mode);
-      const stars = boundsOf(starsCss(variant));
-      const keypad = boundsOf(controlsCss(variant));
-      const problem = problemCss(variant);
-
-      expect(problem.top, label(variant, ', příklad pod hvězdičkami')).toBeGreaterThanOrEqual(
-        stars.bottom - TOLERANCE,
-      );
-      expect(problem.right, label(variant, ', příklad vlevo od číselníku')).toBeLessThanOrEqual(
-        keypad.left + TOLERANCE,
       );
     },
   );
@@ -564,8 +558,8 @@ describe('AC2: rozložení V2 na telefonu na šířku', () => {
     },
   );
 
-  it.each(KEYPAD_VARIANTS.filter(([, maxNumber]) => maxNumber !== 20))(
-    '%s, rozsah %i (%s): číselník je vodorovně uprostřed',
+  it.each(KEYPAD_VARIANTS)(
+    '%s, rozsah %i (%s): číselník je vodorovně uprostřed (od #68 i do 20)',
     (_, maxNumber, mode, window) => {
       const variant = phoneVariant(window, maxNumber, mode);
       const free = freeAreaOf(window);
@@ -642,38 +636,45 @@ describe('AC2: rozložení V2 na telefonu na šířku', () => {
   }
 
   it.each(ALL_VARIANTS)(
-    '%s, rozsah %i (%s): nápověda po 2. chybě je vpravo od příkladu a ukáže všechny tečky',
+    '%s, rozsah %i (%s): nápověda po 2. chybě je vpravo vedle příkladu, nebo pod ním (#68), a ukáže všechny tečky',
     (_, maxNumber, mode, window) => {
       for (const screen of sampleHintScreens(window, maxNumber, mode)) {
-        const dots = screen.dots.map((dot) => dotCss(screen.variant, dot));
+        const dots = boundsOf(screen.dots.map((dot) => dotCss(screen.variant, dot)));
         const problem = problemCss(screen.variant);
 
-        expect(dots.length, hintLabel(screen)).toBe(
+        expect(screen.dots.length, hintLabel(screen)).toBe(
           hintDotGroups(screen.problem).reduce((a, b) => a + b, 0),
         );
-        expect(boundsOf(dots).left, hintLabel(screen)).toBeGreaterThanOrEqual(
-          problem.right - TOLERANCE,
-        );
+        const beside = dots.left >= problem.right - TOLERANCE;
+        const below = dots.top >= problem.bottom - TOLERANCE;
+        expect(beside || below, hintLabel(screen)).toBe(true);
       }
     },
   );
 
   it.each(ALL_VARIANTS)(
-    '%s, rozsah %i (%s): tečky nápovědy jsou po pěti v řadě, jen poslední řada skupinky smí mít méně',
+    '%s, rozsah %i (%s): tečky nápovědy jdou souvisle po pěti v řadě, druhé číslo pokračuje v řadě prvního (#68)',
     (_, maxNumber, mode, window) => {
       for (const screen of sampleHintScreens(window, maxNumber, mode)) {
-        const groups = new Set(screen.dots.map((dot) => dot.group));
+        const where = hintLabel(screen);
+        const rows = rowsByY(screen.dots);
+        const counts = rows.map((row) => row.length);
+        const perRow = counts[0] ?? 0;
 
-        for (const group of groups) {
-          const where = hintLabel(screen, `, skupinka ${group}`);
-          const counts = rowsByY(screen.dots.filter((dot) => dot.group === group)).map(
-            (row) => row.length,
-          );
-          counts.slice(0, -1).forEach((count) => {
-            expect(count, where).toBe(DOTS_PER_ROW);
-          });
-          expect(counts[counts.length - 1], where).toBeLessThanOrEqual(DOTS_PER_ROW);
+        const fullRow = Math.min(totalHintDots(screen.problem), DOTS_PER_ROW);
+        // Dvě pětice vedle sebe jen v nouzi (do 20 s víc než 15 tečkami na nejnižších telefonech).
+        expect([fullRow, 2 * DOTS_PER_ROW], where).toContain(perRow);
+        if (perRow === 2 * DOTS_PER_ROW) {
+          expect(maxNumber, where).toBe(20);
+          expect(totalHintDots(screen.problem), where).toBeGreaterThan(3 * DOTS_PER_ROW);
         }
+        counts.slice(0, -1).forEach((count) => {
+          expect(count, where).toBe(perRow);
+        });
+        expect(counts[counts.length - 1], where).toBeLessThanOrEqual(perRow);
+        // Pořadí čtení (řady shora, v řadě zleva) je pořadí teček: nejdřív první číslo, pak druhé.
+        const reading = rows.flatMap((row) => [...row].sort((a, b) => a.x - b.x));
+        expect(reading, where).toEqual(screen.dots);
       }
     },
   );
@@ -790,7 +791,7 @@ describe('AC2: rozložení V2 na telefonu na šířku', () => {
 
 describe('AC3: hvězdičky a příklad jsou na telefonu dobře vidět', () => {
   it.each(ALL_VARIANTS)(
-    '%s, rozsah %i (%s): hvězdička má aspoň 24 px a všech deset je v jedné řadě',
+    '%s, rozsah %i (%s): hvězdička má aspoň 24 px a deset jich je ve 2 řadách po 5 (#68, C)',
     (_, maxNumber, mode, window) => {
       const variant = phoneVariant(window, maxNumber, mode, STARS_PER_SET);
       const stars = starsCss(variant);
@@ -799,14 +800,19 @@ describe('AC3: hvězdičky a příklad jsou na telefonu dobře vidět', () => {
       for (const star of stars) {
         expect(widthOf(star), label(variant)).toBeGreaterThanOrEqual(MIN_STAR_SIZE - TOLERANCE);
       }
-      const rowY = new Set(variant.layout.stars.map((star) => star.y));
-      expect(rowY.size, label(variant)).toBe(1);
-      stars.forEach((star, index) => {
-        const next = stars[index + 1];
-        if (next) {
-          expect(star.right, label(variant)).toBeLessThanOrEqual(next.left + TOLERANCE);
-        }
-      });
+      const rows = [stars.slice(0, 5), stars.slice(5)];
+      expect(new Set(variant.layout.stars.map((star) => star.y)).size, label(variant)).toBe(2);
+      for (const row of rows) {
+        expect(new Set(row.map((star) => star.top)).size, label(variant)).toBe(1);
+        row.forEach((star, index) => {
+          const next = row[index + 1];
+          if (next) {
+            expect(star.right, label(variant)).toBeLessThanOrEqual(next.left + TOLERANCE);
+          }
+        });
+      }
+      const [top, bottom] = rows.map((row) => boundsOf(row));
+      expect(top && bottom && top.bottom <= bottom.top + TOLERANCE, label(variant)).toBe(true);
     },
   );
 
@@ -853,22 +859,21 @@ function expectWritingBoxSizes(variant: PhoneVariant, where: string): void {
   }
 }
 
-/** Hvězdičky, příklad a okénka seřazené shora dolů podle horního okraje. */
+/** Horní pás (hvězdičky a příklad vedle sebe, #68) a okénka seřazené shora dolů. */
 function writingOrderTopToBottom(variant: PhoneVariant): string[] {
   const parts: Element[] = [
-    { name: 'hvězdičky', css: boundsOf(starsCss(variant)) },
-    { name: 'příklad', css: problemCss(variant) },
+    { name: 'pás', css: boundsOf([...starsCss(variant), problemCss(variant)]) },
     { name: 'okénka', css: boundsOf(writingBoxesCss(variant)) },
   ];
   return [...parts].sort((a, b) => a.css.top - b.css.top).map((part) => part.name);
 }
 
-/** Hvězdičky jsou celé nad příkladem a příklad celý nad okénky. */
+/** Hvězdičky a příklad jsou v pásu celé nad okénky. */
 function expectStarsProblemBoxesStacked(variant: PhoneVariant, where: string): void {
   const stars = boundsOf(starsCss(variant));
   const problem = problemCss(variant);
   const boxes = boundsOf(writingBoxesCss(variant));
-  expect(problem.top, `${where}: příklad pod hvězdičkami`).toBeGreaterThanOrEqual(
+  expect(boxes.top, `${where}: okénka pod hvězdičkami`).toBeGreaterThanOrEqual(
     stars.bottom - TOLERANCE,
   );
   expect(boxes.top, `${where}: okénka pod příkladem`).toBeGreaterThanOrEqual(
@@ -914,12 +919,12 @@ describe('AC4: psaní prstem na telefonu na šířku', () => {
   );
 
   it.each(WRITING_VARIANTS)(
-    '%s, rozsah %i (%s): po ukázání nápovědy rozložení nepřeskočí, hvězdičky, příklad a okénka zůstanou shora dolů ve stejném pořadí',
+    '%s, rozsah %i (%s): po ukázání nápovědy rozložení nepřeskočí, pás s hvězdičkami a příkladem zůstane nad okénky',
     (_, maxNumber, mode, window) => {
       const withoutHint = phoneVariant(window, maxNumber, mode);
       const expectedOrder = writingOrderTopToBottom(withoutHint);
 
-      expect(expectedOrder, label(withoutHint)).toEqual(['hvězdičky', 'příklad', 'okénka']);
+      expect(expectedOrder, label(withoutHint)).toEqual(['pás', 'okénka']);
       expectStarsProblemBoxesStacked(withoutHint, label(withoutHint));
       for (const screen of sampleHintScreens(window, maxNumber, mode)) {
         expect(writingOrderTopToBottom(screen.variant), hintLabel(screen)).toEqual(expectedOrder);

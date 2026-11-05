@@ -1,7 +1,9 @@
 /**
  * Stránka s menu (#67): plátno menu přes celé okno, logika menu, odemčení
- * zvuku prvním ťuknutím a spuštění hry. Po spuštění hry se menu zavře.
- * Návrat z hry do menu přijde v #68.
+ * zvuku prvním ťuknutím a spuštění hry. Po spuštění hry se menu schová
+ * a uspí (nekreslí se), po návratu z hry domečkem (#68) se znovu ukáže
+ * na stejné kategorii. Plátno menu je jedno pro celé načtení stránky, takže
+ * opakované vstupy do her a návraty nezakládají nová plátna ani posluchače.
  */
 
 import Phaser from 'phaser';
@@ -67,8 +69,9 @@ function createMenuGame(scene: MenuScene): Phaser.Game {
 }
 
 /**
- * Název stránky a kolečko nastavení podle logiky menu (#67 AC1, AC2):
- * v menu „Matematika“ a skryté kolečko, po naběhnutí hry její název a kolečko.
+ * Název stránky, kolečko nastavení a domeček podle logiky menu (#67 AC1,
+ * AC2, #68 AC1): v menu „Matematika“ a obojí skryté, po naběhnutí hry její
+ * název a kolečko. Domeček ve hře ukáže hra, když jde použít.
  */
 function showPageState(menu: Menu): void {
   document.title = menu.pageTitle();
@@ -76,12 +79,17 @@ function showPageState(menu: Menu): void {
   if (settingsButton) {
     settingsButton.hidden = !menu.canOpenSettings();
   }
+  const homeButton = document.getElementById('home-button');
+  if (homeButton && !menu.canGoHome()) {
+    homeButton.hidden = true;
+  }
 }
 
-/** Co menu potřebuje až po svém vytvoření: scénu pro odezvu a zavření menu. */
+/** Co menu potřebuje až po svém vytvoření: scénu pro odezvu, schování a ukázání menu. */
 interface MenuView {
   scene?: MenuScene;
   close?: () => void;
+  reopen?: () => void;
 }
 
 export function startMenuPage(options: MenuPageOptions): void {
@@ -90,9 +98,17 @@ export function startMenuPage(options: MenuPageOptions): void {
     games: options.games,
     categories: options.categories,
     translate,
-    start: (game, loaded) => launchGame(game, loaded, { closeMenu: () => view.close?.() }),
+    start: (game, loaded) =>
+      launchGame(game, loaded, {
+        closeMenu: () => view.close?.(),
+        returnToMenu: () => menu.returnFromGame(),
+      }),
     feedback: (event) => view.scene?.play(event),
     onStarted: () => showPageState(menu),
+    onReturned: () => {
+      showPageState(menu);
+      view.reopen?.();
+    },
   });
 
   const categoryTitles = menu.categories().map((category) => category.title);
@@ -109,20 +125,39 @@ export function startMenuPage(options: MenuPageOptions): void {
   showPageState(menu);
   unlockAudioOnTouch();
 
-  // Po otočení nebo změně lišty prohlížeče se plátno zvětší na nové okno.
-  const stopWatchingViewport = watchViewport(() => {
+  const parent = document.getElementById('menu');
+  let menuShown = true;
+
+  /** Plátno menu podle současného okna; nakreslí se znovu v dalším snímku. */
+  const fitToWindow = (): void => {
     const next = canvasSize();
     menuGame.scale.getParentBounds();
     menuGame.scale.setGameSize(next.width, next.height);
     scene.requestRedraw();
+  };
+
+  // Po otočení nebo změně lišty prohlížeče se plátno zvětší na nové okno.
+  // Schované menu se přizpůsobí až při návratu z hry.
+  watchViewport(() => {
+    if (menuShown) {
+      fitToWindow();
+    }
   });
 
   view.close = () => {
-    stopWatchingViewport();
-    menuGame.destroy(true);
-    const parent = document.getElementById('menu');
+    menuShown = false;
+    menuGame.loop.sleep();
     if (parent) {
       parent.hidden = true;
     }
+  };
+
+  view.reopen = () => {
+    menuShown = true;
+    if (parent) {
+      parent.hidden = false;
+    }
+    menuGame.loop.wake();
+    fitToWindow();
   };
 }

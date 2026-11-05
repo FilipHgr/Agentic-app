@@ -13,6 +13,7 @@ import type {
   PhoneScreenLayout,
   PhoneWritingLayout,
 } from '../../../src/games/counting/logic/deviceLayout';
+import { slotWidth } from '../../../src/games/counting/logic/screenLayout';
 import type { HintDot } from '../../../src/games/counting/logic/screenLayout';
 import type { MaxNumber, OperationMode } from '../../../src/games/counting/logic/settings';
 import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
@@ -28,7 +29,6 @@ import {
   box,
   boundsOf,
   freeAreaOf,
-  gearCornerOf,
   toCss,
   viewportOf,
 } from '../../shared/viewportFixtures';
@@ -63,9 +63,49 @@ const CENTER_TOLERANCE = 1;
 /** Tolerance na zaokrouhlení v CSS px. */
 const TOLERANCE = 0.01;
 
-/** Odstup od rohu s kolečkem a od kraje volné plochy, když se řada s nápovědou posune doleva (#54). */
-const GEAR_CORNER_GAP = 4;
-const EDGE_MARGIN = 8;
+/** Roh domečku na šířku (#68) a nejvíc kolik px jsou tečky od příkladu (vedle 12 px, pod ním 6 px). */
+const HOME_CORNER_SIZE = 88;
+const PROBLEM_DOTS_GAP = 12;
+const MAX_PROBLEM_DOTS_GAP = PROBLEM_DOTS_GAP + 1;
+
+/**
+ * #68 (návrh C) vědomě mění AC3 u nápovědy: tečky jsou hned vedle příkladu
+ * v horním pásu mezi rohem domečku a hvězdičkami u kolečka. Když se tam
+ * příklad v dnešním písmu i s tečkami vedle sebe nevejde, dostane přednost
+ * menší písmo, ale ne pod nejmenší písmo telefonu z #54 (32 px). Výjimka
+ * se nevyjmenovává, ale počítá: platí jen pro varianty, kde by dvojice
+ * v dnešním písmu byla širší než místo mezi rohem domečku a hvězdičkami.
+ * Všechny ostatní varianty a všechny varianty bez nápovědy dál hlídá
+ * „aspoň jako dnes“.
+ */
+const MIN_PHONE_FONT = 32;
+
+/** Šířka dvojice příklad + mezera 12 px + tečky v písmu `font` (CSS px). */
+function pairWidthAtFont(
+  layout: PhoneLayout,
+  area: GameArea,
+  groups: readonly number[],
+  font: number,
+): number {
+  const problemWidth = (layout.problemSize.width / layout.problemFontSize) * (font / area.scale);
+  const dots = boundsOf(dotCellsCss(layout, layoutPhoneHint(layout, groups), area));
+  return problemWidth * area.scale + PROBLEM_DOTS_GAP + (dots.right - dots.left);
+}
+
+/** Nejmenší povolené písmo s nápovědou: dnešní, nebo 32 px, když se dnešní nevejde (#68). */
+function fontFloorWithHint(
+  window: TestWindow,
+  maxNumber: MaxNumber,
+  mode: Mode,
+  layout: PhoneLayout,
+  area: GameArea,
+  groups: readonly number[],
+  before: number,
+): number {
+  const place = problemPlaceCss(window, maxNumber, mode);
+  const fitsToday = pairWidthAtFont(layout, area, groups, before) <= place.right - place.left;
+  return fitsToday ? before : MIN_PHONE_FONT;
+}
 
 /** iPhone 13–15 na výšku: písmo má být větší než dnes ve všech rozsazích (schválený obrázek). */
 const IPHONE_PORTRAIT = '390×844 iPhone 13–15 (výřez 47, lišta 34)';
@@ -113,16 +153,31 @@ function controlsCss(layout: PhoneLayout, area: GameArea): Box[] {
       ),
     ];
   }
-  return layout.answerButtons.map((b) => toCss(box(b.x, b.y, b.size, b.size), area));
+  return layout.answerButtons.map((b) => toCss(box(b.x, b.y, slotWidth(b), b.size), area));
 }
 
 function centerX(b: Box): number {
   return (b.left + b.right) / 2;
 }
 
-/** U rozsahu 20 s číselníkem je číselník vpravo a příklad ve sloupci vlevo od něj (V2). */
-function isWideKeypad(maxNumber: MaxNumber, mode: Mode): boolean {
-  return maxNumber === 20 && mode === 'keypad';
+/**
+ * Místo pro příklad v horním pásu (#68, návrh C): od rohu domečku 88 px
+ * po levý okraj hvězdiček u kolečka, v CSS px okna.
+ */
+function problemPlaceCss(window: TestWindow, maxNumber: MaxNumber, mode: Mode): Box {
+  const area = gameAreaFor(viewportOf(window));
+  const free = freeAreaOf(window);
+  // Místo je pro všech deset hvězdiček, i když jich zatím svítí méně.
+  const layout = landscapeLayout(area, maxNumber, mode, STARS_PER_SET, []);
+  const stars = boundsOf(
+    layout.stars.map((star) => toCss(box(star.x, star.y, layout.starSize, layout.starSize), area)),
+  );
+  return {
+    left: free.left + HOME_CORNER_SIZE,
+    right: stars.left,
+    top: free.top,
+    bottom: stars.bottom,
+  };
 }
 
 function landscapeCases(): Array<[string, TestWindow, MaxNumber, Mode]> {
@@ -149,74 +204,66 @@ describe('#63 AC3: telefon na šířku', () => {
     }
   });
 
-  it.each(LANDSCAPE_CASES.filter(([, , maxNumber, mode]) => !isWideKeypad(maxNumber, mode)))(
-    '%s: bez nápovědy je střed příkladu ve vodorovném středu volné plochy',
+  /*
+   * #68 (návrh C) vědomě mění AC3: příklad už není uprostřed volné plochy
+   * pod hvězdičkami, ale v horním pásu mezi rohem domečku a hvězdičkami
+   * u kolečka. Tečky nápovědy jsou hned vpravo vedle příkladu a dvojice je
+   * uprostřed tohoto místa, nebo (když se vedle nevejdou) hned pod
+   * příkladem. Číselník do 20 už není vpravo od příkladu.
+   */
+  it.each(LANDSCAPE_CASES)(
+    '%s: bez nápovědy je příklad v horním pásu uprostřed mezi rohem domečku a hvězdičkami (#68)',
     (_, window, maxNumber, mode) => {
       const area = gameAreaFor(viewportOf(window));
-      const free = freeAreaOf(window);
       for (const starCount of STAR_COUNTS) {
         const layout = landscapeLayout(area, maxNumber, mode, starCount, []);
-        expect(
-          Math.abs(centerX(problemCss(layout, area)) - centerX(free)),
-          `${starCount} hvězdiček`,
-        ).toBeLessThanOrEqual(CENTER_TOLERANCE);
-      }
-    },
-  );
-
-  it.each(LANDSCAPE_CASES.filter(([, , maxNumber, mode]) => isWideKeypad(maxNumber, mode)))(
-    '%s: bez nápovědy je příklad ve středu volného sloupce vlevo od číselníku',
-    (_, window, maxNumber, mode) => {
-      const area = gameAreaFor(viewportOf(window));
-      const free = freeAreaOf(window);
-      for (const starCount of STAR_COUNTS) {
-        const layout = landscapeLayout(area, maxNumber, mode, starCount, []);
-        const keypad = boundsOf(controlsCss(layout, area));
-        const columnCenter = (free.left + keypad.left) / 2;
         const problem = problemCss(layout, area);
+        const place = problemPlaceCss(window, maxNumber, mode);
 
+        expect(problem.left, `${starCount} hvězdiček`).toBeGreaterThanOrEqual(
+          place.left - TOLERANCE,
+        );
         expect(problem.right, `${starCount} hvězdiček`).toBeLessThanOrEqual(
-          keypad.left + TOLERANCE,
+          place.right + TOLERANCE,
         );
         expect(
-          Math.abs(centerX(problem) - columnCenter),
+          Math.abs(centerX(problem) - centerX(place)),
           `${starCount} hvězdiček`,
         ).toBeLessThanOrEqual(CENTER_TOLERANCE);
       }
     },
   );
 
-  it.each(LANDSCAPE_CASES.filter(([, , maxNumber, mode]) => !isWideKeypad(maxNumber, mode)))(
-    '%s: s nápovědou je dvojice příklad + tečky uprostřed jako dnes (doleva jen kvůli rohu s kolečkem)',
+  it.each(LANDSCAPE_CASES)(
+    '%s: s nápovědou jsou tečky hned vedle příkladu (dvojice uprostřed mezi domečkem a hvězdičkami), nebo hned pod ním (#68)',
     (_, window, maxNumber, mode) => {
       const area = gameAreaFor(viewportOf(window));
-      const free = freeAreaOf(window);
-      const gear = gearCornerOf(window);
 
       for (const groups of hintGroupsInRange(maxNumber)) {
         const layout = landscapeLayout(area, maxNumber, mode, STARS_PER_SET, groups);
-        const dots = layoutPhoneHint(layout, groups);
         const problem = problemCss(layout, area);
-        const pair = boundsOf([problem, ...dotCellsCss(layout, dots, area)]);
+        const dots = boundsOf(dotCellsCss(layout, layoutPhoneHint(layout, groups), area));
+        const place = problemPlaceCss(window, maxNumber, mode);
         const where = `nápověda [${groups.join(', ')}]`;
 
-        expect(boundsOf(dotCellsCss(layout, dots, area)).left, where).toBeGreaterThanOrEqual(
-          problem.right - TOLERANCE,
-        );
-        const offCenter = Math.abs(centerX(pair) - centerX(free));
-        if (offCenter > CENTER_TOLERANCE) {
-          // Jako dnes (#54): vycentrovaná řada by zasáhla do rohu s kolečkem, tak je vlevo od něj.
-          const centeredRight = centerX(free) + (pair.right - pair.left) / 2;
-          expect(pair.top, `${where}: posun jen u řady v rohu s kolečkem`).toBeLessThan(
-            gear.bottom,
+        if (dots.left >= problem.right - TOLERANCE) {
+          const pair = boundsOf([problem, dots]);
+          expect(dots.left - problem.right, `${where}: hned vedle`).toBeLessThanOrEqual(
+            MAX_PROBLEM_DOTS_GAP,
           );
-          expect(centeredRight, `${where}: uprostřed by zasáhla do rohu`).toBeGreaterThan(
-            gear.left - GEAR_CORNER_GAP,
+          expect(Math.abs(centerX(pair) - centerX(place)), where).toBeLessThanOrEqual(
+            CENTER_TOLERANCE,
           );
-          expect(centerX(pair), `${where}: posun jen doleva`).toBeLessThan(centerX(free));
-          const atGear = pair.right <= gear.left - GEAR_CORNER_GAP + CENTER_TOLERANCE;
-          const atEdge = pair.left <= free.left + EDGE_MARGIN + CENTER_TOLERANCE;
-          expect(atGear || atEdge, `${where}: posun jen o tolik, kolik je potřeba`).toBe(true);
+        } else {
+          expect(dots.top, `${where}: pod příkladem`).toBeGreaterThanOrEqual(
+            problem.bottom - TOLERANCE,
+          );
+          expect(dots.top - problem.bottom, `${where}: hned pod`).toBeLessThanOrEqual(
+            MAX_PROBLEM_DOTS_GAP,
+          );
+          expect(Math.abs(centerX(dots) - centerX(problem)), where).toBeLessThanOrEqual(
+            CENTER_TOLERANCE,
+          );
         }
       }
     },
@@ -243,7 +290,17 @@ describe('#63 AC3: telefon na šířku', () => {
           expect(
             fontCss(layout, area),
             `nápověda [${groups.join(', ')}], ${starCount} hvězdiček`,
-          ).toBeGreaterThanOrEqual((before.withHint[index] ?? Infinity) - TOLERANCE);
+          ).toBeGreaterThanOrEqual(
+            fontFloorWithHint(
+              window,
+              maxNumber,
+              mode,
+              layout,
+              area,
+              groups,
+              before.withHint[index] ?? Infinity,
+            ) - TOLERANCE,
+          );
         });
       }
     },
