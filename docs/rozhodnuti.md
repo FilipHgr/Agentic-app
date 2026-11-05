@@ -133,3 +133,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   aby šlo předplatné spravovat (které hry jsou odemčené). Skutečné placení
   zatím ne: potřebuje cizí službu a změnu pravidel o soukromí v CLAUDE.md,
   rozhodne se samostatně.
+- 2026-11-05 Vzhled menu podle návrhu B: nahoře profil (barevné kolečko
+  s písmenem a přezdívkou), vpravo jazyk a zástupná tlačítka, vlevo kategorie
+  (na telefonu nahoře v řadě), vedle mřížka dlaždic her. Při startu výběr
+  profilu (návrh P: velká barevná kolečka a +).
