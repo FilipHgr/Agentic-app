@@ -6,6 +6,7 @@
  */
 
 import type { Language } from '../texts/languages';
+import type { GameAccess } from './gameAccess';
 
 /** Kategorie her v menu. Id je stálé, název se bere z textů menu podle klíče. */
 export interface GameCategory {
@@ -32,6 +33,8 @@ export interface GameMeta {
   readonly categoryId: string;
   /** Symbol na dlaždici (třeba „2+3“); není to text jazyka. */
   readonly symbol: string;
+  /** Zdarma, nebo v předplatném (#74). O odemčení rozhoduje `gameAccess.ts`. */
+  readonly access: GameAccess;
   /** Název hry v každém jazyce, z textů hry. */
   readonly titles: Readonly<Record<Language, string>>;
 }
@@ -43,6 +46,8 @@ export interface GameEntry {
   readonly titleKey: string;
   readonly categoryId: string;
   readonly symbol: string;
+  /** Zdarma, nebo v předplatném (#74). */
+  readonly access: GameAccess;
   /** Stáhne hru (vstup `src/games/<hra>/index.ts`). */
   readonly load: () => Promise<unknown>;
 }
@@ -59,6 +64,7 @@ export function gameEntry(meta: GameMeta, load: () => Promise<unknown>): GameEnt
     titleKey: gameTitleKey(meta.id),
     categoryId: meta.categoryId,
     symbol: meta.symbol,
+    access: meta.access,
     load,
   };
 }

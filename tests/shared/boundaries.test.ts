@@ -19,6 +19,11 @@ import { describe, expect, it } from 'vitest';
  * dřív, než se hra stáhne. Proto smí zvenku kromě `index.ts` importovat ještě
  * `src/games/<hra>/meta.ts`. Ten sám smí importovat jen texty své hry
  * (`texts/`) a sdílenou část, nic dalšího z hry ani Phaser.
+ *
+ * #74 AC5: rozhodnutí o přístupu ke hrám (`src/shared/logic/gameAccess.ts`)
+ * a místní zdroj stavu předplatného (`src/shared/logic/subscriptionSource.ts`)
+ * nesmějí používat síť, úložiště ani adresu stránky a smějí importovat jen
+ * sdílenou část (žádnou hru, menu, stránku ani balíček).
  */
 
 /** Zdrojové texty všech `.ts` souborů v `src/` podle cesty od kořene repa. */
@@ -420,5 +425,112 @@ describe('AC2: hranice mezi částmi hlídá test', () => {
         'tests/other/e.test.ts',
       ]),
     ).toEqual(['tests/c.test.ts', 'tests/games/d.test.ts', 'tests/other/e.test.ts']);
+  });
+});
+
+/** Soubory, které rozhodují o odemčení her a dodávají stav předplatného (#74). */
+const ACCESS_FILES = ['src/shared/logic/gameAccess.ts', 'src/shared/logic/subscriptionSource.ts'];
+
+/**
+ * Co rozhodnutí o přístupu ani místní zdroj nesmějí použít: síť, úložiště,
+ * adresu stránky (přepnutí zámku adresou) a spouštění kódu z řetězců.
+ */
+const FORBIDDEN_IN_ACCESS: ReadonlyArray<readonly [string, RegExp]> = [
+  ['fetch', /\bfetch\b/],
+  ['XMLHttpRequest', /\bXMLHttpRequest\b/],
+  ['WebSocket', /\bWebSocket\b/],
+  ['EventSource', /\bEventSource\b/],
+  ['sendBeacon', /\bsendBeacon\b/],
+  ['navigator', /\bnavigator\b/],
+  ['Worker', /\b(?:Shared|Service)?Worker\b/],
+  ['adresa serveru', /\b(?:https?|wss?):\/\//],
+  ['localStorage', /\blocalStorage\b/],
+  ['sessionStorage', /\bsessionStorage\b/],
+  ['indexedDB', /\bindexedDB\b/],
+  ['cookie', /\bcookie\b/],
+  ['adresa stránky', /\blocation\b/],
+  ['import.meta.env', /\bimport\.meta\b/],
+  ['eval', /\beval\b|\bnew\s+Function\b/],
+];
+
+/** Porušení pravidel #74 AC5 v souborech přístupu z `files`. */
+function accessViolations(files: Record<string, string>): Violation[] {
+  return ACCESS_FILES.flatMap((file) => {
+    const text = files[file];
+    if (text === undefined) {
+      return [{ file, specifier: '', rule: 'soubor přístupu chybí' }];
+    }
+    const code = withoutComments(text);
+    const forbidden = FORBIDDEN_IN_ACCESS.filter(([, pattern]) => pattern.test(code)).map(
+      ([name]) => ({ file, specifier: name, rule: 'přístup používá síť, úložiště nebo adresu' }),
+    );
+    const imports = importsOf(text)
+      .filter((specifier) => {
+        const target = targetOf(file, specifier, files);
+        return target === null || !target.startsWith('src/shared/');
+      })
+      .map((specifier) => ({ file, specifier, rule: 'přístup importuje něco mimo sdílenou část' }));
+    return [...forbidden, ...imports];
+  });
+}
+
+/** Umělý projekt se soubory přístupu bez porušení. */
+const FAKE_ACCESS: Record<string, string> = {
+  ...FAKE_PROJECT,
+  'src/shared/logic/gameAccess.ts': 'export const isGameUnlocked = 1;',
+  'src/shared/logic/subscriptionSource.ts':
+    "import type { SubscriptionSource } from './gameAccess';\nexport const ALL = 1;",
+};
+
+describe('#74 AC5: rozhodnutí o přístupu ani místní zdroj nic neposílají ven', () => {
+  it('rozhodnutí o přístupu a místní zdroj nepoužívají síť ani úložiště a neimportují hru ani menu', () => {
+    for (const file of ACCESS_FILES) {
+      expect(SOURCES[file], file).toBeDefined();
+    }
+    expect(accessViolations(SOURCES)).toEqual([]);
+  });
+
+  it('umělé soubory přístupu bez porušení projdou', () => {
+    expect(accessViolations(FAKE_ACCESS)).toEqual([]);
+  });
+
+  it.each([
+    ['fetch', 'fetch("/stav");'],
+    ['XMLHttpRequest', 'new XMLHttpRequest();'],
+    ['WebSocket', 'new WebSocket(adresa);'],
+    ['sendBeacon', 'navigator.sendBeacon(adresa);'],
+    ['adresa serveru', "const url = 'https://obchod.example/stav';"],
+    ['localStorage', "localStorage.setItem('predplatne', 'ne');"],
+    ['adresa stránky', "const zamceno = location.search.includes('zamek');"],
+    ['import.meta.env', 'const vyvoj = import.meta.env.DEV;'],
+  ])('kontrola najde %s v místním zdroji', (_name, code) => {
+    const file = 'src/shared/logic/subscriptionSource.ts';
+    const files = { ...FAKE_ACCESS, [file]: `${FAKE_ACCESS[file] ?? ''}\n${code}` };
+    expect(accessViolations(files)).toContainEqual(
+      expect.objectContaining({ file, rule: 'přístup používá síť, úložiště nebo adresu' }),
+    );
+  });
+
+  it.each([
+    ['hru', "import { x } from '../../games/counting';"],
+    ['menu', "import { menu } from '../../menu/logic/menu';"],
+    ['seznam her', "import { GAMES } from '../../gameList';"],
+    ['balíček', "import Phaser from 'phaser';"],
+    ['import()', "const later = import('../../games/counting/meta');"],
+  ])('kontrola najde import %s v rozhodnutí o přístupu', (_name, code) => {
+    const file = 'src/shared/logic/gameAccess.ts';
+    const files = { ...FAKE_ACCESS, [file]: `${FAKE_ACCESS[file] ?? ''}\n${code}` };
+    expect(accessViolations(files)).toContainEqual(
+      expect.objectContaining({ file, rule: 'přístup importuje něco mimo sdílenou část' }),
+    );
+  });
+
+  it('zmínka o síti jen v komentáři se nepočítá', () => {
+    const file = 'src/shared/logic/gameAccess.ts';
+    const files = {
+      ...FAKE_ACCESS,
+      [file]: '/** Nic neposílá přes fetch. */\nexport const x = 1;',
+    };
+    expect(accessViolations(files)).toEqual([]);
   });
 });

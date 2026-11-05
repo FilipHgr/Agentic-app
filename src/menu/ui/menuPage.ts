@@ -10,6 +10,7 @@ import Phaser from 'phaser';
 
 import { unlockSharedAudio } from '../../shared/audio/sharedAudio';
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
+import { chooseSubscriptionSource } from '../../shared/logic/subscriptionSource';
 import { PAGE_BACKGROUND } from '../../shared/logic/theme';
 import { currentLanguage } from '../../shared/texts/languages';
 import { readViewport, watchViewport } from '../../shared/ui/viewport';
@@ -102,6 +103,7 @@ export function startMenuPage(options: MenuPageOptions): void {
       launchGame(game, loaded, {
         closeMenu: () => view.close?.(),
         returnToMenu: () => menu.returnFromGame(),
+        subscription: chooseSubscriptionSource(),
       }),
     feedback: (event) => view.scene?.play(event),
     onStarted: () => showPageState(menu),

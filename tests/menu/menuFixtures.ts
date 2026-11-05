@@ -28,6 +28,7 @@ function testGame(id: string, categoryId: string, symbol: string): GameEntry {
     titleKey: `games.${id}.title`,
     categoryId,
     symbol,
+    access: 'free',
     load: () => Promise.resolve({}),
   };
 }

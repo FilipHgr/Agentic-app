@@ -1,7 +1,9 @@
 /// <reference types="vite/client" />
 import { describe, expect, it } from 'vitest';
 
-import { GAMES } from '../../src/gameList';
+import { GAMES, GAME_METAS } from '../../src/gameList';
+import { GAME_ACCESS_LEVELS } from '../../src/shared/logic/gameAccess';
+import { gameEntry } from '../../src/shared/logic/gameRegistry';
 import { GAME_CATEGORIES, findGame } from '../../src/shared/logic/gameRegistry';
 import { ALL_CATEGORY } from '../../src/menu/logic/menuCategories';
 import { menuText } from '../../src/menu/logic/menuTexts';
@@ -158,5 +160,45 @@ describe('#67: názvy her a kategorií jsou v textech každého jazyka', () => {
     expect(() => menuText('games.xx.title', 'cs')).not.toThrow();
     expect(menuText('games.xx.title', 'cs')).toBeUndefined();
     expect(menuText('', 'cs')).toBeUndefined();
+  });
+});
+
+describe('#74 AC1: každá hra je buď zdarma, nebo v předplatném, a Počítání je zdarma', () => {
+  /** Úroveň hry tak, jak ji registr opravdu drží (i kdyby jí typ chyběl). */
+  function accessOf(game: object): unknown {
+    return (game as { access?: unknown }).access;
+  }
+
+  it('každá hra v registru má právě jednu úroveň: „zdarma“, nebo „v předplatném“ (i hra přidaná později)', () => {
+    expect(GAMES.length).toBeGreaterThan(0);
+    for (const game of GAMES) {
+      expect(GAME_ACCESS_LEVELS, game.id).toContain(accessOf(game));
+    }
+  });
+
+  it('úroveň má i údaj každé hry pro menu (meta.ts) a záznam registru ji přebírá beze změny', () => {
+    expect(GAME_METAS.length).toBe(GAMES.length);
+    for (const meta of GAME_METAS) {
+      expect(GAME_ACCESS_LEVELS, meta.id).toContain(accessOf(meta));
+      expect(findGame(GAMES, meta.id)?.access, meta.id).toBe(meta.access);
+    }
+  });
+
+  it('kontrola úrovně selže u hry bez úrovně i u hry s jinou hodnotou', () => {
+    const load = (): Promise<unknown> => Promise.resolve({});
+    const base = {
+      id: 'zkouska',
+      categoryId: 'addingSubtracting',
+      symbol: '?',
+      titles: { cs: 'Zkouška' },
+    };
+    const withoutAccess = gameEntry(base as never, load);
+    const withOtherAccess = gameEntry({ ...base, access: 'zdarma' } as never, load);
+    expect(GAME_ACCESS_LEVELS).not.toContain(accessOf(withoutAccess));
+    expect(GAME_ACCESS_LEVELS).not.toContain(accessOf(withOtherAccess));
+  });
+
+  it('Počítání je „zdarma“', () => {
+    expect(findGame(GAMES, 'counting')?.access).toBe('free');
   });
 });

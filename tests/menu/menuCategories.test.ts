@@ -76,6 +76,7 @@ describe('#67 AC3: menu ukáže „Vše“ a jen kategorie, ve kterých je hra',
       titleKey: 'games.ztracena.title',
       categoryId: 'neznama',
       symbol: '?',
+      access: 'free' as const,
       load: () => Promise.resolve({}),
     };
     const test = testMenu({ games: [...TEST_GAMES, stray] });

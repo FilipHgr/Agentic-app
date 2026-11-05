@@ -12,7 +12,7 @@ export const DEFAULT_LANGUAGE: Language = 'cs';
 
 /**
  * Požadovaný jazyk, když je přesně v seznamu podporovaných, jinak výchozí.
- * Platí jen přesný kód: velká písmena, oblast (`cs-CZ`) ani mezery kolem neplatí.
+ * Bere se jen přesný kód: velká písmena, oblast (`cs-CZ`) ani mezery kolem ne.
  */
 export function chooseLanguage<L extends string>(
   requested: string | null | undefined,
