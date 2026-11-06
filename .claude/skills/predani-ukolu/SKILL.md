@@ -41,14 +41,16 @@ vlastníka:
 1. Zavolej subagenta `security-auditor` nad celým sprintem
    (`git diff origin/staging...HEAD`). Blokující nálezy oprav jako
    samostatný commit ve větvi sprintu, nebo je vlastníkovi nahlas.
-2. Otevři PR z `sprint-<číslo>` do `staging`, nikdy do `main`.
+2. Pusť celé `npm test`. Musí projít, jinak chyby oprav jako samostatný
+   commit ve větvi sprintu a PR zatím neotevírej.
+3. Otevři PR z `sprint-<číslo>` do `staging`, nikdy do `main`.
    Build před otevřením PR kontroluje hook.
-3. Vyplň šablonu `.github/pull_request_template.md`: `Closes #…` pro každý
+4. Vyplň šablonu `.github/pull_request_template.md`: `Closes #…` pro každý
    úkol, co se změnilo, odkaz na náhled, tabulka kritérií a testů, nové
    závislosti a výsledek `npm audit` (z výstupu `security-auditor`)
    a drobnosti mimo úkoly.
-4. Pošli vlastníkovi odkaz na PR. Slučuje vlastník.
-5. Po otevření PR přidá bot Cloudflare do PR komentář s výsledkem
+5. Pošli vlastníkovi odkaz na PR. Slučuje vlastník.
+6. Po otevření PR přidá bot Cloudflare do PR komentář s výsledkem
    nasazení náhledu. Zkontroluj, že je tam „Success“, a jinak to řekni.
 
 ## 3. Po sloučení

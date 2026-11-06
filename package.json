@@ -11,6 +11,8 @@
     "test:shared": "vitest run tests/shared/",
     "test:counting": "vitest run tests/games/counting/ tests/shared/boundaries.test.ts",
     "test:menu": "vitest run tests/menu/ tests/shared/boundaries.test.ts",
+    "test:whole": "vitest run tests/shared/boundaries.test.ts tests/shared/hardcodedTexts.test.ts",
+    "test:changed": "node tools/test/runChangedTests.ts",
     "lint": "eslint . && prettier --check .",
     "deploy": "npm run build && wrangler deploy",
     "deploy:preview": "npm run build && wrangler preview",

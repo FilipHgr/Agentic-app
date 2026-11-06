@@ -71,7 +71,8 @@ výsledky automaticky načtou zpět, stejně jako v nové session. Co není v is
    a výsledek ulož do issue.
    - Když vrátí PROBLÉMY V ZADÁNÍ, zastav se a zeptej se vlastníka.
    - Jeho NAVRŽENÉ ROZHRANÍ použij při implementaci.
-4. **Implementace:** dělej, dokud neprojdou všechny testy. Testy od
+4. **Implementace:** dělej, dokud neprojdou testy dotčených částí
+   (`npm run test:changed`), `npm run lint` a `npm run build`. Testy od
    `test-writer` neupravuj, aby prošly. Když je test podle tebe špatně,
    řekni proč a nech ho opravit subagentem `test-writer`.
 5. **Kontroly:** zavolej s číslem issue subagenty `reviewer`,
@@ -100,7 +101,8 @@ a `story-reviewer`. Nová funkce je vždy nový úkol (sekce 1).
    akceptační kritérium, napiš jeho nové znění.
 2. Když se mění chování, které hlídají testy, nech testy upravit
    subagenta `test-writer` podle nového znění. Testy sám neupravuj.
-3. Uprav kód, aby prošly všechny testy.
+3. Uprav kód, aby prošly `npm run test:changed`, `npm run lint`
+   a `npm run build`.
 4. Zavolej jen `reviewer` a výsledek ulož do issue. Když se měnil
    vzhled, udělej snímky obrazovky a prohlédni si je.
 5. Commit ve větvi sprintu, zpráva začíná `#<číslo issue>`.

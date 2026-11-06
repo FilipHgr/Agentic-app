@@ -91,8 +91,11 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
 - `npm test` všechny testy
 - `npm run test:shared` testy sdílené části, `npm run test:menu` testy menu
   a test hranic, `npm run test:<hra>` (např. `test:counting`) testy jedné
-  hry a test hranic. Práce na menu nebo hře pouští jen její testy, při
-  změně v `src/shared/` se pouští celé `npm test`.
+  hry a test hranic.
+- `npm run test:whole` kontroly celku (test hranic a natvrdo napsaných textů).
+- `npm run test:changed` testy částí změněných od posledního commitu
+  a kontroly celku; změna mimo části pustí všechny testy. Při práci se
+  pouští `npm run test:changed`, celé `npm test` běží před PR a v CI.
 - `npm run lint` ESLint a kontrola formátování
 - `npm run build` produkční build
 - CI (GitHub Actions) volá jen tyto skripty, nemá vlastní příkazy
@@ -103,7 +106,8 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
   Postup: skill `novy-ukol`.
 - Po dokončení úkolu pošli odkaz na náhled, na konci sprintu otevři PR.
   Postup: skill `predani-ukolu`.
-- Úkol je hotový, až když projde `npm test`, `npm run lint` i `npm run build`.
+- Úkol je hotový, až když projde `npm run test:changed`, `npm run lint`
+  i `npm run build`. Celé `npm test` běží před PR a v CI.
 - Rozhodnutí vlastníka z chatu, která nejsou v issue ani tady, zapiš hned
   jedním řádkem do `docs/rozhodnuti.md` a commitni jako drobnost.
   Deník: @docs/rozhodnuti.md

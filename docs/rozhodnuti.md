@@ -173,3 +173,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   přepsat na chování. Ochrany se nesnižují, žádný test chování se nesmaže bez
   náhrady. Hooky v `.claude/` mění vlastník sám. Úkoly #79–#83 před #78.
 - 2026-11-06 Ikona aplikace na plochu: varianta A, modré „+ −“ na #F5F5F7 (#78).
+- 2026-11-06 Testy sharpCanvas z #77 patří do #81. Všechny nové testy rovnou
+  jako pravidla v cyklu (jeden test na pravidlo, popis případu v `expect`),
+  ne parametry po jednom oknu.
