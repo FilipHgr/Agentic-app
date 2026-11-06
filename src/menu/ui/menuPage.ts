@@ -14,6 +14,10 @@
  * z menu ho otevře ťuknutí na kolečko profilu. Dokud je otevřený, menu
  * spí; po výběru profilu se menu probudí a nakreslí s novým kolečkem
  * a hra pak dostane úložiště vybraného profilu.
+ *
+ * Nová verze webu (#76): když se hra nestáhne a server stránky odpovídá,
+ * stránka se sama jednou obnoví (`pageUpdate`). Dotaz jde jen na stejný
+ * původ, nikdy na cizí server.
  */
 
 import Phaser from 'phaser';
@@ -22,6 +26,7 @@ import { unlockSharedAudio } from '../../shared/audio/sharedAudio';
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
 import { chooseSubscriptionSource } from '../../shared/logic/subscriptionSource';
 import { PAGE_BACKGROUND } from '../../shared/logic/theme';
+import { browserStorage } from '../../shared/storage/keyValueStorage';
 import type { ProfileStore } from '../../shared/storage/profileStorage';
 import { currentLanguage } from '../../shared/texts/languages';
 import { readViewport, watchViewport } from '../../shared/ui/viewport';
@@ -31,7 +36,9 @@ import { menuLayoutFor } from '../logic/menuLayout';
 import type { MenuLayout } from '../logic/menuLayout';
 import { menuText } from '../logic/menuTexts';
 import { createMenuTouch } from '../logic/menuTouch';
-import { createProfileScreens, startScreenFor } from '../logic/profileScreens';
+import { createPageUpdate } from '../logic/pageUpdate';
+import type { PageUpdate } from '../logic/pageUpdate';
+import { createProfileScreens } from '../logic/profileScreens';
 import { MENU_SCENE_KEY, MENU_UNITS_PER_CSS_PX, MenuScene } from '../scenes/MenuScene';
 import { PROFILE_SCENE_KEY, ProfileScene } from '../scenes/ProfileScene';
 import { launchGame } from './launchGame';
@@ -106,6 +113,44 @@ function showPageState(menu: Menu): void {
   }
 }
 
+/** Jak dlouho se čeká na odpověď serveru, než se bere jako výpadek sítě. */
+const SERVER_CHECK_TIMEOUT_MS = 5000;
+
+/**
+ * Odpovídá server stránky? Dotaz na úvodní stránku stejného původu bez
+ * mezipaměti. Cloudflare na neexistující soubor vrací stránku s kódem 200,
+ * takže dotaz jen ověří, že server žije, ne že chybí soubor hry. Podle
+ * otevřené otázky 2 v #76 to stačí: jiný důvod selhání vede nejvýš na
+ * jedno zbytečné obnovení, další hlídá značka obnovení.
+ */
+async function serverResponds(): Promise<boolean> {
+  // Prohlížeč odmítne cokoli mimo stejný původ, i přesměrování. Visící
+  // spojení se po chvíli zruší a bere se jako „server neodpovídá“.
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), SERVER_CHECK_TIMEOUT_MS);
+  try {
+    const response = await fetch('./', {
+      cache: 'no-store',
+      mode: 'same-origin',
+      credentials: 'same-origin',
+      signal: controller.signal,
+    });
+    return response.ok;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+/** Obnovení stránky po nasazení nové verze (#76). */
+function pageUpdateFor(profiles: ProfileStore): PageUpdate {
+  return createPageUpdate({
+    storage: browserStorage(),
+    serverResponds,
+    reloadPage: () => window.location.reload(),
+    activeProfileId: () => profiles.activeProfile().id,
+  });
+}
+
 /** Co menu potřebuje až po svém vytvoření: scénu pro odezvu, schování a ukázání menu. */
 interface MenuView {
   scene?: MenuScene;
@@ -123,7 +168,8 @@ export function startMenuPage(options: MenuPageOptions): void {
     feedback: (event) => view.profileScene?.play(event),
     onProfileChosen: () => view.closeProfiles?.(),
   });
-  if (startScreenFor(options.profiles.profiles()) === 'profilePicker') {
+  const pageUpdate = pageUpdateFor(options.profiles);
+  if (pageUpdate.startScreen(options.profiles.profiles()) === 'profilePicker') {
     screens.open();
   }
   const menu: Menu = createMenu({
@@ -140,6 +186,7 @@ export function startMenuPage(options: MenuPageOptions): void {
     feedback: (event) => view.scene?.play(event),
     profile: () => options.profiles.activeProfile(),
     onOpenProfilePicker: () => view.openProfiles?.(),
+    pageUpdate,
     onStarted: () => showPageState(menu),
     onReturned: () => {
       showPageState(menu);

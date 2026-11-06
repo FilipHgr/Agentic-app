@@ -13,6 +13,11 @@
  * - ťuknutí jinam během stahování spuštění zruší bez zatřesení.
  * Žádná výjimka z menu neunikne.
  *
+ * Nová verze webu (#76): s volbou `pageUpdate` se po selhání stahování
+ * (ne po vypršení 15 s ani po selhání spuštění) menu zeptá, jestli se
+ * stránka obnovuje. Když ano, dlaždice se nezatřese. Po úspěšném spuštění
+ * hry menu ohlásí `gameStarted()`.
+ *
  * Návrat z hry (#68): po odchodu domečkem menu žádnou hru nehraje
  * a vybraná kategorie zůstane, jak ji dítě nechalo.
  *
@@ -34,6 +39,7 @@ import type { Profile, ProfileColor } from '../../shared/logic/profiles';
 import { ALL_CATEGORY, gamesInCategory, visibleCategories } from './menuCategories';
 import { deviceLanguages } from './menuLanguages';
 import { PAGE_TITLE_KEY } from './menuTextKeys';
+import type { PageUpdate } from './pageUpdate';
 
 /** Po jak dlouhém stahování začne dlaždice pulzovat. */
 export const SLOW_LOADING_MS = 300;
@@ -146,6 +152,8 @@ export interface MenuOptions {
   readonly profile?: (() => Profile) | undefined;
   /** Ťuknutí na profil (#72): stránka ukáže výběr profilu. */
   readonly onOpenProfilePicker?: (() => void) | undefined;
+  /** Obnovení stránky po nasazení nové verze (#76); bez něj se dlaždice jen zatřese. */
+  readonly pageUpdate?: PageUpdate | undefined;
 }
 
 export interface Menu {
@@ -258,11 +266,40 @@ export function createMenu(options: MenuOptions): Menu {
         if (launch === current) {
           endLaunch(current);
           running = current.game;
+          options.pageUpdate?.gameStarted();
           options.onStarted?.(current.game);
         }
       },
       () => fail(current),
     );
+  }
+
+  /**
+   * Stažení selhalo (#76): když se stránka kvůli nové verzi obnovuje,
+   * spuštění skončí bez zatřesení, jinak se dlaždice zatřese. Selhání po
+   * vypršení 15 s nebo po ťuknutí jinam už nic neudělá.
+   */
+  function downloadFailed(current: Launch): void {
+    const pageUpdate = options.pageUpdate;
+    if (launch !== current) {
+      return;
+    }
+    if (pageUpdate === undefined) {
+      fail(current);
+      return;
+    }
+    pageUpdate
+      .downloadFailed(current.game.id, () => launch === current)
+      .then(
+        (reloading) => {
+          if (!reloading) {
+            fail(current);
+          } else if (launch === current) {
+            endLaunch(current);
+          }
+        },
+        () => fail(current),
+      );
   }
 
   function setLanguageMenuOpen(open: boolean): void {
@@ -308,7 +345,7 @@ export function createMenu(options: MenuOptions): Menu {
     }
     loading.then(
       (loaded) => startGame(current, loaded),
-      () => fail(current),
+      () => downloadFailed(current),
     );
   }
 

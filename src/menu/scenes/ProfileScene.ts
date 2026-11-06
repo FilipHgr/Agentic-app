@@ -75,7 +75,7 @@ export interface ProfileSceneHost {
   readonly menu: Menu;
   /** Text menu podle klíče v aktuálním jazyce. */
   translate(key: string): string;
-  /** Je výběr profilu nebo formulář otevřený? Při startu podle `startScreenFor`. */
+  /** Je výběr profilu nebo formulář otevřený? Při startu podle `startScreen` (#76). */
   isOpen(): boolean;
   /** Scéna se vytvořila; když je obrazovka profilů otevřená, menu se uspí. */
   onCreated(): void;
