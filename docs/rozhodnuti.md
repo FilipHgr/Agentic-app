@@ -160,3 +160,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   dole číselník přes celou šířku (do 20 ve 3 řadách po 7, do 10 jako 6 + 5).
   Tečky jdou souvisle po pěti v řadě (druhé číslo pokračuje v řadě prvního).
   Dřívější rozložení s tečkami nahoře daleko od příkladu vlastník zamítl.
+- 2026-11-06 Zrychlení testů rozpoznávání psaní zamítnuto: bez zmenšení
+  vzorků jde ušetřit jen pár procent. Neopakovat bez nového nápadu.
+- 2026-11-06 Návrhy z review kódu (#75–#78) podle doporučení: u dvou panelů
+  jen bez ztráty dat (zobrazení víc než 6 profilů samostatně), u přidání na
+  plochu bez iPadu na výšku, obnovení stránky jen při nestažené hře
+  s odpovídajícím serverem.
