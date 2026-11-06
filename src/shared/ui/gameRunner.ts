@@ -3,6 +3,8 @@
  * se kreslí do prvku `#game` jako dřív v `src/main.ts`: herní plocha podle
  * okna (#54, #56), kolečko nastavení v pravém a domeček v levém horním
  * rohu obrazovky (#55, #68) a přepočet po otočení nebo změně lišty prohlížeče.
+ * Plátno má všude 2 obrazové body na zobrazený CSS px (#77), na iPadu
+ * a ve zmenšeném zobrazení je zvětší kamera scény (`sharpCanvas.ts`).
  *
  * Odchod domečkem (#68): hra se nejdřív zastaví (`GameHost.onLeave`), pak se
  * odpojí kolečko, domeček i hlídání okna, Phaser hra se zničí i s plátnem
@@ -12,17 +14,20 @@
 
 import Phaser from 'phaser';
 
+import { canvasResolutionFor } from '../logic/canvasResolution';
+import type { CanvasResolution } from '../logic/canvasResolution';
 import { GAME_HOST_KEY } from '../logic/gameHost';
 import type { GameHost } from '../logic/gameHost';
 import { homeButtonFor } from '../logic/homeButton';
 import { settingsGearFor } from '../logic/settingsGear';
 import { PAGE_BACKGROUND } from '../logic/theme';
 import { gameAreaFor } from '../logic/viewportLayout';
-import type { GameArea, Viewport } from '../logic/viewportLayout';
+import type { Viewport } from '../logic/viewportLayout';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
 import { applyHomeButton, attachHomeButton } from './homeButton';
 import { attachSettingsButton } from './settingsButton';
 import { applySettingsGear } from './settingsGear';
+import { CANVAS_RESOLUTION_KEY } from './sharpCanvas';
 import {
   GAME_AREA_KEY,
   hasSameLayout,
@@ -68,7 +73,7 @@ export interface RunGameOptions {
 }
 
 /** Phaser hra bez vlastních zvuků: hry hrají přes společný zvukový kontext stránky. */
-function createGame(module: GameModule, area: GameArea): Phaser.Game {
+function createGame(module: GameModule, resolution: CanvasResolution): Phaser.Game {
   return new Phaser.Game({
     type: Phaser.AUTO,
     parent: 'game',
@@ -83,11 +88,17 @@ function createGame(module: GameModule, area: GameArea): Phaser.Game {
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
-      width: area.width,
-      height: area.height,
+      // Plátno v obrazových bodech; prvek s hrou má přesně jeho zobrazenou velikost.
+      width: resolution.pixelWidth,
+      height: resolution.pixelHeight,
     },
     scene: [...module.scenes],
   });
+}
+
+/** Má plátno stejný počet obrazových bodů? Pak stačí ho jen posunout. */
+function hasSameCanvasSize(first: CanvasResolution, second: CanvasResolution): boolean {
+  return first.pixelWidth === second.pixelWidth && first.pixelHeight === second.pixelHeight;
 }
 
 /**
@@ -107,7 +118,8 @@ function destroyGame(game: Phaser.Game): void {
 /**
  * Herní plocha podle okna (#54, #56): na iPadu a v ostatních oknech pevně
  * 1024 × 768, na telefonu na šířku i na výšku přes celou volnou plochu.
- * Scale.FIT ji do prvku s hrou zmenší a vycentruje. Kolečko nastavení
+ * Prvek s hrou leží přesně tam, kde má být plátno, a Scale.FIT do něj
+ * plátno roztáhne (#77). Kolečko nastavení
  * ukáže stránka menu, až hra naběhne (#67 AC1); domeček ukáže hra, když
  * jde použít (#68 AC4).
  */
@@ -118,14 +130,16 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
     homeButton: document.getElementById('home-button'),
   };
   let area = gameAreaFor(readViewport());
+  let resolution = canvasResolutionFor(area);
   if (parent) {
     parent.hidden = false;
-    placeGameParent(parent, area);
+    placeGameParent(parent, resolution);
   }
   placeCornerButtons(page, readViewport());
 
-  const game = createGame(module, area);
+  const game = createGame(module, resolution);
   game.registry.set(GAME_AREA_KEY, area);
+  game.registry.set(CANVAS_RESOLUTION_KEY, resolution);
 
   /** Kdo teď poslouchá podržení kolečka (jen právě hraná hra). */
   let openSettings: (() => void) | null = null;
@@ -167,26 +181,34 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
 
   /**
    * Po otočení nebo změně lišty prohlížeče se herní plocha přepočítá. Scéna
-   * se překreslí jen při jiném rozložení, jinak se plocha jen posune.
+   * se překreslí jen při jiném rozložení, jinak se plocha jen posune nebo
+   * zmenší. Plátno dostane nové rozlišení podle zobrazené velikosti (#77 AC7).
    */
   const stopWatchingViewport = watchViewport(() => {
     const viewport = readViewport();
     placeCornerButtons(page, viewport);
     const next = gameAreaFor(viewport);
     const layoutChanged = !hasSameLayout(next, area);
+    const nextResolution = canvasResolutionFor(next);
+    const canvasChanged = !hasSameCanvasSize(nextResolution, resolution);
     area = next;
+    resolution = nextResolution;
     if (parent) {
-      placeGameParent(parent, area);
+      placeGameParent(parent, resolution);
     }
     // Phaser si velikost prvku s hrou jinak přečte až později a hru by zmenšil podle staré.
     game.scale.getParentBounds();
-    if (!layoutChanged) {
+    if (canvasChanged) {
+      game.scale.setGameSize(resolution.pixelWidth, resolution.pixelHeight);
+    } else {
       game.scale.refresh();
-      return;
     }
-    game.scale.setGameSize(area.width, area.height);
-    // Scéna poslouchá změnu v registru a překreslí se podle nové plochy.
-    game.registry.set(GAME_AREA_KEY, area);
+    // Kamera scény se zvětší podle nového plátna; rozložení se tím nemění.
+    game.registry.set(CANVAS_RESOLUTION_KEY, resolution);
+    if (layoutChanged) {
+      // Scéna poslouchá změnu v registru a překreslí se podle nové plochy.
+      game.registry.set(GAME_AREA_KEY, area);
+    }
   });
 
   function leave(): void {

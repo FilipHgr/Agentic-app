@@ -6,6 +6,7 @@ import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
 import type { GameHost } from '../../../shared/logic/gameHost';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
+import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import type { TapOutcome } from '../logic/answerRound';
 import { createCountingSession } from '../logic/countingSession';
@@ -81,6 +82,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Ostré plátno na iPadu a ve zmenšeném zobrazení (#77); kreslí se dál v herních jednotkách.
+    followCanvasResolution(this);
     this.gameArea = this.readGameArea();
     this.registry.events.on(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {

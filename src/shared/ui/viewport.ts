@@ -4,7 +4,8 @@
  * plochy na stránce. Rozhodování je v `src/shared/logic/viewportLayout.ts`.
  */
 
-import { isPhoneMode, safeAreaOrNone } from '../logic/viewportLayout';
+import type { CanvasResolution } from '../logic/canvasResolution';
+import { safeAreaOrNone } from '../logic/viewportLayout';
 import type { GameArea, SafeArea, Viewport } from '../logic/viewportLayout';
 
 /** Klíč v `game.registry`, pod kterým scéna najde aktuální herní plochu. */
@@ -37,22 +38,17 @@ export function readViewport(): Viewport {
 }
 
 /**
- * Umístí prvek s hrou. Na telefonu přesně přes volnou plochu (bez výřezu
- * a lišty), jinak přes celé okno a Phaser hru zmenší a vycentruje jako dřív.
+ * Umístí prvek s hrou přesně tam, kde se má plátno ukázat (#77): na
+ * telefonu přes volnou plochu (bez výřezu a lišty) jako dřív, jinak na
+ * střed okna ve velikosti zmenšené plochy 1024 × 768. Phaser plátno do
+ * prvku roztáhne celé, poměr stran je stejný.
  */
-export function placeGameParent(parent: HTMLElement, area: GameArea): void {
+export function placeGameParent(parent: HTMLElement, resolution: CanvasResolution): void {
   const style = parent.style;
-  if (isPhoneMode(area.mode)) {
-    style.left = `${area.offsetX}px`;
-    style.top = `${area.offsetY}px`;
-    style.width = `${area.width * area.scale}px`;
-    style.height = `${area.height * area.scale}px`;
-    return;
-  }
-  style.left = '0px';
-  style.top = '0px';
-  style.width = '100%';
-  style.height = '100%';
+  style.left = `${resolution.offsetX}px`;
+  style.top = `${resolution.offsetY}px`;
+  style.width = `${resolution.cssWidth}px`;
+  style.height = `${resolution.cssHeight}px`;
 }
 
 /**
