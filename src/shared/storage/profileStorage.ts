@@ -16,14 +16,34 @@
  *   zapisuje jen do paměti.
  * - Co se nepodaří uložit, platí v paměti do zavření stránky (sdílené pro
  *   stejný profil a hru). Žádná výjimka z úložiště neunikne.
+ * - Dva panely (#75): stránka může být otevřená ve dvou panelech nad
+ *   stejným úložištěm. Založení, úprava i smazání proto vždy znovu načte
+ *   uložený seznam, provede změnu v něm a zapíše výsledek, aby nezmizel
+ *   profil, který mezitím založil jiný panel. Panel pak vidí i změny
+ *   z jiného panelu; když tím přijde o aktivní profil (smazal ho jiný
+ *   panel), aktivní bude první profil. Úprava profilu, který v uloženém
+ *   seznamu není (smazal ho jiný panel), nic neuloží.
+ * - Neuložené změny panelu (#73 AC4): založený nebo upravený profil, jehož
+ *   seznam se nad čitelným seznamem nepodařilo zapsat (plné úložiště),
+ *   panel drží zvlášť a přenese ho do znovu načteného seznamu při každé
+ *   další změně profilů, dokud se zápis nepovede. Do zavření stránky tak
+ *   o něj nepřijde.
+ * - Když uložený seznam mezitím nejde přečíst, je poškozený nebo chybí
+ *   (rodič smazal data webu), platí založení a úprava jen v paměti do
+ *   zavření stránky a nikdy se nezapíšou, ani až bude seznam zase čitelný
+ *   (#75 AC7, otázka 1). Smazání se neprovede.
  * - Úprava a smazání profilu (#73): profil je smazaný, až když je uložený
  *   nový seznam; pak se aktivním stane první zbývající profil a smažou se
- *   data jeho her. Poslední profil smazat nejde, seznam nikdy nezůstane
- *   prázdný (`[]` by znovu přeneslo dnešní data). Co se smazat nepodařilo,
- *   uklidí další načtení stránky, ale jen při platném seznamu a jen pod
- *   předponou dat profilů; staré záznamy z doby před profily nikdy.
- *   Úklid smaže i data profilu, který žil jen v paměti, protože se jeho
- *   seznam neuložil.
+ *   data jeho her. Poslední profil v uloženém seznamu smazat nejde, seznam
+ *   nikdy nezůstane prázdný (`[]` by znovu přeneslo dnešní data).
+ * - Úklid (#75 AC5, AC6): načtení stránky ani spuštění hry nic nemaže.
+ *   Zbytky dat profilů, které v uloženém seznamu nejsou (smazání, které se
+ *   nepovedlo celé), se smažou jen po úspěšném smazání jiného profilu,
+ *   a jen pod předponou dat profilů; staré záznamy z doby před profily
+ *   nikdy. Data profilů, které panel drží jen v paměti, úklid nesmaže.
+ * - Přijaté riziko: `localStorage` nemá transakce. Mezi čtením seznamu
+ *   a úklidem po smazání zůstává malé okno; profil, který jiný panel
+ *   založí přesně v tu chvíli, může přijít o svá první data.
  */
 
 import {
@@ -75,20 +95,21 @@ export interface ProfileStore {
   /** Všechny profily v pořadí založení. */
   profiles(): Profile[];
   activeProfile(): Profile;
-  /** Založí profil; aktivní profil se nezmění. */
+  /** Založí profil na konec uloženého seznamu; aktivní profil se nezmění. */
   createProfile(profile: NewProfile): Profile;
   /** Aktivní bude profil s označením `id`; neznámé označení nic nezmění. */
   selectProfile(id: string): void;
   /**
    * Nová přezdívka (bez ní profil bez přezdívky) a barva profilu `id`;
-   * označení a data her zůstanou. Neznámé označení nic nezmění. Co se
-   * nepodaří uložit, platí do zavření stránky.
+   * označení a data her zůstanou. Profil, který v uloženém seznamu není,
+   * se neuloží. Co se nepodaří uložit, platí do zavření stránky.
    */
   updateProfile(id: string, profile: NewProfile): void;
   /**
    * Smaže profil `id` i s daty jeho her; aktivní bude první zbývající
    * profil. `false` (a beze změny), když je to poslední nebo neznámý
-   * profil, profil je dočasný nebo se nový seznam nepodařilo uložit.
+   * profil v uloženém seznamu, profil je dočasný, uložený seznam nejde
+   * přečíst, je poškozený nebo chybí, nebo se nový seznam nepodařilo uložit.
    */
   deleteProfile(id: string): boolean;
   /** Úložiště hry `gameId` pro profil, který je teď aktivní. */
@@ -145,18 +166,18 @@ function allKeys(storage: ProfileDeviceStorage): string[] | undefined {
     }
     return keys;
   } catch {
-    // Nečitelné úložiště: nic se nesmaže, úklid se zkusí při dalším načtení.
+    // Nečitelné úložiště: nic se nesmaže, úklid se zkusí po dalším smazání.
     return undefined;
   }
 }
 
-/** Smaže záznam; `false`, když to nejde (záznam zůstane a uklidí ho další načtení). */
+/** Smaže záznam; `false`, když to nejde (záznam zůstane a uklidí ho další smazání). */
 function remove(storage: ProfileDeviceStorage, key: string): boolean {
   try {
     storage.removeItem(key);
     return true;
   } catch {
-    // Data smazaného profilu nikdo nečte; úklid je zkusí znovu příště.
+    // Data smazaného profilu nikdo nečte; úklid je zkusí znovu po dalším smazání.
     return false;
   }
 }
@@ -182,8 +203,8 @@ function profileIdOfDataKey(key: string): string | null {
 }
 
 /**
- * Úklid po smazání, které se nepovedlo celé: smaže data profilů, které
- * v platném seznamu nejsou. Sahá jen na klíče `agentic-app.profile.…`.
+ * Úklid zbytků po smazání, které se nepovedlo celé: smaže data profilů,
+ * které v platném seznamu nejsou. Sahá jen na klíče `agentic-app.profile.…`.
  */
 function removeDataOfMissingProfiles(
   storage: ProfileDeviceStorage,
@@ -241,7 +262,10 @@ function serializeList(profiles: readonly Profile[]): string {
   );
 }
 
-/** Nové vnitřní označení z malých písmen a číslic, jiné než ta v `taken`. */
+/**
+ * Nové vnitřní označení z malých písmen a číslic, jiné než ta v `taken`.
+ * Volající předá profily v paměti i v právě uloženém seznamu.
+ */
 function newProfileId(taken: readonly Profile[]): string {
   let id: string;
   do {
@@ -260,6 +284,16 @@ interface StoreState {
   readonly canSaveList: boolean;
   /** Co se nepodařilo uložit (nebo se ukládat nesmí), podle celého klíče. */
   readonly memory: Map<string, string>;
+  /** Změny nad čitelným seznamem, které se nepodařilo zapsat; zapíšou se příště. */
+  readonly unsaved: Map<string, UnsavedProfile>;
+  /** Změny bez čitelného seznamu: platí jen v paměti, nikdy se nezapíšou. */
+  readonly memoryOnly: Map<string, UnsavedProfile>;
+}
+
+/** Neuložená změna panelu: nový profil, nebo úprava profilu ze seznamu. */
+interface UnsavedProfile {
+  readonly kind: 'created' | 'updated';
+  readonly profile: Profile;
 }
 
 /** Úložiště jen v paměti (hra s neplatným označením); s úložištěm zařízení nic nesdílí. */
@@ -307,6 +341,74 @@ function gameStorageOf(state: StoreState, profileId: string, gameId: string): Ke
   };
 }
 
+/**
+ * Právě uložený seznam profilů; `undefined`, když ho panel ukládat nesmí
+ * nebo když seznam nejde přečíst, je poškozený nebo chybí (#75).
+ */
+function savedProfiles(state: StoreState): Profile[] | undefined {
+  if (!state.canSaveList) {
+    return undefined;
+  }
+  const saved = read(state.storage, PROFILE_LIST_KEY);
+  if (saved === undefined) {
+    return undefined;
+  }
+  const list = parseList(saved.value);
+  return list.kind === 'profiles' ? list.profiles : undefined;
+}
+
+/**
+ * Seznam `base` s neuloženými změnami panelu: úprava nahradí profil se
+ * stejným označením, nový profil přibude na konec. Úprava profilu, který
+ * v `base` není (smazal ho jiný panel), se zahodí.
+ */
+function withUnsaved(
+  base: readonly Profile[],
+  unsaved: ReadonlyMap<string, UnsavedProfile>,
+): Profile[] {
+  const profiles = [...base];
+  for (const change of unsaved.values()) {
+    const index = profiles.findIndex((profile) => profile.id === change.profile.id);
+    if (index >= 0) {
+      profiles[index] = change.profile;
+    } else if (change.kind === 'created') {
+      profiles.push(change.profile);
+    }
+  }
+  return profiles;
+}
+
+/**
+ * Panel převezme seznam profilů (po vlastní změně i se změnami z jiného
+ * panelu). Když v něm aktivní profil není, aktivní bude první profil.
+ */
+function adoptProfiles(state: StoreState, profiles: readonly Profile[]): void {
+  state.profiles.splice(0, state.profiles.length, ...profiles);
+  const first = state.profiles[0];
+  if (first === undefined || state.profiles.some((profile) => profile.id === state.activeId)) {
+    return;
+  }
+  state.activeId = first.id;
+  if (!state.temporary) {
+    // Neuložený výběr nevadí: po načtení se aktivní profil vybere znovu.
+    write(state.storage, ACTIVE_PROFILE_KEY, first.id);
+  }
+}
+
+/**
+ * Zapíše neuložené změny panelu do znovu načteného seznamu `saved`. Když
+ * seznam nejde přečíst nebo zapsat, změny zůstanou neuložené a přenesou se
+ * při další změně profilů. Panel převezme zapsaný seznam se změnami jen
+ * v paměti, které se nezapisují nikdy.
+ */
+function saveChanges(state: StoreState, saved: readonly Profile[] | undefined): void {
+  const profiles = withUnsaved(saved ?? state.profiles, state.unsaved);
+  if (saved !== undefined && write(state.storage, PROFILE_LIST_KEY, serializeList(profiles))) {
+    state.unsaved.clear();
+  }
+  adoptProfiles(state, withUnsaved(profiles, state.memoryOnly));
+}
+
 function storeOf(state: StoreState): ProfileStore {
   function activeProfile(): Profile {
     const active = state.profiles.find((profile) => profile.id === state.activeId);
@@ -317,16 +419,7 @@ function storeOf(state: StoreState): ProfileStore {
   return {
     profiles: () => [...state.profiles],
     activeProfile,
-
-    createProfile(profile: NewProfile): Profile {
-      const created = makeProfile(newProfileId(state.profiles), profile.color, profile.nickname);
-      state.profiles.push(created);
-      if (state.canSaveList) {
-        // Neuložený seznam platí aspoň do zavření stránky.
-        write(state.storage, PROFILE_LIST_KEY, serializeList(state.profiles));
-      }
-      return created;
-    },
+    createProfile: (profile) => createIn(state, profile),
 
     selectProfile(id: string): void {
       if (!state.profiles.some((profile) => profile.id === id)) {
@@ -339,52 +432,128 @@ function storeOf(state: StoreState): ProfileStore {
       }
     },
 
-    updateProfile(id: string, profile: NewProfile): void {
-      const index = state.profiles.findIndex((existing) => existing.id === id);
-      if (index < 0) {
-        return;
-      }
-      state.profiles[index] = makeProfile(id, profile.color, profile.nickname);
-      if (state.canSaveList) {
-        // Neuložená úprava platí aspoň do zavření stránky.
-        write(state.storage, PROFILE_LIST_KEY, serializeList(state.profiles));
-      }
+    updateProfile: (id, profile) => {
+      updateIn(state, id, profile);
     },
-
-    deleteProfile(id: string): boolean {
-      return deleteFrom(state, id);
-    },
-
+    deleteProfile: (id) => deleteFrom(state, id),
     gameStorage: (gameId) => gameStorageOf(state, activeProfile().id, gameId),
   };
+}
+
+/** Založení profilu (viz `ProfileStore.createProfile`). */
+function createIn(state: StoreState, profile: NewProfile): Profile {
+  const saved = savedProfiles(state);
+  const taken = [...state.profiles, ...(saved ?? [])];
+  const created = makeProfile(newProfileId(taken), profile.color, profile.nickname);
+  if (!state.canSaveList) {
+    // Panel seznam ukládat nesmí: profil platí jen do zavření stránky.
+    state.profiles.push(created);
+    return created;
+  }
+  // Bez čitelného seznamu profil platí jen v paměti a nezapíše se nikdy.
+  const changes = saved === undefined ? state.memoryOnly : state.unsaved;
+  changes.set(created.id, { kind: 'created', profile: created });
+  saveChanges(state, saved);
+  return created;
+}
+
+/** Úprava profilu (viz `ProfileStore.updateProfile`). */
+function updateIn(state: StoreState, id: string, profile: NewProfile): void {
+  const updated = makeProfile(id, profile.color, profile.nickname);
+  if (!state.canSaveList) {
+    // Panel seznam ukládat nesmí: úprava platí jen do zavření stránky.
+    const index = state.profiles.findIndex((existing) => existing.id === id);
+    if (index >= 0) {
+      state.profiles[index] = updated;
+    }
+    return;
+  }
+  const saved = savedProfiles(state);
+  const changes = changesFor(state, id, saved);
+  if (changes !== undefined) {
+    // Nový profil zůstane novým, aby se při zápisu přidal na konec.
+    const kind = changes.get(id)?.kind ?? 'updated';
+    changes.set(id, { kind, profile: updated });
+  }
+  if (changes === state.unsaved) {
+    // Starší úprava jen v paměti by v panelu překryla tu, která se zapíše.
+    state.memoryOnly.delete(id);
+  }
+  // Profil smazaný v jiném panelu se neuloží; panel převezme uložený seznam.
+  saveChanges(state, saved);
+}
+
+/**
+ * Kam patří úprava profilu `id`: bez čitelného seznamu a u profilu
+ * založeného jen v paměti mezi změny jen v paměti, u profilu ze seznamu
+ * nebo s neuloženou změnou mezi změny k zápisu. `undefined`, když profil
+ * neexistuje (smazal ho jiný panel).
+ */
+function changesFor(
+  state: StoreState,
+  id: string,
+  saved: readonly Profile[] | undefined,
+): Map<string, UnsavedProfile> | undefined {
+  if (saved === undefined) {
+    return state.profiles.some((profile) => profile.id === id) ? state.memoryOnly : undefined;
+  }
+  if (state.unsaved.has(id) || saved.some((profile) => profile.id === id)) {
+    return state.unsaved;
+  }
+  return state.memoryOnly.get(id)?.kind === 'created' ? state.memoryOnly : undefined;
 }
 
 /** Smazání profilu (viz `ProfileStore.deleteProfile`). */
 function deleteFrom(state: StoreState, id: string): boolean {
   const storage = state.storage;
-  const remaining = state.profiles.filter((profile) => profile.id !== id);
+  const saved = savedProfiles(state);
+  if (storage === undefined || saved === undefined) {
+    // Dočasný profil, nebo uložený seznam nejde přečíst, je poškozený či chybí.
+    return false;
+  }
+  const profiles = withUnsaved(saved, state.unsaved);
+  const remaining = profiles.filter((profile) => profile.id !== id);
   const first = remaining[0];
-  const isKnown = remaining.length < state.profiles.length;
-  if (storage === undefined || !state.canSaveList || !isKnown || first === undefined) {
-    // Dočasný, neznámý nebo poslední profil: nic se nemaže.
+  if (remaining.length === profiles.length || first === undefined) {
+    // Profil v seznamu není (smazal ho jiný panel), nebo je poslední.
     return false;
   }
   if (!write(storage, PROFILE_LIST_KEY, serializeList(remaining))) {
     // Bez uloženého seznamu profil smazaný není a nic se nezmění.
     return false;
   }
-  state.profiles.splice(0, state.profiles.length, ...remaining);
+  state.unsaved.clear();
   state.activeId = first.id;
+  adoptProfiles(state, withUnsaved(remaining, state.memoryOnly));
   // Neuložený výběr nevadí: smazaný profil po načtení aktivní nebude.
   write(storage, ACTIVE_PROFILE_KEY, first.id);
-  const prefix = profileDataPrefix(id);
+  forgetProfileMemory(state, id);
+  removeProfileData(storage, id);
+  removeLeftovers(state, storage);
+  return true;
+}
+
+/** Zapomene neuložená data her profilu `profileId`. */
+function forgetProfileMemory(state: StoreState, profileId: string): void {
+  const prefix = profileDataPrefix(profileId);
   for (const key of [...state.memory.keys()]) {
     if (key.startsWith(prefix)) {
       state.memory.delete(key);
     }
   }
-  removeProfileData(storage, id);
-  return true;
+}
+
+/**
+ * Úklid po úspěšném smazání (#75 AC6): data profilů mimo uložený seznam.
+ * Seznam se načte znovu těsně před úklidem, aby nepřišel o data profil,
+ * který mezitím založil jiný panel; profily panelu (i ty jen v paměti)
+ * zůstanou také. Když seznam přečíst nejde, neuklízí se.
+ */
+function removeLeftovers(state: StoreState, storage: ProfileDeviceStorage): void {
+  const saved = savedProfiles(state);
+  if (saved !== undefined) {
+    removeDataOfMissingProfiles(storage, [...saved, ...state.profiles]);
+  }
 }
 
 /** Dočasný výchozí profil jen v paměti; úložiště se jen čte (staré záznamy). */
@@ -396,6 +565,8 @@ function temporaryStore(storage: ProfileDeviceStorage | undefined): ProfileStore
     temporary: true,
     canSaveList: false,
     memory: new Map(),
+    unsaved: new Map(),
+    memoryOnly: new Map(),
   });
 }
 
@@ -443,6 +614,8 @@ function storeWithDefaultProfile(storage: ProfileDeviceStorage): ProfileStore {
     temporary: false,
     canSaveList: dataSaved,
     memory,
+    unsaved: new Map(),
+    memoryOnly: new Map(),
   });
 }
 
@@ -461,7 +634,6 @@ export function openProfiles(storage: ProfileDeviceStorage | undefined): Profile
     case 'profiles': {
       const savedActive = read(storage, ACTIVE_PROFILE_KEY)?.value;
       const active = list.profiles.find((profile) => profile.id === savedActive);
-      removeDataOfMissingProfiles(storage, list.profiles);
       return storeOf({
         storage,
         profiles: list.profiles,
@@ -469,6 +641,8 @@ export function openProfiles(storage: ProfileDeviceStorage | undefined): Profile
         temporary: false,
         canSaveList: true,
         memory: new Map(),
+        unsaved: new Map(),
+        memoryOnly: new Map(),
       });
     }
   }

@@ -22,7 +22,7 @@ import {
  * Testy k #73 (úprava a smazání profilu) v úložišti profilů: AC1 (uložení
  * úpravy, hvězdičky a nastavení zůstanou), AC2 (smazání se všemi daty,
  * ostatní profily beze změny, nový aktivní profil), AC3 (smazání se
- * nepovede napůl, úklid při dalším spuštění, poškozený seznam, staré klíče)
+ * nepovede napůl, úklid zbytků, poškozený seznam, staré klíče)
  * a AC4 (úložiště nejde). Obrazovky profilů testuje
  * `tests/menu/editProfile.test.ts`.
  *
@@ -38,11 +38,16 @@ import {
  *   dočasný profil (poškozený nebo nečitelný seznam) a nepovedené uložení
  *   seznamu vrátí `false` a nic nezmění. Po smazání je aktivní první
  *   zbývající profil a smažou se klíče `agentic-app.profile.<id>.…`.
- * - `openProfiles(storage)` při platném seznamu smaže data profilů, které
- *   v seznamu nejsou (úklid po nepovedeném mazání). Úložiště proto umí
- *   navíc `removeItem(key)`, `key(index)` a `length` jako `localStorage`
- *   (typ např. `KeyValueStorage & { removeItem; key; length }`, aby
- *   ostatní podvrhy `KeyValueStorage` ve hrách zůstaly beze změny).
+ * - Úklid po nepovedeném mazání: data profilů, které v uloženém seznamu
+ *   nejsou, se smažou. Úložiště proto umí navíc `removeItem(key)`,
+ *   `key(index)` a `length` jako `localStorage` (typ např.
+ *   `KeyValueStorage & { removeItem; key; length }`, aby ostatní podvrhy
+ *   `KeyValueStorage` ve hrách zůstaly beze změny).
+ *
+ * #75 nahrazuje úklid při načtení stránky: `openProfiles` už nic nemaže
+ * (#75 AC5) a zbytky se uklidí až po úspěšném smazání jiného profilu
+ * (#75 AC6). Testy úklidu níž jsou tomu přizpůsobené, dva panely testuje
+ * `tests/shared/profileTwoPanels.test.ts`.
  *
  * Seznam `[]` by při dalším spuštění znovu přenesl stará data (#71), proto
  * se poslední profil smazat nedá (#73 otázka 2) a seznam nikdy nezůstane
@@ -344,53 +349,60 @@ describe('#73 AC3: smazání se nepovede napůl', () => {
     ).toEqual([first.id, tom.id]);
   });
 
-  it('data, která se nepodařilo smazat, se smažou při dalším spuštění', () => {
-    const { storage, store, ema } = deviceWithThreeProfiles();
+  it('data, která se nepodařilo smazat, při dalším spuštění zůstanou a smažou se po smazání jiného profilu', () => {
+    // #75 AC5 a AC6: načtení stránky nic nemaže, úklid přijde s dalším smazáním.
+    const { storage, store, ema, tom } = deviceWithThreeProfiles();
     storage.failRemove = () => true;
     store.deleteProfile(ema.id);
     expect(profileDataKeys(storage, ema.id).length).toBeGreaterThan(0);
 
     storage.failRemove = () => false;
-    openProfiles(storage);
+    const reloaded = openProfiles(storage);
+    expect(profileDataKeys(storage, ema.id).length).toBeGreaterThan(0);
 
+    expect(reloaded.deleteProfile(tom.id)).toBe(true);
     expect(profileDataKeys(storage, ema.id)).toEqual([]);
   });
 
-  it('úklid při dalším spuštění nesáhne na data ani seznam zbývajících profilů', () => {
-    const { storage, store, ema } = deviceWithThreeProfiles();
+  it('úklid po smazání jiného profilu nesáhne na data zbývajících profilů', () => {
+    const { storage, store, first, ema, tom } = deviceWithThreeProfiles({
+      [OTHER_PAGE_KEY]: 'cs',
+    });
     storage.failRemove = () => true;
     store.deleteProfile(ema.id);
-    const othersBefore = everythingExcept(storage, ema.id);
-    const listBefore = storage.data.get(PROFILE_LIST_KEY);
-    const activeBefore = storage.data.get(ACTIVE_PROFILE_KEY);
+    const firstBefore = profileDataKeys(storage, first.id).map((key) => storage.data.get(key));
 
     storage.failRemove = () => false;
-    openProfiles(storage);
+    openProfiles(storage).deleteProfile(tom.id);
 
-    expect(everythingExcept(storage, ema.id)).toEqual(othersBefore);
-    expect(storage.data.get(PROFILE_LIST_KEY)).toBe(listBefore);
-    expect(storage.data.get(ACTIVE_PROFILE_KEY)).toBe(activeBefore);
+    expect(profileDataKeys(storage, first.id).map((key) => storage.data.get(key))).toEqual(
+      firstBefore,
+    );
+    expect(openProfiles(storage).profiles()).toEqual([first]);
+    expect(storage.data.get(OTHER_PAGE_KEY)).toBe('cs');
   });
 
-  it('úklid, který se zase nepovede, nevyhodí chybu a zkusí to při dalším spuštění znovu', () => {
-    const { storage, store, ema } = deviceWithThreeProfiles();
+  it('úklid, který se zase nepovede, nevyhodí chybu a zkusí to při dalším smazání znovu', () => {
+    const { storage, store, ema, tom } = deviceWithThreeProfiles();
     storage.failRemove = () => true;
     store.deleteProfile(ema.id);
+    const extra = store.createProfile({ nickname: 'CYRIL', color: PROFILE_COLORS[4] });
 
-    expect(() => openProfiles(storage)).not.toThrow();
+    expect(() => openProfiles(storage).deleteProfile(tom.id)).not.toThrow();
+    expect(profileDataKeys(storage, ema.id).length).toBeGreaterThan(0);
     storage.failRemove = () => false;
-    openProfiles(storage);
+    openProfiles(storage).deleteProfile(extra.id);
 
     expect(profileDataKeys(storage, ema.id)).toEqual([]);
   });
 
   it('úklid nesmaže jiné záznamy stránky (jazyk, seznam, aktivní profil)', () => {
-    const { storage, ema } = deviceWithThreeProfiles({ [OTHER_PAGE_KEY]: 'cs' });
+    const { storage, ema, tom } = deviceWithThreeProfiles({ [OTHER_PAGE_KEY]: 'cs' });
     storage.failRemove = () => true;
     openProfiles(storage).deleteProfile(ema.id);
     storage.failRemove = () => false;
 
-    openProfiles(storage);
+    openProfiles(storage).deleteProfile(tom.id);
 
     expect(storage.data.get(OTHER_PAGE_KEY)).toBe('cs');
     expect(storage.data.has(PROFILE_LIST_KEY)).toBe(true);
@@ -472,13 +484,13 @@ describe('#73 AC3: staré klíče z doby před profily se nikdy nezmění', () =
     expect(storage.data.get(LEGACY_PROGRESS_KEY)).toBe(TODAY_PROGRESS);
   });
 
-  it('po úklidu při dalším spuštění zůstanou staré klíče', () => {
-    const { storage, store, first } = deviceWithLegacyData();
+  it('po úklidu při dalším smazání zůstanou staré klíče', () => {
+    const { storage, store, first, tom } = deviceWithLegacyData();
     storage.failRemove = () => true;
     store.deleteProfile(first.id);
     storage.failRemove = () => false;
 
-    openProfiles(storage);
+    openProfiles(storage).deleteProfile(tom.id);
 
     expect(storage.data.get(LEGACY_SETTINGS_KEY)).toBe(TODAY_SETTINGS);
     expect(storage.data.get(LEGACY_PROGRESS_KEY)).toBe(TODAY_PROGRESS);
