@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { layoutSettingsPanel } from '../../../src/games/counting/logic/settingsLayout';
 import { layoutGuideStep } from '../../../src/games/counting/logic/setupGuide';
 import type { GuideStep } from '../../../src/games/counting/logic/setupGuide';
 
@@ -14,7 +13,6 @@ import type { GuideStep } from '../../../src/games/counting/logic/setupGuide';
 
 const SCREEN_WIDTH = 1024;
 const SCREEN_HEIGHT = 768;
-const MIN_TOUCH_SIZE = 64;
 const STEPS: readonly GuideStep[] = [1, 2, 3, 4];
 
 interface Box {
@@ -40,73 +38,39 @@ function centeredBox(slot: CenteredSlot): Box {
   };
 }
 
-function overlaps(first: Box, second: Box): boolean {
-  return (
-    first.left < second.right &&
-    second.left < first.right &&
-    first.top < second.bottom &&
-    second.top < first.bottom
-  );
-}
-
 function speakerBox(step: GuideStep): Box {
   return centeredBox(layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT).speaker);
 }
 
-/** Všechny ostatní prvky kroku: text, tlačítka, ukazatel a řady nastavení. */
-function otherBoxes(step: GuideStep): Box[] {
-  const layout = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-  const panel = layoutSettingsPanel(SCREEN_WIDTH, SCREEN_HEIGHT);
-  const own = [layout.message, layout.back, layout.indicator, layout.right].filter(
-    (slot) => slot !== null,
-  );
-  const rows = panel.rows.flatMap((row) => [row.label, ...row.options]);
-  return [...own, ...rows].map(centeredBox);
-}
+// Že reproduktor nepřekrývá žádný jiný prvek průvodce, je celý uvnitř plochy
+// a má aspoň 64 × 64 px, hlídají od #81 společná pravidla
+// v `countingLayoutRules.test.ts`.
 
 describe('AC1: reproduktor na každém kroku', () => {
-  for (const step of STEPS) {
-    it(`na kroku ${step} je reproduktor ve spodním pásu v x 322–394, y 680–752`, () => {
-      expect(speakerBox(step)).toEqual({ left: 322, right: 394, top: 680, bottom: 752 });
-    });
-
-    it(`na kroku ${step} má reproduktor 72 × 72 px, tedy aspoň 64 × 64 px pro prst`, () => {
+  it('na každém kroku je reproduktor ve spodním pásu v x 322–394, y 680–752, tedy 72 × 72 px', () => {
+    for (const step of STEPS) {
       const box = speakerBox(step);
-      expect(box.right - box.left).toBe(72);
-      expect(box.bottom - box.top).toBe(72);
-      expect(box.right - box.left).toBeGreaterThanOrEqual(MIN_TOUCH_SIZE);
-      expect(box.bottom - box.top).toBeGreaterThanOrEqual(MIN_TOUCH_SIZE);
-    });
+      expect(box, `krok ${step}`).toEqual({ left: 322, right: 394, top: 680, bottom: 752 });
+      expect(box.right - box.left, `krok ${step}`).toBe(72);
+      expect(box.bottom - box.top, `krok ${step}`).toBe(72);
+    }
+  });
 
-    it(`na kroku ${step} je mezi reproduktorem a ukazatelem kroku 58 px`, () => {
+  it('na každém kroku je mezi reproduktorem a ukazatelem kroku 58 px', () => {
+    for (const step of STEPS) {
       const { indicator } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      expect(centeredBox(indicator).left - speakerBox(step).right).toBe(58);
-    });
+      expect(centeredBox(indicator).left - speakerBox(step).right, `krok ${step}`).toBe(58);
+    }
+  });
 
-    it(`na kroku ${step} reproduktor nepřekrývá žádný jiný prvek průvodce`, () => {
-      const speaker = speakerBox(step);
-      for (const box of otherBoxes(step)) {
-        expect(overlaps(speaker, box), JSON.stringify(box)).toBe(false);
-      }
-    });
-
-    it(`na kroku ${step} je reproduktor celý uvnitř plochy 1024 × 768`, () => {
-      const box = speakerBox(step);
-      expect(box.left).toBeGreaterThanOrEqual(0);
-      expect(box.top).toBeGreaterThanOrEqual(0);
-      expect(box.right).toBeLessThanOrEqual(SCREEN_WIDTH);
-      expect(box.bottom).toBeLessThanOrEqual(SCREEN_HEIGHT);
-    });
-  }
-
-  for (const step of [2, 3, 4] as const) {
-    it(`na kroku ${step} je mezi „Zpět“ a reproduktorem 58 px`, () => {
+  it('na krocích 2 až 4 je mezi „Zpět“ a reproduktorem 58 px', () => {
+    for (const step of [2, 3, 4] as const) {
       const { back } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
       if (back === null) throw new Error(`na kroku ${step} chybí „Zpět“`);
-      expect(centeredBox(back).right).toBe(264);
-      expect(speakerBox(step).left - centeredBox(back).right).toBe(58);
-    });
-  }
+      expect(centeredBox(back).right, `krok ${step}`).toBe(264);
+      expect(speakerBox(step).left - centeredBox(back).right, `krok ${step}`).toBe(58);
+    }
+  });
 
   it('na kroku 1, kde „Zpět“ chybí, je reproduktor na stejném místě jako na kroku 2', () => {
     const step1 = layoutGuideStep(1, SCREEN_WIDTH, SCREEN_HEIGHT);

@@ -1,6 +1,8 @@
 /**
  * Velikosti a polohy všech prvků herní obrazovky iPadu v CSS px (#54, AC5).
- * Testy je porovnávají se zafixovanými hodnotami, aby se iPad nezměnil.
+ * Testy porovnávají dvě umístění téže plochy (nová volba rozložení
+ * a dnešní zobrazení, ostré plátno a dnešní plátno). Pevné body iPadu jsou
+ * v `tabletLayoutUnchanged.test.ts`.
  */
 
 import { hintDotGroups } from '../../../src/games/counting/logic/answerRound';
@@ -48,7 +50,7 @@ function problemName(problem: Problem): string {
   return `${problem.first} ${sign} ${problem.second}`;
 }
 
-/** Zaokrouhlení na tisíciny, aby snapshot nezávisel na drobných chybách v plovoucí čárce. */
+/** Zaokrouhlení na tisíciny, aby porovnání nezáviselo na drobných chybách v plovoucí čárce. */
 function round(value: number): number {
   return Math.round(value * 1000) / 1000;
 }

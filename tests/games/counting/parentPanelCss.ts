@@ -1,7 +1,8 @@
 /**
  * Velikosti a polohy prvků nastavení pro rodiče a průvodce nastavením
- * v CSS px okna (#59). Testy je porovnávají se zafixovanými hodnotami
- * z dnešního kódu, aby se iPad, zmenšená okna a průvodce nezměnili.
+ * v CSS px okna (#59), jak je dnes kreslí scéna. Testy nového rozložení
+ * s nimi porovnávají, aby se iPad, zmenšená okna a průvodce nezměnili.
+ * Pevné body jsou v `parentPanelsUnchanged.test.ts`.
  */
 
 import {
@@ -21,7 +22,7 @@ import type { Box, Placement, TestWindow } from '../../shared/viewportFixtures';
 
 export const GUIDE_STEPS: readonly GuideStep[] = [1, 2, 3, 4];
 
-/** Zaokrouhlení na tisíciny, aby snapshot nezávisel na drobných chybách v plovoucí čárce. */
+/** Zaokrouhlení na tisíciny, aby porovnání nezáviselo na drobných chybách v plovoucí čárce. */
 function round(value: number): number {
   return Math.round(value * 1000) / 1000;
 }

@@ -3,27 +3,22 @@ import { describe, expect, it } from 'vitest';
 import { hintDotGroups } from '../../../src/games/counting/logic/answerRound';
 import type { Problem } from '../../../src/games/counting/logic/problems';
 import {
-  STAR_SIZE,
   hintDotAt,
   hintDotHitArea,
   layoutHint,
   layoutScreen,
   layoutWritingScreen,
 } from '../../../src/games/counting/logic/screenLayout';
-import type {
-  ButtonSlot,
-  ScreenLayout,
-  WritingLayout,
-} from '../../../src/games/counting/logic/screenLayout';
+import type { ScreenLayout, WritingLayout } from '../../../src/games/counting/logic/screenLayout';
 import type { MaxNumber } from '../../../src/games/counting/logic/settings';
 import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
 
 /**
  * Testy ploch pro ťuknutí na tečky nápovědy (#43, AC7): u rozsahu 5 a 10,
- * s číselníkem i při psaní, má každá tečka plochu aspoň 64 × 64 px. Plochy
- * se smí dotýkat, ale nepřekrývat, jsou celé na obrazovce 1024 × 768
- * a nepotkají se s příkladem, číselníkem, okénky na psaní ani
- * s hvězdičkami.
+ * s číselníkem i při psaní, má každá tečka plochu aspoň 64 × 64 herních
+ * jednotek s tečkou uprostřed. Plochy se smí dotýkat, ale nepřekrývat, jsou
+ * celé na obrazovce 1024 × 768 a nepotkají se s příkladem, číselníkem,
+ * okénky na psaní ani s hvězdičkami (od #81 společná pravidla).
  */
 
 const SCREEN_WIDTH = 1024;
@@ -32,30 +27,6 @@ const MIN_HIT_SIDE = 64;
 
 /** Rozsahy, u kterých jde na tečky ťukat. */
 const COUNTING_RANGES: MaxNumber[] = [5, 10];
-
-interface Box {
-  readonly left: number;
-  readonly right: number;
-  readonly top: number;
-  readonly bottom: number;
-}
-
-function box(x: number, y: number, width: number, height: number): Box {
-  return { left: x - width / 2, right: x + width / 2, top: y - height / 2, bottom: y + height / 2 };
-}
-
-function slotBox(slot: ButtonSlot): Box {
-  return box(slot.x, slot.y, slot.size, slot.size);
-}
-
-/** Překryv bez dotyku: plochy, které se jen dotýkají hranou, se nepřekrývají. */
-function overlaps(a: Box, b: Box): boolean {
-  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-}
-
-function insideScreen(b: Box): boolean {
-  return b.left >= 0 && b.top >= 0 && b.right <= SCREEN_WIDTH && b.bottom <= SCREEN_HEIGHT;
-}
 
 /** Všechny příklady, které v rozsahu mohou přijít. */
 function allProblems(maxNumber: number): Problem[] {
@@ -71,17 +42,6 @@ function allProblems(maxNumber: number): Problem[] {
   return problems;
 }
 
-type Top = Omit<ScreenLayout, 'answerButtons'>;
-
-/** Příklad a hvězdičky. */
-function topBoxes(layout: Top): Box[] {
-  const { problem } = layout;
-  return [
-    box(problem.x, problem.y, layout.problemSize.width, layout.problemSize.height),
-    ...layout.stars.map((star) => box(star.x, star.y, STAR_SIZE, STAR_SIZE)),
-  ];
-}
-
 function keypadLayout(maxNumber: MaxNumber): ScreenLayout {
   return layoutScreen(SCREEN_WIDTH, SCREEN_HEIGHT, maxNumber + 1, STARS_PER_SET);
 }
@@ -90,21 +50,7 @@ function writingLayout(maxNumber: MaxNumber): WritingLayout {
   return layoutWritingScreen(SCREEN_WIDTH, SCREEN_HEIGHT, maxNumber, STARS_PER_SET);
 }
 
-function keypadBoxes(layout: ScreenLayout): Box[] {
-  return [...topBoxes(layout), ...layout.answerButtons.map(slotBox)];
-}
-
-function writingBoxes(layout: WritingLayout): Box[] {
-  return [
-    ...topBoxes(layout),
-    ...layout.writingAreas.map((area) => box(area.x, area.y, area.width, area.height)),
-    slotBox(layout.confirmButton),
-    slotBox(layout.clearButton),
-  ];
-}
-
 interface Variant {
-  readonly others: Box[];
   readonly screen: ScreenLayout | WritingLayout;
 }
 
@@ -112,95 +58,70 @@ interface Variant {
 function variants(maxNumber: MaxNumber): Variant[] {
   const keypad = keypadLayout(maxNumber);
   const writing = writingLayout(maxNumber);
-  return [
-    { others: keypadBoxes(keypad), screen: keypad },
-    { others: writingBoxes(writing), screen: writing },
-  ];
+  return [{ screen: keypad }, { screen: writing }];
 }
 
-function hitAreasFor(problem: Problem, layout: ScreenLayout | WritingLayout): ButtonSlot[] {
-  return layoutHint(layout, hintDotGroups(problem)).map(hintDotHitArea);
-}
+// Že má každá plocha aspoň 64 × 64 px, plochy se nepřekrývají, jsou celé na
+// obrazovce a nepotkají se s příkladem, číselníkem, okénky ani hvězdičkami,
+// hlídají od #81 společná pravidla v `countingLayoutRules.test.ts`
+// (nápověda na iPadu u všech příkladů s tečkami).
 
-describe('AC7: každá tečka má plochu pro ťuknutí aspoň 64 × 64 px', () => {
-  it.each(COUNTING_RANGES)('rozsah %i: plocha je aspoň 64 × 64 px a tečka je uprostřed', (max) => {
-    for (const { screen } of variants(max)) {
-      for (const problem of allProblems(max)) {
-        const dots = layoutHint(screen, hintDotGroups(problem));
-        for (const dot of dots) {
-          const area = hintDotHitArea(dot);
-          expect(area.size).toBeGreaterThanOrEqual(MIN_HIT_SIDE);
-          expect(area.size).toBeGreaterThanOrEqual(screen.hintStyle.dotSize);
-          expect(area.x).toBe(dot.x);
-          expect(area.y).toBe(dot.y);
+describe('AC7: každá tečka má plochu pro ťuknutí', () => {
+  it('rozsah 5 a 10: plocha je aspoň tak velká jako tečka a tečka je uprostřed', () => {
+    for (const max of COUNTING_RANGES) {
+      for (const { screen } of variants(max)) {
+        for (const problem of allProblems(max)) {
+          const dots = layoutHint(screen, hintDotGroups(problem));
+          const where = `rozsah ${max}, ${problem.first} ${problem.operation} ${problem.second}`;
+          for (const dot of dots) {
+            const area = hintDotHitArea(dot);
+            expect(area.size, where).toBeGreaterThanOrEqual(MIN_HIT_SIDE);
+            expect(area.size, where).toBeGreaterThanOrEqual(screen.hintStyle.dotSize);
+            expect(area.x, where).toBe(dot.x);
+            expect(area.y, where).toBe(dot.y);
+          }
         }
       }
     }
   });
-
-  it.each(COUNTING_RANGES)(
-    'rozsah %i: plochy teček se nepřekrývají a jsou celé na obrazovce',
-    (max) => {
-      for (const { screen } of variants(max)) {
-        for (const problem of allProblems(max)) {
-          const areas = hitAreasFor(problem, screen).map(slotBox);
-          for (const [index, a] of areas.entries()) {
-            expect(insideScreen(a)).toBe(true);
-            for (const b of areas.slice(index + 1)) {
-              expect(overlaps(a, b)).toBe(false);
-            }
-          }
-        }
-      }
-    },
-  );
-
-  it.each(COUNTING_RANGES)(
-    'rozsah %i: plochy teček se nepotkají s příkladem, číselníkem ani okénky a hvězdičkami',
-    (max) => {
-      for (const { screen, others } of variants(max)) {
-        for (const problem of allProblems(max)) {
-          for (const area of hitAreasFor(problem, screen).map(slotBox)) {
-            for (const other of others) {
-              expect(overlaps(area, other)).toBe(false);
-            }
-          }
-        }
-      }
-    },
-  );
 });
 
 describe('AC1 a AC3: ťuknutí najde tečku, ťuknutí mimo tečky žádnou', () => {
   const problem: Problem = { first: 3, second: 4, operation: 'plus', result: 7 };
 
-  it.each(COUNTING_RANGES)('rozsah %i: ťuknutí do plochy tečky najde právě tu tečku', (max) => {
-    for (const { screen } of variants(max)) {
-      const dots = layoutHint(screen, hintDotGroups(problem));
-      for (const [index, dot] of dots.entries()) {
-        const half = hintDotHitArea(dot).size / 2;
-        expect(hintDotAt(dots, { x: dot.x, y: dot.y })).toBe(index);
-        // Kousek od okraje plochy, mimo samotnou tečku 50 px.
-        expect(hintDotAt(dots, { x: dot.x + half - 2, y: dot.y - half + 2 })).toBe(index);
+  it('rozsah 5 a 10: ťuknutí do plochy tečky najde právě tu tečku', () => {
+    for (const max of COUNTING_RANGES) {
+      for (const { screen } of variants(max)) {
+        const dots = layoutHint(screen, hintDotGroups(problem));
+        for (const [index, dot] of dots.entries()) {
+          const half = hintDotHitArea(dot).size / 2;
+          const where = `rozsah ${max}, tečka ${index + 1}`;
+          expect(hintDotAt(dots, { x: dot.x, y: dot.y }), where).toBe(index);
+          // Kousek od okraje plochy, mimo samotnou tečku 50 px.
+          expect(hintDotAt(dots, { x: dot.x + half - 2, y: dot.y - half + 2 }), where).toBe(index);
+        }
       }
     }
   });
 
-  it.each(COUNTING_RANGES)('rozsah %i: ťuknutí mimo tečky nenajde žádnou', (max) => {
-    for (const { screen } of variants(max)) {
-      const dots = layoutHint(screen, hintDotGroups(problem));
+  it('rozsah 5 a 10: ťuknutí mimo tečky nenajde žádnou', () => {
+    for (const max of COUNTING_RANGES) {
+      for (const { screen } of variants(max)) {
+        const dots = layoutHint(screen, hintDotGroups(problem));
+        const where = `rozsah ${max}`;
 
-      expect(hintDotAt(dots, { x: 0, y: 0 })).toBeNull();
-      expect(hintDotAt(dots, { x: SCREEN_WIDTH - 1, y: SCREEN_HEIGHT - 1 })).toBeNull();
-      expect(hintDotAt(dots, screen.problem)).toBeNull();
-      // Mezera mezi skupinkami 3 a 4: uprostřed mezi poslední tečkou první a první druhé.
-      const lastOfFirst = dots[2];
-      const firstOfSecond = dots[3];
-      expect(lastOfFirst).toBeDefined();
-      expect(firstOfSecond).toBeDefined();
-      if (lastOfFirst && firstOfSecond) {
-        const gapX = (lastOfFirst.x + firstOfSecond.x) / 2;
-        expect(hintDotAt(dots, { x: gapX, y: lastOfFirst.y })).toBeNull();
+        expect(hintDotAt(dots, { x: 0, y: 0 }), where).toBeNull();
+        expect(hintDotAt(dots, { x: SCREEN_WIDTH - 1, y: SCREEN_HEIGHT - 1 }), where).toBeNull();
+        expect(hintDotAt(dots, screen.problem), where).toBeNull();
+        // Mezera mezi skupinkami 3 a 4: uprostřed mezi poslední tečkou první a první druhé.
+        const lastOfFirst = dots[2];
+        const firstOfSecond = dots[3];
+        expect(lastOfFirst, where).toBeDefined();
+        expect(firstOfSecond, where).toBeDefined();
+        if (lastOfFirst && firstOfSecond) {
+          const gapX = (lastOfFirst.x + firstOfSecond.x) / 2;
+          expect(hintDotAt(dots, { x: gapX, y: lastOfFirst.y }), where).toBeNull();
+        }
       }
     }
   });

@@ -123,18 +123,17 @@ function phoneCases(windows: readonly TestWindow[]): [string, TestWindow, MaxNum
 const PHONE_CASES = [...phoneCases(PHONE_WINDOWS), ...phoneCases(PHONE_PORTRAIT_WINDOWS)];
 
 describe('při psaní prstem na telefonu je příklad tam, kde s ním počítají okénka', () => {
-  it.each(PHONE_CASES)(
-    'příklad nezasahuje do okének ani do teček nápovědy (%s)',
-    (_name, window, maxNumber, groups) => {
+  it('příklad nezasahuje do okének ani do teček nápovědy na šířku i na výšku, ve všech rozsazích a nápovědách', () => {
+    for (const [name, window, maxNumber, groups] of PHONE_CASES) {
       const screen = playScreen(window, maxNumber, groups);
       const scenery = sceneryWhileWriting(screen);
       const others = writingControlsAndDots(screen);
 
       for (const other of others) {
-        expect(overlaps(problemBox(scenery), other)).toBe(false);
+        expect(overlaps(problemBox(scenery), other), name).toBe(false);
       }
-    },
-  );
+    }
+  });
 
   it('na telefonu na šířku s nápovědou 2 + 6 příklad nezasahuje do okének (844×340)', () => {
     const iphone = PHONE_WINDOWS.find((window) => window.width === 844);
@@ -155,14 +154,13 @@ describe('na iPadu a ve zmenšeném zobrazení se příklad kreslí z rozložen�
     RANGES.map((maxNumber): [string, TestWindow, MaxNumber] => [window.name, window, maxNumber]),
   );
 
-  it.each(cases)(
-    'při psaní se příklad kreslí z rozložení s číselníkem (%s, do %i)',
-    (_name, window, maxNumber) => {
+  it('při psaní se příklad kreslí z rozložení s číselníkem ve všech rozsazích', () => {
+    for (const [name, window, maxNumber] of cases) {
       const screen = playScreen(window, maxNumber, []);
       const expectedModes: LayoutMode[] = ['tablet', 'scaled'];
-      expect(expectedModes).toContain(screen.area.mode);
+      expect(expectedModes, name).toContain(screen.area.mode);
 
-      expect(sceneryWhileWriting(screen)).toEqual(screen.keypad);
-    },
-  );
+      expect(sceneryWhileWriting(screen), `${name}, do ${maxNumber}`).toEqual(screen.keypad);
+    }
+  });
 });

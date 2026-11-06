@@ -33,10 +33,8 @@ import {
   box,
   boundsOf,
   freeAreaOf,
-  gapBetween,
   heightOf,
   isInside,
-  overlaps,
   toCss,
   viewportOf,
   widthOf,
@@ -75,9 +73,6 @@ const OPERATIONS: OperationMode[] = ['plus', 'minus', 'mixed'];
 type Mode = 'číselník' | 'psaní';
 const MODES: Mode[] = ['číselník', 'psaní'];
 
-/** Prázdná řada hvězdiček i plná řada při oslavě po deseti. */
-const STAR_COUNTS = [0, STARS_PER_SET];
-
 /** Kolečko nastavení (#55): plocha pro prst a odsazení od rohu volné plochy, v CSS px. */
 const GEAR_HIT_SIZE = 64;
 const GEAR_EDGE_OFFSET = 8;
@@ -94,13 +89,10 @@ const MIN_CONTROLS_BOTTOM_GAP = 8;
 const MAX_CONTROLS_BOTTOM_GAP = 24;
 
 /** AC3 v CSS px. */
-const MIN_BUTTON_SIDE = 64;
-const MIN_BUTTON_GAP = 8;
 const MIN_STAR_SIZE = 24;
 const MIN_PROBLEM_FONT_SIZE = 40;
 
 /** AC5 v CSS px. */
-const MIN_DOT_HIT_SIDE = 48;
 const MIN_LOOK_ONLY_DOT_SIZE = 20;
 const DOTS_PER_ROW = 5;
 
@@ -130,11 +122,6 @@ interface PortraitVariant {
   readonly operations: OperationMode;
   readonly area: GameArea;
   readonly layout: PortraitLayout;
-}
-
-interface Element {
-  readonly name: string;
-  readonly css: Box;
 }
 
 // ---------------------------------------------------------------------------
@@ -375,41 +362,6 @@ function homeHitCss(window: TestWindow): Box {
   };
 }
 
-/** Všechno, co je na obrazovce kromě teček nápovědy, i s kolečkem a domečkem (#68). */
-function fixedElements(variant: PortraitVariant): Element[] {
-  const { layout } = variant;
-  const elements: Element[] = [
-    { name: 'kolečko', css: gearHitCss(variant.window) },
-    { name: 'domeček', css: homeHitCss(variant.window) },
-    ...starsCss(variant).map((css, index) => ({ name: `hvězdička ${index + 1}`, css })),
-    { name: 'příklad', css: problemCss(variant) },
-    { name: 'místo pro nápovědu', css: hintRegionCss(variant) },
-  ];
-  if (isWriting(layout)) {
-    layout.writingAreas.forEach((area, index) =>
-      elements.push({ name: `okénko ${index + 1}`, css: areaCss(variant, area) }),
-    );
-    elements.push({ name: 'smazání', css: slotCss(variant, layout.clearButton) });
-    elements.push({ name: '✓', css: slotCss(variant, layout.confirmButton) });
-  } else {
-    layout.answerButtons.forEach((slot, index) =>
-      elements.push({ name: `tlačítko ${index}`, css: slotCss(variant, slot) }),
-    );
-  }
-  return elements;
-}
-
-/** Volná plocha zmenšená o povinný odstup 4 px od okraje (AC2). */
-function safeInnerArea(window: TestWindow): Box {
-  const free = freeAreaOf(window);
-  return {
-    left: free.left + MIN_EDGE_DISTANCE,
-    right: free.right - MIN_EDGE_DISTANCE,
-    top: free.top + MIN_EDGE_DISTANCE,
-    bottom: free.bottom - MIN_EDGE_DISTANCE,
-  };
-}
-
 function dotCss(variant: PortraitVariant, dot: HintDot): Box {
   const size = variant.layout.hintStyle.dotSize;
   return css(variant, box(dot.x, dot.y, size, size));
@@ -485,16 +437,6 @@ function rowsByY<T extends { readonly y: number }>(items: readonly T[]): T[][] {
   return rows;
 }
 
-function expectNoOverlaps(elements: readonly Element[], where: string): void {
-  elements.forEach((first, i) => {
-    elements.slice(i + 1).forEach((second) => {
-      expect(overlaps(first.css, second.css), `${where}, ${first.name} a ${second.name}`).toBe(
-        false,
-      );
-    });
-  });
-}
-
 function expectMinSide(b: Box, minSide: number, where: string): void {
   expect(widthOf(b), where).toBeGreaterThanOrEqual(minSide - TOLERANCE);
   expect(heightOf(b), where).toBeGreaterThanOrEqual(minSide - TOLERANCE);
@@ -529,109 +471,107 @@ function placementOf(layout: PortraitLayout): unknown {
 // Kombinace oken, rozsahů a způsobu odpovídání
 // ---------------------------------------------------------------------------
 
-type Case = [string, MaxNumber, Mode, TestWindow];
+interface Case {
+  readonly window: TestWindow;
+  readonly maxNumber: MaxNumber;
+  readonly mode: Mode;
+}
 
 const ALL_CASES: Case[] = PORTRAIT_WINDOWS.flatMap((window) =>
-  RANGES.flatMap((maxNumber) => MODES.map((mode): Case => [window.name, maxNumber, mode, window])),
+  RANGES.flatMap((maxNumber) => MODES.map((mode): Case => ({ window, maxNumber, mode }))),
 );
 
-const KEYPAD_CASES = ALL_CASES.filter(([, , mode]) => mode === 'číselník');
-const WRITING_CASES = ALL_CASES.filter(([, , mode]) => mode === 'psaní');
+const KEYPAD_CASES = ALL_CASES.filter(({ mode }) => mode === 'číselník');
+const WRITING_CASES = ALL_CASES.filter(({ mode }) => mode === 'psaní');
 
 /** Číselník do 5 a do 10 a psaní do 5: na tečky jde ťukat (#43). */
 function hasTappableDots(maxNumber: MaxNumber, mode: Mode): boolean {
   return mode === 'číselník' ? maxNumber !== 20 : maxNumber === 5;
 }
 
-const TAPPABLE_CASES = ALL_CASES.filter(([, maxNumber, mode]) => hasTappableDots(maxNumber, mode));
-const LOOK_ONLY_CASES = ALL_CASES.filter(
-  ([, maxNumber, mode]) => !hasTappableDots(maxNumber, mode),
-);
-
 /** Okno, rozsah, způsob odpovídání a druh příkladů pro testy nápovědy. */
-type HintCase = [string, MaxNumber, Mode, OperationMode, TestWindow];
+interface HintCase extends Case {
+  readonly operations: OperationMode;
+}
 
-const HINT_CASES: HintCase[] = ALL_CASES.flatMap(([name, maxNumber, mode, window]) =>
-  OPERATIONS.map((operations): HintCase => [name, maxNumber, mode, operations, window]),
+const HINT_CASES: HintCase[] = ALL_CASES.flatMap((testCase) =>
+  OPERATIONS.map((operations): HintCase => ({ ...testCase, operations })),
 );
+
+function variantOf(testCase: Case | HintCase, starCount = STARS_PER_SET): PortraitVariant {
+  const operations = 'operations' in testCase ? testCase.operations : 'mixed';
+  return portraitVariant(testCase.window, testCase.maxNumber, testCase.mode, operations, starCount);
+}
+
+// Že se nic nepřekrývá, nic nevyčnívá ani není pod výřezem a lištou, je aspoň
+// 4 px od okraje, tlačítka mají 64 px s mezerou 8 px a ťukací tečky 48 px
+// (AC2, AC3, AC5), hlídají společná pravidla v `countingLayoutRules.test.ts`.
 
 // ---------------------------------------------------------------------------
 
 describe('vzorek nápověd pokrývá nejvyšší nápovědu', () => {
-  it.each(
-    RANGES.flatMap((maxNumber) =>
-      MODES.flatMap((mode) =>
-        OPERATIONS.map((operations): [MaxNumber, Mode, OperationMode] => [
-          maxNumber,
-          mode,
-          operations,
-        ]),
-      ),
-    ),
-  )(
-    '360×620, rozsah %i, %s, %s: nejvyšší nápověda ze vzorku je stejně vysoká jako ze všech příkladů',
-    (maxNumber, mode, operations) => {
-      const variant = portraitVariant(SMALLEST_PHONE_PORTRAIT, maxNumber, mode, operations);
-      const heightOfHint = (groups: readonly number[]): number =>
-        heightOf(
-          boundsOf(
-            layoutPhonePortraitHint(variant.layout, groups).map((dot) =>
-              dotFootprintCss(variant, dot),
+  it('360×620: nejvyšší nápověda ze vzorku je v každém rozsahu, ovládání a druhu příkladů stejně vysoká jako ze všech příkladů', () => {
+    for (const maxNumber of RANGES) {
+      for (const mode of MODES) {
+        for (const operations of OPERATIONS) {
+          const variant = portraitVariant(SMALLEST_PHONE_PORTRAIT, maxNumber, mode, operations);
+          const heightOfHint = (groups: readonly number[]): number =>
+            heightOf(
+              boundsOf(
+                layoutPhonePortraitHint(variant.layout, groups).map((dot) =>
+                  dotFootprintCss(variant, dot),
+                ),
+              ),
+            );
+          const sampleTallest = Math.max(
+            ...sampleHintProblems(maxNumber, operations).map((problem) =>
+              heightOfHint(hintDotGroups(problem)),
             ),
-          ),
-        );
-      const sampleTallest = Math.max(
-        ...sampleHintProblems(maxNumber, operations).map((problem) =>
-          heightOfHint(hintDotGroups(problem)),
-        ),
-      );
-      const allTallest = Math.max(...allHintGroups(maxNumber, operations).map(heightOfHint));
+          );
+          const allTallest = Math.max(...allHintGroups(maxNumber, operations).map(heightOfHint));
 
-      expect(sampleTallest, label(variant)).toBeCloseTo(allTallest, 3);
-    },
-  );
+          expect(sampleTallest, label(variant)).toBeCloseTo(allTallest, 3);
+        }
+      }
+    }
+  });
 });
 
 describe('AC1: scéna na telefonu na výšku dostane rozložení P2', () => {
-  it.each(PORTRAIT_WINDOWS)('$name: herní plocha je v režimu telefonu na výšku', (window) => {
-    expect(gameAreaFor(viewportOf(window)).mode).toBe('phonePortrait');
-  });
-
-  it.each(PORTRAIT_WINDOWS)(
-    '$name: rozložení pro scénu (číselník, psaní, nápověda) je rozložení na výšku',
-    (window) => {
+  it('herní plocha je v režimu telefonu na výšku a scéna dostane pro číselník, psaní i nápovědu rozložení na výšku', () => {
+    for (const window of PORTRAIT_WINDOWS) {
       const area = gameAreaFor(viewportOf(window));
       const settings = { maxNumber: 10 as const, operations: 'plus' as const };
       const groups = hintDotGroups(plus(7, 3));
 
+      expect(area.mode, window.name).toBe('phonePortrait');
       const keypad = layoutDeviceScreen(area, 11, 3, [], 'plus');
-      expect(keypad).toEqual(layoutPhonePortraitScreen(area, settings, 3));
-      expect(layoutDeviceHint(keypad, groups)).toEqual(
+      expect(keypad, window.name).toEqual(layoutPhonePortraitScreen(area, settings, 3));
+      expect(layoutDeviceHint(keypad, groups), window.name).toEqual(
         layoutPhonePortraitHint(layoutPhonePortraitScreen(area, settings, 3), groups),
       );
 
       const writing = layoutDeviceWritingScreen(area, 10, 3, [], 'plus');
-      expect(writing).toEqual(layoutPhonePortraitWritingScreen(area, settings, 3));
-      expect(layoutDeviceHint(writing, groups)).toEqual(
+      expect(writing, window.name).toEqual(layoutPhonePortraitWritingScreen(area, settings, 3));
+      expect(layoutDeviceHint(writing, groups), window.name).toEqual(
         layoutPhonePortraitHint(layoutPhonePortraitWritingScreen(area, settings, 3), groups),
       );
-    },
-  );
+    }
+  });
 });
 
 describe('AC2: rozložení P2 shora dolů', () => {
-  it.each(PORTRAIT_WINDOWS)(
-    '$name: plocha pro prst u kolečka má 64 × 64 px a je 8 px od horního a pravého okraje volné plochy',
-    (window) => {
+  it('plocha pro prst u kolečka má 64 × 64 px a je 8 px od horního a pravého okraje volné plochy', () => {
+    for (const window of PORTRAIT_WINDOWS) {
       const free = freeAreaOf(window);
       const hit = gearHitCss(window);
 
-      expect(widthOf(hit)).toBe(GEAR_HIT_SIZE);
-      expect(heightOf(hit)).toBe(GEAR_HIT_SIZE);
-      expect(hit.top - free.top).toBeCloseTo(GEAR_EDGE_OFFSET, 5);
-      expect(free.right - hit.right).toBeCloseTo(GEAR_EDGE_OFFSET, 5);
-    },
-  );
+      expect(widthOf(hit), window.name).toBe(GEAR_HIT_SIZE);
+      expect(heightOf(hit), window.name).toBe(GEAR_HIT_SIZE);
+      expect(hit.top - free.top, window.name).toBeCloseTo(GEAR_EDGE_OFFSET, 5);
+      expect(free.right - hit.right, window.name).toBeCloseTo(GEAR_EDGE_OFFSET, 5);
+    }
+  });
 
   /**
    * #68 AC4 (otázka 1, schválený obrázek A): mezi domečkem a kolečkem se 10
@@ -639,13 +579,12 @@ describe('AC2: rozložení P2 shora dolů', () => {
    * pásu 72 px. Nejdřív se plní horní řada. Hvězdička 24 px, rozestup
    * 32 px, řady 14–38 a 42–66 px od horního okraje volné plochy.
    */
-  it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): hvězdičky jsou ve 2 řadách po 5 mezi domečkem a kolečkem, aspoň 4 px od obou (#68)',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
+  it('hvězdičky jsou ve 2 řadách po 5 mezi domečkem a kolečkem, aspoň 4 px od obou (#68)', () => {
+    for (const testCase of ALL_CASES) {
+      const variant = variantOf(testCase);
       const stars = starsCss(variant);
-      const gear = gearHitCss(window);
-      const home = homeHitCss(window);
+      const gear = gearHitCss(testCase.window);
+      const home = homeHitCss(testCase.window);
       const rows = [stars.slice(0, STARS_PER_ROW), stars.slice(STARS_PER_ROW)];
 
       expect(stars, label(variant)).toHaveLength(STARS_PER_SET);
@@ -671,17 +610,16 @@ describe('AC2: rozložení P2 shora dolů', () => {
       });
       const [top, bottom] = rows.map((row) => boundsOf(row));
       expect(top && bottom && top.bottom <= bottom.top + TOLERANCE, label(variant)).toBe(true);
-    },
-  );
+    }
+  });
 
-  it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): obě řady hvězdiček jsou v horním pásu domečku a kolečka a uprostřed mezi nimi (#68)',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
+  it('obě řady hvězdiček jsou v horním pásu domečku a kolečka a uprostřed mezi nimi (#68)', () => {
+    for (const testCase of ALL_CASES) {
+      const variant = variantOf(testCase);
       const stars = boundsOf(starsCss(variant));
-      const gear = gearHitCss(window);
-      const home = homeHitCss(window);
-      const free = freeAreaOf(window);
+      const gear = gearHitCss(testCase.window);
+      const home = homeHitCss(testCase.window);
+      const free = freeAreaOf(testCase.window);
 
       expect(stars.top, label(variant)).toBeGreaterThanOrEqual(free.top + MIN_EDGE_DISTANCE);
       expect(stars.bottom, label(variant)).toBeLessThanOrEqual(gear.bottom + TOLERANCE);
@@ -689,12 +627,11 @@ describe('AC2: rozložení P2 shora dolů', () => {
         Math.abs(centerX(stars) - (home.right + gear.left) / 2),
         label(variant),
       ).toBeLessThanOrEqual(CENTER_TOLERANCE);
-    },
-  );
+    }
+  });
 
-  it.each(PORTRAIT_WINDOWS)(
-    '$name: hvězdičky mají 24 px, rozestup 32 px a řady jsou 14–38 a 42–66 px od horního okraje volné plochy (#68, obrázek A)',
-    (window) => {
+  it('hvězdičky mají 24 px, rozestup 32 px a řady jsou 14–38 a 42–66 px od horního okraje volné plochy (#68, obrázek A)', () => {
+    for (const window of PORTRAIT_WINDOWS) {
       const variant = portraitVariant(window, 10, 'číselník');
       const free = freeAreaOf(window);
       const stars = starsCss(variant);
@@ -710,12 +647,11 @@ describe('AC2: rozložení P2 shora dolů', () => {
       );
       expect((top[0]?.top ?? 0) - free.top, window.name).toBeCloseTo(14, 5);
       expect((bottom[0]?.top ?? 0) - free.top, window.name).toBeCloseTo(42, 5);
-    },
-  );
+    }
+  });
 
-  it.each(PORTRAIT_WINDOWS)(
-    '$name: se 7 hvězdičkami je horní řada plná a ve spodní svítí první dvě (#68)',
-    (window) => {
+  it('se 7 hvězdičkami je horní řada plná a ve spodní svítí první dvě (#68)', () => {
+    for (const window of PORTRAIT_WINDOWS) {
       const full = portraitVariant(window, 10, 'číselník', 'mixed', STARS_PER_SET).layout;
       const seven = portraitVariant(window, 10, 'číselník', 'mixed', 7).layout;
 
@@ -726,40 +662,37 @@ describe('AC2: rozložení P2 shora dolů', () => {
         window.name,
       ).toBe(true);
       expect(ys[STARS_PER_ROW], window.name).toBeGreaterThan(ys[0] ?? 0);
-    },
-  );
+    }
+  });
 
-  it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): řada hvězdiček je svisle ve výšce středu kolečka',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
+  it('řada hvězdiček je svisle ve výšce středu kolečka', () => {
+    for (const testCase of ALL_CASES) {
+      const variant = variantOf(testCase);
       const stars = boundsOf(starsCss(variant));
 
       expect(
-        Math.abs(centerY(stars) - centerY(gearHitCss(window))),
+        Math.abs(centerY(stars) - centerY(gearHitCss(testCase.window))),
         label(variant),
       ).toBeLessThanOrEqual(CENTER_TOLERANCE);
-    },
-  );
+    }
+  });
 
-  it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): příklad je pod hvězdičkami',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
+  it('příklad je pod hvězdičkami', () => {
+    for (const testCase of ALL_CASES) {
+      const variant = variantOf(testCase);
       const stars = boundsOf(starsCss(variant));
-      const problem = problemCss(variant);
 
-      expect(problem.top, label(variant, ', příklad pod hvězdičkami')).toBeGreaterThanOrEqual(
-        stars.bottom - TOLERANCE,
-      );
-    },
-  );
+      expect(
+        problemCss(variant).top,
+        label(variant, ', příklad pod hvězdičkami'),
+      ).toBeGreaterThanOrEqual(stars.bottom - TOLERANCE);
+    }
+  });
 
-  it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): příklad je vodorovně uprostřed volné plochy, s nápovědou i bez ní (#63)',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
-      const freeCenter = centerX(freeAreaOf(window));
+  it('příklad je vodorovně uprostřed volné plochy, s nápovědou i bez ní (#63)', () => {
+    for (const testCase of ALL_CASES) {
+      const variant = variantOf(testCase);
+      const freeCenter = centerX(freeAreaOf(testCase.window));
 
       expect(
         Math.abs(centerX(problemCss(variant)) - freeCenter),
@@ -771,13 +704,12 @@ describe('AC2: rozložení P2 shora dolů', () => {
           hintLabel(screen),
         ).toBeLessThanOrEqual(CENTER_TOLERANCE);
       }
-    },
-  );
+    }
+  });
 
-  it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): pod příkladem je místo pro nápovědu a pod ním ovládání',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
+  it('pod příkladem je místo pro nápovědu a pod ním ovládání', () => {
+    for (const testCase of ALL_CASES) {
+      const variant = variantOf(testCase);
       const problem = problemCss(variant);
       const hint = hintRegionCss(variant);
       const controls = boundsOf(controlsCss(variant));
@@ -789,121 +721,53 @@ describe('AC2: rozložení P2 shora dolů', () => {
       expect(controls.top, label(variant, ', ovládání pod nápovědou')).toBeGreaterThanOrEqual(
         hint.bottom - TOLERANCE,
       );
-    },
-  );
+    }
+  });
 
-  it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): spodní okraj ovládání je 8 až 24 px nad spodním okrajem volné plochy',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
-      const gap = freeAreaOf(window).bottom - boundsOf(controlsCss(variant)).bottom;
+  it('spodní okraj ovládání je 8 až 24 px nad spodním okrajem volné plochy (ovládání u palce)', () => {
+    for (const testCase of ALL_CASES) {
+      const variant = variantOf(testCase);
+      const gap = freeAreaOf(testCase.window).bottom - boundsOf(controlsCss(variant)).bottom;
 
       expect(gap, label(variant)).toBeGreaterThanOrEqual(MIN_CONTROLS_BOTTOM_GAP - TOLERANCE);
       expect(gap, label(variant)).toBeLessThanOrEqual(MAX_CONTROLS_BOTTOM_GAP + TOLERANCE);
-    },
-  );
-
-  for (const starCount of STAR_COUNTS) {
-    it.each(ALL_CASES)(
-      `%s, rozsah %i (%s), ${starCount} hvězdiček: nic se nepřekrývá`,
-      (_, maxNumber, mode, window) => {
-        const variant = portraitVariant(window, maxNumber, mode, 'mixed', starCount);
-        expectNoOverlaps(fixedElements(variant), label(variant));
-      },
-    );
-
-    it.each(ALL_CASES)(
-      `%s, rozsah %i (%s), ${starCount} hvězdiček: nic nevyčnívá, není pod výřezem ani lištou a je aspoň 4 px od okraje`,
-      (_, maxNumber, mode, window) => {
-        const variant = portraitVariant(window, maxNumber, mode, 'mixed', starCount);
-        const inner = safeInnerArea(window);
-
-        for (const element of fixedElements(variant)) {
-          expect(isInside(element.css, inner), label(variant, `, ${element.name}`)).toBe(true);
-        }
-      },
-    );
-  }
-
-  it.each(HINT_CASES)(
-    '%s, rozsah %i (%s, %s): s nápovědou se nic nepřekrývá a tečky jsou aspoň 4 px od okraje',
-    (_, maxNumber, mode, operations, window) => {
-      const variant = portraitVariant(window, maxNumber, mode, operations);
-      const inner = safeInnerArea(window);
-      const others = fixedElements(variant).filter(
-        (element) => element.name !== 'místo pro nápovědu',
-      );
-
-      for (const screen of sampleHintScreens(variant)) {
-        const dots: Element[] = screen.dots.map((dot, index) => ({
-          name: `tečka ${index + 1}`,
-          css: dotFootprintCss(variant, dot),
-        }));
-        expectNoOverlaps([...others, ...dots], hintLabel(screen));
-        for (const dot of dots) {
-          expect(isInside(dot.css, inner), hintLabel(screen, `, ${dot.name}`)).toBe(true);
-        }
-      }
-    },
-  );
+    }
+  });
 });
 
 describe('AC3: velikosti na telefonu na výšku', () => {
-  it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): tlačítka mají aspoň 64 × 64 px a mezi sousedními je aspoň 8 px',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
-      const buttons = buttonsCss(variant);
-
-      buttons.forEach((first, i) => {
-        expectMinSide(first, MIN_BUTTON_SIDE, label(variant, `, tlačítko ${i}`));
-        buttons.slice(i + 1).forEach((second, offset) => {
-          expect(
-            gapBetween(first, second),
-            label(variant, `, tlačítka ${i} a ${i + offset + 1}`),
-          ).toBeGreaterThanOrEqual(MIN_BUTTON_GAP - TOLERANCE);
-        });
-      });
-    },
-  );
-
   it('na číselníku je každé číslo od 0 do rozsahu právě jednou', () => {
-    for (const window of PORTRAIT_WINDOWS) {
-      for (const maxNumber of RANGES) {
-        const variant = portraitVariant(window, maxNumber, 'číselník');
-        expect(buttonsOf(variant), label(variant)).toHaveLength(maxNumber + 1);
+    for (const testCase of KEYPAD_CASES) {
+      const variant = variantOf(testCase);
+      expect(buttonsOf(variant), label(variant)).toHaveLength(testCase.maxNumber + 1);
+    }
+  });
+
+  it('hvězdička má aspoň 24 px', () => {
+    for (const testCase of ALL_CASES) {
+      const variant = variantOf(testCase);
+      for (const star of starsCss(variant)) {
+        expectMinSide(star, MIN_STAR_SIZE, label(variant));
       }
     }
   });
 
-  it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): hvězdička má aspoň 24 px',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
-
-      for (const star of starsCss(variant)) {
-        expectMinSide(star, MIN_STAR_SIZE, label(variant));
-      }
-    },
-  );
-
-  it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): písmo příkladu má aspoň 40 px a vejde se i nejdelší vyřešený příklad',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
+  it('písmo příkladu má aspoň 40 px a vejde se i nejdelší vyřešený příklad', () => {
+    for (const testCase of ALL_CASES) {
+      const variant = variantOf(testCase);
       const { layout } = variant;
 
       expect(layout.problemFontSize * variant.area.scale, label(variant)).toBeGreaterThanOrEqual(
         MIN_PROBLEM_FONT_SIZE - TOLERANCE,
       );
       // Místo pro příklad je stejné jako na iPadu: odhad šířky nejdelšího příkladu při tomto písmu.
-      const ipad = layoutScreen(1024, 768, maxNumber + 1);
+      const ipad = layoutScreen(1024, 768, testCase.maxNumber + 1);
       expect(
         layout.problemSize.width / layout.problemFontSize,
         label(variant),
       ).toBeGreaterThanOrEqual(ipad.problemSize.width / ipad.problemFontSize - TOLERANCE);
-    },
-  );
+    }
+  });
 });
 
 describe('AC4: číselník na telefonu na výšku', () => {
@@ -926,20 +790,18 @@ describe('AC4: číselník na telefonu na výšku', () => {
     return rowsByY(buttons).map((row) => [...row].sort((a, b) => a.x - b.x));
   }
 
-  it.each(KEYPAD_CASES)(
-    '%s, rozsah %i (%s): čísla jdou od 0 zleva doprava a shora dolů (do 5 3 × 2, do 10 3 × 4, do 20 5 × 5)',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
+  it('čísla jdou od 0 zleva doprava a shora dolů ve 3 sloupcích (do 5 3 × 2, do 10 3 × 4, do 20 5 × 5)', () => {
+    for (const testCase of KEYPAD_CASES) {
+      const variant = variantOf(testCase);
       const rows = numberRows(variant).map((row) => row.map((button) => button.number));
 
-      expect(rows, label(variant)).toEqual(KEYPAD_ROWS[maxNumber]);
-    },
-  );
+      expect(rows, label(variant)).toEqual(KEYPAD_ROWS[testCase.maxNumber]);
+    }
+  });
 
-  it.each(KEYPAD_CASES.filter(([, maxNumber]) => maxNumber !== 5))(
-    '%s, rozsah %i (%s): neúplná poslední řada je vodorovně uprostřed číselníku',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
+  it('neúplná poslední řada je vodorovně uprostřed číselníku', () => {
+    for (const testCase of KEYPAD_CASES.filter(({ maxNumber }) => maxNumber !== 5)) {
+      const variant = variantOf(testCase);
       const keypad = boundsOf(buttonsCss(variant));
       const lastRow = numberRows(variant).at(-1) ?? [];
       const lastRowCss = boundsOf(
@@ -949,12 +811,11 @@ describe('AC4: číselník na telefonu na výšku', () => {
       expect(Math.abs(centerX(lastRowCss) - centerX(keypad)), label(variant)).toBeLessThanOrEqual(
         CENTER_TOLERANCE,
       );
-    },
-  );
+    }
+  });
 
-  it.each(KEYPAD_CASES)(
-    '%s, rozsah %i (%s): číselník je při všech příkladech na stejném místě a stejně velký',
-    (_, maxNumber, mode, window) => {
+  it('číselník je při všech příkladech a počtech hvězdiček na stejném místě a stejně velký', () => {
+    for (const { window, maxNumber, mode } of KEYPAD_CASES) {
       const area = gameAreaFor(viewportOf(window));
       const expected = layoutFor(area, maxNumber, mode, 'mixed', 0) as PhonePortraitScreenLayout;
 
@@ -969,32 +830,37 @@ describe('AC4: číselník na telefonu na výšku', () => {
         for (const problem of sampleHintProblems(maxNumber, 'mixed')) {
           layoutPhonePortraitHint(layout, hintDotGroups(problem));
         }
-        expect(layout.answerButtons, `${window.name}, ${starCount} hvězdiček`).toEqual(
-          expected.answerButtons,
-        );
+        expect(
+          layout.answerButtons,
+          `${window.name}, rozsah ${maxNumber}, ${starCount} hvězdiček`,
+        ).toEqual(expected.answerButtons);
       }
-    },
-  );
+    }
+  });
 });
 
 describe('AC5: nápověda po 2. chybě nic neposune', () => {
-  it.each(HINT_CASES)(
-    '%s, rozsah %i (%s, %s): po ukázání nápovědy zůstane všechno na místě a stejně velké',
-    (_, maxNumber, mode, operations, window) => {
-      const variant = portraitVariant(window, maxNumber, mode, operations);
+  it('po ukázání nápovědy zůstane všechno na místě a stejně velké', () => {
+    for (const testCase of HINT_CASES) {
+      const variant = variantOf(testCase);
       const before = placementOf(variant.layout);
 
       for (const screen of sampleHintScreens(variant)) {
         expect(placementOf(screen.variant.layout), hintLabel(screen)).toEqual(before);
       }
-      const fresh = layoutFor(variant.area, maxNumber, mode, operations, STARS_PER_SET);
+      const fresh = layoutFor(
+        variant.area,
+        testCase.maxNumber,
+        testCase.mode,
+        testCase.operations,
+        STARS_PER_SET,
+      );
       expect(placementOf(fresh), label(variant, ', znovu spočítané rozložení')).toEqual(before);
-    },
-  );
+    }
+  });
 
-  it.each(ALL_CASES)(
-    '%s, rozsah %i (%s): mezi příklady se rozložení nezmění, přibude jen hvězdička',
-    (_, maxNumber, mode, window) => {
+  it('mezi příklady se rozložení nezmění, přibude jen hvězdička', () => {
+    for (const { window, maxNumber, mode } of ALL_CASES) {
       const full = portraitVariant(window, maxNumber, mode, 'mixed', STARS_PER_SET).layout;
 
       for (let starCount = 0; starCount < STARS_PER_SET; starCount += 1) {
@@ -1004,16 +870,15 @@ describe('AC5: nápověda po 2. chybě nic neposune', () => {
         expect(placementOf(layout), where).toEqual(placementOf(full));
         expect(layout.stars, where).toEqual(full.stars.slice(0, starCount));
       }
-    },
-  );
+    }
+  });
 
-  it.each(HINT_CASES)(
-    '%s, rozsah %i (%s, %s): tečky každé nápovědy z nastavení se vejdou do vyhrazeného místa',
-    (_, maxNumber, mode, operations, window) => {
-      const variant = portraitVariant(window, maxNumber, mode, operations);
+  it('tečky každé nápovědy z nastavení se vejdou do vyhrazeného místa (#56)', () => {
+    for (const testCase of HINT_CASES) {
+      const variant = variantOf(testCase);
       const region = hintRegionCss(variant);
 
-      for (const groups of allHintGroups(maxNumber, operations)) {
+      for (const groups of allHintGroups(testCase.maxNumber, testCase.operations)) {
         const dots = layoutPhonePortraitHint(variant.layout, groups);
         const where = label(variant, `, nápověda [${groups.join(', ')}]`);
 
@@ -1022,13 +887,12 @@ describe('AC5: nápověda po 2. chybě nic neposune', () => {
           expect(isInside(dotFootprintCss(variant, dot), region), where).toBe(true);
         }
       }
-    },
-  );
+    }
+  });
 
-  it.each(HINT_CASES)(
-    '%s, rozsah %i (%s, %s): vyhrazené místo odpovídá nejvyšší nápovědě z nastavení',
-    (_, maxNumber, mode, operations, window) => {
-      const variant = portraitVariant(window, maxNumber, mode, operations);
+  it('vyhrazené místo odpovídá nejvyšší nápovědě z nastavení', () => {
+    for (const testCase of HINT_CASES) {
+      const variant = variantOf(testCase);
       const tallest = Math.max(
         ...sampleHintScreens(variant).map((screen) =>
           heightOf(boundsOf(screen.dots.map((dot) => dotFootprintCss(variant, dot)))),
@@ -1039,15 +903,12 @@ describe('AC5: nápověda po 2. chybě nic neposune', () => {
       expect(heightOf(hintRegionCss(variant)), label(variant)).toBeLessThanOrEqual(
         tallest + dotCellCss(variant) + TOLERANCE,
       );
-    },
-  );
+    }
+  });
 
-  it.each(HINT_CASES)(
-    '%s, rozsah %i (%s, %s): tečky jsou po pěti v řadě, jen poslední řada skupinky smí mít méně',
-    (_, maxNumber, mode, operations, window) => {
-      for (const screen of sampleHintScreens(
-        portraitVariant(window, maxNumber, mode, operations),
-      )) {
+  it('tečky jsou po pěti v řadě, jen poslední řada skupinky smí mít méně', () => {
+    for (const testCase of HINT_CASES) {
+      for (const screen of sampleHintScreens(variantOf(testCase))) {
         for (const group of new Set(screen.dots.map((dot) => dot.group))) {
           const where = hintLabel(screen, `, skupinka ${group}`);
           const counts = rowsByY(screen.dots.filter((dot) => dot.group === group)).map(
@@ -1059,13 +920,12 @@ describe('AC5: nápověda po 2. chybě nic neposune', () => {
           expect(counts.at(-1), where).toBeLessThanOrEqual(DOTS_PER_ROW);
         }
       }
-    },
-  );
+    }
+  });
 
-  it.each(HINT_CASES)(
-    '%s, rozsah %i (%s, %s): skupinky jsou vedle sebe, pod sebou jen když se vedle sebe nevejdou',
-    (_, maxNumber, mode, operations, window) => {
-      const variant = portraitVariant(window, maxNumber, mode, operations);
+  it('skupinky jsou vedle sebe, pod sebou jen když se vedle sebe nevejdou', () => {
+    for (const testCase of HINT_CASES) {
+      const variant = variantOf(testCase);
       const regionWidth = widthOf(hintRegionCss(variant));
       const cell = dotCellCss(variant);
 
@@ -1094,47 +954,23 @@ describe('AC5: nápověda po 2. chybě nic neposune', () => {
           );
         }
       }
-    },
-  );
+    }
+  });
 
-  it.each(TAPPABLE_CASES)(
-    '%s, rozsah %i (%s): na tečky jde ťukat a každá má plochu pro prst aspoň 48 × 48 px',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
+  it('na tečky jde ťukat u číselníku do 5 a do 10 a u psaní do 5, jinak jsou jen k dívání a mají aspoň 20 px', () => {
+    for (const testCase of ALL_CASES) {
+      const variant = variantOf(testCase);
+      const tappable = hasTappableDots(testCase.maxNumber, testCase.mode);
 
-      expect(canTapDots(variant), label(variant)).toBe(true);
-      for (const screen of sampleHintScreens(variant)) {
-        const hits = screen.dots.map((dot) => dotHitCss(variant, dot));
-        const controls = controlsCss(variant);
-        const gear = gearHitCss(window);
-
-        hits.forEach((hit, i) => {
-          const where = hintLabel(screen, `, plocha tečky ${i + 1}`);
-          expectMinSide(hit, MIN_DOT_HIT_SIDE, where);
-          expect(overlaps(hit, gear), where).toBe(false);
-          for (const control of controls) {
-            expect(overlaps(hit, control), where).toBe(false);
-          }
-          hits.slice(i + 1).forEach((other) => {
-            expect(overlaps(hit, other), where).toBe(false);
-          });
-        });
+      expect(canTapDots(variant), label(variant)).toBe(tappable);
+      if (!tappable) {
+        expect(
+          variant.layout.hintStyle.dotSize * variant.area.scale,
+          label(variant),
+        ).toBeGreaterThanOrEqual(MIN_LOOK_ONLY_DOT_SIZE - TOLERANCE);
       }
-    },
-  );
-
-  it.each(LOOK_ONLY_CASES)(
-    '%s, rozsah %i (%s): tečky jsou jen k dívání a mají aspoň 20 px',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
-
-      expect(canTapDots(variant), label(variant)).toBe(false);
-      expect(
-        variant.layout.hintStyle.dotSize * variant.area.scale,
-        label(variant),
-      ).toBeGreaterThanOrEqual(MIN_LOOK_ONLY_DOT_SIZE - TOLERANCE);
-    },
-  );
+    }
+  });
 });
 
 describe('AC6: psaní prstem na telefonu na výšku', () => {
@@ -1142,23 +978,16 @@ describe('AC6: psaní prstem na telefonu na výšku', () => {
     return variant.layout as PhonePortraitWritingLayout;
   }
 
-  it.each(WRITING_CASES.filter(([, maxNumber]) => maxNumber === 5))(
-    '%s, rozsah %i (%s): jediné okénko má aspoň 200 × 200 px',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
+  it('do 5 má jediné okénko aspoň 200 × 200 px, do 10 a 20 jsou dvě vedle sebe aspoň 160 × 160 px s mezerou aspoň 12 px', () => {
+    for (const testCase of WRITING_CASES) {
+      const variant = variantOf(testCase);
       const boxes = writingBoxesCss(variant);
 
-      expect(boxes, label(variant)).toHaveLength(1);
-      expectMinSide(boxes[0] as Box, MIN_SINGLE_BOX_SIDE, label(variant));
-    },
-  );
-
-  it.each(WRITING_CASES.filter(([, maxNumber]) => maxNumber !== 5))(
-    '%s, rozsah %i (%s): dvě okénka vedle sebe, každé aspoň 160 × 160 px, mezi nimi aspoň 12 px',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
-      const boxes = writingBoxesCss(variant);
-
+      if (testCase.maxNumber === 5) {
+        expect(boxes, label(variant)).toHaveLength(1);
+        expectMinSide(boxes[0] as Box, MIN_SINGLE_BOX_SIDE, label(variant));
+        continue;
+      }
       expect(boxes, label(variant)).toHaveLength(2);
       const [tens, ones] = boxes as [Box, Box];
       expectMinSide(tens, MIN_TWO_BOX_SIDE, label(variant, ', desítky'));
@@ -1169,26 +998,23 @@ describe('AC6: psaní prstem na telefonu na výšku', () => {
       expect(Math.abs(tens.top - ones.top), label(variant, ', vedle sebe')).toBeLessThanOrEqual(
         TOLERANCE,
       );
-    },
-  );
+    }
+  });
 
-  it.each(WRITING_CASES)(
-    '%s, rozsah %i (%s): okénko smí být vyšší než široké nejvýš 1,6×',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
-
+  it('okénko smí být vyšší než široké nejvýš 1,6×', () => {
+    for (const testCase of WRITING_CASES) {
+      const variant = variantOf(testCase);
       for (const area of writingBoxesCss(variant)) {
         expect(heightOf(area) / widthOf(area), label(variant)).toBeLessThanOrEqual(
           MAX_BOX_HEIGHT_RATIO + TOLERANCE,
         );
       }
-    },
-  );
+    }
+  });
 
-  it.each(WRITING_CASES)(
-    '%s, rozsah %i (%s): pod okénky aspoň 12 px od nich je vlevo smazání a vpravo ✓',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
+  it('pod okénky aspoň 12 px od nich je vlevo smazání a vpravo ✓', () => {
+    for (const testCase of WRITING_CASES) {
+      const variant = variantOf(testCase);
       const layout = writingLayoutOf(variant);
       const boxes = boundsOf(writingBoxesCss(variant));
       const clear = slotCss(variant, layout.clearButton);
@@ -1208,13 +1034,12 @@ describe('AC6: psaní prstem na telefonu na výšku', () => {
       );
       expect(centerX(clear), label(variant, ', smazání vlevo')).toBeLessThan(centerX(boxes));
       expect(centerX(confirm), label(variant, ', ✓ vpravo')).toBeGreaterThan(centerX(boxes));
-    },
-  );
+    }
+  });
 
-  it.each(WRITING_CASES)(
-    '%s, rozsah %i (%s): dotyk mimo okénka se nezapočítá jako tah, dotyk v okénku ano',
-    (_, maxNumber, mode, window) => {
-      const variant = portraitVariant(window, maxNumber, mode);
+  it('dotyk v okénku se započítá jako tah, dotyk mimo okénka a v mezeře mezi nimi ne', () => {
+    for (const testCase of WRITING_CASES) {
+      const variant = variantOf(testCase);
       const layout = writingLayoutOf(variant);
       const step = 1;
 
@@ -1245,17 +1070,14 @@ describe('AC6: psaní prstem na telefonu na výšku', () => {
       for (const point of [layout.clearButton, layout.confirmButton, layout.problem]) {
         expect(writingAreaAt(layout, point), label(variant, ', dotyk mimo okénka')).toBeNull();
       }
-    },
-  );
-
-  it.each(WRITING_CASES.filter(([, maxNumber]) => maxNumber !== 5))(
-    '%s, rozsah %i (%s): dotyk v mezeře mezi okénky se nezapočítá jako tah',
-    (_, maxNumber, mode, window) => {
-      const layout = writingLayoutOf(portraitVariant(window, maxNumber, mode));
-      const [tens, ones] = layout.writingAreas as [WritingAreaSlot, WritingAreaSlot];
-      const gapMiddle = (tens.x + tens.width / 2 + (ones.x - ones.width / 2)) / 2;
-
-      expect(writingAreaAt(layout, { x: gapMiddle, y: tens.y }), window.name).toBeNull();
-    },
-  );
+      if (layout.writingAreas.length === 2) {
+        const [tens, ones] = layout.writingAreas as [WritingAreaSlot, WritingAreaSlot];
+        const gapMiddle = (tens.x + tens.width / 2 + (ones.x - ones.width / 2)) / 2;
+        expect(
+          writingAreaAt(layout, { x: gapMiddle, y: tens.y }),
+          label(variant, ', mezera mezi okénky'),
+        ).toBeNull();
+      }
+    }
+  });
 });

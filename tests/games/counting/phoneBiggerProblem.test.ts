@@ -18,10 +18,12 @@ import type { HintDot } from '../../../src/games/counting/logic/screenLayout';
 import type { MaxNumber, OperationMode } from '../../../src/games/counting/logic/settings';
 import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
 import {
-  LANDSCAPE_FONT_BEFORE,
   PORTRAIT_FONT_BEFORE,
+  fontWithHintBefore,
+  groupsName,
   hintGroupsInRange,
-} from './phoneFontBefore63';
+  landscapeFontsBefore,
+} from './phoneProblemFont';
 import {
   PHONE_PORTRAIT_EDGE_WINDOWS,
   PHONE_PORTRAIT_WINDOWS,
@@ -37,15 +39,16 @@ import type { Box, TestWindow } from '../../shared/viewportFixtures';
 /**
  * Testy k #63 (příklad bez nikoho vedle), AC3 (telefon na šířku, #54)
  * a AC4 (telefon na výšku, #56), v CSS px. Písmo „aspoň jako dnes“ se
- * porovnává s hodnotami zapsanými před změnou (`phoneFontBefore63.ts`),
+ * porovnává s hodnotami zapsanými před změnou (`phoneProblemFont.ts`),
  * ne s tím, co spočítá nový kód.
  *
- * Ostatní pravidla z #54, #55 a #56 (tlačítka 64 px s mezerou 8 px, ťukací
- * tečky 48 px, okénka na psaní, hvězdičky 24 px, roh s kolečkem, výřez
- * a lišta, nic se nepřekrývá, 4 px od okraje, ovládání u palce, nápověda
- * nic neposune, otočení) dál hlídají `phoneLandscapeLayout.test.ts`,
- * `phonePortraitLayout.test.ts`, `resizeKeepsRound.test.ts`
- * a `phonePortraitResize.test.ts`, upravené pro rozložení bez postavy.
+ * Ostatní pravidla z #54, #55 a #56 dál hlídají: tlačítka 64 px s mezerou
+ * 8 px, ťukací tečky 48 px, roh s kolečkem, výřez a lišta, nic se
+ * nepřekrývá a 4 px od okraje společná pravidla v
+ * `countingLayoutRules.test.ts` (#81); okénka na psaní, hvězdičky 24 px,
+ * ovládání u palce a nápověda nic neposune `phoneLandscapeLayout.test.ts`
+ * a `phonePortraitLayout.test.ts`; otočení `resizeKeepsRound.test.ts`
+ * a `phonePortraitResize.test.ts`.
  */
 
 const RANGES: MaxNumber[] = [5, 10, 20];
@@ -196,11 +199,16 @@ function landscapeCases(): Array<[string, TestWindow, MaxNumber, Mode]> {
 const LANDSCAPE_CASES = landscapeCases();
 
 describe('#63 AC3: telefon na šířku', () => {
-  it('dnešní písmo je zapsané pro všechna okna, rozsahy, ovládání i nápovědy', () => {
+  it('dnešní písmo je zapsané pro všechna okna, rozsahy a ovládání a každá vyjmenovaná nápověda je v rozsahu jen jednou', () => {
     for (const [where, window, maxNumber, mode] of LANDSCAPE_CASES) {
-      const before = LANDSCAPE_FONT_BEFORE[window.name]?.[maxNumber][mode];
+      const before = landscapeFontsBefore(window.name, maxNumber, mode);
       expect(before, where).toBeDefined();
-      expect(before?.withHint, where).toHaveLength(hintGroupsInRange(maxNumber).length);
+      const listed = Object.values(before?.except ?? {}).flatMap((names) => names.split(' '));
+      const inRange = new Set(hintGroupsInRange(maxNumber).map(groupsName));
+      expect(new Set(listed).size, `${where}: nápověda vyjmenovaná dvakrát`).toBe(listed.length);
+      for (const name of listed) {
+        expect(inRange.has(name), `${where}: nápověda ${name} mimo rozsah`).toBe(true);
+      }
     }
   });
 
@@ -211,32 +219,26 @@ describe('#63 AC3: telefon na šířku', () => {
    * uprostřed tohoto místa, nebo (když se vedle nevejdou) hned pod
    * příkladem. Číselník do 20 už není vpravo od příkladu.
    */
-  it.each(LANDSCAPE_CASES)(
-    '%s: bez nápovědy je příklad v horním pásu uprostřed mezi rohem domečku a hvězdičkami (#68)',
-    (_, window, maxNumber, mode) => {
+  it('bez nápovědy je příklad v horním pásu uprostřed mezi rohem domečku a hvězdičkami (#68)', () => {
+    for (const [where, window, maxNumber, mode] of LANDSCAPE_CASES) {
       const area = gameAreaFor(viewportOf(window));
       for (const starCount of STAR_COUNTS) {
         const layout = landscapeLayout(area, maxNumber, mode, starCount, []);
         const problem = problemCss(layout, area);
         const place = problemPlaceCss(window, maxNumber, mode);
+        const label = `${where}, ${starCount} hvězdiček`;
 
-        expect(problem.left, `${starCount} hvězdiček`).toBeGreaterThanOrEqual(
-          place.left - TOLERANCE,
+        expect(problem.left, label).toBeGreaterThanOrEqual(place.left - TOLERANCE);
+        expect(problem.right, label).toBeLessThanOrEqual(place.right + TOLERANCE);
+        expect(Math.abs(centerX(problem) - centerX(place)), label).toBeLessThanOrEqual(
+          CENTER_TOLERANCE,
         );
-        expect(problem.right, `${starCount} hvězdiček`).toBeLessThanOrEqual(
-          place.right + TOLERANCE,
-        );
-        expect(
-          Math.abs(centerX(problem) - centerX(place)),
-          `${starCount} hvězdiček`,
-        ).toBeLessThanOrEqual(CENTER_TOLERANCE);
       }
-    },
-  );
+    }
+  });
 
-  it.each(LANDSCAPE_CASES)(
-    '%s: s nápovědou jsou tečky hned vedle příkladu (dvojice uprostřed mezi domečkem a hvězdičkami), nebo hned pod ním (#68)',
-    (_, window, maxNumber, mode) => {
+  it('s nápovědou jsou tečky hned vedle příkladu (dvojice uprostřed mezi domečkem a hvězdičkami), nebo hned pod ním (#68)', () => {
+    for (const [label, window, maxNumber, mode] of LANDSCAPE_CASES) {
       const area = gameAreaFor(viewportOf(window));
 
       for (const groups of hintGroupsInRange(maxNumber)) {
@@ -244,7 +246,7 @@ describe('#63 AC3: telefon na šířku', () => {
         const problem = problemCss(layout, area);
         const dots = boundsOf(dotCellsCss(layout, layoutPhoneHint(layout, groups), area));
         const place = problemPlaceCss(window, maxNumber, mode);
-        const where = `nápověda [${groups.join(', ')}]`;
+        const where = `${label}, nápověda [${groups.join(', ')}]`;
 
         if (dots.left >= problem.right - TOLERANCE) {
           const pair = boundsOf([problem, dots]);
@@ -266,30 +268,29 @@ describe('#63 AC3: telefon na šířku', () => {
           );
         }
       }
-    },
-  );
+    }
+  });
 
-  it.each(LANDSCAPE_CASES)(
-    '%s: písmo příkladu je bez nápovědy i s každou nápovědou aspoň jako dnes',
-    (_, window, maxNumber, mode) => {
+  it('písmo příkladu je bez nápovědy i s každou nápovědou aspoň jako dnes (s nápovědou smí podle #68 klesnout na 32 px)', () => {
+    for (const [label, window, maxNumber, mode] of LANDSCAPE_CASES) {
       const area = gameAreaFor(viewportOf(window));
-      const before = LANDSCAPE_FONT_BEFORE[window.name]?.[maxNumber][mode];
-      expect(before).toBeDefined();
+      const before = landscapeFontsBefore(window.name, maxNumber, mode);
+      expect(before, label).toBeDefined();
       if (!before) {
-        return;
+        continue;
       }
 
       for (const starCount of STAR_COUNTS) {
         const without = landscapeLayout(area, maxNumber, mode, starCount, []);
         expect(
           fontCss(without, area),
-          `bez nápovědy, ${starCount} hvězdiček`,
+          `${label}, bez nápovědy, ${starCount} hvězdiček`,
         ).toBeGreaterThanOrEqual(before.withoutHint - TOLERANCE);
-        hintGroupsInRange(maxNumber).forEach((groups, index) => {
+        for (const groups of hintGroupsInRange(maxNumber)) {
           const layout = landscapeLayout(area, maxNumber, mode, starCount, groups);
           expect(
             fontCss(layout, area),
-            `nápověda [${groups.join(', ')}], ${starCount} hvězdiček`,
+            `${label}, nápověda [${groups.join(', ')}], ${starCount} hvězdiček`,
           ).toBeGreaterThanOrEqual(
             fontFloorWithHint(
               window,
@@ -298,28 +299,28 @@ describe('#63 AC3: telefon na šířku', () => {
               layout,
               area,
               groups,
-              before.withHint[index] ?? Infinity,
+              fontWithHintBefore(before, groups),
             ) - TOLERANCE,
           );
-        });
+        }
       }
-    },
-  );
+    }
+  });
 
-  it.each(LANDSCAPE_CASES)(
-    '%s: při oslavě (plná řada) se příklad ani ovládání neposunou',
-    (_, window, maxNumber, mode) => {
+  it('při oslavě (plná řada) se příklad ani ovládání neposunou', () => {
+    for (const [label, window, maxNumber, mode] of LANDSCAPE_CASES) {
       const area = gameAreaFor(viewportOf(window));
       for (const groups of [[], [1], [maxNumber]]) {
         const before = landscapeLayout(area, maxNumber, mode, STARS_PER_SET - 1, groups);
         const during = landscapeLayout(area, maxNumber, mode, STARS_PER_SET, groups);
+        const where = `${label}, nápověda [${groups.join(', ')}]`;
 
-        expect(during.problem, `nápověda [${groups.join(', ')}]`).toEqual(before.problem);
-        expect(during.problemFontSize).toBe(before.problemFontSize);
-        expect(controlsCss(during, area)).toEqual(controlsCss(before, area));
+        expect(during.problem, where).toEqual(before.problem);
+        expect(during.problemFontSize, where).toBe(before.problemFontSize);
+        expect(controlsCss(during, area), where).toEqual(controlsCss(before, area));
       }
-    },
-  );
+    }
+  });
 });
 
 const PORTRAIT_WINDOWS: readonly TestWindow[] = [
@@ -344,16 +345,15 @@ describe('#63 AC4: telefon na výšku', () => {
     }
   });
 
-  it.each(portraitCases())(
-    '%s: písmo příkladu je s číselníkem i s psaním a u všech druhů příkladů aspoň jako dnes a aspoň 40 px',
-    (_, window, maxNumber) => {
+  it('písmo příkladu je s číselníkem i s psaním a u všech druhů příkladů aspoň jako dnes a aspoň 40 px', () => {
+    for (const [label, window, maxNumber] of portraitCases()) {
       const area = gameAreaFor(viewportOf(window));
-      expect(area.mode).toBe('phonePortrait');
+      expect(area.mode, label).toBe('phonePortrait');
       const before = PORTRAIT_FONT_BEFORE[window.name]?.[maxNumber] ?? Infinity;
 
       for (const operations of OPERATIONS) {
         for (const starCount of STAR_COUNTS) {
-          const where = `${operations}, ${starCount} hvězdiček`;
+          const where = `${label}, ${operations}, ${starCount} hvězdiček`;
           const keypad = layoutDeviceScreen(area, maxNumber + 1, starCount, [], operations);
           const writing = layoutDeviceWritingScreen(area, maxNumber, starCount, [], operations);
           for (const layout of [keypad, writing]) {
@@ -362,29 +362,28 @@ describe('#63 AC4: telefon na výšku', () => {
           }
         }
       }
-    },
-  );
+    }
+  });
 
-  it.each(RANGES)(
-    '390×844 (iPhone 13–15), rozsah %i: písmo příkladu je větší než dnes s číselníkem i s psaním',
-    (maxNumber) => {
-      const window = PHONE_PORTRAIT_WINDOWS.find((w) => w.name === IPHONE_PORTRAIT);
-      expect(window).toBeDefined();
-      const area = gameAreaFor(viewportOf(window as TestWindow));
+  it('390×844 (iPhone 13–15): písmo příkladu je ve všech rozsazích větší než dnes s číselníkem i s psaním', () => {
+    const window = PHONE_PORTRAIT_WINDOWS.find((w) => w.name === IPHONE_PORTRAIT);
+    expect(window).toBeDefined();
+    const area = gameAreaFor(viewportOf(window as TestWindow));
+
+    for (const maxNumber of RANGES) {
       const before = PORTRAIT_FONT_BEFORE[IPHONE_PORTRAIT]?.[maxNumber] ?? Infinity;
-
       for (const operations of OPERATIONS) {
         const keypad = layoutDeviceScreen(area, maxNumber + 1, 0, [], operations);
         const writing = layoutDeviceWritingScreen(area, maxNumber, 0, [], operations);
-        expect(fontCss(keypad, area), `číselník, ${operations}`).toBeGreaterThan(before);
-        expect(fontCss(writing, area), `psaní, ${operations}`).toBeGreaterThan(before);
+        const where = `rozsah ${maxNumber}, ${operations}`;
+        expect(fontCss(keypad, area), `${where}, číselník`).toBeGreaterThan(before);
+        expect(fontCss(writing, area), `${where}, psaní`).toBeGreaterThan(before);
       }
-    },
-  );
+    }
+  });
 
-  it.each(portraitCases())(
-    '%s: střed příkladu je ve vodorovném středu volné plochy s číselníkem i s psaním',
-    (_, window, maxNumber) => {
+  it('střed příkladu je ve vodorovném středu volné plochy s číselníkem i s psaním', () => {
+    for (const [label, window, maxNumber] of portraitCases()) {
       const area = gameAreaFor(viewportOf(window));
       const free = freeAreaOf(window);
 
@@ -395,11 +394,12 @@ describe('#63 AC4: telefon na výšku', () => {
         ]) {
           const { problem, problemSize } = layout;
           const css = toCss(box(problem.x, problem.y, problemSize.width, problemSize.height), area);
-          expect(Math.abs(centerX(css) - centerX(free)), operations).toBeLessThanOrEqual(
-            CENTER_TOLERANCE,
-          );
+          expect(
+            Math.abs(centerX(css) - centerX(free)),
+            `${label}, ${operations}`,
+          ).toBeLessThanOrEqual(CENTER_TOLERANCE);
         }
       }
-    },
-  );
+    }
+  });
 });

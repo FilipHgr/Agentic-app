@@ -21,17 +21,14 @@ import {
   selectedOptions,
 } from '../../../src/games/counting/logic/settingsSession';
 import { seededRandom } from './seededRandom';
-import { cssBoxOf, cssSettings, panelCssPlacement, todaySettingsCss } from './parentPanelSnapshot';
+import { cssBoxOf, cssSettings, panelCssPlacement, todaySettingsCss } from './parentPanelCss';
 import {
   NO_NOTCH,
   PHONE_PORTRAIT_EDGE_WINDOWS,
   PHONE_PORTRAIT_WINDOWS,
   PHONE_WINDOWS,
   freeAreaOf,
-  gapBetween,
   heightOf,
-  isInside,
-  overlaps,
   viewportOf,
   widthOf,
 } from '../../shared/viewportFixtures';
@@ -95,10 +92,6 @@ const BORDER_PORTRAIT_HEIGHT: TestWindow = {
 };
 
 const MIN_TOUCH_SIDE = 64;
-const MIN_TOUCH_GAP = 8;
-const MIN_TOUCH_EDGE = 8;
-/** Roh kolečka: x > W − 80 a y < 80 (AC2). */
-const GEAR_CORNER = 80;
 const LABEL_FONT_SIZE = 16;
 const LANDSCAPE_OPTION_FONT_SIZE = 28;
 const PORTRAIT_OPTION_FONT_SIZE = 32;
@@ -181,17 +174,15 @@ function rowBounds(boxes: readonly Box[]): Box {
   };
 }
 
-/** Ťukací plochy: volby všech řad a ✓. */
-function tapBoxes(settings: PhoneSettings): Box[] {
-  return [...[0, 1, 2].flatMap((index) => rowBoxes(settings, index)), confirmBox(settings)];
-}
-
-function labelBoxes(settings: PhoneSettings): Box[] {
-  return [0, 1, 2].map((index) => labelBox(settings, index));
-}
-
-function expectNear(actual: number, expected: number, tolerance = EXACT_TOLERANCE): void {
-  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance);
+function expectNear(
+  actual: number,
+  expected: number,
+  tolerance = EXACT_TOLERANCE,
+  where = '',
+): void {
+  expect(Math.abs(actual - expected), `${where}: ${actual} místo ${expected}`).toBeLessThanOrEqual(
+    tolerance,
+  );
 }
 
 function expectSpan(
@@ -199,14 +190,15 @@ function expectSpan(
   horizontal: [number, number] | null,
   vertical: [number, number] | null,
   tolerance = EXACT_TOLERANCE,
+  where = '',
 ): void {
   if (horizontal) {
-    expectNear(actual.left, horizontal[0], tolerance);
-    expectNear(actual.right, horizontal[1], tolerance);
+    expectNear(actual.left, horizontal[0], tolerance, `${where}, levý okraj`);
+    expectNear(actual.right, horizontal[1], tolerance, `${where}, pravý okraj`);
   }
   if (vertical) {
-    expectNear(actual.top, vertical[0], tolerance);
-    expectNear(actual.bottom, vertical[1], tolerance);
+    expectNear(actual.top, vertical[0], tolerance, `${where}, horní okraj`);
+    expectNear(actual.bottom, vertical[1], tolerance, `${where}, spodní okraj`);
   }
 }
 
@@ -218,86 +210,69 @@ function cssFontSize(size: number, settings: PhoneSettings): number {
 // AC1: kdy se použije které rozložení
 // ---------------------------------------------------------------------------
 
-describe('AC1: nastavení dostane rozložení na šířku tam, kde se hra hraje na telefonu na šířku', () => {
-  it.each(LANDSCAPE_WINDOWS)('$name: nastavení je na šířku, řady vlevo a ✓ vpravo', (window) => {
-    const settings = settingsFor(window);
-
-    expect(chooseLayoutMode(viewportOf(window))).toBe('phoneLandscape');
-    expect(settings.mode).toBe('phoneLandscape');
-    const rows = rowBounds([0, 1, 2].flatMap((index) => rowBoxes(settings, index)));
-    expect(confirmBox(settings).left).toBeGreaterThan(rows.right);
-  });
-});
-
-describe('AC1: nastavení dostane rozložení na výšku tam, kde se hra hraje na telefonu na výšku', () => {
-  it.each(PORTRAIT_WINDOWS)(
-    '$name: nastavení je na výšku, řady pod sebou a ✓ pod nimi',
-    (window) => {
+describe('AC1: nastavení dostane rozložení podle toho, jak se hra na telefonu hraje', () => {
+  it('na telefonu na šířku jsou řady vlevo a ✓ vpravo, na výšku řady pod sebou a ✓ pod nimi', () => {
+    for (const window of LANDSCAPE_WINDOWS) {
       const settings = settingsFor(window);
 
-      expect(chooseLayoutMode(viewportOf(window))).toBe('phonePortrait');
-      expect(settings.mode).toBe('phonePortrait');
+      expect(chooseLayoutMode(viewportOf(window)), window.name).toBe('phoneLandscape');
+      expect(settings.mode, window.name).toBe('phoneLandscape');
       const rows = rowBounds([0, 1, 2].flatMap((index) => rowBoxes(settings, index)));
-      expect(confirmBox(settings).top).toBeGreaterThan(rows.bottom);
-    },
-  );
+      expect(confirmBox(settings).left, window.name).toBeGreaterThan(rows.right);
+    }
+    for (const window of PORTRAIT_WINDOWS) {
+      const settings = settingsFor(window);
+
+      expect(chooseLayoutMode(viewportOf(window)), window.name).toBe('phonePortrait');
+      expect(settings.mode, window.name).toBe('phonePortrait');
+      const rows = rowBounds([0, 1, 2].flatMap((index) => rowBoxes(settings, index)));
+      expect(confirmBox(settings).top, window.name).toBeGreaterThan(rows.bottom);
+    }
+  });
 });
 
 describe('AC1: ostatní okna mají nastavení jako dnes', () => {
-  it.each(UNCHANGED_WINDOWS)(
-    '$name: popisky, volby i ✓ jsou na stejném místě a stejně velké jako dnes',
-    (window) => {
+  it('popisky, volby i ✓ jsou na stejném místě a stejně velké jako dnes, volby mají písmo jako dnes a popisky jsou na středu nad řadou', () => {
+    for (const window of UNCHANGED_WINDOWS) {
       const area = gameAreaFor(viewportOf(window));
       const layout = layoutDeviceSettingsPanel(area);
 
-      expect(cssSettings(layout, panelCssPlacement(area, layout.placement))).toEqual(
+      expect(cssSettings(layout, panelCssPlacement(area, layout.placement)), window.name).toEqual(
         todaySettingsCss(window),
       );
-    },
-  );
-
-  it.each(UNCHANGED_WINDOWS)(
-    '$name: volby mají písmo jako dnes a popisky řad jsou na středu nad řadou',
-    (window) => {
-      const layout = layoutDeviceSettingsPanel(gameAreaFor(viewportOf(window)));
-
       for (const row of layout.rows) {
-        expect(row.label.align).toBe('center');
+        expect(row.label.align, window.name).toBe('center');
         for (const option of row.options) {
-          expect(option.fontSize).toBe(TABLET_OPTION_FONT_SIZE);
+          expect(option.fontSize, window.name).toBe(TABLET_OPTION_FONT_SIZE);
         }
       }
-    },
-  );
+    }
+  });
 
-  it('hranice na šířku: 932×499 má telefonní nastavení, 932×500 nastavení iPadu', () => {
+  it('hranice: 932×499 má telefonní nastavení a 932×500 nastavení iPadu, 499×932 a 360×620 telefonní, 500×932 a 360×619 zmenšené jako dnes', () => {
     expect(settingsFor(BORDER_LANDSCAPE).mode).toBe('phoneLandscape');
     expect(settingsFor(UNCHANGED_WINDOWS[2] as TestWindow).mode).toBe('tablet');
-  });
-
-  it('hranice na výšku: 499×932 má telefonní nastavení, 500×932 zmenšené jako dnes', () => {
     expect(settingsFor(BORDER_PORTRAIT_WIDTH).mode).toBe('phonePortrait');
     expect(settingsFor(UNCHANGED_WINDOWS[4] as TestWindow).mode).toBe('scaled');
-  });
-
-  it('hranice na výšku: 360×620 má telefonní nastavení, 360×619 zmenšené jako dnes', () => {
     expect(settingsFor(BORDER_PORTRAIT_HEIGHT).mode).toBe('phonePortrait');
     expect(settingsFor(UNCHANGED_WINDOWS[5] as TestWindow).mode).toBe('scaled');
   });
 
-  it.each([
-    { name: 'okno 0 × 0', viewport: { width: 0, height: 0, safeArea: NO_NOTCH } },
-    { name: 'záporná šířka', viewport: { width: -390, height: 844, safeArea: NO_NOTCH } },
-    { name: 'chybějící údaj o okně', viewport: undefined },
-  ])('$name: hra nespadne a nastavení je jako dnes', ({ viewport }) => {
-    const area = gameAreaFor(viewport);
+  it('při oknu 0 × 0, záporné šířce nebo chybějícím údaji o okně hra nespadne a nastavení je jako dnes', () => {
+    for (const { name, viewport } of [
+      { name: 'okno 0 × 0', viewport: { width: 0, height: 0, safeArea: NO_NOTCH } },
+      { name: 'záporná šířka', viewport: { width: -390, height: 844, safeArea: NO_NOTCH } },
+      { name: 'chybějící údaj o okně', viewport: undefined },
+    ]) {
+      const area = gameAreaFor(viewport);
 
-    expect(() => layoutDeviceSettingsPanel(area)).not.toThrow();
-    const layout = layoutDeviceSettingsPanel(area);
-    expect(layout.mode).toBe('scaled');
-    expect(cssSettings(layout, panelCssPlacement(area, layout.placement))).toEqual(
-      todaySettingsCss(undefined),
-    );
+      expect(() => layoutDeviceSettingsPanel(area), name).not.toThrow();
+      const layout = layoutDeviceSettingsPanel(area);
+      expect(layout.mode, name).toBe('scaled');
+      expect(cssSettings(layout, panelCssPlacement(area, layout.placement)), name).toEqual(
+        todaySettingsCss(undefined),
+      );
+    }
   });
 });
 
@@ -305,123 +280,58 @@ describe('AC1: ostatní okna mají nastavení jako dnes', () => {
 // AC2: společná pravidla pro všechna telefonní okna (bez pravidel průvodce)
 // ---------------------------------------------------------------------------
 
-describe('AC2: na telefonu se nastavení pohodlně ovládá prstem', () => {
-  it.each(ALL_PHONE_WINDOWS)('$name: volby i ✓ mají aspoň 64 × 64 px', (window) => {
-    for (const tap of tapBoxes(settingsFor(window))) {
-      expect(widthOf(tap)).toBeGreaterThanOrEqual(MIN_TOUCH_SIDE);
-      expect(heightOf(tap)).toBeGreaterThanOrEqual(MIN_TOUCH_SIDE);
-    }
-  });
-
-  it.each(ALL_PHONE_WINDOWS)('$name: mezi sousedními volbami a ✓ je aspoň 8 px', (window) => {
-    const taps = tapBoxes(settingsFor(window));
-    taps.forEach((first, i) => {
-      taps.slice(i + 1).forEach((second) => {
-        expect(gapBetween(first, second)).toBeGreaterThanOrEqual(MIN_TOUCH_GAP);
-      });
-    });
-  });
-
-  it.each(ALL_PHONE_WINDOWS)(
-    '$name: volby i ✓ jsou aspoň 8 px od okraje volné plochy',
-    (window) => {
-      const settings = settingsFor(window);
-      const inner: Box = {
-        left: MIN_TOUCH_EDGE,
-        right: settings.width - MIN_TOUCH_EDGE,
-        top: MIN_TOUCH_EDGE,
-        bottom: settings.height - MIN_TOUCH_EDGE,
-      };
-      for (const tap of tapBoxes(settings)) {
-        expect(isInside(tap, inner)).toBe(true);
-      }
-    },
-  );
-});
+// Že volby i ✓ mají aspoň 64 × 64 px, mezi nimi je aspoň 8 px, jsou aspoň
+// 8 px od okraje volné plochy, nic není pod výřezem ani lištou, nic se
+// nepřekrývá a do rohu kolečka (x > W − 80, y < 80) nic nezasahuje, hlídají
+// od #81 společná pravidla v `countingLayoutRules.test.ts`.
 
 describe('AC2: na telefonu je nastavení čitelné', () => {
-  it.each(ALL_PHONE_WINDOWS)('$name: popisky řad mají písmo 16 px', (window) => {
-    const settings = settingsFor(window);
-    for (const row of settings.layout.rows) {
-      expectNear(cssFontSize(row.label.fontSize, settings), LABEL_FONT_SIZE, 0.01);
+  it('popisky řad mají písmo 16 px', () => {
+    for (const window of ALL_PHONE_WINDOWS) {
+      const settings = settingsFor(window);
+      for (const row of settings.layout.rows) {
+        expectNear(cssFontSize(row.label.fontSize, settings), LABEL_FONT_SIZE, 0.01, window.name);
+      }
     }
   });
 
-  it.each(LANDSCAPE_WINDOWS)('$name: volby mají na šířku písmo 28 px', (window) => {
-    const settings = settingsFor(window);
-    for (const option of settings.layout.rows.flatMap((row) => row.options)) {
-      expectNear(cssFontSize(option.fontSize, settings), LANDSCAPE_OPTION_FONT_SIZE, 0.01);
+  it('volby mají na šířku písmo 28 px a na výšku 32 px', () => {
+    for (const [windows, fontSize] of [
+      [LANDSCAPE_WINDOWS, LANDSCAPE_OPTION_FONT_SIZE],
+      [PORTRAIT_WINDOWS, PORTRAIT_OPTION_FONT_SIZE],
+    ] as const) {
+      for (const window of windows) {
+        const settings = settingsFor(window);
+        for (const option of settings.layout.rows.flatMap((row) => row.options)) {
+          expectNear(cssFontSize(option.fontSize, settings), fontSize, 0.01, window.name);
+        }
+      }
     }
   });
 
-  it.each(PORTRAIT_WINDOWS)('$name: volby mají na výšku písmo 32 px', (window) => {
-    const settings = settingsFor(window);
-    for (const option of settings.layout.rows.flatMap((row) => row.options)) {
-      expectNear(cssFontSize(option.fontSize, settings), PORTRAIT_OPTION_FONT_SIZE, 0.01);
-    }
-  });
-
-  it.each(ALL_PHONE_WINDOWS)(
-    '$name: popisky řad (Do kolika, Příklady, Odpověď) se podle odhadu délky vejdou do svého pruhu',
-    (window) => {
+  it('popisky řad (Do kolika, Příklady, Odpověď) se podle odhadu délky vejdou do svého pruhu', () => {
+    for (const window of ALL_PHONE_WINDOWS) {
       const settings = settingsFor(window);
       settings.layout.rows.forEach((row, index) => {
+        const where = `${window.name}, ${row.label.text}`;
         const estimate = row.label.text.length * CHARACTER_WIDTH_RATIO * LABEL_FONT_SIZE;
-        expect(estimate).toBeLessThanOrEqual(widthOf(labelBox(settings, index)) + 0.01);
-        expect(heightOf(labelBox(settings, index))).toBeGreaterThanOrEqual(LABEL_FONT_SIZE);
+        expect(estimate, where).toBeLessThanOrEqual(widthOf(labelBox(settings, index)) + 0.01);
+        expect(heightOf(labelBox(settings, index)), where).toBeGreaterThanOrEqual(LABEL_FONT_SIZE);
       });
-    },
-  );
+    }
+  });
 });
 
-describe('AC2: na telefonu nic nepřekáží', () => {
-  it.each(ALL_PHONE_WINDOWS)(
-    '$name: nic není pod výřezem ani lištou domů, všechno je ve volné ploše',
-    (window) => {
-      const settings = settingsFor(window);
-      const free: Box = { left: 0, right: settings.width, top: 0, bottom: settings.height };
-      for (const item of [...labelBoxes(settings), ...tapBoxes(settings)]) {
-        expect(isInside(item, free)).toBe(true);
-      }
-    },
-  );
-
-  it.each(ALL_PHONE_WINDOWS)('$name: popisky, volby ani ✓ se nepřekrývají', (window) => {
-    const settings = settingsFor(window);
-    const items = [...labelBoxes(settings), ...tapBoxes(settings)];
-    items.forEach((first, i) => {
-      items.slice(i + 1).forEach((second) => {
-        expect(overlaps(first, second)).toBe(false);
-      });
-    });
-  });
-
-  it.each(ALL_PHONE_WINDOWS)(
-    '$name: do rohu kolečka (x > W − 80, y < 80) nezasahuje žádný popisek, volba ani ✓',
-    (window) => {
-      const settings = settingsFor(window);
-      const corner: Box = {
-        left: settings.width - GEAR_CORNER,
-        right: settings.width,
-        top: 0,
-        bottom: GEAR_CORNER,
-      };
-      for (const item of [...labelBoxes(settings), ...tapBoxes(settings)]) {
-        expect(overlaps(item, corner)).toBe(false);
-      }
-    },
-  );
-
-  it.each(ALL_PHONE_WINDOWS)(
-    '$name: kolečko zůstává jako v #55, plocha 64 × 64 px 8 px od horního a pravého okraje volné plochy',
-    (window) => {
+describe('AC2: kolečko na telefonu zůstává', () => {
+  it('kolečko zůstává jako v #55, plocha 64 × 64 px 8 px od horního a pravého okraje volné plochy', () => {
+    for (const window of ALL_PHONE_WINDOWS) {
       const gear = settingsGearFor(viewportOf(window));
 
-      expect(gear.hitSize).toBe(MIN_TOUCH_SIDE);
-      expect(gear.top).toBe(window.safeArea.top + 8);
-      expect(gear.right).toBe(window.safeArea.right + 8);
-    },
-  );
+      expect(gear.hitSize, window.name).toBe(MIN_TOUCH_SIDE);
+      expect(gear.top, window.name).toBe(window.safeArea.top + 8);
+      expect(gear.right, window.name).toBe(window.safeArea.right + 8);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -434,118 +344,113 @@ function landscapeTop(height: number): number {
 }
 
 describe('AC3: na telefonu na šířku jsou řady vlevo pod sebou a ✓ vpravo', () => {
-  it.each(LANDSCAPE_WINDOWS)(
-    '$name: řady Do kolika, Příklady a Odpověď jsou pod sebou v tomto pořadí',
-    (window) => {
+  it('řady Do kolika, Příklady a Odpověď jsou pod sebou v tomto pořadí', () => {
+    for (const window of LANDSCAPE_WINDOWS) {
       const settings = settingsFor(window);
 
-      expect(settings.layout.rows.map((row) => row.kind)).toEqual([
-        'maxNumber',
-        'operations',
-        'answerInput',
-      ]);
-      expect(settings.layout.rows.map((row) => row.label.text)).toEqual([
-        'Do kolika',
-        'Příklady',
-        'Odpověď',
-      ]);
-    },
-  );
+      expect(
+        settings.layout.rows.map((row) => row.kind),
+        window.name,
+      ).toEqual(['maxNumber', 'operations', 'answerInput']);
+      expect(
+        settings.layout.rows.map((row) => row.label.text),
+        window.name,
+      ).toEqual(['Do kolika', 'Příklady', 'Odpověď']);
+    }
+  });
 
-  it.each(LANDSCAPE_WINDOWS)(
-    '$name: popisek je v pruhu x 12–100, zarovnaný vpravo a svisle na středu řady',
-    (window) => {
+  it('popisky, volby, řady a ✓ jsou na místech podle S-sirka-nast', () => {
+    const columns: [number, number][] = [
+      [112, 216],
+      [224, 328],
+      [336, 440],
+    ];
+    for (const window of LANDSCAPE_WINDOWS) {
       const settings = settingsFor(window);
-      settings.layout.rows.forEach((row, index) => {
-        const label = labelBox(settings, index);
-        const options = rowBounds(rowBoxes(settings, index));
-
-        expectSpan(label, [12, 100], null);
-        expect(row.label.align).toBe('right');
-        expectNear((label.top + label.bottom) / 2, (options.top + options.bottom) / 2);
-      });
-    },
-  );
-
-  it.each(LANDSCAPE_WINDOWS)(
-    '$name: volby mají 104 × 72 px na x 112–216, 224–328 a 336–440, Odpověď zarovnaná vlevo',
-    (window) => {
-      const settings = settingsFor(window);
-      const columns: [number, number][] = [
-        [112, 216],
-        [224, 328],
-        [336, 440],
-      ];
-      for (const index of [0, 1, 2]) {
-        const boxes = rowBoxes(settings, index);
-        expect(boxes).toHaveLength(index === 2 ? 2 : 3);
-        boxes.forEach((option, column) => {
-          expectNear(widthOf(option), 104);
-          expectNear(heightOf(option), 72);
-          expectSpan(option, columns[column] ?? null, null);
-        });
-      }
-    },
-  );
-
-  it.each(LANDSCAPE_WINDOWS)(
-    '$name: řady jsou na y T až T + 72, T + 88 až T + 160 a T + 176 až T + 248, T = (H − 248) / 2',
-    (window) => {
-      const settings = settingsFor(window);
+      const where = window.name;
       const top = landscapeTop(settings.height);
-      const rows: [number, number][] = [
+      const rowSpans: [number, number][] = [
         [top, top + 72],
         [top + 88, top + 160],
         [top + 176, top + 248],
       ];
-      rows.forEach((expected, index) => {
-        expectSpan(rowBounds(rowBoxes(settings, index)), null, expected, CENTER_TOLERANCE);
+
+      // Popisek je v pruhu x 12–100, zarovnaný vpravo a svisle na středu řady.
+      settings.layout.rows.forEach((row, index) => {
+        const label = labelBox(settings, index);
+        const options = rowBounds(rowBoxes(settings, index));
+        expectSpan(label, [12, 100], null, EXACT_TOLERANCE, `${where}, popisek ${index + 1}`);
+        expect(row.label.align, where).toBe('right');
+        expectNear(
+          (label.top + label.bottom) / 2,
+          (options.top + options.bottom) / 2,
+          EXACT_TOLERANCE,
+          `${where}, popisek ${index + 1} na středu řady`,
+        );
       });
-    },
-  );
-
-  it.each(LANDSCAPE_WINDOWS)(
-    '$name: ✓ má 96 × 96 px na x W − 120 až W − 24 a svisle na středu',
-    (window) => {
-      const settings = settingsFor(window);
+      // Volby mají 104 × 72 px na x 112–216, 224–328 a 336–440, Odpověď zarovnaná vlevo.
+      for (const index of [0, 1, 2]) {
+        const boxes = rowBoxes(settings, index);
+        expect(boxes, `${where}, řada ${index + 1}`).toHaveLength(index === 2 ? 2 : 3);
+        boxes.forEach((option, column) => {
+          const at = `${where}, řada ${index + 1}, volba ${column + 1}`;
+          expectNear(widthOf(option), 104, EXACT_TOLERANCE, at);
+          expectNear(heightOf(option), 72, EXACT_TOLERANCE, at);
+          expectSpan(option, columns[column] ?? null, null, EXACT_TOLERANCE, at);
+        });
+      }
+      // Řady jsou na y T až T + 72, T + 88 až T + 160 a T + 176 až T + 248, T = (H − 248) / 2.
+      rowSpans.forEach((expected, index) => {
+        expectSpan(
+          rowBounds(rowBoxes(settings, index)),
+          null,
+          expected,
+          CENTER_TOLERANCE,
+          `${where}, řada ${index + 1}`,
+        );
+      });
+      // ✓ má 96 × 96 px na x W − 120 až W − 24, svisle na středu a horní okraj aspoň 100 px.
       const confirm = confirmBox(settings);
-      const top = (settings.height - 96) / 2;
-
-      expectNear(widthOf(confirm), 96);
-      expectNear(heightOf(confirm), 96);
-      expectSpan(confirm, [settings.width - 120, settings.width - 24], null);
-      expectSpan(confirm, null, [top, top + 96], CENTER_TOLERANCE);
-    },
-  );
-
-  it.each(LANDSCAPE_WINDOWS)('$name: horní okraj ✓ je aspoň 100 px, mimo roh kolečka', (window) => {
-    expect(confirmBox(settingsFor(window)).top).toBeGreaterThanOrEqual(100 - CENTER_TOLERANCE);
+      const confirmTop = (settings.height - 96) / 2;
+      expectNear(widthOf(confirm), 96, EXACT_TOLERANCE, `${where}, ✓`);
+      expectNear(heightOf(confirm), 96, EXACT_TOLERANCE, `${where}, ✓`);
+      expectSpan(
+        confirm,
+        [settings.width - 120, settings.width - 24],
+        null,
+        EXACT_TOLERANCE,
+        `${where}, ✓`,
+      );
+      expectSpan(
+        confirm,
+        null,
+        [confirmTop, confirmTop + 96],
+        CENTER_TOLERANCE,
+        `${where}, ✓ na středu`,
+      );
+      expect(confirm.top, `${where}, ✓ mimo roh kolečka`).toBeGreaterThanOrEqual(
+        100 - CENTER_TOLERANCE,
+      );
+    }
   });
 
-  it('vypočtené hodnoty 744×296: T = 24, ✓ na y 100–196', () => {
-    const settings = settingsFor(PHONE_WINDOWS[0] as TestWindow);
+  it('vypočtené hodnoty: 744×296 T = 24 a ✓ na y 100–196, 844×340 s výřezem T = 35,5 a ✓ na y 111,5–207,5, 932×499 T = 125,5', () => {
+    const smallest = settingsFor(PHONE_WINDOWS[0] as TestWindow);
+    expectSpan(rowBounds(rowBoxes(smallest, 0)), null, [24, 96], CENTER_TOLERANCE, '744×296');
+    expectSpan(rowBounds(rowBoxes(smallest, 2)), null, [200, 272], CENTER_TOLERANCE, '744×296');
+    expectSpan(confirmBox(smallest), [624, 720], [100, 196], CENTER_TOLERANCE, '744×296');
 
-    expectSpan(rowBounds(rowBoxes(settings, 0)), null, [24, 96], CENTER_TOLERANCE);
-    expectSpan(rowBounds(rowBoxes(settings, 2)), null, [200, 272], CENTER_TOLERANCE);
-    expectSpan(confirmBox(settings), [624, 720], [100, 196], CENTER_TOLERANCE);
-  });
-
-  it('vypočtené hodnoty 844×340 s výřezem (volná plocha 750×319): T = 35,5, ✓ na y 111,5–207,5', () => {
     const window = PHONE_WINDOWS.find((w) => w.width === 844);
     if (!window) {
       throw new Error('Okno 844×340 chybí');
     }
-    const settings = settingsFor(window);
+    const iphone = settingsFor(window);
+    expectSpan(rowBounds(rowBoxes(iphone, 0)), null, [35.5, 107.5], CENTER_TOLERANCE, '844×340');
+    expectSpan(confirmBox(iphone), [630, 726], [111.5, 207.5], CENTER_TOLERANCE, '844×340');
 
-    expectSpan(rowBounds(rowBoxes(settings, 0)), null, [35.5, 107.5], CENTER_TOLERANCE);
-    expectSpan(confirmBox(settings), [630, 726], [111.5, 207.5], CENTER_TOLERANCE);
-  });
-
-  it('vypočtené hodnoty 932×499: T = 125,5', () => {
-    const settings = settingsFor(BORDER_LANDSCAPE);
-
-    expectSpan(rowBounds(rowBoxes(settings, 0)), null, [125.5, 197.5], CENTER_TOLERANCE);
-    expectSpan(rowBounds(rowBoxes(settings, 2)), null, [301.5, 373.5], CENTER_TOLERANCE);
+    const border = settingsFor(BORDER_LANDSCAPE);
+    expectSpan(rowBounds(rowBoxes(border, 0)), null, [125.5, 197.5], CENTER_TOLERANCE, '932×499');
+    expectSpan(rowBounds(rowBoxes(border, 2)), null, [301.5, 373.5], CENTER_TOLERANCE, '932×499');
   });
 });
 
@@ -554,90 +459,94 @@ describe('AC3: na telefonu na šířku jsou řady vlevo pod sebou a ✓ vpravo',
 // ---------------------------------------------------------------------------
 
 describe('AC5: na telefonu na výšku jsou řady pod sebou na středu a ✓ dole u palce', () => {
-  it.each(PORTRAIT_WINDOWS)(
-    '$name: volby mají 104 × 80 px s mezerou 8 px, řada tří voleb je široká 328 px a vodorovně na středu',
-    (window) => {
-      const settings = settingsFor(window);
-      for (const index of [0, 1, 2]) {
-        const boxes = rowBoxes(settings, index);
-        expect(boxes).toHaveLength(index === 2 ? 2 : 3);
-        for (const option of boxes) {
-          expectNear(widthOf(option), 104);
-          expectNear(heightOf(option), 80);
-        }
-        boxes.slice(1).forEach((option, i) => {
-          const previous = boxes[i] as Box;
-          expectNear(option.left - previous.right, 8);
-        });
-        const bounds = rowBounds(boxes);
-        expectNear(widthOf(bounds), index === 2 ? 216 : 328);
-        expectNear((bounds.left + bounds.right) / 2, settings.width / 2, CENTER_TOLERANCE);
-      }
-    },
-  );
-
-  it.each(PORTRAIT_WINDOWS)('$name: řady jsou na y 114–194, 244–324 a 374–454', (window) => {
-    const settings = settingsFor(window);
-    const rows: [number, number][] = [
+  it('volby, řady, popisky a ✓ jsou na místech podle S-vyska-nast', () => {
+    const rowSpans: [number, number][] = [
       [114, 194],
       [244, 324],
       [374, 454],
     ];
-    rows.forEach((expected, index) => {
-      expectSpan(rowBounds(rowBoxes(settings, index)), null, expected);
-    });
-  });
-
-  it.each(PORTRAIT_WINDOWS)(
-    '$name: popisky jsou v pruhu 20 px na y 88–108, 218–238 a 348–368, na středu 6 px nad řadou',
-    (window) => {
+    const labelSpans: [number, number][] = [
+      [88, 108],
+      [218, 238],
+      [348, 368],
+    ];
+    for (const window of PORTRAIT_WINDOWS) {
       const settings = settingsFor(window);
-      const labels: [number, number][] = [
-        [88, 108],
-        [218, 238],
-        [348, 368],
-      ];
+      const where = window.name;
+
+      // Volby mají 104 × 80 px s mezerou 8 px, řada tří voleb je široká 328 px a vodorovně na středu.
+      for (const index of [0, 1, 2]) {
+        const at = `${where}, řada ${index + 1}`;
+        const boxes = rowBoxes(settings, index);
+        expect(boxes, at).toHaveLength(index === 2 ? 2 : 3);
+        for (const option of boxes) {
+          expectNear(widthOf(option), 104, EXACT_TOLERANCE, at);
+          expectNear(heightOf(option), 80, EXACT_TOLERANCE, at);
+        }
+        boxes.slice(1).forEach((option, i) => {
+          const previous = boxes[i] as Box;
+          expectNear(option.left - previous.right, 8, EXACT_TOLERANCE, `${at}, mezera`);
+        });
+        const bounds = rowBounds(boxes);
+        expectNear(widthOf(bounds), index === 2 ? 216 : 328, EXACT_TOLERANCE, at);
+        expectNear(
+          (bounds.left + bounds.right) / 2,
+          settings.width / 2,
+          CENTER_TOLERANCE,
+          `${at}, na středu`,
+        );
+        // Řady jsou na y 114–194, 244–324 a 374–454.
+        expectSpan(bounds, null, rowSpans[index] ?? null, EXACT_TOLERANCE, at);
+      }
+      // Popisky jsou v pruhu 20 px na y 88–108, 218–238 a 348–368, na středu 6 px nad řadou.
       settings.layout.rows.forEach((row, index) => {
+        const at = `${where}, popisek ${index + 1}`;
         const label = labelBox(settings, index);
         const options = rowBounds(rowBoxes(settings, index));
 
-        expectSpan(label, null, labels[index] ?? null);
-        expectNear(options.top - label.bottom, 6);
-        expectNear((label.left + label.right) / 2, settings.width / 2, CENTER_TOLERANCE);
-        expect(row.label.align).toBe('center');
+        expectSpan(label, null, labelSpans[index] ?? null, EXACT_TOLERANCE, at);
+        expectNear(options.top - label.bottom, 6, EXACT_TOLERANCE, at);
+        expectNear((label.left + label.right) / 2, settings.width / 2, CENTER_TOLERANCE, at);
+        expect(row.label.align, at).toBe('center');
       });
-    },
-  );
-
-  it.each(PORTRAIT_WINDOWS)(
-    '$name: ✓ má 104 × 104 px, je vodorovně na středu a na y H − 120 až H − 16',
-    (window) => {
-      const settings = settingsFor(window);
+      // ✓ má 104 × 104 px, je vodorovně na středu a na y H − 120 až H − 16.
       const confirm = confirmBox(settings);
+      expectNear(widthOf(confirm), 104, EXACT_TOLERANCE, `${where}, ✓`);
+      expectNear(heightOf(confirm), 104, EXACT_TOLERANCE, `${where}, ✓`);
+      expectNear(
+        (confirm.left + confirm.right) / 2,
+        settings.width / 2,
+        CENTER_TOLERANCE,
+        `${where}, ✓ na středu`,
+      );
+      expectSpan(
+        confirm,
+        null,
+        [settings.height - 120, settings.height - 16],
+        EXACT_TOLERANCE,
+        `${where}, ✓`,
+      );
+    }
+  });
 
-      expectNear(widthOf(confirm), 104);
-      expectNear(heightOf(confirm), 104);
-      expectNear((confirm.left + confirm.right) / 2, settings.width / 2, CENTER_TOLERANCE);
-      expectSpan(confirm, null, [settings.height - 120, settings.height - 16]);
-    },
-  );
-
-  it('vypočtené hodnoty 360×620: řady na x 16–344, ✓ na y 500–604, mezera nad ✓ 46 px', () => {
+  it('vypočtené hodnoty: 360×620 řady na x 16–344, ✓ na y 500–604 a mezera nad ✓ 46 px, 390×844 s výřezem ✓ na y 643–747', () => {
     const settings = settingsFor(BORDER_PORTRAIT_HEIGHT);
     const confirm = confirmBox(settings);
 
-    expectSpan(rowBounds(rowBoxes(settings, 0)), [16, 344], null, CENTER_TOLERANCE);
-    expectSpan(confirm, [128, 232], [500, 604], CENTER_TOLERANCE);
-    expectNear(confirm.top - rowBounds(rowBoxes(settings, 2)).bottom, 46);
-  });
+    expectSpan(rowBounds(rowBoxes(settings, 0)), [16, 344], null, CENTER_TOLERANCE, '360×620');
+    expectSpan(confirm, [128, 232], [500, 604], CENTER_TOLERANCE, '360×620');
+    expectNear(
+      confirm.top - rowBounds(rowBoxes(settings, 2)).bottom,
+      46,
+      EXACT_TOLERANCE,
+      '360×620',
+    );
 
-  it('vypočtené hodnoty 390×844 s výřezem (volná plocha 390×763): ✓ na y 643–747', () => {
     const window = PHONE_PORTRAIT_WINDOWS.find((w) => w.width === 390 && w.height === 844);
     if (!window) {
       throw new Error('Okno 390×844 chybí');
     }
-
-    expectSpan(confirmBox(settingsFor(window)), null, [643, 747]);
+    expectSpan(confirmBox(settingsFor(window)), null, [643, 747], EXACT_TOLERANCE, '390×844');
   });
 });
 

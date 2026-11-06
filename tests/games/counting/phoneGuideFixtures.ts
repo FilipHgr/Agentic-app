@@ -17,7 +17,7 @@ import { layoutDeviceGuideStep } from '../../../src/games/counting/logic/deviceL
 import type { DeviceGuideLayout } from '../../../src/games/counting/logic/deviceLayout';
 import type { LayoutMode } from '../../../src/shared/logic/viewportLayout';
 import type { GuideStep } from '../../../src/games/counting/logic/setupGuide';
-import { cssBoxOf, panelCssPlacement } from './parentPanelSnapshot';
+import { cssBoxOf, panelCssPlacement } from './parentPanelCss';
 import { boundsOf, freeAreaOf, heightOf, viewportOf, widthOf } from '../../shared/viewportFixtures';
 import type { Box, Placement, TestWindow } from '../../shared/viewportFixtures';
 
@@ -116,28 +116,15 @@ export function frameBox(guide: PhoneGuide): Box | null {
   return guide.layout.frame ? slotBox(guide.layout.frame, guide) : null;
 }
 
-/** Ťukací plochy průvodce: volby, Zpět, reproduktor a Další / Začít hrát. */
-export function tapBoxes(guide: PhoneGuide): Box[] {
-  const back = backBox(guide);
-  return [
-    ...[0, 1, 2].flatMap((index) => optionBoxes(guide, index)),
-    ...(back ? [back] : []),
-    speakerBox(guide),
-    rightBox(guide),
-  ];
-}
-
-/** Texty, na které se ťukat nedá: popisky řad, rada a ukazatel kroku. */
-export function textBoxes(guide: PhoneGuide): Box[] {
-  return [
-    ...[0, 1, 2].map((index) => labelBox(guide, index)),
-    messageBox(guide),
-    indicatorBox(guide),
-  ];
-}
-
-export function expectNear(actual: number, expected: number, tolerance = EXACT_TOLERANCE): void {
-  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance);
+export function expectNear(
+  actual: number,
+  expected: number,
+  tolerance = EXACT_TOLERANCE,
+  where = '',
+): void {
+  expect(Math.abs(actual - expected), `${where}: ${actual} místo ${expected}`).toBeLessThanOrEqual(
+    tolerance,
+  );
 }
 
 export function expectSpan(
@@ -145,18 +132,19 @@ export function expectSpan(
   horizontal: readonly [number, number] | null,
   vertical: readonly [number, number] | null,
   tolerance = EXACT_TOLERANCE,
+  where = '',
 ): void {
-  expect(actual).not.toBeNull();
+  expect(actual, where).not.toBeNull();
   if (actual === null) {
     return;
   }
   if (horizontal) {
-    expectNear(actual.left, horizontal[0], tolerance);
-    expectNear(actual.right, horizontal[1], tolerance);
+    expectNear(actual.left, horizontal[0], tolerance, `${where}, levý okraj`);
+    expectNear(actual.right, horizontal[1], tolerance, `${where}, pravý okraj`);
   }
   if (vertical) {
-    expectNear(actual.top, vertical[0], tolerance);
-    expectNear(actual.bottom, vertical[1], tolerance);
+    expectNear(actual.top, vertical[0], tolerance, `${where}, horní okraj`);
+    expectNear(actual.bottom, vertical[1], tolerance, `${where}, spodní okraj`);
   }
 }
 
@@ -223,6 +211,7 @@ export function portraitButtonSpans(width: number): {
 export function expectLandscapeGuideSpec(window: TestWindow, step: GuideStep): void {
   const guide = guideFor(window, step);
   const { width: w, height: h } = guide;
+  const where = `${window.name}, krok ${step}`;
   const rows = landscapeRowSpans(h);
   const columns: [number, number][] = [
     [112, 208],
@@ -230,32 +219,67 @@ export function expectLandscapeGuideSpec(window: TestWindow, step: GuideStep): v
     [320, 416],
   ];
 
-  expect(guide.mode).toBe('phoneLandscape');
+  expect(guide.mode, where).toBe('phoneLandscape');
   rows.forEach((span, index) => {
     optionBoxes(guide, index).forEach((option, column) => {
-      expectSpan(option, columns[column] ?? null, span, CENTER_TOLERANCE);
+      expectSpan(
+        option,
+        columns[column] ?? null,
+        span,
+        CENTER_TOLERANCE,
+        `${where}, řada ${index + 1}, volba ${column + 1}`,
+      );
     });
-    expectSpan(labelBox(guide, index), [12, 100], null);
+    expectSpan(labelBox(guide, index), [12, 100], null, EXACT_TOLERANCE, `${where}, popisek`);
   });
 
   const focused = step === 4 ? null : rows[step - 1];
   if (focused) {
-    expectSpan(frameBox(guide), [4, 424], [focused[0] - 8, focused[1] + 8], CENTER_TOLERANCE);
+    expectSpan(
+      frameBox(guide),
+      [4, 424],
+      [focused[0] - 8, focused[1] + 8],
+      CENTER_TOLERANCE,
+      `${where}, rámeček`,
+    );
   } else {
-    expect(frameBox(guide)).toBeNull();
+    expect(frameBox(guide), where).toBeNull();
   }
 
-  expectSpan(messageBox(guide), [w - 304, w - 16], [80, 168]);
-  expectSpan(indicatorBox(guide), null, [h - 108, h - 88]);
+  expectSpan(messageBox(guide), [w - 304, w - 16], [80, 168], EXACT_TOLERANCE, `${where}, rada`);
+  expectSpan(indicatorBox(guide), null, [h - 108, h - 88], EXACT_TOLERANCE, `${where}, ukazatel`);
   const indicator = indicatorBox(guide);
-  expectNear((indicator.left + indicator.right) / 2, w - 160, CENTER_TOLERANCE);
+  expectNear(
+    (indicator.left + indicator.right) / 2,
+    w - 160,
+    CENTER_TOLERANCE,
+    `${where}, ukazatel na středu`,
+  );
   if (step === 1) {
-    expect(backBox(guide)).toBeNull();
+    expect(backBox(guide), where).toBeNull();
   } else {
-    expectSpan(backBox(guide), [w - 304, w - 224], [h - 80, h - 16]);
+    expectSpan(
+      backBox(guide),
+      [w - 304, w - 224],
+      [h - 80, h - 16],
+      EXACT_TOLERANCE,
+      `${where}, Zpět`,
+    );
   }
-  expectSpan(speakerBox(guide), [w - 216, w - 152], [h - 80, h - 16]);
-  expectSpan(rightBox(guide), [w - 144, w - 16], [h - 80, h - 16]);
+  expectSpan(
+    speakerBox(guide),
+    [w - 216, w - 152],
+    [h - 80, h - 16],
+    EXACT_TOLERANCE,
+    `${where}, reproduktor`,
+  );
+  expectSpan(
+    rightBox(guide),
+    [w - 144, w - 16],
+    [h - 80, h - 16],
+    EXACT_TOLERANCE,
+    `${where}, Další`,
+  );
 }
 
 /**
@@ -265,43 +289,57 @@ export function expectLandscapeGuideSpec(window: TestWindow, step: GuideStep): v
 export function expectPortraitGuideSpec(window: TestWindow, step: GuideStep): void {
   const guide = guideFor(window, step);
   const { width: w, height: h } = guide;
+  const where = `${window.name}, krok ${step}`;
   const centerX = w / 2;
 
-  expect(guide.mode).toBe('phonePortrait');
+  expect(guide.mode, where).toBe('phonePortrait');
   PORTRAIT_ROW_SPANS.forEach((span, index) => {
+    const at = `${where}, řada ${index + 1}`;
     const row = rowBox(guide, index);
-    expectSpan(row, null, span);
-    expectNear(widthOf(row), index === 2 ? 216 : 328);
-    expectNear((row.left + row.right) / 2, centerX, CENTER_TOLERANCE);
+    expectSpan(row, null, span, EXACT_TOLERANCE, at);
+    expectNear(widthOf(row), index === 2 ? 216 : 328, EXACT_TOLERANCE, at);
+    expectNear((row.left + row.right) / 2, centerX, CENTER_TOLERANCE, at);
     const label = labelBox(guide, index);
-    expectSpan(label, null, PORTRAIT_LABEL_SPANS[index] ?? null);
-    expectNear((label.left + label.right) / 2, centerX, CENTER_TOLERANCE);
+    expectSpan(label, null, PORTRAIT_LABEL_SPANS[index] ?? null, EXACT_TOLERANCE, `${at}, popisek`);
+    expectNear((label.left + label.right) / 2, centerX, CENTER_TOLERANCE, `${at}, popisek`);
   });
 
   const focusedIndex = step === 4 ? null : step - 1;
   if (focusedIndex === null) {
-    expect(frameBox(guide)).toBeNull();
+    expect(frameBox(guide), where).toBeNull();
   } else {
     const row = rowBox(guide, focusedIndex);
     expectSpan(
       frameBox(guide),
       [row.left - 8, row.right + 8],
       PORTRAIT_FRAME_SPANS[focusedIndex] ?? null,
+      EXACT_TOLERANCE,
+      `${where}, rámeček`,
     );
   }
 
-  expectSpan(messageBox(guide), [16, w - 16], [h - 180, h - 92]);
+  expectSpan(messageBox(guide), [16, w - 16], [h - 180, h - 92], EXACT_TOLERANCE, `${where}, rada`);
   const buttons = portraitButtonSpans(w);
   const buttonRow: [number, number] = [h - 80, h - 16];
   if (step === 1) {
-    expect(backBox(guide)).toBeNull();
+    expect(backBox(guide), where).toBeNull();
   } else {
-    expectSpan(backBox(guide), buttons.back, buttonRow, CENTER_TOLERANCE);
+    expectSpan(backBox(guide), buttons.back, buttonRow, CENTER_TOLERANCE, `${where}, Zpět`);
   }
-  expectSpan(speakerBox(guide), buttons.speaker, buttonRow, CENTER_TOLERANCE);
-  expectSpan(rightBox(guide), buttons.right, buttonRow, CENTER_TOLERANCE);
-  expectSpan(indicatorBox(guide), buttons.indicator, null, CENTER_TOLERANCE);
+  expectSpan(
+    speakerBox(guide),
+    buttons.speaker,
+    buttonRow,
+    CENTER_TOLERANCE,
+    `${where}, reproduktor`,
+  );
+  expectSpan(rightBox(guide), buttons.right, buttonRow, CENTER_TOLERANCE, `${where}, Další`);
+  expectSpan(indicatorBox(guide), buttons.indicator, null, CENTER_TOLERANCE, `${where}, ukazatel`);
   const indicator = indicatorBox(guide);
-  expect(indicator.top).toBeGreaterThanOrEqual(buttonRow[0] - EXACT_TOLERANCE);
-  expect(indicator.bottom).toBeLessThanOrEqual(buttonRow[1] + EXACT_TOLERANCE);
+  expect(indicator.top, `${where}, ukazatel v řadě tlačítek`).toBeGreaterThanOrEqual(
+    buttonRow[0] - EXACT_TOLERANCE,
+  );
+  expect(indicator.bottom, `${where}, ukazatel v řadě tlačítek`).toBeLessThanOrEqual(
+    buttonRow[1] + EXACT_TOLERANCE,
+  );
 }

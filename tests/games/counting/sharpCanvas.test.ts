@@ -24,7 +24,7 @@ import { STAR_SIZE, slotWidth } from '../../../src/games/counting/logic/screenLa
 import type { ButtonSlot } from '../../../src/games/counting/logic/screenLayout';
 import type { GameSettings, MaxNumber } from '../../../src/games/counting/logic/settings';
 import { CLOSED_SETTINGS } from '../../../src/games/counting/logic/settingsSession';
-import { GUIDE_STEPS } from './parentPanelSnapshot';
+import { GUIDE_STEPS } from './parentPanelCss';
 import {
   createWritingRound,
   finishStroke,
@@ -42,7 +42,7 @@ import type { CanvasResolution } from '../../../src/shared/logic/canvasResolutio
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import type { GameArea } from '../../../src/shared/logic/viewportLayout';
 import { seededRandom } from './seededRandom';
-import { tabletCssLayouts } from './tabletSnapshot';
+import { tabletCssLayouts } from './tabletCss';
 import { NOT_DIGITS } from './notDigitStrokes';
 import { placeStroke, uciTestSamples } from './penDigits';
 import {
@@ -67,8 +67,8 @@ import type { Box, Placement, TestWindow } from '../../shared/viewportFixtures';
  * na plátně ve 2× na `offset + x · zoom / 2` CSS px (`canvasResolutionFor`)
  * a dotyk se do herních jednotek převede přes `windowToGamePoint`.
  *
- * AC2: dnešní snímky (`tabletLayoutUnchanged.test.ts`,
- * `parentPanelsUnchanged.test.ts`) se nepřegenerovávají a musí dál projít.
+ * AC2: pevné body dnešního rozložení (`tabletLayoutUnchanged.test.ts`,
+ * `parentPanelsUnchanged.test.ts`, do #81 snapshoty) musí dál projít.
  * Tady se navíc ověří, že nové plátno ukáže každý prvek na stejném místě
  * v okně jako dnes (s tolerancí půl CSS px na zaokrouhlení plátna).
  * Konfety oslavy nemají rozložení v logice, jejich ostrost je ruční kontrola.
@@ -80,8 +80,8 @@ const CSS_TOLERANCE = 0.5;
 /** O kolik CSS px dovnitř od hrany tlačítka dítě ťukne. */
 const EDGE_INSET_CSS = 1;
 
-/** Rozpoznání vzorků trvá déle než běžný test. */
-const SLOW_TEST_TIMEOUT_MS = 60_000;
+/** Rozpoznání vzorků ve všech okénkách trvá déle než běžný test (dřív 60 s na jedno okénko). */
+const SLOW_TEST_TIMEOUT_MS = 120_000;
 
 /** Ze sady tahů stačí každý 20. vzorek na každé rozložení. */
 const SAMPLE_STEP = 20;
@@ -317,9 +317,8 @@ function edgeTapsOf(target: Target, placement: Placement): Array<{ x: number; y:
 // ---------------------------------------------------------------------------
 
 describe('AC2: na ostrém plátně je všechno na stejném místě a stejně velké jako dnes', () => {
-  it.each(SHARP_WINDOWS)(
-    '$name: příklad, hvězdičky, číselník, tečky nápovědy a okénka na psaní jsou tam, kde dnes',
-    (window) => {
+  it('příklad, hvězdičky, číselník, tečky nápovědy a okénka na psaní jsou tam, kde dnes', () => {
+    for (const window of SHARP_WINDOWS) {
       const area = areaOf(window);
       const resolution = canvasResolutionFor(area);
 
@@ -329,12 +328,11 @@ describe('AC2: na ostrém plátně je všechno na stejném místě a stejně vel
         window.name,
         CSS_TOLERANCE,
       );
-    },
-  );
+    }
+  });
 
-  it.each(SHARP_WINDOWS)(
-    '$name: nastavení pro rodiče a všechny kroky průvodce jsou tam, kde dnes',
-    (window) => {
+  it('nastavení pro rodiče a všechny kroky průvodce jsou tam, kde dnes', () => {
+    for (const window of SHARP_WINDOWS) {
       const area = areaOf(window);
       const today = todayPlacementOf(area);
       const sharp = sharpPlacementOf(canvasResolutionFor(area));
@@ -348,20 +346,16 @@ describe('AC2: na ostrém plátně je všechno na stejném místě a stejně vel
         ] as const) {
           const todayPoint = toCssPoint(today, x, y);
           const sharpPoint = toCssPoint(sharp, x, y);
-          expect(Math.abs(sharpPoint.x - todayPoint.x), target.name).toBeLessThanOrEqual(
-            CSS_TOLERANCE,
-          );
-          expect(Math.abs(sharpPoint.y - todayPoint.y), target.name).toBeLessThanOrEqual(
-            CSS_TOLERANCE,
-          );
+          const where = `${window.name}, ${target.name}`;
+          expect(Math.abs(sharpPoint.x - todayPoint.x), where).toBeLessThanOrEqual(CSS_TOLERANCE);
+          expect(Math.abs(sharpPoint.y - todayPoint.y), where).toBeLessThanOrEqual(CSS_TOLERANCE);
         }
       }
-    },
-  );
+    }
+  });
 
-  it.each(SHARP_WINDOWS)(
-    '$name: hvězdička i tlačítko mají na ostrém plátně stejnou velikost jako dnes',
-    (window) => {
+  it('hvězdička i tlačítko mají na ostrém plátně stejnou velikost jako dnes', () => {
+    for (const window of SHARP_WINDOWS) {
       const area = areaOf(window);
       const sharp = sharpPlacementOf(canvasResolutionFor(area));
       const buttonSize = keypadTargets(area, 10)[0]?.box;
@@ -370,19 +364,25 @@ describe('AC2: na ostrém plátně je všechno na stejném místě a stejně vel
       }
       const width = buttonSize.right - buttonSize.left;
 
-      expect(Math.abs(STAR_SIZE * sharp.scale - STAR_SIZE * area.scale)).toBeLessThanOrEqual(
-        CSS_TOLERANCE,
-      );
-      expect(Math.abs(width * sharp.scale - width * area.scale)).toBeLessThanOrEqual(CSS_TOLERANCE);
-    },
-  );
+      expect(
+        Math.abs(STAR_SIZE * sharp.scale - STAR_SIZE * area.scale),
+        `${window.name}, hvězdička`,
+      ).toBeLessThanOrEqual(CSS_TOLERANCE);
+      expect(
+        Math.abs(width * sharp.scale - width * area.scale),
+        `${window.name}, tlačítko`,
+      ).toBeLessThanOrEqual(CSS_TOLERANCE);
+    }
+  });
 
-  it.each(SHARP_WINDOWS)('$name: rozložení v herních jednotkách se nemění', (window) => {
-    const area = areaOf(window);
+  it('rozložení v herních jednotkách se nemění', () => {
+    for (const window of SHARP_WINDOWS) {
+      const area = areaOf(window);
 
-    expect(area.width).toBe(TODAY_GAME_WIDTH);
-    expect(area.height).toBe(TODAY_GAME_HEIGHT);
-    expect(['tablet', 'scaled']).toContain(area.mode);
+      expect(area.width, window.name).toBe(TODAY_GAME_WIDTH);
+      expect(area.height, window.name).toBe(TODAY_GAME_HEIGHT);
+      expect(['tablet', 'scaled'], window.name).toContain(area.mode);
+    }
   });
 });
 
@@ -391,9 +391,8 @@ describe('AC2: na ostrém plátně je všechno na stejném místě a stejně vel
 // ---------------------------------------------------------------------------
 
 describe('AC3: ťuknutí trefí stejné tlačítko jako dnes, i na kraji', () => {
-  it.each(SHARP_WINDOWS)(
-    '$name: ťuknutí na kraj čísla, ✓, smazat, tečky, řady nastavení i tlačítka průvodce trefí stejný prvek',
-    (window) => {
+  it('ťuknutí na kraj čísla, ✓, smazat, tečky, řady nastavení i tlačítka průvodce trefí stejný prvek', () => {
+    for (const window of SHARP_WINDOWS) {
       const area = areaOf(window);
       const resolution = canvasResolutionFor(area);
       const today = todayPlacementOf(area);
@@ -409,30 +408,33 @@ describe('AC3: ťuknutí trefí stejné tlačítko jako dnes, i na kraji', () =>
           }
         });
       }
-    },
-  );
+    }
+  });
 
-  it.each(SHARP_WINDOWS)('$name: ťuknutí do mezery mezi čísly nic netrefí jako dnes', (window) => {
-    const area = areaOf(window);
-    const resolution = canvasResolutionFor(area);
-    const today = todayPlacementOf(area);
-    const targets = keypadTargets(area, 10);
+  it('ťuknutí do mezery mezi čísly nic netrefí jako dnes', () => {
+    for (const window of SHARP_WINDOWS) {
+      const area = areaOf(window);
+      const resolution = canvasResolutionFor(area);
+      const today = todayPlacementOf(area);
+      const targets = keypadTargets(area, 10);
 
-    for (let index = 0; index + 1 < targets.length; index += 1) {
-      const current = targets[index];
-      const following = targets[index + 1];
-      if (!current || !following || following.box.left <= current.box.right) {
-        continue;
+      for (let index = 0; index + 1 < targets.length; index += 1) {
+        const current = targets[index];
+        const following = targets[index + 1];
+        if (!current || !following || following.box.left <= current.box.right) {
+          continue;
+        }
+        if (Math.abs(following.box.top - current.box.top) > 0.01) {
+          continue;
+        }
+        const gapX = (current.box.right + following.box.left) / 2;
+        const midY = (current.box.top + current.box.bottom) / 2;
+        const tap = toCssPoint(today, gapX, midY);
+
+        const where = `${window.name}, mezi ${current.name} a ${following.name}`;
+        expect(hitIndex(targets, todayGamePoint(area, tap)), `${where} dnes`).toBe(-1);
+        expect(hitIndex(targets, windowToGamePoint(resolution, tap)), where).toBe(-1);
       }
-      if (Math.abs(following.box.top - current.box.top) > 0.01) {
-        continue;
-      }
-      const gapX = (current.box.right + following.box.left) / 2;
-      const midY = (current.box.top + current.box.bottom) / 2;
-      const tap = toCssPoint(today, gapX, midY);
-
-      expect(hitIndex(targets, todayGamePoint(area, tap))).toBe(-1);
-      expect(hitIndex(targets, windowToGamePoint(resolution, tap))).toBe(-1);
     }
   });
 });
@@ -510,42 +512,51 @@ function attemptsFor(box: WritingAreaSize): Stroke[][] {
 }
 
 describe('AC4: psaní prstem se na ostrém plátně rozpozná stejně jako dnes', () => {
-  it.each(writingCases())(
-    '$name: stejná sada tahů dá stejné číslice jako dnes',
-    (testCase) => {
-      const boxSize = { width: testCase.box.width, height: testCase.box.height };
-      const differences: string[] = [];
-      attemptsFor(boxSize).forEach((strokes, index) => {
-        const today = recognizeDigit(strokes, boxSize);
-        const sharp = recognizeDigit(
-          sharpPadStrokesOf(cssStrokesOf(strokes, testCase), testCase),
-          boxSize,
-        );
-        if (today !== sharp) {
-          differences.push(`vzorek ${index}: dnes ${String(today)}, nově ${String(sharp)}`);
-        }
-      });
+  it(
+    'stejná sada tahů dá na iPadu, ve zmenšeném zobrazení i na telefonu stejné číslice jako dnes',
+    () => {
+      for (const testCase of writingCases()) {
+        const boxSize = { width: testCase.box.width, height: testCase.box.height };
+        const differences: string[] = [];
+        attemptsFor(boxSize).forEach((strokes, index) => {
+          const today = recognizeDigit(strokes, boxSize);
+          const sharp = recognizeDigit(
+            sharpPadStrokesOf(cssStrokesOf(strokes, testCase), testCase),
+            boxSize,
+          );
+          if (today !== sharp) {
+            differences.push(`vzorek ${index}: dnes ${String(today)}, nově ${String(sharp)}`);
+          }
+        });
 
-      expect(differences).toEqual([]);
+        expect(differences, testCase.name).toEqual([]);
+      }
     },
     SLOW_TEST_TIMEOUT_MS,
   );
 
-  it.each(writingCases())('$name: tah padne do okénka na stejné místo jako dnes', (testCase) => {
-    const corners: Stroke = [
-      { x: 0, y: 0 },
-      { x: testCase.box.width, y: testCase.box.height },
-      { x: testCase.box.width / 2, y: testCase.box.height / 3 },
-    ];
-    const [sharp] = sharpPadStrokesOf(cssStrokesOf([corners], testCase), testCase);
-    const unitTolerance = CSS_TOLERANCE / testCase.area.scale;
+  it('tah padne do okénka na stejné místo jako dnes', () => {
+    for (const testCase of writingCases()) {
+      const corners: Stroke = [
+        { x: 0, y: 0 },
+        { x: testCase.box.width, y: testCase.box.height },
+        { x: testCase.box.width / 2, y: testCase.box.height / 3 },
+      ];
+      const [sharp] = sharpPadStrokesOf(cssStrokesOf([corners], testCase), testCase);
+      const unitTolerance = CSS_TOLERANCE / testCase.area.scale;
 
-    corners.forEach((point, index) => {
-      const moved = sharp?.[index];
-      expect(moved).toBeDefined();
-      expect(Math.abs((moved?.x ?? Number.NaN) - point.x)).toBeLessThanOrEqual(unitTolerance);
-      expect(Math.abs((moved?.y ?? Number.NaN) - point.y)).toBeLessThanOrEqual(unitTolerance);
-    });
+      corners.forEach((point, index) => {
+        const moved = sharp?.[index];
+        const where = `${testCase.name}, bod ${index + 1}`;
+        expect(moved, where).toBeDefined();
+        expect(Math.abs((moved?.x ?? Number.NaN) - point.x), where).toBeLessThanOrEqual(
+          unitTolerance,
+        );
+        expect(Math.abs((moved?.y ?? Number.NaN) - point.y), where).toBeLessThanOrEqual(
+          unitTolerance,
+        );
+      });
+    }
   });
 });
 
@@ -628,9 +639,8 @@ describe('AC7: po otočení iPadu zůstane rozehrané kolo a hra je ostrá podle
 // ---------------------------------------------------------------------------
 
 describe('AC8: po návratu z menu je hra ostrá a rozložení se nezmění', () => {
-  it.each(SHARP_WINDOWS)(
-    '$name: nové spuštění dá stejné plátno i stejné polohy prvků',
-    (window) => {
+  it('nové spuštění dá stejné plátno i stejné polohy prvků', () => {
+    for (const window of SHARP_WINDOWS) {
       const firstRun = canvasResolutionFor(areaOf(window));
       const firstLayouts = tabletCssLayouts(
         TODAY_GAME_WIDTH,
@@ -640,10 +650,11 @@ describe('AC8: po návratu z menu je hra ostrá a rozložení se nezmění', () 
 
       const secondRun = canvasResolutionFor(areaOf(window));
 
-      expect(secondRun).toEqual(firstRun);
+      expect(secondRun, window.name).toEqual(firstRun);
       expect(
         tabletCssLayouts(TODAY_GAME_WIDTH, TODAY_GAME_HEIGHT, sharpPlacementOf(secondRun)),
+        window.name,
       ).toEqual(firstLayouts);
-    },
-  );
+    }
+  });
 });

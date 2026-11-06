@@ -18,9 +18,6 @@ import type { SettingsLayout } from '../../../src/games/counting/logic/settingsL
 const SCREEN_WIDTH = 1024;
 const SCREEN_HEIGHT = 768;
 
-/** Nejmenší dotyková plocha pro dětský prst (CLAUDE.md). */
-const MIN_TOUCH_SIZE = 64;
-
 /** Tolerance ±1 px u zaoblení a tahu ✓ (AC5). */
 const STYLE_TOLERANCE = 1;
 
@@ -58,20 +55,6 @@ function optionBox(option: { x: number; y: number; width: number; height: number
 function confirmBox(layout: SettingsLayout): Box {
   const { x, y, size } = layout.confirm;
   return { left: x - size / 2, right: x + size / 2, top: y - size / 2, bottom: y + size / 2 };
-}
-
-function allBoxes(layout: SettingsLayout): Box[] {
-  const options = layout.rows.flatMap((row) => row.options.map(optionBox));
-  return [...options, confirmBox(layout)];
-}
-
-function overlaps(first: Box, second: Box): boolean {
-  return (
-    first.left < second.right &&
-    second.left < first.right &&
-    first.top < second.bottom &&
-    second.top < first.bottom
-  );
 }
 
 const layout = layoutSettingsPanel(SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -138,38 +121,17 @@ describe('rozložení nastavení: tlačítko ✓ (#45 AC2)', () => {
   });
 });
 
-describe('rozložení nastavení: nic se nepřekrývá a vše se vejde (#45 AC3)', () => {
+// Že se žádná volba ani ✓ nepřekrývá, vše leží uvnitř herní plochy a na
+// každou volbu se trefí prst (aspoň 64 × 64 px, #45 AC3), hlídají od #81
+// společná pravidla v `countingLayoutRules.test.ts`.
+
+describe('rozložení nastavení: rozměry voleb a řad (#45 AC3)', () => {
   it('každá volba je velká 220 × 130 px', () => {
     for (const row of layout.rows) {
       for (const option of row.options) {
         expect(option.width).toBe(220);
         expect(option.height).toBe(130);
       }
-    }
-  });
-
-  it('žádná volba ani ✓ se nepřekrývá s jinou', () => {
-    const boxes = allBoxes(layout);
-    for (let first = 0; first < boxes.length; first += 1) {
-      for (let second = first + 1; second < boxes.length; second += 1) {
-        expect(overlaps(itemAt(boxes, first), itemAt(boxes, second))).toBe(false);
-      }
-    }
-  });
-
-  it('všechny volby i ✓ leží celé uvnitř herní plochy 1024 × 768', () => {
-    for (const box of allBoxes(layout)) {
-      expect(box.left).toBeGreaterThanOrEqual(0);
-      expect(box.top).toBeGreaterThanOrEqual(0);
-      expect(box.right).toBeLessThanOrEqual(SCREEN_WIDTH);
-      expect(box.bottom).toBeLessThanOrEqual(SCREEN_HEIGHT);
-    }
-  });
-
-  it('na každou volbu i ✓ se pohodlně trefí prst (aspoň 64 × 64 px)', () => {
-    for (const box of allBoxes(layout)) {
-      expect(box.right - box.left).toBeGreaterThanOrEqual(MIN_TOUCH_SIZE);
-      expect(box.bottom - box.top).toBeGreaterThanOrEqual(MIN_TOUCH_SIZE);
     }
   });
 

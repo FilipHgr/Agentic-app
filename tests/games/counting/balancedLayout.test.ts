@@ -9,7 +9,6 @@ import type { AnswerRound } from '../../../src/games/counting/logic/answerRound'
 import type { Problem } from '../../../src/games/counting/logic/problems';
 import {
   STAR_SIZE,
-  hintDotHitArea,
   layoutHint,
   layoutScreen,
   layoutWritingScreen,
@@ -68,9 +67,6 @@ const MIN_SIDE_MARGIN = 24;
  * hvězdičky 30 px a střed řady zůstává ve výšce 52 px, proto 52 − 15 = 37.
  */
 const STARS_TOP = 37;
-
-/** Pravý horní roh, kam se nesmí dostat žádný herní prvek (kolečko nastavení). */
-const SETTINGS_CORNER: Box = { left: 982, right: 1024, top: 11, bottom: 82 };
 
 interface Box {
   readonly left: number;
@@ -222,10 +218,18 @@ function rowCount(dots: readonly HintDot[]): number {
   return new Set(dots.map((dot) => dot.y)).size;
 }
 
+function variantLabel(maxNumber: MaxNumber, mode: Mode, detail = ''): string {
+  return `rozsah ${maxNumber}, ${mode}${detail}`;
+}
+
+// Že každá tečka je celá na herní ploše, tečky nic nepřekrývají, plná řada
+// hvězdiček nepřekrývá příklad a do rohu s kolečkem nic nezasahuje (AC3,
+// AC4, AC6), hlídají od #81 společná pravidla v `countingLayoutRules.test.ts`
+// (na iPadu u všech příkladů s tečkami).
+
 describe('AC1: nápověda je svisle uprostřed mezi příkladem a ovládáním', () => {
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): u každého příkladu je nad i pod nápovědou stejně místa a dost místa',
-    (maxNumber, mode) => {
+  it('u každého příkladu v každém rozsahu a ovládání je nad i pod nápovědou stejně místa a dost místa', () => {
+    for (const [maxNumber, mode] of ALL_VARIANTS) {
       const variant = variantFor(maxNumber, mode);
       const minimum = MIN_GAP[maxNumber][mode];
 
@@ -234,14 +238,18 @@ describe('AC1: nápověda je svisle uprostřed mezi příkladem a ovládáním',
         const bounds = hintBounds(dots, variant.layout);
         const gapAbove = bounds.top - textBottom(variant.layout);
         const gapBelow = variant.controlsTop - bounds.bottom;
-        const label = `${problemName(problem)}: nad ${gapAbove}, pod ${gapBelow}`;
+        const label = variantLabel(
+          maxNumber,
+          mode,
+          `, ${problemName(problem)}: nad ${gapAbove}, pod ${gapBelow}`,
+        );
 
         expect(Math.abs(gapAbove - gapBelow), label).toBeLessThanOrEqual(GAP_TOLERANCE);
         expect(gapAbove, label).toBeGreaterThanOrEqual(minimum);
         expect(gapBelow, label).toBeGreaterThanOrEqual(minimum);
       }
-    },
-  );
+    }
+  });
 
   it('rozsah 20 s číselníkem: i široká nápověda na dvě řady je uprostřed, žádná výjimka (#63)', () => {
     const variant = variantFor(20, 'číselník');
@@ -302,9 +310,8 @@ describe('AC2: skupinky teček mají horní řadu ve stejné výšce', () => {
     }
   });
 
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): u každého příkladu začínají všechny skupinky ve stejné výšce',
-    (maxNumber, mode) => {
+  it('u každého příkladu v každém rozsahu a ovládání začínají všechny skupinky ve stejné výšce', () => {
+    for (const [maxNumber, mode] of ALL_VARIANTS) {
       const variant = variantFor(maxNumber, mode);
 
       for (const problem of problemsWithDots(maxNumber)) {
@@ -316,262 +323,230 @@ describe('AC2: skupinky teček mají horní řadu ve stejné výšce', () => {
           ),
         );
 
-        expect(groupTops.size, problemName(problem)).toBe(1);
+        expect(groupTops.size, variantLabel(maxNumber, mode, `, ${problemName(problem)}`)).toBe(1);
       }
-    },
-  );
+    }
+  });
 
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): další řady skupinky jsou jen pod její horní řadou',
-    (maxNumber, mode) => {
+  it('další řady skupinky jsou jen pod její horní řadou', () => {
+    for (const [maxNumber, mode] of ALL_VARIANTS) {
       const variant = variantFor(maxNumber, mode);
 
       for (const problem of problemsWithDots(maxNumber)) {
         const dots = hintFor(variant, problem);
+        const where = variantLabel(maxNumber, mode, `, ${problemName(problem)}`);
         hintDotGroups(problem).forEach((_, group) => {
           const own = dots.filter((dot) => dot.group === group);
           const topY = Math.min(...own.map((dot) => dot.y));
           const topRow = own.filter((dot) => dot.y === topY).map((dot) => dot.x);
           for (const dot of own) {
-            expect(dot.x, problemName(problem)).toBeGreaterThanOrEqual(Math.min(...topRow));
-            expect(dot.x, problemName(problem)).toBeLessThanOrEqual(Math.max(...topRow));
+            expect(dot.x, where).toBeGreaterThanOrEqual(Math.min(...topRow));
+            expect(dot.x, where).toBeLessThanOrEqual(Math.max(...topRow));
           }
         });
       }
-    },
-  );
+    }
+  });
 
-  it.each(MODES)('rozsah 5 a 10 (%s): v řadě skupinky je nejvýš 5 teček', (mode) => {
-    for (const maxNumber of COUNTING_RANGES) {
-      const variant = variantFor(maxNumber, mode);
-      for (const problem of problemsWithDots(maxNumber)) {
-        const dots = hintFor(variant, problem);
-        const rows = new Map<string, number>();
-        for (const dot of dots) {
-          const key = `${dot.group}:${dot.y}`;
-          rows.set(key, (rows.get(key) ?? 0) + 1);
+  it('rozsah 5 a 10: v řadě skupinky je nejvýš 5 teček', () => {
+    for (const mode of MODES) {
+      for (const maxNumber of COUNTING_RANGES) {
+        const variant = variantFor(maxNumber, mode);
+        for (const problem of problemsWithDots(maxNumber)) {
+          const dots = hintFor(variant, problem);
+          const rows = new Map<string, number>();
+          for (const dot of dots) {
+            const key = `${dot.group}:${dot.y}`;
+            rows.set(key, (rows.get(key) ?? 0) + 1);
+          }
+          expect(
+            Math.max(...rows.values()),
+            variantLabel(maxNumber, mode, `, ${problemName(problem)}`),
+          ).toBeLessThanOrEqual(5);
         }
-        expect(Math.max(...rows.values()), problemName(problem)).toBeLessThanOrEqual(5);
       }
     }
   });
 
-  it.each(MODES)('rozsah 10 (%s): 10 teček je řada 5 a pod ní řada 5', (mode) => {
-    const dots = hintFor(variantFor(10, mode), plus(10, 0));
-    const rowYs = [...new Set(dots.map((dot) => dot.y))];
+  it('rozsah 10: 10 teček je řada 5 a pod ní řada 5', () => {
+    for (const mode of MODES) {
+      const dots = hintFor(variantFor(10, mode), plus(10, 0));
+      const rowYs = [...new Set(dots.map((dot) => dot.y))];
 
-    expect(rowYs).toHaveLength(2);
-    for (const y of rowYs) {
-      expect(dots.filter((dot) => dot.y === y)).toHaveLength(5);
+      expect(rowYs, mode).toHaveLength(2);
+      for (const y of rowYs) {
+        expect(
+          dots.filter((dot) => dot.y === y),
+          mode,
+        ).toHaveLength(5);
+      }
     }
   });
 
-  it.each(MODES)('rozsah 20 (%s): tečky jsou po 10 v řadě s mezerou za pětkou', (mode) => {
-    const dots = hintFor(variantFor(20, mode), plus(20, 0));
-    const rowYs = [...new Set(dots.map((dot) => dot.y))].sort((a, b) => a - b);
+  it('rozsah 20: tečky jsou po 10 v řadě s mezerou za pětkou', () => {
+    for (const mode of MODES) {
+      const dots = hintFor(variantFor(20, mode), plus(20, 0));
+      const rowYs = [...new Set(dots.map((dot) => dot.y))].sort((a, b) => a - b);
 
-    expect(rowYs).toHaveLength(2);
-    for (const y of rowYs) {
-      const xs = dots
-        .filter((dot) => dot.y === y)
-        .map((dot) => dot.x)
-        .sort((a, b) => a - b);
-      expect(xs).toHaveLength(10);
-      const steps = xs.slice(1).map((x, index) => x - (xs[index] ?? 0));
-      const afterFive = steps[4] ?? 0;
-      const usual = steps[0] ?? 0;
-      expect(afterFive).toBeGreaterThan(usual);
-      for (const [index, step] of steps.entries()) {
-        if (index !== 4) {
-          expect(step).toBeCloseTo(usual, 6);
+      expect(rowYs, mode).toHaveLength(2);
+      for (const y of rowYs) {
+        const xs = dots
+          .filter((dot) => dot.y === y)
+          .map((dot) => dot.x)
+          .sort((a, b) => a - b);
+        expect(xs, mode).toHaveLength(10);
+        const steps = xs.slice(1).map((x, index) => x - (xs[index] ?? 0));
+        const afterFive = steps[4] ?? 0;
+        const usual = steps[0] ?? 0;
+        expect(afterFive, mode).toBeGreaterThan(usual);
+        for (const [index, step] of steps.entries()) {
+          if (index !== 4) {
+            expect(step, `${mode}, krok ${index}`).toBeCloseTo(usual, 6);
+          }
         }
       }
     }
   });
 });
 
-describe('AC3: nápověda je vodorovně pod středem příkladu a nic není v rohu s kolečkem', () => {
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): u každého příkladu je střed nápovědy přesně pod středem příkladu',
-    (maxNumber, mode) => {
+describe('AC3: nápověda je vodorovně pod středem příkladu', () => {
+  it('u každého příkladu v každém rozsahu a ovládání je střed nápovědy přesně pod středem příkladu', () => {
+    for (const [maxNumber, mode] of ALL_VARIANTS) {
       const variant = variantFor(maxNumber, mode);
 
       for (const problem of problemsWithDots(maxNumber)) {
         const bounds = hintBounds(hintFor(variant, problem), variant.layout);
 
-        expect((bounds.left + bounds.right) / 2, problemName(problem)).toBeCloseTo(
-          variant.layout.problem.x,
-          6,
-        );
-      }
-    },
-  );
-
-  it.each(ALL_VARIANTS)('rozsah %i (%s): každá tečka je celá na herní ploše', (maxNumber, mode) => {
-    const variant = variantFor(maxNumber, mode);
-
-    for (const problem of problemsWithDots(maxNumber)) {
-      for (const dot of hintFor(variant, problem)) {
-        expect(insideScreen(dotBox(dot, variant.layout)), problemName(problem)).toBe(true);
+        expect(
+          (bounds.left + bounds.right) / 2,
+          variantLabel(maxNumber, mode, `, ${problemName(problem)}`),
+        ).toBeCloseTo(variant.layout.problem.x, 6);
       }
     }
   });
 
-  it.each(MODES)('rozsah 20 (%s): i nejširší nápověda 10 + 10 je celá na herní ploše', (mode) => {
-    const variant = variantFor(20, mode);
-    const dots = hintFor(variant, plus(10, 10));
+  it('rozsah 20: i nejširší nápověda 10 + 10 má všech 20 teček celých na herní ploše', () => {
+    for (const mode of MODES) {
+      const variant = variantFor(20, mode);
+      const dots = hintFor(variant, plus(10, 10));
 
-    expect(dots).toHaveLength(20);
-    expect(insideScreen(hintBounds(dots, variant.layout))).toBe(true);
+      expect(dots, mode).toHaveLength(20);
+      expect(insideScreen(hintBounds(dots, variant.layout)), mode).toBe(true);
+    }
   });
-
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): do pravého horního rohu s kolečkem nezasahuje žádný herní prvek',
-    (maxNumber, mode) => {
-      const variant = variantFor(maxNumber, mode);
-      const { layout } = variant;
-      const fixed = [problemBox(layout), ...starBoxes(layout), ...variant.controls];
-
-      for (const element of fixed) {
-        expect(overlaps(element, SETTINGS_CORNER)).toBe(false);
-      }
-      for (const problem of problemsWithDots(maxNumber)) {
-        for (const dot of hintFor(variant, problem)) {
-          expect(overlaps(dotBox(dot, layout), SETTINGS_CORNER), problemName(problem)).toBe(false);
-          if (COUNTING_RANGES.includes(maxNumber)) {
-            const area = hintDotHitArea(dot);
-            const hitBox = box(area.x, area.y, area.size, area.size);
-            expect(overlaps(hitBox, SETTINGS_CORNER), problemName(problem)).toBe(false);
-          }
-        }
-      }
-    },
-  );
 });
 
 describe('AC4: příklad je ve stejné výšce jako dřív a hvězdičky 37 px od horního okraje (#52: střed řady 52 px)', () => {
-  it.each(COUNTING_RANGES.flatMap((maxNumber) => MODES.map((mode) => [maxNumber, mode] as const)))(
-    'rozsah %i (%s): příklad má střed na y 199,68 (0,26 výšky plochy)',
-    (maxNumber, mode) => {
-      const { layout } = variantFor(maxNumber, mode);
-
-      expect(layout.problem.y).toBeCloseTo(199.68, 6);
-    },
-  );
-
-  it.each(MODES)('rozsah 20 (%s): příklad má střed na y 194', (mode) => {
-    const { layout } = variantFor(20, mode);
-
-    expect(layout.problem.y).toBe(194);
+  it('příklad má střed na y 199,68 (0,26 výšky plochy) u rozsahu 5 a 10 a na y 194 u rozsahu 20', () => {
+    for (const mode of MODES) {
+      for (const maxNumber of COUNTING_RANGES) {
+        expect(
+          variantFor(maxNumber, mode).layout.problem.y,
+          variantLabel(maxNumber, mode),
+        ).toBeCloseTo(199.68, 6);
+      }
+      expect(variantFor(20, mode).layout.problem.y, variantLabel(20, mode)).toBe(194);
+    }
   });
 
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): příklad je vodorovně uprostřed herní plochy (#63)',
-    (maxNumber, mode) => {
+  it('příklad je vodorovně uprostřed herní plochy (#63)', () => {
+    for (const [maxNumber, mode] of ALL_VARIANTS) {
       const { layout } = variantFor(maxNumber, mode);
 
-      expect(Math.abs(layout.problem.x - SCREEN_WIDTH / 2)).toBeLessThanOrEqual(1);
-    },
-  );
+      expect(
+        Math.abs(layout.problem.x - SCREEN_WIDTH / 2),
+        variantLabel(maxNumber, mode),
+      ).toBeLessThanOrEqual(1);
+    }
+  });
 
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): hvězdičky mají horní okraj 37 px při jakémkoli počtu',
-    (maxNumber, mode) => {
+  it('hvězdičky mají horní okraj 37 px při jakémkoli počtu', () => {
+    for (const [maxNumber, mode] of ALL_VARIANTS) {
       for (let starCount = 1; starCount <= STARS_PER_SET; starCount += 1) {
         const { layout } = variantFor(maxNumber, mode, starCount);
-        expect(layout.stars).toHaveLength(starCount);
+        const where = variantLabel(maxNumber, mode, `, ${starCount} hvězdiček`);
+        expect(layout.stars, where).toHaveLength(starCount);
         for (const star of starBoxes(layout)) {
-          expect(star.top, `${starCount} hvězdiček`).toBe(STARS_TOP);
+          expect(star.top, where).toBe(STARS_TOP);
         }
       }
-    },
-  );
-
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): plná řada 10 hvězdiček nepřekrývá příklad',
-    (maxNumber, mode) => {
-      const { layout } = variantFor(maxNumber, mode);
-
-      for (const star of starBoxes(layout)) {
-        expect(overlaps(star, problemBox(layout))).toBe(false);
-      }
-    },
-  );
+    }
+  });
 });
 
 describe('AC5: u rozsahu 5 je příklad i tečky větší', () => {
-  it.each(MODES)('rozsah 5 (%s): příklad má písmo 184 (od #63, dřív 160)', (mode) => {
-    expect(variantFor(5, mode).layout.problemFontSize).toBe(184);
+  it('rozsah 5: příklad má písmo 184 (od #63, dřív 160)', () => {
+    for (const mode of MODES) {
+      expect(variantFor(5, mode).layout.problemFontSize, mode).toBe(184);
+    }
   });
 
-  it.each(MODES)(
-    'rozsah 5 (%s): tečky mají průměr 60 px a rozestup 76 px, mezera mezi skupinkami zůstává',
-    (mode) => {
-      expect(variantFor(5, mode).layout.hintStyle).toEqual({
+  it('rozsah 5: tečky mají průměr 60 px a rozestup 76 px, mezera mezi skupinkami zůstává', () => {
+    for (const mode of MODES) {
+      expect(variantFor(5, mode).layout.hintStyle, mode).toEqual({
         dotSize: 60,
         spacing: 76,
         dotsPerRow: 5,
         fiveGap: 0,
         groupGap: 60,
       });
-    },
-  );
-
-  it.each(MODES)('rozsah 5 (%s): sousední tečky mají středy 76 px od sebe', (mode) => {
-    const dots = hintFor(variantFor(5, mode), plus(3, 2));
-    const first = dots.filter((dot) => dot.group === 0).map((dot) => dot.x);
-    const second = dots.filter((dot) => dot.group === 1).map((dot) => dot.x);
-
-    expect((first[1] ?? 0) - (first[0] ?? 0)).toBeCloseTo(76, 6);
-    // Mezi skupinkami je běžný rozestup a navíc stejná mezera jako dosud (60 px).
-    expect(Math.min(...second) - Math.max(...first)).toBeCloseTo(76 + 60, 6);
+    }
   });
 
-  it.each(MODES)(
-    'rozsah 5 (%s): nejdelší vyřešený příklad se vejde s okrajem aspoň 24 na každé straně a nepřekryje hvězdičky',
-    (mode) => {
+  it('rozsah 5: sousední tečky mají středy 76 px od sebe', () => {
+    for (const mode of MODES) {
+      const dots = hintFor(variantFor(5, mode), plus(3, 2));
+      const first = dots.filter((dot) => dot.group === 0).map((dot) => dot.x);
+      const second = dots.filter((dot) => dot.group === 1).map((dot) => dot.x);
+
+      expect((first[1] ?? 0) - (first[0] ?? 0), mode).toBeCloseTo(76, 6);
+      // Mezi skupinkami je běžný rozestup a navíc stejná mezera jako dosud (60 px).
+      expect(Math.min(...second) - Math.max(...first), mode).toBeCloseTo(76 + 60, 6);
+    }
+  });
+
+  it('rozsah 5: nejdelší vyřešený příklad se vejde s okrajem aspoň 24 na každé straně a nepřekryje hvězdičky', () => {
+    for (const mode of MODES) {
       const { layout } = variantFor(5, mode);
       const problem = problemBox(layout);
 
-      expect(problem.left).toBeGreaterThanOrEqual(MIN_SIDE_MARGIN);
-      expect(problem.right).toBeLessThanOrEqual(SCREEN_WIDTH - MIN_SIDE_MARGIN);
+      expect(problem.left, mode).toBeGreaterThanOrEqual(MIN_SIDE_MARGIN);
+      expect(problem.right, mode).toBeLessThanOrEqual(SCREEN_WIDTH - MIN_SIDE_MARGIN);
       for (const star of starBoxes(layout)) {
-        expect(overlaps(problem, star)).toBe(false);
+        expect(overlaps(problem, star), mode).toBe(false);
       }
-    },
-  );
+    }
+  });
 
-  it.each(MODES)(
-    'rozsah 10 (%s): písmo je 150 (od #63, dřív 130) a tečky zůstávají jako dosud',
-    (mode) => {
+  it('rozsah 10: písmo je 150 (od #63, dřív 130) a tečky zůstávají jako dosud', () => {
+    for (const mode of MODES) {
       const { layout } = variantFor(10, mode);
 
-      expect(layout.problemFontSize).toBe(150);
-      expect(layout.hintStyle).toEqual({
+      expect(layout.problemFontSize, mode).toBe(150);
+      expect(layout.hintStyle, mode).toEqual({
         dotSize: 50,
         spacing: 64,
         dotsPerRow: 5,
         fiveGap: 0,
         groupGap: 60,
       });
-    },
-  );
+    }
+  });
 
-  it.each(MODES)(
-    'rozsah 20 (%s): písmo je 116 (od #63, dřív 110) a tečky zůstávají jako dosud',
-    (mode) => {
+  it('rozsah 20: písmo je 116 (od #63, dřív 110) a tečky zůstávají jako dosud', () => {
+    for (const mode of MODES) {
       const { layout } = variantFor(20, mode);
 
-      expect(layout.problemFontSize).toBe(116);
-      expect(layout.hintStyle).toEqual({
+      expect(layout.problemFontSize, mode).toBe(116);
+      expect(layout.hintStyle, mode).toEqual({
         dotSize: 34,
         spacing: 42,
         dotsPerRow: 10,
         fiveGap: 10,
         groupGap: 40,
       });
-    },
-  );
+    }
+  });
 });
 
 /** Kolo s pevným příkladem, aby testy nezávisely na náhodě. */
@@ -593,32 +568,36 @@ function fixedPart(variant: Variant): unknown {
 }
 
 describe('AC6: okrajové případy a návaznosti', () => {
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): s přibývajícími hvězdičkami až po oslavu zůstává vše na místě',
-    (maxNumber, mode) => {
+  it('s přibývajícími hvězdičkami až po oslavu zůstává vše na místě', () => {
+    for (const [maxNumber, mode] of ALL_VARIANTS) {
       const first = fixedPart(variantFor(maxNumber, mode, 1));
 
       for (let starCount = 2; starCount <= STARS_PER_SET; starCount += 1) {
-        expect(fixedPart(variantFor(maxNumber, mode, starCount)), `${starCount}`).toEqual(first);
+        expect(
+          fixedPart(variantFor(maxNumber, mode, starCount)),
+          variantLabel(maxNumber, mode, `, ${starCount} hvězdiček`),
+        ).toEqual(first);
       }
-    },
-  );
+    }
+  });
 
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): nápověda je u daného příkladu na stejném místě při jakémkoli počtu hvězdiček',
-    (maxNumber, mode) => {
+  it('nápověda je u daného příkladu na stejném místě při jakémkoli počtu hvězdiček', () => {
+    for (const [maxNumber, mode] of ALL_VARIANTS) {
       const problem = maxNumber === 5 ? plus(3, 2) : plus(7, 3);
       const expected = hintFor(variantFor(maxNumber, mode, 0), problem);
 
       for (let starCount = 1; starCount <= STARS_PER_SET; starCount += 1) {
-        expect(hintFor(variantFor(maxNumber, mode, starCount), problem)).toEqual(expected);
+        expect(
+          hintFor(variantFor(maxNumber, mode, starCount), problem),
+          variantLabel(maxNumber, mode, `, ${starCount} hvězdiček`),
+        ).toEqual(expected);
       }
-    },
-  );
+    }
+  });
 
-  it.each(RANGES)(
-    'rozsah %i: po špatných odpovědích se rozložení nezmění a po 2. chybě se nápověda ukáže podle AC1 až AC3',
-    (maxNumber) => {
+  it('po špatných odpovědích se rozložení nezmění a po 2. chybě se nápověda ukáže podle AC1 až AC3', () => {
+    for (const maxNumber of RANGES) {
+      const where = `rozsah ${maxNumber}`;
       const problem = plus(2, 3);
       const variant = variantFor(maxNumber, 'číselník');
       const before = structuredClone(variant.layout);
@@ -626,57 +605,32 @@ describe('AC6: okrajové případy a návaznosti', () => {
       round = tapAnswer(round, 0).round;
       round = tapAnswer(round, 1).round;
 
-      expect(isHintVisible(round)).toBe(true);
-      expect(variantFor(maxNumber, 'číselník').layout).toEqual(before);
+      expect(isHintVisible(round), where).toBe(true);
+      expect(variantFor(maxNumber, 'číselník').layout, where).toEqual(before);
       const dots = layoutHint(variant.layout, hintDotGroups(round.problem));
       const bounds = hintBounds(dots, variant.layout);
       const gapAbove = bounds.top - textBottom(variant.layout);
       const gapBelow = variant.controlsTop - bounds.bottom;
-      expect(dots).toHaveLength(5);
-      expect(Math.abs(gapAbove - gapBelow)).toBeLessThanOrEqual(GAP_TOLERANCE);
-      expect((bounds.left + bounds.right) / 2).toBeCloseTo(variant.layout.problem.x, 6);
-    },
-  );
+      expect(dots, where).toHaveLength(5);
+      expect(Math.abs(gapAbove - gapBelow), where).toBeLessThanOrEqual(GAP_TOLERANCE);
+      expect((bounds.left + bounds.right) / 2, where).toBeCloseTo(variant.layout.problem.x, 6);
+    }
+  });
 
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): příklad bez teček nic nevykreslí a zbytek rozložení zůstane stejný',
-    (maxNumber, mode) => {
+  it('příklad bez teček nic nevykreslí a zbytek rozložení zůstane stejný', () => {
+    for (const [maxNumber, mode] of ALL_VARIANTS) {
       const variant = variantFor(maxNumber, mode);
       const before = structuredClone(variant.layout);
+      const where = variantLabel(maxNumber, mode);
 
       // 5 − 5 má podle #30 pět přeškrtnutých teček, bez teček je jen 0 + 0 a 0 − 0.
       for (const problem of [plus(0, 0), minus(0, 0)]) {
-        expect(hintDotGroups(problem)).toEqual([]);
-        expect(layoutHint(variant.layout, hintDotGroups(problem))).toEqual([]);
+        expect(hintDotGroups(problem), where).toEqual([]);
+        expect(layoutHint(variant.layout, hintDotGroups(problem)), where).toEqual([]);
       }
-      expect(variant.layout).toEqual(before);
-    },
-  );
-
-  it.each(ALL_VARIANTS)(
-    'rozsah %i (%s): tečky nápovědy nepřekrývají příklad, ovládání ani hvězdičky',
-    (maxNumber, mode) => {
-      const variant = variantFor(maxNumber, mode);
-      const others = [
-        problemBox(variant.layout),
-        ...starBoxes(variant.layout),
-        ...variant.controls,
-      ];
-
-      for (const problem of problemsWithDots(maxNumber)) {
-        const dots = hintFor(variant, problem);
-        for (const [index, dot] of dots.entries()) {
-          const own = dotBox(dot, variant.layout);
-          for (const other of others) {
-            expect(overlaps(own, other), problemName(problem)).toBe(false);
-          }
-          for (const next of dots.slice(index + 1)) {
-            expect(overlaps(own, dotBox(next, variant.layout)), problemName(problem)).toBe(false);
-          }
-        }
-      }
-    },
-  );
+      expect(variant.layout, where).toEqual(before);
+    }
+  });
 
   it('u 7 + 3 jdou tečky po skupinkách jako dosud (kvůli barvám a přeškrtávání): nejdřív žluté, potom modré', () => {
     const dots = hintFor(variantFor(10, 'číselník'), plus(7, 3));

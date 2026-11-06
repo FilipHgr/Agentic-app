@@ -12,7 +12,7 @@ import type { GuideLineId } from '../../../src/games/counting/logic/guideScript'
 import { wrapGuideMessage } from '../../../src/games/counting/logic/phoneGuideLayout';
 import type { SettingsRowKind } from '../../../src/games/counting/logic/settingsLayout';
 import type { GuideStep } from '../../../src/games/counting/logic/setupGuide';
-import { panelCssPlacement } from './parentPanelSnapshot';
+import { panelCssPlacement } from './parentPanelCss';
 import { dictionariesByLanguage } from '../../shared/textChecks';
 import {
   IPAD_WINDOWS,

@@ -124,78 +124,84 @@ describe('AC1: na iPadu a ve zmenšeném zobrazení má plátno 2 obrazové body
     expect(CANVAS_PIXELS_PER_CSS_PX).toBe(PHONE_UNITS_PER_CSS_PX);
   });
 
-  it.each(SHARP_WINDOWS)(
-    '$name: plátno má přesně 2 obrazové body na zobrazený CSS px',
-    (window) => {
+  it('plátno má přesně 2 obrazové body na zobrazený CSS px', () => {
+    for (const window of SHARP_WINDOWS) {
       const resolution = resolutionOf(window);
 
-      expect(Number.isInteger(resolution.pixelWidth)).toBe(true);
-      expect(Number.isInteger(resolution.pixelHeight)).toBe(true);
-      expect(resolution.pixelWidth).toBe(resolution.cssWidth * CANVAS_PIXELS_PER_CSS_PX);
-      expect(resolution.pixelHeight).toBe(resolution.cssHeight * CANVAS_PIXELS_PER_CSS_PX);
-    },
-  );
-
-  it.each(TABLET_WINDOWS)('$name: plátno má dvojnásobek obrazových bodů co dnes', (window) => {
-    const area = gameAreaFor(viewportOf(window));
-    const resolution = canvasResolutionFor(area);
-
-    // Dnes má plátno 1024 × 768 obrazových bodů, ať je zobrazené jakkoli velké.
-    expect(resolution.pixelWidth).toBeGreaterThan(TODAY_GAME_WIDTH);
-    expect(resolution.pixelHeight).toBeGreaterThan(TODAY_GAME_HEIGHT);
+      expect(Number.isInteger(resolution.pixelWidth), window.name).toBe(true);
+      expect(Number.isInteger(resolution.pixelHeight), window.name).toBe(true);
+      expect(resolution.pixelWidth, window.name).toBe(
+        resolution.cssWidth * CANVAS_PIXELS_PER_CSS_PX,
+      );
+      expect(resolution.pixelHeight, window.name).toBe(
+        resolution.cssHeight * CANVAS_PIXELS_PER_CSS_PX,
+      );
+    }
   });
 
-  it.each(SHARP_WINDOWS)(
-    '$name: hra je v okně stejně velká a na stejném místě jako dnes',
-    (window) => {
+  it('plátno má dvojnásobek obrazových bodů co dnes', () => {
+    for (const window of TABLET_WINDOWS) {
+      const area = gameAreaFor(viewportOf(window));
+      const resolution = canvasResolutionFor(area);
+
+      // Dnes má plátno 1024 × 768 obrazových bodů, ať je zobrazené jakkoli velké.
+      expect(resolution.pixelWidth, window.name).toBeGreaterThan(TODAY_GAME_WIDTH);
+      expect(resolution.pixelHeight, window.name).toBeGreaterThan(TODAY_GAME_HEIGHT);
+    }
+  });
+
+  it('hra je v okně stejně velká a na stejném místě jako dnes', () => {
+    for (const window of SHARP_WINDOWS) {
       const area = gameAreaFor(viewportOf(window));
       const today = todayBoxOf(area);
       const placed = canvasBoxOf(canvasResolutionFor(area));
 
-      expect(Math.abs(placed.left - today.left)).toBeLessThanOrEqual(CSS_TOLERANCE);
-      expect(Math.abs(placed.right - today.right)).toBeLessThanOrEqual(CSS_TOLERANCE);
-      expect(Math.abs(placed.top - today.top)).toBeLessThanOrEqual(CSS_TOLERANCE);
-      expect(Math.abs(placed.bottom - today.bottom)).toBeLessThanOrEqual(CSS_TOLERANCE);
-    },
-  );
-
-  it.each(SHARP_WINDOWS)('$name: herní plocha zůstává 1024 × 768 herních jednotek', (window) => {
-    const area = gameAreaFor(viewportOf(window));
-    const today = todayFitPlacement(window.width, window.height);
-
-    expect(area.width).toBe(TODAY_GAME_WIDTH);
-    expect(area.height).toBe(TODAY_GAME_HEIGHT);
-    expect(area.scale).toBeCloseTo(today.scale, 6);
+      expect(Math.abs(placed.left - today.left), window.name).toBeLessThanOrEqual(CSS_TOLERANCE);
+      expect(Math.abs(placed.right - today.right), window.name).toBeLessThanOrEqual(CSS_TOLERANCE);
+      expect(Math.abs(placed.top - today.top), window.name).toBeLessThanOrEqual(CSS_TOLERANCE);
+      expect(Math.abs(placed.bottom - today.bottom), window.name).toBeLessThanOrEqual(
+        CSS_TOLERANCE,
+      );
+    }
   });
 
-  it.each(SHARP_WINDOWS)(
-    '$name: celá herní plocha je vidět na plátně, nic se neořízne',
-    (window) => {
+  it('herní plocha zůstává 1024 × 768 herních jednotek', () => {
+    for (const window of SHARP_WINDOWS) {
+      const area = gameAreaFor(viewportOf(window));
+      const today = todayFitPlacement(window.width, window.height);
+
+      expect(area.width, window.name).toBe(TODAY_GAME_WIDTH);
+      expect(area.height, window.name).toBe(TODAY_GAME_HEIGHT);
+      expect(area.scale, window.name).toBeCloseTo(today.scale, 6);
+    }
+  });
+
+  it('celá herní plocha je vidět na plátně, nic se neořízne', () => {
+    for (const window of SHARP_WINDOWS) {
       const resolution = resolutionOf(window);
       const pixelTolerance = 1;
 
-      expect(TODAY_GAME_WIDTH * resolution.zoom).toBeLessThanOrEqual(
+      expect(TODAY_GAME_WIDTH * resolution.zoom, window.name).toBeLessThanOrEqual(
         resolution.pixelWidth + pixelTolerance,
       );
-      expect(TODAY_GAME_HEIGHT * resolution.zoom).toBeLessThanOrEqual(
+      expect(TODAY_GAME_HEIGHT * resolution.zoom, window.name).toBeLessThanOrEqual(
         resolution.pixelHeight + pixelTolerance,
       );
-      expect(TODAY_GAME_WIDTH * resolution.zoom).toBeGreaterThanOrEqual(
+      expect(TODAY_GAME_WIDTH * resolution.zoom, window.name).toBeGreaterThanOrEqual(
         resolution.pixelWidth - pixelTolerance,
       );
-    },
-  );
+    }
+  });
 
-  it.each(SHARP_WINDOWS)(
-    '$name: kamera zvětší herní jednotky na 2 obrazové body na CSS px',
-    (window) => {
+  it('kamera zvětší herní jednotky na 2 obrazové body na CSS px', () => {
+    for (const window of SHARP_WINDOWS) {
       const area = gameAreaFor(viewportOf(window));
       const resolution = canvasResolutionFor(area);
 
       // Jednotka je dnes vidět jako `scale` CSS px, nově jako `zoom` obrazových bodů.
-      expect(resolution.zoom / CANVAS_PIXELS_PER_CSS_PX).toBeCloseTo(area.scale, 2);
-    },
-  );
+      expect(resolution.zoom / CANVAS_PIXELS_PER_CSS_PX, window.name).toBeCloseTo(area.scale, 2);
+    }
+  });
 });
 
 describe('AC3: ťuknutí v okně padne na stejné místo hry jako dnes', () => {
@@ -212,22 +218,23 @@ describe('AC3: ťuknutí v okně padne na stejné místo hry jako dnes', () => {
     [903.5, 88.25],
   ];
 
-  it.each(SHARP_WINDOWS)('$name: dotyk v okně dá stejné herní souřadnice jako dnes', (window) => {
-    const area = gameAreaFor(viewportOf(window));
-    const resolution = canvasResolutionFor(area);
-    // Odchylka nejvýš o půl CSS px, přepočtená na herní jednotky.
-    const unitTolerance = CSS_TOLERANCE / area.scale;
+  it('dotyk v okně dá stejné herní souřadnice jako dnes', () => {
+    for (const window of SHARP_WINDOWS) {
+      const area = gameAreaFor(viewportOf(window));
+      const resolution = canvasResolutionFor(area);
+      // Odchylka nejvýš o půl CSS px, přepočtená na herní jednotky.
+      const unitTolerance = CSS_TOLERANCE / area.scale;
 
-    for (const [x, y] of GAME_POINTS) {
-      const touched = windowToGamePoint(resolution, todayCssPointOf(area, x, y));
-      expect(Math.abs(touched.x - x)).toBeLessThanOrEqual(unitTolerance);
-      expect(Math.abs(touched.y - y)).toBeLessThanOrEqual(unitTolerance);
+      for (const [x, y] of GAME_POINTS) {
+        const touched = windowToGamePoint(resolution, todayCssPointOf(area, x, y));
+        expect(Math.abs(touched.x - x), window.name).toBeLessThanOrEqual(unitTolerance);
+        expect(Math.abs(touched.y - y), window.name).toBeLessThanOrEqual(unitTolerance);
+      }
     }
   });
 
-  it.each(SHARP_WINDOWS)(
-    '$name: levý horní a pravý dolní roh plátna jsou rohy herní plochy',
-    (window) => {
+  it('levý horní a pravý dolní roh plátna jsou rohy herní plochy', () => {
+    for (const window of SHARP_WINDOWS) {
       const resolution = resolutionOf(window);
       const topLeft = canvasToGamePoint(resolution, { x: 0, y: 0 });
       const bottomRight = canvasToGamePoint(resolution, {
@@ -236,16 +243,19 @@ describe('AC3: ťuknutí v okně padne na stejné místo hry jako dnes', () => {
       });
       const unitTolerance = 1;
 
-      expect(topLeft.x).toBeCloseTo(0, 6);
-      expect(topLeft.y).toBeCloseTo(0, 6);
-      expect(Math.abs(bottomRight.x - TODAY_GAME_WIDTH)).toBeLessThanOrEqual(unitTolerance);
-      expect(Math.abs(bottomRight.y - TODAY_GAME_HEIGHT)).toBeLessThanOrEqual(unitTolerance);
-    },
-  );
+      expect(topLeft.x, window.name).toBeCloseTo(0, 6);
+      expect(topLeft.y, window.name).toBeCloseTo(0, 6);
+      expect(Math.abs(bottomRight.x - TODAY_GAME_WIDTH), window.name).toBeLessThanOrEqual(
+        unitTolerance,
+      );
+      expect(Math.abs(bottomRight.y - TODAY_GAME_HEIGHT), window.name).toBeLessThanOrEqual(
+        unitTolerance,
+      );
+    }
+  });
 
-  it.each(SHARP_WINDOWS)(
-    '$name: dotyk v okně a stejný bod na plátně dají stejné herní souřadnice',
-    (window) => {
+  it('dotyk v okně a stejný bod na plátně dají stejné herní souřadnice', () => {
+    for (const window of SHARP_WINDOWS) {
       const resolution = resolutionOf(window);
       const cssPoint = {
         x: resolution.offsetX + resolution.cssWidth * 0.3,
@@ -258,10 +268,10 @@ describe('AC3: ťuknutí v okně padne na stejné místo hry jako dnes', () => {
 
       const fromWindow = windowToGamePoint(resolution, cssPoint);
       const fromCanvas = canvasToGamePoint(resolution, canvasPoint);
-      expect(fromWindow.x).toBeCloseTo(fromCanvas.x, 6);
-      expect(fromWindow.y).toBeCloseTo(fromCanvas.y, 6);
-    },
-  );
+      expect(fromWindow.x, window.name).toBeCloseTo(fromCanvas.x, 6);
+      expect(fromWindow.y, window.name).toBeCloseTo(fromCanvas.y, 6);
+    }
+  });
 });
 
 describe('AC5: pevně 2× bez ohledu na hustotu displeje, telefon beze změny', () => {
@@ -278,109 +288,129 @@ describe('AC5: pevně 2× bez ohledu na hustotu displeje, telefon beze změny', 
     ['nulová hustota', 0],
   ];
 
-  it.each(DENSITIES)('%s: plátno má stejné rozlišení jako vždy', (_, density) => {
-    const windows = [...SHARP_WINDOWS, ...PHONE_ALL_WINDOWS];
-    const expected = windows.map((window) => resolutionOf(window));
+  it('plátno má stejné rozlišení jako vždy', () => {
+    for (const [densityName, density] of DENSITIES) {
+      const windows = [...SHARP_WINDOWS, ...PHONE_ALL_WINDOWS];
+      const expected = windows.map((window) => resolutionOf(window));
 
-    vi.stubGlobal('devicePixelRatio', density);
-    expect(() => windows.map((window) => resolutionOf(window))).not.toThrow();
-    expect(windows.map((window) => resolutionOf(window))).toEqual(expected);
-  });
-
-  it.each(PHONE_ALL_WINDOWS)('$name: telefon má plátno přesně jako dnes', (window) => {
-    const area = gameAreaFor(viewportOf(window));
-    const resolution = canvasResolutionFor(area);
-
-    // Dnes: plátno má velikost herní plochy a jednotka je půl CSS px.
-    expect(resolution.pixelWidth).toBe(area.width);
-    expect(resolution.pixelHeight).toBe(area.height);
-    expect(resolution.zoom).toBe(1);
-    expect(resolution.cssWidth).toBeCloseTo(area.width * area.scale, 6);
-    expect(resolution.cssHeight).toBeCloseTo(area.height * area.scale, 6);
-    expect(resolution.offsetX).toBe(area.offsetX);
-    expect(resolution.offsetY).toBe(area.offsetY);
-  });
-
-  it.each(PHONE_ALL_WINDOWS)('$name: ťuknutí na telefonu padne přesně tam, kam dnes', (window) => {
-    const area = gameAreaFor(viewportOf(window));
-    const resolution = canvasResolutionFor(area);
-
-    for (const [x, y] of [
-      [0, 0],
-      [area.width / 2, area.height / 2],
-      [area.width, area.height],
-      [41, 517],
-    ] as const) {
-      const touched = windowToGamePoint(resolution, todayCssPointOf(area, x, y));
-      expect(touched.x).toBeCloseTo(x, 6);
-      expect(touched.y).toBeCloseTo(y, 6);
+      vi.stubGlobal('devicePixelRatio', density);
+      expect(() => windows.map((window) => resolutionOf(window)), densityName).not.toThrow();
+      expect(
+        windows.map((window) => resolutionOf(window)),
+        densityName,
+      ).toEqual(expected);
     }
   });
 
-  it.each(BROKEN_VIEWPORTS)('%s: hra nespadne a plátno má použitelnou velikost', (_, viewport) => {
-    const area = gameAreaFor(viewport);
+  it('telefon má plátno přesně jako dnes', () => {
+    for (const window of PHONE_ALL_WINDOWS) {
+      const area = gameAreaFor(viewportOf(window));
+      const resolution = canvasResolutionFor(area);
 
-    expect(() => canvasResolutionFor(area)).not.toThrow();
-    const resolution = canvasResolutionFor(area);
-    expect(Number.isInteger(resolution.pixelWidth)).toBe(true);
-    expect(Number.isInteger(resolution.pixelHeight)).toBe(true);
-    expect(resolution.pixelWidth).toBeGreaterThanOrEqual(1);
-    expect(resolution.pixelHeight).toBeGreaterThanOrEqual(1);
-    expectFinitePositive(resolution.zoom);
-    for (const value of [
-      resolution.cssWidth,
-      resolution.cssHeight,
-      resolution.offsetX,
-      resolution.offsetY,
-    ]) {
-      expect(Number.isFinite(value)).toBe(true);
+      // Dnes: plátno má velikost herní plochy a jednotka je půl CSS px.
+      expect(resolution.pixelWidth, window.name).toBe(area.width);
+      expect(resolution.pixelHeight, window.name).toBe(area.height);
+      expect(resolution.zoom, window.name).toBe(1);
+      expect(resolution.cssWidth, window.name).toBeCloseTo(area.width * area.scale, 6);
+      expect(resolution.cssHeight, window.name).toBeCloseTo(area.height * area.scale, 6);
+      expect(resolution.offsetX, window.name).toBe(area.offsetX);
+      expect(resolution.offsetY, window.name).toBe(area.offsetY);
     }
+  });
 
-    const touched = windowToGamePoint(resolution, { x: 10, y: 10 });
-    expect(Number.isFinite(touched.x)).toBe(true);
-    expect(Number.isFinite(touched.y)).toBe(true);
+  it('ťuknutí na telefonu padne přesně tam, kam dnes', () => {
+    for (const window of PHONE_ALL_WINDOWS) {
+      const area = gameAreaFor(viewportOf(window));
+      const resolution = canvasResolutionFor(area);
+
+      for (const [x, y] of [
+        [0, 0],
+        [area.width / 2, area.height / 2],
+        [area.width, area.height],
+        [41, 517],
+      ] as const) {
+        const touched = windowToGamePoint(resolution, todayCssPointOf(area, x, y));
+        expect(touched.x, window.name).toBeCloseTo(x, 6);
+        expect(touched.y, window.name).toBeCloseTo(y, 6);
+      }
+    }
+  });
+
+  it('hra nespadne a plátno má použitelnou velikost', () => {
+    for (const [viewportName, viewport] of BROKEN_VIEWPORTS) {
+      const area = gameAreaFor(viewport);
+
+      expect(() => canvasResolutionFor(area), viewportName).not.toThrow();
+      const resolution = canvasResolutionFor(area);
+      expect(Number.isInteger(resolution.pixelWidth), viewportName).toBe(true);
+      expect(Number.isInteger(resolution.pixelHeight), viewportName).toBe(true);
+      expect(resolution.pixelWidth, viewportName).toBeGreaterThanOrEqual(1);
+      expect(resolution.pixelHeight, viewportName).toBeGreaterThanOrEqual(1);
+      expectFinitePositive(resolution.zoom);
+      for (const value of [
+        resolution.cssWidth,
+        resolution.cssHeight,
+        resolution.offsetX,
+        resolution.offsetY,
+      ]) {
+        expect(Number.isFinite(value), viewportName).toBe(true);
+      }
+
+      const touched = windowToGamePoint(resolution, { x: 10, y: 10 });
+      expect(Number.isFinite(touched.x), viewportName).toBe(true);
+      expect(Number.isFinite(touched.y), viewportName).toBe(true);
+    }
   });
 });
 
 describe('AC6: v okně menším než 1024 × 768 se celá hra vejde a je ostrá', () => {
-  it.each(SMALL_WINDOWS)('$name: plátno nevyčnívá z okna', (window) => {
-    const placed = canvasBoxOf(resolutionOf(window));
-    const wholeWindow: Box = { left: 0, right: window.width, top: 0, bottom: window.height };
+  it('plátno nevyčnívá z okna', () => {
+    for (const window of SMALL_WINDOWS) {
+      const placed = canvasBoxOf(resolutionOf(window));
+      const wholeWindow: Box = { left: 0, right: window.width, top: 0, bottom: window.height };
 
-    expect(isInside(placed, wholeWindow)).toBe(true);
+      expect(isInside(placed, wholeWindow), window.name).toBe(true);
+    }
   });
 
-  it.each(SMALL_WINDOWS)('$name: plátno je na středu okna jako dnes', (window) => {
-    const placed = canvasBoxOf(resolutionOf(window));
-    const leftGap = placed.left;
-    const rightGap = window.width - placed.right;
-    const topGap = placed.top;
-    const bottomGap = window.height - placed.bottom;
+  it('plátno je na středu okna jako dnes', () => {
+    for (const window of SMALL_WINDOWS) {
+      const placed = canvasBoxOf(resolutionOf(window));
+      const leftGap = placed.left;
+      const rightGap = window.width - placed.right;
+      const topGap = placed.top;
+      const bottomGap = window.height - placed.bottom;
 
-    expect(Math.abs(leftGap - rightGap)).toBeLessThanOrEqual(2 * CSS_TOLERANCE);
-    expect(Math.abs(topGap - bottomGap)).toBeLessThanOrEqual(2 * CSS_TOLERANCE);
+      expect(Math.abs(leftGap - rightGap), window.name).toBeLessThanOrEqual(2 * CSS_TOLERANCE);
+      expect(Math.abs(topGap - bottomGap), window.name).toBeLessThanOrEqual(2 * CSS_TOLERANCE);
+    }
   });
 
-  it.each(SMALL_WINDOWS)(
-    '$name: plátno má víc obrazových bodů než dnes, ale nejvýš tolik co okno ve 2×',
-    (window) => {
+  it('plátno má víc obrazových bodů než dnes, ale nejvýš tolik co okno ve 2×', () => {
+    for (const window of SMALL_WINDOWS) {
       const area = gameAreaFor(viewportOf(window));
       const resolution = canvasResolutionFor(area);
 
-      expect(resolution.pixelWidth).toBeLessThanOrEqual(window.width * CANVAS_PIXELS_PER_CSS_PX);
-      expect(resolution.pixelHeight).toBeLessThanOrEqual(window.height * CANVAS_PIXELS_PER_CSS_PX);
+      expect(resolution.pixelWidth, window.name).toBeLessThanOrEqual(
+        window.width * CANVAS_PIXELS_PER_CSS_PX,
+      );
+      expect(resolution.pixelHeight, window.name).toBeLessThanOrEqual(
+        window.height * CANVAS_PIXELS_PER_CSS_PX,
+      );
       // Dnes se 1024 × 768 zmenší na `scale`, tedy 1 obrazový bod na CSS px.
-      expect(resolution.pixelWidth).toBeGreaterThanOrEqual(
+      expect(resolution.pixelWidth, window.name).toBeGreaterThanOrEqual(
         Math.floor(TODAY_GAME_WIDTH * area.scale * CANVAS_PIXELS_PER_CSS_PX) - 1,
       );
-    },
-  );
+    }
+  });
 
-  it.each(TABLET_WINDOWS)('$name: plátno nevyčnívá z okna ani na iPadu a počítači', (window) => {
-    const placed = canvasBoxOf(resolutionOf(window));
-    const wholeWindow: Box = { left: 0, right: window.width, top: 0, bottom: window.height };
+  it('plátno nevyčnívá z okna ani na iPadu a počítači', () => {
+    for (const window of TABLET_WINDOWS) {
+      const placed = canvasBoxOf(resolutionOf(window));
+      const wholeWindow: Box = { left: 0, right: window.width, top: 0, bottom: window.height };
 
-    expect(isInside(placed, wholeWindow)).toBe(true);
+      expect(isInside(placed, wholeWindow), window.name).toBe(true);
+    }
   });
 });
 
@@ -433,14 +463,16 @@ describe('AC7: po otočení a změně lišty je hra dál ostrá podle nového ok
 });
 
 describe('AC8: po návratu z menu je hra stejně ostrá a stejně rozložená', () => {
-  it.each(SHARP_WINDOWS)('$name: nové spuštění ve stejném okně dá stejné plátno', (window) => {
-    const first = resolutionOf(window);
-    // Mezitím hra běžela v jiných oknech (menu, otočení), nic si nepamatuje.
-    for (const other of [...PHONE_ALL_WINDOWS, ...TABLET_WINDOWS]) {
-      resolutionOf(other);
-    }
+  it('nové spuštění ve stejném okně dá stejné plátno', () => {
+    for (const window of SHARP_WINDOWS) {
+      const first = resolutionOf(window);
+      // Mezitím hra běžela v jiných oknech (menu, otočení), nic si nepamatuje.
+      for (const other of [...PHONE_ALL_WINDOWS, ...TABLET_WINDOWS]) {
+        resolutionOf(other);
+      }
 
-    expect(resolutionOf(window)).toEqual(first);
-    expect(gameAreaFor(viewportOf(window))).toEqual(gameAreaFor(viewportOf(window)));
+      expect(resolutionOf(window), window.name).toEqual(first);
+      expect(gameAreaFor(viewportOf(window)), window.name).toEqual(gameAreaFor(viewportOf(window)));
+    }
   });
 });

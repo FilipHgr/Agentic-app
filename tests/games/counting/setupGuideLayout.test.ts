@@ -19,7 +19,6 @@ import { PAGE_BACKGROUND } from '../../../src/shared/logic/theme';
 
 const SCREEN_WIDTH = 1024;
 const SCREEN_HEIGHT = 768;
-const MIN_TOUCH_SIZE = 64;
 const MAX_LINE_CHARACTERS = 56;
 const MAX_BUTTON_CHARACTERS = 14;
 
@@ -94,10 +93,6 @@ function union(first: Box, second: Box): Box {
   };
 }
 
-function insideScreen(box: Box): boolean {
-  return contains({ left: 0, right: SCREEN_WIDTH, top: 0, bottom: SCREEN_HEIGHT }, box);
-}
-
 /** Relativní jas barvy `#rrggbb` podle WCAG 2.x. */
 function relativeLuminance(hex: string): number {
   const channels = [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16) / 255);
@@ -145,33 +140,29 @@ function solidBoxes(step: GuideStep): Box[] {
   return [...own, ...panelBoxes()];
 }
 
-/** Dotykové plochy kroku: tlačítka a volby řad. */
-function touchBoxes(step: GuideStep): Box[] {
-  const layout = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-  const buttons = [layout.back, layout.right].filter((slot) => slot !== null).map(centeredBox);
-  const options = panel.rows.flatMap((row) => row.options.map(centeredBox));
-  return [...buttons, ...options];
-}
-
 describe('pás textu na všech krocích 1–4 (#49 AC5)', () => {
-  for (const step of STEPS) {
-    it(`na kroku ${step} je text v pásu x 24–1000, y 590–662: dva řádky po 36 px, písmo 28 px`, () => {
+  it('na každém kroku je text v pásu x 24–1000, y 590–662: dva řádky po 36 px, písmo 28 px', () => {
+    for (const step of STEPS) {
       const { message } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      expect(message).not.toBeNull();
-      if (message === null) return;
-      expect(centeredBox(message)).toEqual({ left: 24, right: 1000, top: 590, bottom: 662 });
-      expect(message.lineCount).toBe(2);
-      expect(message.lineHeight).toBe(36);
-      expect(message.fontSize).toBe(28);
-    });
+      const where = `krok ${step}`;
+      expect(message, where).not.toBeNull();
+      if (message === null) continue;
+      expect(centeredBox(message), where).toEqual({ left: 24, right: 1000, top: 590, bottom: 662 });
+      expect(message.lineCount, where).toBe(2);
+      expect(message.lineHeight, where).toBe(36);
+      expect(message.fontSize, where).toBe(28);
+    }
+  });
 
-    it(`na kroku ${step} je text na středu, tmavý #1D1D1F (#53) a bez podkladu`, () => {
+  it('na každém kroku je text na středu, tmavý #1D1D1F (#53) a bez podkladu', () => {
+    for (const step of STEPS) {
       const { message } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      expect(message?.align).toBe('center');
-      expect(message?.color.toLowerCase()).toBe('#1d1d1f');
-      expect(message?.background).toBeNull();
-    });
-  }
+      const where = `krok ${step}`;
+      expect(message?.align, where).toBe('center');
+      expect(message?.color.toLowerCase(), where).toBe('#1d1d1f');
+      expect(message?.background, where).toBeNull();
+    }
+  });
 
   it('pás textu začíná 28 px pod poslední řadou z #47', () => {
     const lastRowBottom = rowContentBox('answerInput').bottom;
@@ -182,44 +173,45 @@ describe('pás textu na všech krocích 1–4 (#49 AC5)', () => {
 });
 
 describe('pás tlačítek y 680–752 (#49 AC5)', () => {
-  for (const step of [2, 3, 4] as const) {
-    it(`na kroku ${step} je „Zpět“ v x 24–264, výška 72 px, písmo 32 px`, () => {
+  it('na krocích 2–4 je „Zpět“ v x 24–264, výška 72 px, písmo 32 px', () => {
+    for (const step of [2, 3, 4] as const) {
       const { back } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      expect(back).not.toBeNull();
-      if (back === null) return;
-      expect(centeredBox(back)).toEqual({ left: 24, right: 264, top: 680, bottom: 752 });
-      expect(back.fontSize).toBe(32);
-    });
-  }
+      const where = `krok ${step}`;
+      expect(back, where).not.toBeNull();
+      if (back === null) continue;
+      expect(centeredBox(back), where).toEqual({ left: 24, right: 264, top: 680, bottom: 752 });
+      expect(back.fontSize, where).toBe(32);
+    }
+  });
 
-  for (const step of STEPS) {
-    it(`na kroku ${step} je ukazatel kroku v x 452–572, písmo 28 px, barva #1D1D1F (#53)`, () => {
+  it('na každém kroku je ukazatel kroku v x 452–572, písmo 28 px, barva #1D1D1F (#53)', () => {
+    for (const step of STEPS) {
       const { indicator } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      expect(centeredBox(indicator)).toEqual({ left: 452, right: 572, top: 680, bottom: 752 });
-      expect(indicator.fontSize).toBe(28);
-      expect(indicator.color.toLowerCase()).toBe('#1d1d1f');
-    });
+      const where = `krok ${step}`;
+      expect(centeredBox(indicator), where).toEqual({
+        left: 452,
+        right: 572,
+        top: 680,
+        bottom: 752,
+      });
+      expect(indicator.fontSize, where).toBe(28);
+      expect(indicator.color.toLowerCase(), where).toBe('#1d1d1f');
+    }
+  });
 
-    it(`na kroku ${step} je pravé tlačítko v x 760–1000, výška 72 px, písmo 32 px`, () => {
+  it('na každém kroku je pravé tlačítko v x 760–1000, výška 72 px, písmo 32 px', () => {
+    for (const step of STEPS) {
       const { right } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      expect(centeredBox(right)).toEqual({ left: 760, right: 1000, top: 680, bottom: 752 });
-      expect(right.fontSize).toBe(32);
-    });
-  }
+      const where = `krok ${step}`;
+      expect(centeredBox(right), where).toEqual({ left: 760, right: 1000, top: 680, bottom: 752 });
+      expect(right.fontSize, where).toBe(32);
+    }
+  });
 
   it('na kroku 1 „Zpět“ není, pravé tlačítko je na stejném místě jako na kroku 2', () => {
     const step1 = layoutGuideStep(1, SCREEN_WIDTH, SCREEN_HEIGHT);
     expect(step1.back).toBeNull();
     expect(step1.right).toEqual(layoutGuideStep(2, SCREEN_WIDTH, SCREEN_HEIGHT).right);
-  });
-
-  it('ukazatel kroku nepřekrývá žádné tlačítko, takže ťuknutí na něj nic nespustí', () => {
-    for (const step of STEPS) {
-      const layout = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      for (const target of touchBoxes(step)) {
-        expect(overlaps(centeredBox(layout.indicator), target), String(step)).toBe(false);
-      }
-    }
   });
 
   it('svisle se plocha skládá 562 + 28 + 72 + 18 + 72 + 16 = 768', () => {
@@ -255,74 +247,53 @@ describe('rámeček kolem zvýrazněné řady (#49 AC5)', () => {
     2: { left: 134, right: 890, top: 194, bottom: 380 },
     3: { left: 264, right: 760, top: 384, bottom: 570 },
   };
+  const FRAMED_STEPS = [1, 2, 3] as const;
 
-  for (const step of [1, 2, 3] as const) {
-    it(`na kroku ${step} má rámeček vnější hranu ${JSON.stringify(expectedFrames[step])}`, () => {
+  it('na krocích 1–3 má rámeček pevnou vnější hranu a leží 8 px vně popisku i řady', () => {
+    for (const step of FRAMED_STEPS) {
       const { frame } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      expect(frame).not.toBeNull();
-      expect(frame && centeredBox(frame)).toEqual(expectedFrames[step]);
-    });
+      const where = `krok ${step}`;
+      expect(frame, where).not.toBeNull();
+      expect(frame && centeredBox(frame), where).toEqual(expectedFrames[step]);
+      expect(frame && centeredBox(frame), where).toEqual(grow(rowContentBox(FOCUSED_ROW[step]), 8));
+    }
+  });
 
-    it(`na kroku ${step} leží rámeček 8 px vně popisku i řady`, () => {
+  it('na krocích 1–3 má rámeček 4 px, modrou #0062CC (#53) a je bez výplně', () => {
+    for (const step of FRAMED_STEPS) {
       const { frame } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      expect(frame && centeredBox(frame)).toEqual(grow(rowContentBox(FOCUSED_ROW[step]), 8));
-    });
+      const where = `krok ${step}`;
+      expect(frame?.lineWidth, where).toBe(4);
+      expect(frame?.color.toLowerCase(), where).toBe('#0062cc');
+      expect(frame?.fill, where).toBeNull();
+    }
+  });
 
-    it(`na kroku ${step} má rámeček 4 px, modrou #0062CC (#53) a je bez výplně`, () => {
+  it('na krocích 1–3 se rámeček nedotkne popisku, voleb ani jiného prvku', () => {
+    for (const step of FRAMED_STEPS) {
       const { frame } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      expect(frame?.lineWidth).toBe(4);
-      expect(frame?.color.toLowerCase()).toBe('#0062cc');
-      expect(frame?.fill).toBeNull();
-    });
-
-    it(`na kroku ${step} se rámeček nedotkne popisku, voleb ani jiného prvku`, () => {
-      const { frame } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      if (frame === null) throw new Error('chybí rámeček');
+      if (frame === null) throw new Error(`krok ${step}: chybí rámeček`);
       const outer = centeredBox(frame);
       const inner = shrink(outer, frame.lineWidth);
       for (const box of solidBoxes(step)) {
         const insideFrame = contains(inner, box);
         const outsideFrame = !overlaps(outer, box);
-        expect(insideFrame || outsideFrame, JSON.stringify(box)).toBe(true);
+        expect(insideFrame || outsideFrame, `krok ${step}: ${JSON.stringify(box)}`).toBe(true);
       }
-    });
-  }
+    }
+  });
 
   it('na shrnutí rámeček není', () => {
     expect(layoutGuideStep(SUMMARY_STEP, SCREEN_WIDTH, SCREEN_HEIGHT).frame).toBeNull();
   });
 });
 
-describe('nic se nepřekrývá a vše je dost velké na prst (#49 AC5)', () => {
-  for (const step of STEPS) {
-    it(`na kroku ${step} se žádné dva prvky nepřekrývají`, () => {
-      const boxes = solidBoxes(step);
-      for (let first = 0; first < boxes.length; first += 1) {
-        for (let second = first + 1; second < boxes.length; second += 1) {
-          const a = boxes[first];
-          const b = boxes[second];
-          if (a === undefined || b === undefined) continue;
-          expect(overlaps(a, b), `${JSON.stringify(a)} × ${JSON.stringify(b)}`).toBe(false);
-        }
-      }
-    });
+// Že se na žádném kroku žádné dva prvky nepřekrývají (ani ukazatel kroku
+// s tlačítky), vše je uvnitř plochy 1024 × 768 a každá dotyková plocha má
+// aspoň 64 × 64 px, hlídají od #81 společná pravidla
+// v `countingLayoutRules.test.ts`.
 
-    it(`na kroku ${step} je vše uvnitř plochy 1024 × 768`, () => {
-      const layout = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
-      const frame = layout.frame ? [centeredBox(layout.frame)] : [];
-      for (const box of [...solidBoxes(step), ...frame]) {
-        expect(insideScreen(box), JSON.stringify(box)).toBe(true);
-      }
-    });
-
-    it(`na kroku ${step} má každá dotyková plocha aspoň 64 × 64 px`, () => {
-      for (const box of touchBoxes(step)) {
-        expect(box.right - box.left).toBeGreaterThanOrEqual(MIN_TOUCH_SIZE);
-        expect(box.bottom - box.top).toBeGreaterThanOrEqual(MIN_TOUCH_SIZE);
-      }
-    });
-  }
-
+describe('místo ✓ a text v pásu (#49 AC5)', () => {
   it('žádná dotyková plocha průvodce neleží na místě ✓ z #47', () => {
     const confirm = centeredBox({
       x: panel.confirm.x,
@@ -343,7 +314,9 @@ describe('nic se nepřekrývá a vše je dost velké na prst (#49 AC5)', () => {
     for (const step of STEPS) {
       const { message } = layoutGuideStep(step, SCREEN_WIDTH, SCREEN_HEIGHT);
       expect(message && message.lineCount * message.lineHeight, String(step)).toBe(message?.height);
-      expect(message?.fontSize ?? Infinity).toBeLessThanOrEqual(message?.lineHeight ?? 0);
+      expect(message?.fontSize ?? Infinity, String(step)).toBeLessThanOrEqual(
+        message?.lineHeight ?? 0,
+      );
     }
   });
 });
@@ -407,14 +380,15 @@ describe('kontrast textů a tlačítek průvodce podle WCAG (#49 AC5, #53 AC3)',
   /** 4.5 → „4,5“, jak se v češtině píše desetinná čárka. */
   const czech = (value: number): string => String(value).replace('.', ',');
 
-  for (const [name, colors, minimum, expected] of pairs) {
-    it(`${name} má kontrast aspoň ${czech(minimum)} : 1 (asi ${czech(expected)} : 1)`, () => {
+  it('rada, ukazatel a tlačítka mají kontrast aspoň 4,5 : 1, „Začít hrát“ aspoň 3 : 1', () => {
+    for (const [name, colors, minimum, expected] of pairs) {
       const [text, background] = colors();
       const ratio = contrastRatio(text, background);
-      expect(ratio).toBeGreaterThanOrEqual(minimum);
-      expect(ratio).toBeCloseTo(expected, 1);
-    });
-  }
+      const where = `${name}: aspoň ${czech(minimum)} : 1 (asi ${czech(expected)} : 1)`;
+      expect(ratio, where).toBeGreaterThanOrEqual(minimum);
+      expect(ratio, where).toBeCloseTo(expected, 1);
+    }
+  });
 });
 
 describe('rozložení z #47 se nemění (#49 AC5)', () => {

@@ -28,9 +28,10 @@ import {
 } from '../../../src/games/counting/logic/setupGuide';
 import { wrapGuideMessage } from '../../../src/games/counting/logic/phoneGuideLayout';
 import type { GuideState, GuideStep } from '../../../src/games/counting/logic/setupGuide';
-import { cssBoxOf, panelCssPlacement, todayGuideCss } from './parentPanelSnapshot';
+import { cssBoxOf, panelCssPlacement, todayGuideCss } from './parentPanelCss';
 import {
   CENTER_TOLERANCE,
+  EXACT_TOLERANCE,
   STEPS,
   backBox,
   cssSize,
@@ -42,14 +43,11 @@ import {
   guideFor,
   indicatorBox,
   labelBox,
-  landscapeRowSpans,
   messageBox,
   optionBoxes,
   rightBox,
   rowBox,
   speakerBox,
-  tapBoxes,
-  textBoxes,
 } from './phoneGuideFixtures';
 import type { PhoneGuide } from './phoneGuideFixtures';
 import { seededRandom } from './seededRandom';
@@ -58,7 +56,6 @@ import {
   PHONE_PORTRAIT_EDGE_WINDOWS,
   PHONE_PORTRAIT_WINDOWS,
   PHONE_WINDOWS,
-  gapBetween,
   heightOf,
   isInside,
   overlaps,
@@ -155,12 +152,6 @@ const PORTRAIT_WITH_BAR = PHONE_PORTRAIT_WINDOWS.find(
   (w) => w.width === 390 && w.height === 664,
 ) as TestWindow;
 
-const MIN_TOUCH_SIDE = 64;
-const MIN_TOUCH_GAP = 8;
-const MIN_TOUCH_EDGE = 8;
-const MIN_FRAME_EDGE = 4;
-/** Roh kolečka: x > W − 80 a y < 80 (AC2). */
-const GEAR_CORNER = 80;
 const TEXT_FONT_SIZE = 16;
 const MESSAGE_LINE_HEIGHT = 22;
 const MESSAGE_MAX_LINES = 4;
@@ -186,14 +177,6 @@ const ROW_OF_STEP: Record<GuideStep, GuideLineId> = {
 
 function textWidthEstimate(text: string, fontSize: number): number {
   return text.length * CHARACTER_WIDTH_RATIO * fontSize;
-}
-
-function freeBox(guide: PhoneGuide): Box {
-  return { left: 0, right: guide.width, top: 0, bottom: guide.height };
-}
-
-function gearCorner(guide: PhoneGuide): Box {
-  return { left: guide.width - GEAR_CORNER, right: guide.width, top: 0, bottom: GEAR_CORNER };
 }
 
 /** Kolik znaků se vejde na řádek rady podle jejího pruhu. */
@@ -278,88 +261,68 @@ function deviceGuideCss(window: TestWindow | undefined): Record<string, object> 
 // AC1: kdy se použije které rozložení
 // ---------------------------------------------------------------------------
 
-describe('AC1: průvodce dostane rozložení na šířku tam, kde se hra hraje na telefonu na šířku', () => {
-  it.each(LANDSCAPE_WINDOWS)(
-    '$name: průvodce je na šířku, řady vlevo a rada s tlačítky ve sloupci vpravo',
-    (window) => {
-      for (const step of STEPS) {
-        const guide = guideFor(window, step);
+describe('AC1: průvodce dostane rozložení podle toho, jak se hra na telefonu hraje', () => {
+  it('na šířku jsou řady vlevo a rada s tlačítky ve sloupci vpravo, na výšku řady pod sebou, pod nimi rada a dole tlačítka', () => {
+    for (const { name, window, step } of LANDSCAPE_STEPS) {
+      const guide = guideFor(window, step);
 
-        expect(chooseLayoutMode(viewportOf(window))).toBe('phoneLandscape');
-        expect(guide.mode).toBe('phoneLandscape');
-        const rows = rowBox(guide, 0);
-        expect(messageBox(guide).left).toBeGreaterThan(rows.right);
-        expect(rightBox(guide).left).toBeGreaterThan(rows.right);
-      }
-    },
-  );
-});
+      expect(chooseLayoutMode(viewportOf(window)), name).toBe('phoneLandscape');
+      expect(guide.mode, name).toBe('phoneLandscape');
+      const rows = rowBox(guide, 0);
+      expect(messageBox(guide).left, name).toBeGreaterThan(rows.right);
+      expect(rightBox(guide).left, name).toBeGreaterThan(rows.right);
+    }
+    for (const { name, window, step } of PORTRAIT_STEPS) {
+      const guide = guideFor(window, step);
 
-describe('AC1: průvodce dostane rozložení na výšku tam, kde se hra hraje na telefonu na výšku', () => {
-  it.each(PORTRAIT_WINDOWS)(
-    '$name: průvodce je na výšku, řady pod sebou, pod nimi rada a dole tlačítka',
-    (window) => {
-      for (const step of STEPS) {
-        const guide = guideFor(window, step);
-
-        expect(chooseLayoutMode(viewportOf(window))).toBe('phonePortrait');
-        expect(guide.mode).toBe('phonePortrait');
-        expect(messageBox(guide).top).toBeGreaterThan(rowBox(guide, 2).bottom);
-        expect(rightBox(guide).top).toBeGreaterThan(messageBox(guide).bottom);
-      }
-    },
-  );
+      expect(chooseLayoutMode(viewportOf(window)), name).toBe('phonePortrait');
+      expect(guide.mode, name).toBe('phonePortrait');
+      expect(messageBox(guide).top, name).toBeGreaterThan(rowBox(guide, 2).bottom);
+      expect(rightBox(guide).top, name).toBeGreaterThan(messageBox(guide).bottom);
+    }
+  });
 });
 
 describe('AC1: ostatní okna mají průvodce jako dnes', () => {
-  it.each(UNCHANGED_WINDOWS)(
-    '$name: všechny čtyři kroky průvodce mají řady, rámeček, radu, ukazatel, tlačítka a reproduktor jako dnes',
-    (window) => {
-      expect(deviceGuideCss(window)).toEqual(todayGuideCss(window));
-    },
-  );
-
-  it.each(UNCHANGED_WINDOWS)(
-    '$name: rada má dva řádky ze scénáře beze změny, na středu',
-    (window) => {
+  it('všechny čtyři kroky mají řady, rámeček, radu, ukazatel, tlačítka a reproduktor jako dnes a rada dva řádky ze scénáře na středu', () => {
+    for (const window of UNCHANGED_WINDOWS) {
+      expect(deviceGuideCss(window), window.name).toEqual(todayGuideCss(window));
       const area = gameAreaFor(viewportOf(window));
       for (const step of STEPS) {
         const { message } = layoutDeviceGuideStep(area, step);
-        expect(message.lines).toEqual([...scriptLines(ROW_OF_STEP[step])]);
-        expect(message.align).toBe('center');
+        expect(message.lines, `${window.name}, krok ${step}`).toEqual([
+          ...scriptLines(ROW_OF_STEP[step]),
+        ]);
+        expect(message.align, `${window.name}, krok ${step}`).toBe('center');
       }
-    },
-  );
+    }
+  });
 
-  it('hranice na šířku: 932×499 má telefonního průvodce, 932×500 průvodce iPadu', () => {
+  it('hranice: 932×499 má telefonního průvodce a 932×500 průvodce iPadu, 499×932 a 360×620 telefonního, 500×932 a 360×619 zmenšeného jako dnes', () => {
     expect(guideFor(BORDER_LANDSCAPE, 1).mode).toBe('phoneLandscape');
     expect(guideFor(IPAD_932x500, 1).mode).toBe('tablet');
-  });
-
-  it('hranice na výšku: 499×932 má telefonního průvodce, 500×932 zmenšeného jako dnes', () => {
     expect(guideFor(BORDER_PORTRAIT_WIDTH, 1).mode).toBe('phonePortrait');
     expect(guideFor(SCALED_500x932, 1).mode).toBe('scaled');
-  });
-
-  it('hranice na výšku: 360×620 má telefonního průvodce, 360×619 zmenšeného jako dnes', () => {
     expect(guideFor(SMALLEST_PORTRAIT, 1).mode).toBe('phonePortrait');
     expect(guideFor(SCALED_360x619, 1).mode).toBe('scaled');
   });
 
-  it.each([
-    { name: 'okno 0 × 0', viewport: { width: 0, height: 0, safeArea: NO_NOTCH } },
-    { name: 'záporná šířka', viewport: { width: -390, height: 844, safeArea: NO_NOTCH } },
-    { name: 'chybějící údaj o okně', viewport: undefined },
-  ])('$name: hra nespadne a průvodce je jako dnes', ({ viewport }) => {
-    const area = gameAreaFor(viewport);
+  it('při oknu 0 × 0, záporné šířce nebo chybějícím údaji o okně hra nespadne a průvodce je jako dnes', () => {
+    for (const { name, viewport } of [
+      { name: 'okno 0 × 0', viewport: { width: 0, height: 0, safeArea: NO_NOTCH } },
+      { name: 'záporná šířka', viewport: { width: -390, height: 844, safeArea: NO_NOTCH } },
+      { name: 'chybějící údaj o okně', viewport: undefined },
+    ]) {
+      const area = gameAreaFor(viewport);
 
-    for (const step of STEPS) {
-      expect(() => layoutDeviceGuideStep(area, step)).not.toThrow();
-      expect(layoutDeviceGuideStep(area, step).mode).toBe('scaled');
+      for (const step of STEPS) {
+        expect(() => layoutDeviceGuideStep(area, step), name).not.toThrow();
+        expect(layoutDeviceGuideStep(area, step).mode, name).toBe('scaled');
+      }
+      expect(deviceGuideCss(undefined), name).toEqual(
+        todayGuideCss({ name: '0 × 0', width: 0, height: 0, safeArea: NO_NOTCH }),
+      );
     }
-    expect(deviceGuideCss(undefined)).toEqual(
-      todayGuideCss({ name: '0 × 0', width: 0, height: 0, safeArea: NO_NOTCH }),
-    );
   });
 });
 
@@ -367,92 +330,58 @@ describe('AC1: ostatní okna mají průvodce jako dnes', () => {
 // AC2: pravidla průvodce a společná pravidla na telefonu
 // ---------------------------------------------------------------------------
 
+// Že volby, Zpět, reproduktor a Další / Začít hrát mají aspoň 64 × 64 px,
+// mezi nimi je aspoň 8 px, jsou aspoň 8 px od okraje volné plochy, rámeček
+// aspoň 4 px, nic není pod výřezem ani lištou, nic se nepřekrývá (ani rada,
+// ukazatel a popisky s tlačítky), rámeček nezasahuje do jiných řad a do
+// rohu kolečka (x > W − 80, y < 80) nic nezasahuje, hlídají od #81 společná
+// pravidla v `countingLayoutRules.test.ts`.
+
 describe('AC2: na telefonu se průvodce pohodlně ovládá prstem', () => {
-  it.each(ALL_PHONE_STEPS)(
-    '$name: volby, Zpět, reproduktor a Další / Začít hrát mají aspoň 64 × 64 px',
-    ({ window, step }) => {
-      for (const tap of tapBoxes(guideFor(window, step))) {
-        expect(widthOf(tap)).toBeGreaterThanOrEqual(MIN_TOUCH_SIDE - 0.01);
-        expect(heightOf(tap)).toBeGreaterThanOrEqual(MIN_TOUCH_SIDE - 0.01);
-      }
-    },
-  );
-
-  it.each(ALL_PHONE_STEPS)(
-    '$name: mezi sousedními ťukacími plochami je aspoň 8 px',
-    ({ window, step }) => {
-      const taps = tapBoxes(guideFor(window, step));
-      taps.forEach((first, i) => {
-        taps.slice(i + 1).forEach((second) => {
-          expect(gapBetween(first, second)).toBeGreaterThanOrEqual(MIN_TOUCH_GAP - 0.01);
-        });
-      });
-    },
-  );
-
-  it.each(ALL_PHONE_STEPS)(
-    '$name: ťukací plochy jsou aspoň 8 px od okraje volné plochy',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      const inner: Box = {
-        left: MIN_TOUCH_EDGE,
-        right: guide.width - MIN_TOUCH_EDGE,
-        top: MIN_TOUCH_EDGE,
-        bottom: guide.height - MIN_TOUCH_EDGE,
-      };
-      for (const tap of tapBoxes(guide)) {
-        expect(isInside(tap, inner)).toBe(true);
-      }
-    },
-  );
-
-  it.each(ALL_PHONE_STEPS)(
-    '$name: tužka ve volbě má delší stranu aspoň 48 px a do volby se vejde s okrajem 4 px',
-    ({ window, step }) => {
+  it('tužka ve volbě má delší stranu aspoň 48 px a do volby se vejde s okrajem 4 px', () => {
+    for (const { name, window, step } of ALL_PHONE_STEPS) {
       const guide = guideFor(window, step);
       const pencil = cssSize(guide.layout.optionLook.pencilSize, guide);
       const options = [0, 1, 2].flatMap((index) => optionBoxes(guide, index));
 
-      expect(pencil).toBeGreaterThanOrEqual(MIN_PENCIL_SIZE - 0.01);
+      expect(pencil, name).toBeGreaterThanOrEqual(MIN_PENCIL_SIZE - 0.01);
       for (const option of options) {
-        expect(pencil + 2 * PENCIL_MARGIN).toBeLessThanOrEqual(
+        expect(pencil + 2 * PENCIL_MARGIN, name).toBeLessThanOrEqual(
           Math.min(widthOf(option), heightOf(option)) + 0.01,
         );
       }
-    },
-  );
+    }
+  });
 });
 
 describe('AC2: na telefonu je průvodce čitelný', () => {
-  it.each(ALL_PHONE_STEPS)(
-    '$name: popisky řad, rada a ukazatel kroku mají písmo 16 px',
-    ({ window, step }) => {
+  it('popisky řad, rada a ukazatel kroku mají písmo 16 px', () => {
+    for (const { name, window, step } of ALL_PHONE_STEPS) {
       const guide = guideFor(window, step);
       for (const row of guide.layout.rows) {
-        expectNear(cssSize(row.label.fontSize, guide), TEXT_FONT_SIZE, 0.01);
+        expectNear(cssSize(row.label.fontSize, guide), TEXT_FONT_SIZE, 0.01, `${name}, popisek`);
       }
-      expectNear(cssSize(guide.layout.message.fontSize, guide), TEXT_FONT_SIZE, 0.01);
-      expectNear(cssSize(guide.layout.indicator.fontSize, guide), TEXT_FONT_SIZE, 0.01);
-    },
-  );
-
-  it.each(LANDSCAPE_STEPS)('$name: volby mají na šířku písmo 28 px', ({ window, step }) => {
-    const guide = guideFor(window, step);
-    for (const option of guide.layout.rows.flatMap((row) => row.options)) {
-      expectNear(cssSize(option.fontSize, guide), LANDSCAPE_OPTION_FONT_SIZE, 0.01);
+      expectNear(cssSize(guide.layout.message.fontSize, guide), TEXT_FONT_SIZE, 0.01, name);
+      expectNear(cssSize(guide.layout.indicator.fontSize, guide), TEXT_FONT_SIZE, 0.01, name);
     }
   });
 
-  it.each(PORTRAIT_STEPS)('$name: volby mají na výšku písmo 32 px', ({ window, step }) => {
-    const guide = guideFor(window, step);
-    for (const option of guide.layout.rows.flatMap((row) => row.options)) {
-      expectNear(cssSize(option.fontSize, guide), PORTRAIT_OPTION_FONT_SIZE, 0.01);
+  it('volby mají na šířku písmo 28 px a na výšku 32 px', () => {
+    for (const [steps, fontSize] of [
+      [LANDSCAPE_STEPS, LANDSCAPE_OPTION_FONT_SIZE],
+      [PORTRAIT_STEPS, PORTRAIT_OPTION_FONT_SIZE],
+    ] as const) {
+      for (const { name, window, step } of steps) {
+        const guide = guideFor(window, step);
+        for (const option of guide.layout.rows.flatMap((row) => row.options)) {
+          expectNear(cssSize(option.fontSize, guide), fontSize, 0.01, name);
+        }
+      }
     }
   });
 
-  it.each(ALL_PHONE_STEPS)(
-    '$name: popisky Zpět a Další / Začít hrát mají 18 px a okraj aspoň 8 px na obou stranách',
-    ({ window, step }) => {
+  it('popisky Zpět a Další / Začít hrát mají 18 px a okraj aspoň 8 px na obou stranách', () => {
+    for (const { name, window, step } of ALL_PHONE_STEPS) {
       const guide = guideFor(window, step);
       const rightText = step === 4 ? GUIDE_TEXTS.buttons.startPlaying : GUIDE_TEXTS.buttons.next;
       const buttons: { text: string; box: Box; fontSize: number }[] = [
@@ -467,188 +396,111 @@ describe('AC2: na telefonu je průvodce čitelný', () => {
         });
       }
       for (const button of buttons) {
-        expectNear(cssSize(button.fontSize, guide), BUTTON_FONT_SIZE, 0.01);
+        const where = `${name}, ${button.text}`;
+        expectNear(cssSize(button.fontSize, guide), BUTTON_FONT_SIZE, 0.01, where);
         const estimate = textWidthEstimate(button.text, BUTTON_FONT_SIZE);
-        expect(estimate + 2 * BUTTON_LABEL_MARGIN).toBeLessThanOrEqual(widthOf(button.box) + 0.01);
+        expect(estimate + 2 * BUTTON_LABEL_MARGIN, where).toBeLessThanOrEqual(
+          widthOf(button.box) + 0.01,
+        );
       }
-    },
-  );
+    }
+  });
 
-  it.each(ALL_PHONE_STEPS)(
-    '$name: ukazatel kroku a popisky řad se podle odhadu délky vejdou do svého pruhu',
-    ({ window, step }) => {
+  it('ukazatel kroku a popisky řad se podle odhadu délky vejdou do svého pruhu', () => {
+    for (const { name, window, step } of ALL_PHONE_STEPS) {
       const guide = guideFor(window, step);
       const indicatorText = stepIndicatorText({ ...startGuide(), step });
 
-      expect(textWidthEstimate(indicatorText, TEXT_FONT_SIZE)).toBeLessThanOrEqual(
+      expect(textWidthEstimate(indicatorText, TEXT_FONT_SIZE), name).toBeLessThanOrEqual(
         widthOf(indicatorBox(guide)) + 0.01,
       );
-      expect(heightOf(indicatorBox(guide))).toBeGreaterThanOrEqual(TEXT_FONT_SIZE);
+      expect(heightOf(indicatorBox(guide)), name).toBeGreaterThanOrEqual(TEXT_FONT_SIZE);
       guide.layout.rows.forEach((row, index) => {
-        expect(textWidthEstimate(row.label.text, TEXT_FONT_SIZE)).toBeLessThanOrEqual(
-          widthOf(labelBox(guide, index)) + 0.01,
-        );
+        expect(
+          textWidthEstimate(row.label.text, TEXT_FONT_SIZE),
+          `${name}, ${row.label.text}`,
+        ).toBeLessThanOrEqual(widthOf(labelBox(guide, index)) + 0.01);
       });
-    },
-  );
+    }
+  });
 
-  it('na šířku se na řádek rady vejde 30 znaků', () => {
+  it('na řádek rady se vejde na šířku 30 znaků a na výšku podle šířky 34 až 48 znaků', () => {
     for (const window of LANDSCAPE_WINDOWS) {
-      expect(maxCharactersPerLine(guideFor(window, 1))).toBe(30);
+      expect(maxCharactersPerLine(guideFor(window, 1)), window.name).toBe(30);
+    }
+    for (const expected of [
+      { width: 360, characters: 34 },
+      { width: 375, characters: 35 },
+      { width: 390, characters: 37 },
+      { width: 430, characters: 41 },
+      { width: 499, characters: 48 },
+    ]) {
+      for (const window of PORTRAIT_WINDOWS.filter((w) => w.width === expected.width)) {
+        expect(maxCharactersPerLine(guideFor(window, 1)), window.name).toBe(expected.characters);
+      }
     }
   });
 
-  it.each([
-    { width: 360, characters: 34 },
-    { width: 375, characters: 35 },
-    { width: 390, characters: 37 },
-    { width: 430, characters: 41 },
-    { width: 499, characters: 48 },
-  ])('na výšku při šířce $width px se na řádek rady vejde $characters znaků', (expected) => {
-    for (const window of PORTRAIT_WINDOWS.filter((w) => w.width === expected.width)) {
-      expect(maxCharactersPerLine(guideFor(window, 1))).toBe(expected.characters);
-    }
-  });
-
-  it.each(ALL_PHONE_STEPS)(
-    '$name: rada má obě věty ze scénáře, každou od nového řádku, zalomené jen mezi slovy',
-    ({ window, step }) => {
+  it('rada má obě věty ze scénáře, každou od nového řádku, zalomené jen mezi slovy', () => {
+    for (const { name, window, step } of ALL_PHONE_STEPS) {
       const { message } = guideFor(window, step).layout;
       const [first, second] = guideMessage({ ...startGuide(), step });
       const lines = message.lines;
 
-      expect(lines.length).toBeGreaterThanOrEqual(2);
+      expect(lines.length, name).toBeGreaterThanOrEqual(2);
       for (const line of lines) {
-        expect(line).toBe(line.trim());
-        expect(line).not.toBe('');
+        expect(line, name).toBe(line.trim());
+        expect(line, name).not.toBe('');
       }
       // Některý řádek končí první větou a další začíná druhou: věty se nesmíchají.
       const splitAt = lines.findIndex((_, index) => lines.slice(0, index + 1).join(' ') === first);
-      expect(splitAt).toBeGreaterThanOrEqual(0);
-      expect(lines.slice(splitAt + 1).join(' ')).toBe(second);
+      expect(splitAt, name).toBeGreaterThanOrEqual(0);
+      expect(lines.slice(splitAt + 1).join(' '), name).toBe(second);
       // Zalomeno jen mezi slovy: žádné slovo není rozdělené na dva řádky.
       const words = `${first} ${second}`.split(' ');
-      expect(lines.flatMap((line) => line.split(' '))).toEqual(words);
-    },
-  );
+      expect(
+        lines.flatMap((line) => line.split(' ')),
+        name,
+      ).toEqual(words);
+    }
+  });
 
-  it.each(ALL_PHONE_STEPS)(
-    '$name: rada má nejvýš 4 řádky po 22 px a žádný řádek není delší, než se vejde',
-    ({ window, step }) => {
+  it('rada má nejvýš 4 řádky po 22 px a žádný řádek není delší, než se vejde', () => {
+    for (const { name, window, step } of ALL_PHONE_STEPS) {
       const guide = guideFor(window, step);
       const { message } = guide.layout;
       const limit = maxCharactersPerLine(guide);
 
-      expect(message.lines.length).toBeLessThanOrEqual(MESSAGE_MAX_LINES);
-      expect(message.lineCount).toBe(message.lines.length);
-      expectNear(cssSize(message.lineHeight, guide), MESSAGE_LINE_HEIGHT, 0.01);
-      expect(MESSAGE_MAX_LINES * MESSAGE_LINE_HEIGHT).toBeLessThanOrEqual(
+      expect(message.lines.length, name).toBeLessThanOrEqual(MESSAGE_MAX_LINES);
+      expect(message.lineCount, name).toBe(message.lines.length);
+      expectNear(cssSize(message.lineHeight, guide), MESSAGE_LINE_HEIGHT, 0.01, name);
+      expect(MESSAGE_MAX_LINES * MESSAGE_LINE_HEIGHT, name).toBeLessThanOrEqual(
         heightOf(messageBox(guide)) + 0.01,
       );
       for (const line of message.lines) {
-        expect(line.length).toBeLessThanOrEqual(limit);
+        expect(line.length, `${name}: ${line}`).toBeLessThanOrEqual(limit);
       }
-    },
-  );
+    }
+  });
 });
 
 describe('AC2: na telefonu v průvodci nic nepřekáží', () => {
-  it.each(ALL_PHONE_STEPS)(
-    '$name: nic není pod výřezem ani lištou domů, všechno je ve volné ploše',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      const frame = frameBox(guide);
-      for (const item of [...textBoxes(guide), ...tapBoxes(guide), ...(frame ? [frame] : [])]) {
-        expect(isInside(item, freeBox(guide))).toBe(true);
-      }
-    },
-  );
-
-  it.each(ALL_PHONE_STEPS)(
-    '$name: popisky, volby, rada, ukazatel a tlačítka se nepřekrývají',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      const items = [...textBoxes(guide), ...tapBoxes(guide)];
-      items.forEach((first, i) => {
-        items.slice(i + 1).forEach((second) => {
-          expect(overlaps(first, second)).toBe(false);
-        });
-      });
-    },
-  );
-
-  it.each(ALL_PHONE_STEPS)(
-    '$name: rámeček obepíná jen zvýrazněnou řadu a nezasahuje do nic jiného',
-    ({ window, step }) => {
+  it('rámeček obepíná zvýrazněnou řadu i její popisek, na shrnutí rámeček není', () => {
+    for (const { name, window, step } of ALL_PHONE_STEPS) {
       const guide = guideFor(window, step);
       const frame = frameBox(guide);
       if (step === 4) {
-        expect(frame).toBeNull();
-        return;
+        expect(frame, name).toBeNull();
+        continue;
       }
       if (frame === null) {
-        throw new Error('Rámeček chybí');
+        throw new Error(`${name}: rámeček chybí`);
       }
       const focused = step - 1;
-      expect(isInside(labelBox(guide, focused), frame)).toBe(true);
-      expect(isInside(rowBox(guide, focused), frame)).toBe(true);
-      const others = [
-        ...[0, 1, 2]
-          .filter((index) => index !== focused)
-          .flatMap((index) => [labelBox(guide, index), ...optionBoxes(guide, index)]),
-        messageBox(guide),
-        indicatorBox(guide),
-        speakerBox(guide),
-        rightBox(guide),
-        ...(backBox(guide) ? [backBox(guide) as Box] : []),
-      ];
-      for (const other of others) {
-        expect(overlaps(frame, other)).toBe(false);
-      }
-    },
-  );
-
-  it.each(ALL_PHONE_STEPS)(
-    '$name: rámeček je aspoň 4 px od okraje volné plochy',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      const frame = frameBox(guide);
-      if (frame === null) {
-        expect(step).toBe(4);
-        return;
-      }
-      const inner: Box = {
-        left: MIN_FRAME_EDGE,
-        right: guide.width - MIN_FRAME_EDGE,
-        top: MIN_FRAME_EDGE,
-        bottom: guide.height - MIN_FRAME_EDGE,
-      };
-      expect(isInside(frame, inner)).toBe(true);
-    },
-  );
-
-  it.each(ALL_PHONE_STEPS)(
-    '$name: do rohu kolečka (x > W − 80, y < 80) nezasahuje nic, ani rámeček ani rada',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      const frame = frameBox(guide);
-      for (const item of [...textBoxes(guide), ...tapBoxes(guide), ...(frame ? [frame] : [])]) {
-        expect(overlaps(item, gearCorner(guide))).toBe(false);
-      }
-    },
-  );
-
-  it.each(ALL_PHONE_STEPS)(
-    '$name: rada, ukazatel kroku a popisky neleží na žádném tlačítku ani volbě, ťuknutí na ně nic nespustí',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      for (const text of textBoxes(guide)) {
-        for (const tap of tapBoxes(guide)) {
-          expect(overlaps(text, tap)).toBe(false);
-        }
-      }
-    },
-  );
+      expect(isInside(labelBox(guide, focused), frame), name).toBe(true);
+      expect(isInside(rowBox(guide, focused), frame), name).toBe(true);
+    }
+  });
 
   it('ťuknutí na ztlumenou řadu nic nezmění', () => {
     const atStepOne = startGuide();
@@ -662,317 +514,199 @@ describe('AC2: na telefonu v průvodci nic nepřekáží', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC4: průvodce na šířku (S-sirka-pruvodce)
+// AC4 a AC5: průvodce na šířku (S-sirka-pruvodce) a na výšku (S-vyska-pruvodce)
 // ---------------------------------------------------------------------------
 
-describe('AC4: na telefonu na šířku jsou řady vlevo a rada s tlačítky ve sloupci vpravo', () => {
-  it.each(LANDSCAPE_WINDOWS)(
-    '$name: řady jsou na stejných místech na všech čtyřech krocích',
-    (window) => {
+describe('AC4 a AC5: řady, krok 1 a shrnutí na šířku i na výšku', () => {
+  it('řady jsou na stejných místech na všech čtyřech krocích', () => {
+    for (const window of ALL_PHONE_WINDOWS) {
       const first = guideFor(window, 1).layout.rows;
       for (const step of STEPS) {
-        expect(guideFor(window, step).layout.rows).toEqual(first);
+        expect(guideFor(window, step).layout.rows, `${window.name}, krok ${step}`).toEqual(first);
       }
-    },
-  );
-
-  it.each(LANDSCAPE_STEPS)('$name: popisek je v pruhu x 12–100', ({ window, step }) => {
-    const guide = guideFor(window, step);
-    for (const index of [0, 1, 2]) {
-      expectSpan(labelBox(guide, index), [12, 100], null);
     }
   });
 
-  it.each(LANDSCAPE_STEPS)(
-    '$name: volby mají 96 × 68 px a jsou na x 112–208, 216–312 a 320–416',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      const columns: [number, number][] = [
-        [112, 208],
-        [216, 312],
-        [320, 416],
-      ];
-      for (const index of [0, 1, 2]) {
-        const boxes = optionBoxes(guide, index);
-        expect(boxes).toHaveLength(index === 2 ? 2 : 3);
-        boxes.forEach((option, column) => {
-          expectNear(widthOf(option), 96);
-          expectNear(heightOf(option), 68);
-          expectSpan(option, columns[column] ?? null, null);
-        });
-      }
-    },
-  );
-
-  it.each(LANDSCAPE_STEPS)(
-    '$name: řady jsou na y T až T + 68, T + 84 až T + 152 a T + 168 až T + 236, T = (H − 236) / 2',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      landscapeRowSpans(guide.height).forEach((span, index) => {
-        expectSpan(rowBox(guide, index), null, span, CENTER_TOLERANCE);
-      });
-    },
-  );
-
-  it.each(LANDSCAPE_STEPS.filter(({ step }) => step !== 4))(
-    '$name: rámeček kolem zvýrazněné řady je na x 4–424 a 8 px nad a pod řadou, 3 px, modrý #0062CC',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      const span = landscapeRowSpans(guide.height)[step - 1] as [number, number];
-      const frame = guide.layout.frame;
-
-      expectSpan(frameBox(guide), [4, 424], [span[0] - 8, span[1] + 8], CENTER_TOLERANCE);
-      expectNear(cssSize(frame?.lineWidth ?? 0, guide), FRAME_LINE_WIDTH, 0.01);
-      expect(frame?.color.toUpperCase()).toBe(FRAME_COLOR);
-      expect(frame?.fill).toBeNull();
-    },
-  );
-
-  it.each(LANDSCAPE_STEPS)(
-    '$name: rada je ve sloupci x W − 304 až W − 16 na y 80–168, zarovnaná vlevo',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-
-      expectSpan(messageBox(guide), [guide.width - 304, guide.width - 16], [80, 168]);
-      expect(guide.layout.message.align).toBe('left');
-    },
-  );
-
-  it.each(LANDSCAPE_STEPS)(
-    '$name: ukazatel kroku je na y H − 108 až H − 88, na středu sloupce',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      const indicator = indicatorBox(guide);
-
-      expectSpan(indicator, null, [guide.height - 108, guide.height - 88]);
-      expectNear((indicator.left + indicator.right) / 2, guide.width - 160, CENTER_TOLERANCE);
-    },
-  );
-
-  it.each(LANDSCAPE_STEPS)(
-    '$name: tlačítka jsou na y H − 80 až H − 16: Zpět W − 304 až W − 224, reproduktor W − 216 až W − 152, Další W − 144 až W − 16',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      const { width: w, height: h } = guide;
-      const buttons: [number, number] = [h - 80, h - 16];
-
-      if (step !== 1) {
-        expectSpan(backBox(guide), [w - 304, w - 224], buttons);
-      }
-      expectSpan(speakerBox(guide), [w - 216, w - 152], buttons);
-      expectSpan(rightBox(guide), [w - 144, w - 16], buttons);
-    },
-  );
-
-  it.each(LANDSCAPE_WINDOWS)(
-    '$name: na 1. kroku Zpět chybí a reproduktor i Další zůstanou na svém místě',
-    (window) => {
+  it('na 1. kroku Zpět chybí a reproduktor, ukazatel (na výšku) i Další zůstanou na místě', () => {
+    for (const window of ALL_PHONE_WINDOWS) {
       const first = guideFor(window, 1);
       const second = guideFor(window, 2);
 
-      expect(backBox(first)).toBeNull();
-      expect(speakerBox(first)).toEqual(speakerBox(second));
-      expect(rightBox(first)).toEqual(rightBox(second));
-    },
-  );
-
-  it.each(LANDSCAPE_WINDOWS)(
-    '$name: na shrnutí jsou všechny řady plné, bez rámečku, jdou měnit a ✓ v průvodci není',
-    (window) => {
-      const guide = guideFor(window, 4);
-      const summary = { ...startGuide(), step: 4 as GuideStep };
-
-      expect(guide.layout.frame).toBeNull();
-      expect(guide.layout).not.toHaveProperty('confirm');
-      for (const kind of ['maxNumber', 'operations', 'answerInput'] as const) {
-        expect(guideRowStyle(summary, kind)).toMatchObject({ opacity: 1, tappable: true });
+      expect(backBox(first), window.name).toBeNull();
+      expect(speakerBox(first), window.name).toEqual(speakerBox(second));
+      expect(rightBox(first), window.name).toEqual(rightBox(second));
+      if (first.mode === 'phonePortrait') {
+        expect(indicatorBox(first), window.name).toEqual(indicatorBox(second));
       }
-    },
-  );
-
-  it.each(LANDSCAPE_STEPS)('$name: všechny polohy odpovídají AC4', ({ window, step }) => {
-    expectLandscapeGuideSpec(window, step);
+    }
   });
 
-  it('vypočtené hodnoty 744×296: řady y 30–266, rámeček y 22–274, sloupec x 440–728', () => {
-    const guide = guideFor(SMALLEST_LANDSCAPE, 1);
+  it('na shrnutí není rámeček ani ✓ a na šířku jsou všechny řady plné a jdou měnit', () => {
+    const summary = { ...startGuide(), step: 4 as GuideStep };
+    for (const window of ALL_PHONE_WINDOWS) {
+      const guide = guideFor(window, 4);
 
-    expectSpan(rowBox(guide, 0), null, [30, 98], CENTER_TOLERANCE);
-    expectSpan(rowBox(guide, 2), null, [198, 266], CENTER_TOLERANCE);
-    expectSpan(frameBox(guide), null, [22, 106], CENTER_TOLERANCE);
-    expectSpan(frameBox(guideFor(SMALLEST_LANDSCAPE, 3)), null, [190, 274], CENTER_TOLERANCE);
-    expectSpan(messageBox(guide), [440, 728], null);
-    expectSpan(rightBox(guide), [600, 728], null);
-  });
-
-  it('vypočtené hodnoty 744×296: mezera k rámečku 16 px, ukazatel y 188–208, tlačítka y 216–280, mezera rada–ukazatel 20 px', () => {
-    const guide = guideFor(SMALLEST_LANDSCAPE, 2);
-    const frame = frameBox(guide) as Box;
-
-    expectNear(messageBox(guide).left - frame.right, 16);
-    expectSpan(indicatorBox(guide), null, [188, 208]);
-    expectSpan(backBox(guide), [440, 520], [216, 280]);
-    expectSpan(speakerBox(guide), [528, 592], [216, 280]);
-    expectNear(indicatorBox(guide).top - messageBox(guide).bottom, 20);
-  });
-
-  it('vypočtené hodnoty 932×499: řady na y 131,5–367,5 a tlačítka na y 419–483', () => {
-    const guide = guideFor(BORDER_LANDSCAPE, 2);
-
-    expectSpan(rowBox(guide, 0), null, [131.5, 199.5], CENTER_TOLERANCE);
-    expectSpan(rowBox(guide, 2), null, [299.5, 367.5], CENTER_TOLERANCE);
-    expectSpan(rightBox(guide), null, [419, 483]);
-    expectSpan(backBox(guide), null, [419, 483]);
+      expect(guide.layout.frame, window.name).toBeNull();
+      expect(guide.layout, window.name).not.toHaveProperty('confirm');
+    }
+    for (const kind of ['maxNumber', 'operations', 'answerInput'] as const) {
+      expect(guideRowStyle(summary, kind), kind).toMatchObject({ opacity: 1, tappable: true });
+    }
   });
 });
 
-// ---------------------------------------------------------------------------
-// AC5: průvodce na výšku (S-vyska-pruvodce)
-// ---------------------------------------------------------------------------
-
-describe('AC5: na telefonu na výšku jsou řady pod sebou, pod nimi rada a dole tlačítka u palce', () => {
-  it.each(PORTRAIT_WINDOWS)(
-    '$name: řady jsou na stejných místech na všech čtyřech krocích',
-    (window) => {
-      const first = guideFor(window, 1).layout.rows;
-      for (const step of STEPS) {
-        expect(guideFor(window, step).layout.rows).toEqual(first);
-      }
-    },
-  );
-
-  it.each(PORTRAIT_STEPS)(
-    '$name: volby mají 104 × 72 px s mezerou 8 px, řada tří voleb má 328 px, řady i Odpověď jsou na středu',
-    ({ window, step }) => {
+describe('AC4: na telefonu na šířku jsou řady vlevo a rada s tlačítky ve sloupci vpravo', () => {
+  /**
+   * Popisek v pruhu x 12–100, volby 96 × 68 px na x 112–208, 216–312
+   * a 320–416, řady na y T až T + 68, T + 84 až T + 152 a T + 168 až
+   * T + 236 (T = (H − 236) / 2), rámeček na x 4–424 a 8 px nad a pod řadou,
+   * rada ve sloupci x W − 304 až W − 16 na y 80–168, ukazatel kroku na
+   * y H − 108 až H − 88 na středu sloupce, tlačítka na y H − 80 až H − 16:
+   * Zpět W − 304 až W − 224, reproduktor W − 216 až W − 152, Další
+   * W − 144 až W − 16.
+   */
+  it('všechny polohy řad, popisků, rámečku, rady, ukazatele a tlačítek odpovídají AC4', () => {
+    for (const { name, window, step } of LANDSCAPE_STEPS) {
       const guide = guideFor(window, step);
       for (const index of [0, 1, 2]) {
         const boxes = optionBoxes(guide, index);
-        expect(boxes).toHaveLength(index === 2 ? 2 : 3);
+        expect(boxes, `${name}, řada ${index + 1}`).toHaveLength(index === 2 ? 2 : 3);
         for (const option of boxes) {
-          expectNear(widthOf(option), 104);
-          expectNear(heightOf(option), 72);
+          expectNear(widthOf(option), 96, EXACT_TOLERANCE, `${name}, šířka volby`);
+          expectNear(heightOf(option), 68, EXACT_TOLERANCE, `${name}, výška volby`);
         }
-        boxes.slice(1).forEach((option, i) => {
-          expectNear(option.left - (boxes[i] as Box).right, 8);
-        });
-        const row = rowBox(guide, index);
-        expectNear(widthOf(row), index === 2 ? 216 : 328);
-        expectNear((row.left + row.right) / 2, guide.width / 2, CENTER_TOLERANCE);
       }
-    },
-  );
-
-  it.each(PORTRAIT_STEPS)(
-    '$name: řady jsou na y 114–186, 228–300 a 342–414',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      const spans: [number, number][] = [
-        [114, 186],
-        [228, 300],
-        [342, 414],
-      ];
-      spans.forEach((span, index) => {
-        expectSpan(rowBox(guide, index), null, span);
-      });
-    },
-  );
-
-  it.each(PORTRAIT_STEPS)(
-    '$name: popisky jsou v pruhu 20 px na y 88–108, 202–222 a 316–336, na středu 6 px nad řadou',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      const spans: [number, number][] = [
-        [88, 108],
-        [202, 222],
-        [316, 336],
-      ];
-      guide.layout.rows.forEach((row, index) => {
-        const label = labelBox(guide, index);
-        expectSpan(label, null, spans[index] ?? null);
-        expectNear(rowBox(guide, index).top - label.bottom, 6);
-        expectNear((label.left + label.right) / 2, guide.width / 2, CENTER_TOLERANCE);
-        expect(row.label.align).toBe('center');
-      });
-    },
-  );
-
-  it.each(PORTRAIT_STEPS.filter(({ step }) => step !== 4))(
-    '$name: rámeček je na y 80–194, 194–308 nebo 308–422, 8 px vně řady, 3 px, modrý #0062CC',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-      const spans: [number, number][] = [
-        [80, 194],
-        [194, 308],
-        [308, 422],
-      ];
-      const row = rowBox(guide, step - 1);
-      const frame = guide.layout.frame;
-
-      expectSpan(frameBox(guide), [row.left - 8, row.right + 8], spans[step - 1] ?? null);
-      expectNear(cssSize(frame?.lineWidth ?? 0, guide), FRAME_LINE_WIDTH, 0.01);
-      expect(frame?.color.toUpperCase()).toBe(FRAME_COLOR);
-    },
-  );
-
-  it.each(PORTRAIT_STEPS)(
-    '$name: rada je na y H − 180 až H − 92 a na x 16 až W − 16, text na středu',
-    ({ window, step }) => {
-      const guide = guideFor(window, step);
-
-      expectSpan(
-        messageBox(guide),
-        [16, guide.width - 16],
-        [guide.height - 180, guide.height - 92],
-      );
-      expect(guide.layout.message.align).toBe('center');
-    },
-  );
-
-  it.each(PORTRAIT_STEPS)(
-    '$name: dole je řada široká 344 px na středu, y H − 80 až H − 16: Zpět 80, reproduktor 64, ukazatel 48, Další 128, mezery 8',
-    ({ window, step }) => {
-      expectPortraitGuideSpec(window, step);
-    },
-  );
-
-  it.each(PORTRAIT_WINDOWS)(
-    '$name: na 1. kroku Zpět chybí a reproduktor, ukazatel i Další zůstanou na místě',
-    (window) => {
-      const first = guideFor(window, 1);
-      const second = guideFor(window, 2);
-
-      expect(backBox(first)).toBeNull();
-      expect(speakerBox(first)).toEqual(speakerBox(second));
-      expect(indicatorBox(first)).toEqual(indicatorBox(second));
-      expect(rightBox(first)).toEqual(rightBox(second));
-    },
-  );
-
-  it.each(PORTRAIT_WINDOWS)('$name: na shrnutí není rámeček ani ✓', (window) => {
-    const guide = guideFor(window, 4);
-
-    expect(guide.layout.frame).toBeNull();
-    expect(guide.layout).not.toHaveProperty('confirm');
+      expectLandscapeGuideSpec(window, step);
+    }
   });
 
-  it('vypočtené hodnoty 360×620: rámeček x 8–352, rada y 440–528 (18 px pod rámečkem), tlačítka x 8–352 a y 540–604', () => {
+  it('rámeček má 3 px, modrou #0062CC a je bez výplně, rada je zarovnaná vlevo', () => {
+    for (const { name, window, step } of LANDSCAPE_STEPS) {
+      const guide = guideFor(window, step);
+      expect(guide.layout.message.align, name).toBe('left');
+      if (step === 4) {
+        continue;
+      }
+      const frame = guide.layout.frame;
+      expectNear(cssSize(frame?.lineWidth ?? 0, guide), FRAME_LINE_WIDTH, 0.01, name);
+      expect(frame?.color.toUpperCase(), name).toBe(FRAME_COLOR);
+      expect(frame?.fill, name).toBeNull();
+    }
+  });
+
+  it('vypočtené hodnoty 744×296 (řady y 30–266, rámeček y 22–274, sloupec x 440–728, mezera k rámečku 16 px, ukazatel y 188–208, tlačítka y 216–280, rada–ukazatel 20 px) a 932×499 (řady y 131,5–367,5, tlačítka y 419–483)', () => {
+    const guide = guideFor(SMALLEST_LANDSCAPE, 1);
+    expectSpan(rowBox(guide, 0), null, [30, 98], CENTER_TOLERANCE, '744×296, řada 1');
+    expectSpan(rowBox(guide, 2), null, [198, 266], CENTER_TOLERANCE, '744×296, řada 3');
+    expectSpan(frameBox(guide), null, [22, 106], CENTER_TOLERANCE, '744×296, rámeček 1');
+    expectSpan(
+      frameBox(guideFor(SMALLEST_LANDSCAPE, 3)),
+      null,
+      [190, 274],
+      CENTER_TOLERANCE,
+      '744×296, rámeček 3',
+    );
+    expectSpan(messageBox(guide), [440, 728], null, EXACT_TOLERANCE, '744×296, rada');
+    expectSpan(rightBox(guide), [600, 728], null, EXACT_TOLERANCE, '744×296, Další');
+
+    const second = guideFor(SMALLEST_LANDSCAPE, 2);
+    const frame = frameBox(second) as Box;
+    expectNear(messageBox(second).left - frame.right, 16, EXACT_TOLERANCE, '744×296');
+    expectSpan(indicatorBox(second), null, [188, 208], EXACT_TOLERANCE, '744×296, ukazatel');
+    expectSpan(backBox(second), [440, 520], [216, 280], EXACT_TOLERANCE, '744×296, Zpět');
+    expectSpan(speakerBox(second), [528, 592], [216, 280], EXACT_TOLERANCE, '744×296');
+    expectNear(
+      indicatorBox(second).top - messageBox(second).bottom,
+      20,
+      EXACT_TOLERANCE,
+      '744×296',
+    );
+
+    const border = guideFor(BORDER_LANDSCAPE, 2);
+    expectSpan(rowBox(border, 0), null, [131.5, 199.5], CENTER_TOLERANCE, '932×499, řada 1');
+    expectSpan(rowBox(border, 2), null, [299.5, 367.5], CENTER_TOLERANCE, '932×499, řada 3');
+    expectSpan(rightBox(border), null, [419, 483], EXACT_TOLERANCE, '932×499, Další');
+    expectSpan(backBox(border), null, [419, 483], EXACT_TOLERANCE, '932×499, Zpět');
+  });
+});
+
+describe('AC5: na telefonu na výšku jsou řady pod sebou, pod nimi rada a dole tlačítka u palce', () => {
+  /**
+   * Volby 104 × 72 px s mezerou 8 px, řada tří voleb má 328 px, řady i Odpověď
+   * na středu, řady na y 114–186, 228–300 a 342–414, popisky v pruhu 20 px
+   * na y 88–108, 202–222 a 316–336 na středu 6 px nad řadou, rámeček na
+   * y 80–194, 194–308 nebo 308–422 a 8 px vně řady, rada na y H − 180 až
+   * H − 92 a na x 16 až W − 16, dole řada široká 344 px na středu, y H − 80
+   * až H − 16: Zpět 80, reproduktor 64, ukazatel 48, Další 128, mezery 8.
+   */
+  it('všechny polohy voleb, řad, popisků, rámečku, rady a řady tlačítek odpovídají AC5', () => {
+    for (const { name, window, step } of PORTRAIT_STEPS) {
+      const guide = guideFor(window, step);
+      for (const index of [0, 1, 2]) {
+        const at = `${name}, řada ${index + 1}`;
+        const boxes = optionBoxes(guide, index);
+        expect(boxes, at).toHaveLength(index === 2 ? 2 : 3);
+        for (const option of boxes) {
+          expectNear(widthOf(option), 104, EXACT_TOLERANCE, at);
+          expectNear(heightOf(option), 72, EXACT_TOLERANCE, at);
+        }
+        boxes.slice(1).forEach((option, i) => {
+          expectNear(option.left - (boxes[i] as Box).right, 8, EXACT_TOLERANCE, `${at}, mezera`);
+        });
+      }
+      guide.layout.rows.forEach((row, index) => {
+        const at = `${name}, popisek ${index + 1}`;
+        expectNear(
+          rowBox(guide, index).top - labelBox(guide, index).bottom,
+          6,
+          EXACT_TOLERANCE,
+          at,
+        );
+        expect(row.label.align, at).toBe('center');
+      });
+      expectPortraitGuideSpec(window, step);
+    }
+  });
+
+  it('rámeček má 3 px a modrou #0062CC, text rady je na středu', () => {
+    for (const { name, window, step } of PORTRAIT_STEPS) {
+      const guide = guideFor(window, step);
+      expect(guide.layout.message.align, name).toBe('center');
+      if (step === 4) {
+        continue;
+      }
+      const frame = guide.layout.frame;
+      expectNear(cssSize(frame?.lineWidth ?? 0, guide), FRAME_LINE_WIDTH, 0.01, name);
+      expect(frame?.color.toUpperCase(), name).toBe(FRAME_COLOR);
+    }
+  });
+
+  it('vypočtené hodnoty 360×620 (rámeček x 8–352, rada y 440–528 18 px pod rámečkem, tlačítka x 8–352 a y 540–604) a 390×844 s výřezem (rada y 583–671, tlačítka y 683–747)', () => {
     const atStepThree = guideFor(SMALLEST_PORTRAIT, 3);
     const atStepTwo = guideFor(SMALLEST_PORTRAIT, 2);
     const back = backBox(atStepTwo) as Box;
 
-    expectSpan(frameBox(guideFor(SMALLEST_PORTRAIT, 1)), [8, 352], [80, 194]);
-    expectSpan(messageBox(atStepThree), [16, 344], [440, 528]);
-    expectNear(messageBox(atStepThree).top - (frameBox(atStepThree) as Box).bottom, 18);
-    expectSpan(back, [8, 88], [540, 604], CENTER_TOLERANCE);
-    expectSpan(rightBox(atStepTwo), [224, 352], [540, 604], CENTER_TOLERANCE);
-  });
+    expectSpan(
+      frameBox(guideFor(SMALLEST_PORTRAIT, 1)),
+      [8, 352],
+      [80, 194],
+      EXACT_TOLERANCE,
+      '360×620, rámeček',
+    );
+    expectSpan(messageBox(atStepThree), [16, 344], [440, 528], EXACT_TOLERANCE, '360×620, rada');
+    expectNear(
+      messageBox(atStepThree).top - (frameBox(atStepThree) as Box).bottom,
+      18,
+      EXACT_TOLERANCE,
+      '360×620',
+    );
+    expectSpan(back, [8, 88], [540, 604], CENTER_TOLERANCE, '360×620, Zpět');
+    expectSpan(rightBox(atStepTwo), [224, 352], [540, 604], CENTER_TOLERANCE, '360×620, Další');
 
-  it('vypočtené hodnoty 390×844 s výřezem (volná plocha 390×763): rada y 583–671, tlačítka y 683–747', () => {
     const guide = guideFor(PORTRAIT_IPHONE, 2);
-
-    expectSpan(messageBox(guide), null, [583, 671]);
-    expectSpan(rightBox(guide), null, [683, 747]);
-    expectSpan(speakerBox(guide), null, [683, 747]);
+    expectSpan(messageBox(guide), null, [583, 671], EXACT_TOLERANCE, '390×844, rada');
+    expectSpan(rightBox(guide), null, [683, 747], EXACT_TOLERANCE, '390×844, Další');
+    expectSpan(speakerBox(guide), null, [683, 747], EXACT_TOLERANCE, '390×844, reproduktor');
   });
 });
 
@@ -1057,8 +791,20 @@ describe('AC7: po otočení nebo změně lišty se průvodce přepočítá', () 
   it('po změně lišty (390×844 s výřezem → 390×664) zůstane rada i tlačítka u spodního okraje volné plochy', () => {
     for (const window of [PORTRAIT_IPHONE, PORTRAIT_WITH_BAR]) {
       const guide = guideFor(window, 2);
-      expectSpan(messageBox(guide), null, [guide.height - 180, guide.height - 92]);
-      expectSpan(rightBox(guide), null, [guide.height - 80, guide.height - 16]);
+      expectSpan(
+        messageBox(guide),
+        null,
+        [guide.height - 180, guide.height - 92],
+        EXACT_TOLERANCE,
+        `${window.name}, rada`,
+      );
+      expectSpan(
+        rightBox(guide),
+        null,
+        [guide.height - 80, guide.height - 16],
+        EXACT_TOLERANCE,
+        `${window.name}, Další`,
+      );
     }
   });
 
@@ -1125,16 +871,15 @@ describe('AC7: otočení s otevřeným průvodcem nic neztratí', () => {
 });
 
 describe('rada se v češtině zalamuje správně', () => {
-  it.each([288, 328, 343, 358, 398, 467])(
-    'jednopísmenná předložka nezůstane na konci řádku rady (šířka %i px)',
-    (width) => {
+  it('jednopísmenná předložka nezůstane na konci řádku rady při šířce 288, 328, 343, 358, 398 ani 467 px', () => {
+    for (const width of [288, 328, 343, 358, 398, 467]) {
       for (const step of [1, 2, 3, 4] as const) {
         const lines = wrapGuideMessage(stepMessage(step), width);
         for (const line of lines) {
-          expect(line, line).not.toMatch(/(^|\s)[kszvouKSZVOU]$/);
+          expect(line, `${width} px, krok ${step}: ${line}`).not.toMatch(/(^|\s)[kszvouKSZVOU]$/);
         }
-        expect(lines.length).toBeLessThanOrEqual(4);
+        expect(lines.length, `${width} px, krok ${step}`).toBeLessThanOrEqual(4);
       }
-    },
-  );
+    }
+  });
 });
