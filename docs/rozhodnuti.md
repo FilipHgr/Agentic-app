@@ -166,3 +166,10 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   jen bez ztráty dat (zobrazení víc než 6 profilů samostatně), u přidání na
   plochu bez iPadu na výšku, obnovení stránky jen při nestažené hře
   s odpovídajícím serverem.
+- 2026-11-06 Testování se zjednoduší: při práci se pouští jen testy dotčené
+  části (sdílená část, menu, hra) a vždy kontroly celku, celé `npm test` jen
+  v CI a před PR. Pomalé testy rozpoznávání psaní do vlastní skupiny, testy
+  rozložení jako pravidla v cyklu místo snapshotů a testy zdrojového textu
+  přepsat na chování. Ochrany se nesnižují, žádný test chování se nesmaže bez
+  náhrady. Hooky v `.claude/` mění vlastník sám. Úkoly #79–#83 před #78.
+- 2026-11-06 Ikona aplikace na plochu: varianta A, modré „+ −“ na #F5F5F7 (#78).
