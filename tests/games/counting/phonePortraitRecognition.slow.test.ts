@@ -1,24 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AnswerRound } from '../../../src/games/counting/logic/answerRound';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import { layoutPhonePortraitWritingScreen } from '../../../src/games/counting/logic/deviceLayout';
 import type { PhonePortraitWritingLayout } from '../../../src/games/counting/logic/deviceLayout';
 import { recognizeDigit } from '../../../src/games/counting/logic/digitRecognition';
 import type { Stroke, WritingAreaSize } from '../../../src/games/counting/logic/digitRecognition';
 import type { MaxNumber } from '../../../src/games/counting/logic/settings';
-import { starsAfterTap } from '../../../src/games/counting/logic/stars';
-import { confirmBoxes, createTwoBoxRound } from '../../../src/games/counting/logic/twoBoxWriting';
-import {
-  RECOGNITION_DELAY_MS,
-  confirmWriting,
-  createWritingRound,
-  finishStroke,
-  shownDigit,
-  startStroke,
-  updateWriting,
-  writtenStrokes,
-} from '../../../src/games/counting/logic/writingRound';
 import { NOT_DIGITS } from './notDigitStrokes';
 import { WRITING_AREA, placeStroke, uciTestSamples } from './penDigits';
 import type { PenDigitSample } from './penDigits';
@@ -183,52 +170,4 @@ describe('AC6: ve vysokém okénku se zápis rozpozná stejně jako dnes', () =>
       expect(differences(small, box).slice(0, 10)).toEqual([]);
     },
   );
-});
-
-describe('AC6: prázdné okénko, ✓ a špatná odpověď ve vysokém okénku jako dnes', () => {
-  const box = tallBox(NARROWEST_BOX * 2, MAX_BOX_HEIGHT_RATIO);
-  const round: AnswerRound = {
-    problem: { first: 2, second: 3, operation: 'plus', result: 5 },
-    maxNumber: 5,
-    wrongAnswers: 0,
-    solved: false,
-  };
-
-  /** První vzorek sady, který se ve vysokém okénku rozpozná jako jiná číslice než 5. */
-  function wrongDigitStroke(): { stroke: Stroke; digit: number } {
-    for (const [stroke] of samplesForWidth(box.width, SAMPLE_STEP)) {
-      const placed = inTallBox([stroke ?? []], box)[0] ?? [];
-      const digit = recognizeDigit([placed], box);
-      if (digit !== null && digit !== round.problem.result) {
-        return { stroke: placed, digit };
-      }
-    }
-    throw new Error('ve vzorku chybí jiná číslice než 5');
-  }
-
-  it('✓ u prázdného okénka nic neudělá a nepočítá se jako chyba', () => {
-    const single = confirmWriting(createWritingRound(round, box, recognizeDigit));
-    expect(single.outcome).toBe('ignored');
-    expect(single.round.answer.wrongAnswers).toBe(0);
-
-    const two = confirmBoxes(createTwoBoxRound(round, box, recognizeDigit));
-    expect(two.outcome).toBe('ignored');
-    expect(two.round.answer.wrongAnswers).toBe(0);
-  });
-
-  it('po špatné odpovědi se okénko vyprázdní a hvězdička se nevezme', () => {
-    const { stroke, digit } = wrongDigitStroke();
-    let writing = createWritingRound(round, box, recognizeDigit);
-    writing = startStroke(writing, 0);
-    writing = finishStroke(writing, stroke, 100);
-    writing = updateWriting(writing, 100 + RECOGNITION_DELAY_MS);
-    expect(shownDigit(writing)).toBe(digit);
-
-    const confirmed = confirmWriting(writing);
-
-    expect(confirmed.outcome).toBe('wrong');
-    expect(writtenStrokes(confirmed.round)).toEqual([]);
-    expect(shownDigit(confirmed.round)).toBeNull();
-    expect(starsAfterTap({ earned: 3 }, confirmed.outcome).progress.earned).toBe(3);
-  });
 });

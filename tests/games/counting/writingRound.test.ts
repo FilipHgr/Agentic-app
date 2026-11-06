@@ -39,7 +39,7 @@ import { seededRandom } from './seededRandom';
  * Testy k #41 (psaní odpovědi prstem): průběh jednoho kola s psaním.
  * Čas se předává jako číslo v ms, žádné skutečné časovače. Rozpoznávání
  * je podvržené, aby testy nezávisely na tom, jak dobře pozná číslici
- * (to měří `digitRecognition.test.ts`): každý testovací tah nese značku,
+ * (to měří `digitRecognition.slow.test.ts`): každý testovací tah nese značku,
  * kterou podvržené rozpoznávání vrátí jako číslici.
  */
 

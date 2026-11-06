@@ -46,7 +46,7 @@ import type { Box, TestWindow } from '../../shared/viewportFixtures';
 /**
  * Testy k #56 (hra na telefonu na výšku, rozložení P2), AC2 až AC6.
  * Kdy se rozložení na výšku použije (AC1), hlídá `deviceLayout.test.ts`,
- * rozpoznávání ve vysokém okénku (AC6) `phonePortraitRecognition.test.ts`
+ * rozpoznávání ve vysokém okénku (AC6) `phonePortraitRecognition.slow.test.ts`
  * a otočení telefonu (AC7) `phonePortraitResize.test.ts`.
  *
  * Všechny velikosti se přepočítají z herních jednotek na CSS px (px na

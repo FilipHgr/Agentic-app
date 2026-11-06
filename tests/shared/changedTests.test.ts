@@ -12,6 +12,11 @@ import type { ChangedTestsPlan } from '../../tools/test/changedTests';
  * výstupu a skripty, které se pustí. Jak se změny zjistí z gitu a jak se
  * skripty spustí, ověřuje `changedTestsScript.test.ts`.
  *
+ * #80: pomalé testy rozpoznávání psaní (`*.slow.test.ts`) jsou ve vlastní
+ * skupině se skriptem `test:recognition`. Kontrola změn ji pustí jen při
+ * změně rozpoznávání, jeho vzorů, pomůcek se vzorky nebo testů skupiny.
+ * V prvním řádku je skupina „rozpoznávání“ hned za svou hrou.
+ *
  * Každé pravidlo je jeden test, který projde tabulku případů v cyklu.
  * Popis případu je v `expect`, aby selhání ukázalo, který případ selhal.
  */
@@ -22,6 +27,7 @@ const SCRIPTS: Readonly<Record<string, string>> = {
   'test:shared': 'vitest run tests/shared/',
   'test:menu': 'vitest run tests/menu/ tests/shared/boundaries.test.ts',
   'test:counting': 'vitest run tests/games/counting/ tests/shared/boundaries.test.ts',
+  'test:recognition': 'vitest run .slow.test.ts',
   'test:shapes': 'vitest run tests/games/shapes/ tests/shared/boundaries.test.ts',
   'test:whole': 'vitest run tests/shared/boundaries.test.ts tests/shared/hardcodedTexts.test.ts',
 };
@@ -265,6 +271,175 @@ describe('#79 AC7: první řádek výstupu', () => {
     ];
     for (const { label, paths, headline } of cases) {
       expect(planChangedTests(paths, SCRIPTS).headline, label).toBe(headline);
+    }
+  });
+});
+
+/** Testy Počítání, hned za nimi skupina rozpoznávání a kontroly celku (#80). */
+const COUNTING_WITH_RECOGNITION: ChangedTestsPlan = {
+  headline: 'Testy: counting, rozpoznávání, celek',
+  scripts: ['test:counting', 'test:recognition', 'test:whole'],
+};
+
+const COUNTING_ONLY: ChangedTestsPlan = {
+  headline: 'Testy: counting, celek',
+  scripts: ['test:counting', 'test:whole'],
+};
+
+describe('#80 AC5: změna rozpoznávání pustí skupinu rozpoznávání', () => {
+  it('změna rozpoznávání, jeho vzorů, pomůcek se vzorky nebo testů skupiny pustí testy Počítání a skupinu', () => {
+    expectEachPlan(
+      [
+        {
+          label: 'rozpoznávání číslic',
+          paths: ['src/games/counting/logic/digitRecognition.ts'],
+        },
+        { label: 'vzory rozpoznávání', paths: ['src/games/counting/logic/digitTemplates.ts'] },
+        { label: 'pomůcka se vzorky', paths: ['tests/games/counting/penDigits.ts'] },
+        { label: 'pomůcka s nečíslicemi', paths: ['tests/games/counting/notDigitStrokes.ts'] },
+        {
+          label: 'test skupiny digitRecognition',
+          paths: ['tests/games/counting/digitRecognition.slow.test.ts'],
+        },
+        {
+          label: 'test skupiny phonePortraitRecognition',
+          paths: ['tests/games/counting/phonePortraitRecognition.slow.test.ts'],
+        },
+        {
+          label: 'test skupiny twoDigitRecognition',
+          paths: ['tests/games/counting/twoDigitRecognition.slow.test.ts'],
+        },
+        {
+          label: 'víc souborů rozpoznávání naráz pustí skupinu jen jednou',
+          paths: [
+            'src/games/counting/logic/digitRecognition.ts',
+            'src/games/counting/logic/digitTemplates.ts',
+            'tests/games/counting/penDigits.ts',
+            'tests/games/counting/digitRecognition.slow.test.ts',
+          ],
+        },
+      ],
+      COUNTING_WITH_RECOGNITION,
+    );
+  });
+
+  it('změna nástroje na vzory nebo sady vzorků pustí všechny testy', () => {
+    expectEachPlan(
+      [
+        { label: 'nástroj, který vytváří vzory', paths: ['tools/recognition/make_templates.mjs'] },
+        { label: 'testovací část sady vzorků', paths: ['data/pendigits/pendigits.tes'] },
+        { label: 'trénovací část sady vzorků', paths: ['data/pendigits/pendigits.tra'] },
+        { label: 'popis sady vzorků', paths: ['data/pendigits/README.md'] },
+        {
+          label: 'sada vzorků spolu s rozpoznáváním',
+          paths: ['data/pendigits/pendigits.tes', 'src/games/counting/logic/digitRecognition.ts'],
+        },
+      ],
+      ALL_TESTS,
+    );
+  });
+
+  it('jiná změna v Počítání skupinu rozpoznávání nepustí', () => {
+    expectEachPlan(
+      [
+        { label: 'příklady', paths: ['src/games/counting/logic/problems.ts'] },
+        { label: 'hvězdičky', paths: ['src/games/counting/logic/stars.ts'] },
+        { label: 'vstup hry', paths: ['src/games/counting/index.ts'] },
+        { label: 'texty hry', paths: ['src/games/counting/texts/cs.ts'] },
+        { label: 'scéna hry', paths: ['src/games/counting/scenes/GameScene.ts'] },
+        { label: 'psaní do dvou okének', paths: ['src/games/counting/logic/twoBoxWriting.ts'] },
+        { label: 'kolo psaní', paths: ['src/games/counting/logic/writingRound.ts'] },
+        { label: 'rozložení podle zařízení', paths: ['src/games/counting/logic/deviceLayout.ts'] },
+        { label: 'rozložení obrazovky', paths: ['src/games/counting/logic/screenLayout.ts'] },
+        { label: 'rychlý test Počítání', paths: ['tests/games/counting/writingLayout.test.ts'] },
+        { label: 'rychlý test psaní', paths: ['tests/games/counting/twoBoxWriting.test.ts'] },
+        {
+          label: 'snímek testu Počítání',
+          paths: ['tests/games/counting/__snapshots__/x.test.ts.snap'],
+        },
+      ],
+      COUNTING_ONLY,
+    );
+  });
+
+  it('změna v menu nebo jen ve sdílené části skupinu rozpoznávání nepustí', () => {
+    const cases: readonly (PlanCase & { readonly expected: ChangedTestsPlan })[] = [
+      {
+        label: 'menu',
+        paths: ['src/menu/logic/menu.ts', 'tests/menu/menuLayout.test.ts'],
+        expected: { headline: 'Testy: menu, celek', scripts: ['test:menu', 'test:whole'] },
+      },
+      {
+        label: 'sdílená část, i rozložení podle okna',
+        paths: ['src/shared/logic/viewportLayout.ts', 'tests/shared/deviceLayout.test.ts'],
+        expected: { headline: 'Testy: shared, celek', scripts: ['test:shared', 'test:whole'] },
+      },
+      {
+        label: 'menu a sdílená část',
+        paths: ['src/menu/logic/menu.ts', 'src/shared/logic/settings.ts'],
+        expected: {
+          headline: 'Testy: shared, menu, celek',
+          scripts: ['test:shared', 'test:menu', 'test:whole'],
+        },
+      },
+    ];
+    for (const { label, paths, expected } of cases) {
+      expect(planChangedTests(paths, SCRIPTS), label).toEqual(expected);
+    }
+  });
+});
+
+describe('#80 AC6: okrajové případy skupiny rozpoznávání', () => {
+  it('nový soubor označený jako pomalý pustí skupinu bez dalšího zápisu', () => {
+    expectEachPlan(
+      [
+        {
+          label: 'nový pomalý soubor Počítání',
+          paths: ['tests/games/counting/brandNewRecognition.slow.test.ts'],
+        },
+        {
+          label: 'nový pomalý soubor v podsložce testů Počítání',
+          paths: ['tests/games/counting/recognition/strokes.slow.test.ts'],
+        },
+      ],
+      COUNTING_WITH_RECOGNITION,
+    );
+  });
+
+  it('změna hry i rozpoznávání pustí testy Počítání i skupinu, skupina hned za svou hrou', () => {
+    const cases: readonly (PlanCase & { readonly expected: ChangedTestsPlan })[] = [
+      {
+        label: 'příklady a rozpoznávání',
+        paths: [
+          'src/games/counting/logic/problems.ts',
+          'src/games/counting/logic/digitRecognition.ts',
+        ],
+        expected: COUNTING_WITH_RECOGNITION,
+      },
+      {
+        label: 'rychlý test Počítání a pomůcka se vzorky v obráceném pořadí',
+        paths: ['tests/games/counting/penDigits.ts', 'tests/games/counting/writingLayout.test.ts'],
+        expected: COUNTING_WITH_RECOGNITION,
+      },
+      {
+        label: 'sdílená část, menu, Počítání a vzory rozpoznávání',
+        paths: ['src/games/counting/logic/digitTemplates.ts', 'src/menu/a.ts', 'src/shared/a.ts'],
+        expected: {
+          headline: 'Testy: shared, menu, counting, rozpoznávání, celek',
+          scripts: ['test:shared', 'test:menu', 'test:counting', 'test:recognition', 'test:whole'],
+        },
+      },
+      {
+        label: 'druhá hra a rozpoznávání: skupina za Počítáním, ne na konci',
+        paths: ['src/games/shapes/a.ts', 'src/games/counting/logic/digitRecognition.ts'],
+        expected: {
+          headline: 'Testy: counting, rozpoznávání, shapes, celek',
+          scripts: ['test:counting', 'test:recognition', 'test:shapes', 'test:whole'],
+        },
+      },
+    ];
+    for (const { label, paths, expected } of cases) {
+      expect(planChangedTests(paths, SCRIPTS), label).toEqual(expected);
     }
   });
 });

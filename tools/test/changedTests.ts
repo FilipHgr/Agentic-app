@@ -4,6 +4,8 @@
  * Pouštějí se testy dotčených částí (sdílená část, menu, jednotlivé hry)
  * a vždy kontroly celku (`test:whole`). Změna mimo všechny části nebo ve
  * hře bez vlastního skriptu `test:<hra>` pustí všechny testy (`test`).
+ * Skupina pomalých testů hry (dnes rozpoznávání psaní v Počítání, #80) se
+ * pustí jen při změně souborů, kterých se týká.
  *
  * Čistá logika bez Node API, aby ji kontroloval `tsc`. Změny z gitu zjistí
  * a skripty spustí `runChangedTests.ts`.
@@ -43,7 +45,45 @@ const GAME_PATH = /^(?:src|tests)\/games\/([a-z0-9]+)\/.+/;
 
 // Id, která by se kryla s jinými skripty (test:changed by pouštěl sám sebe).
 // Taková hra pustí všechny testy.
-const RESERVED_GAME_IDS: ReadonlySet<string> = new Set(['changed', 'whole', 'shared', 'menu']);
+const RESERVED_GAME_IDS: ReadonlySet<string> = new Set([
+  'changed',
+  'whole',
+  'shared',
+  'menu',
+  'recognition',
+]);
+
+/**
+ * Skupina pomalých testů jedné hry s vlastním skriptem (#80). Pouští se
+ * navíc k testům hry, jen při změně souborů, kterých se týká. V prvním
+ * řádku i v pořadí skriptů je hned za svou hrou.
+ */
+interface SlowTestGroup {
+  readonly gameId: string;
+  readonly label: string;
+  readonly script: string;
+  readonly matches: (path: string) => boolean;
+}
+
+/** Soubory, na kterých závisí pomalé testy rozpoznávání psaní (#80, AC5). */
+const RECOGNITION_PATHS: ReadonlySet<string> = new Set([
+  'src/games/counting/logic/digitRecognition.ts',
+  'src/games/counting/logic/digitTemplates.ts',
+  'tests/games/counting/penDigits.ts',
+  'tests/games/counting/notDigitStrokes.ts',
+]);
+
+/** Pomalý soubor testů Počítání, i v podsložce. */
+const COUNTING_SLOW_TEST = /^tests\/games\/counting\/.+\.slow\.test\.ts$/;
+
+const SLOW_TEST_GROUPS: readonly SlowTestGroup[] = [
+  {
+    gameId: 'counting',
+    label: 'rozpoznávání',
+    script: 'test:recognition',
+    matches: (path) => RECOGNITION_PATHS.has(path) || COUNTING_SLOW_TEST.test(path),
+  },
+];
 
 function partOfPath(path: string): Part | null {
   if (path.startsWith('src/shared/') || path.startsWith('tests/shared/')) {
@@ -74,8 +114,14 @@ export function planChangedTests(
   let sharedChanged = false;
   let menuChanged = false;
   const gameIds = new Set<string>();
+  const slowGroups = new Set<SlowTestGroup>();
 
   for (const path of changedPaths) {
+    for (const group of SLOW_TEST_GROUPS) {
+      if (group.matches(path)) {
+        slowGroups.add(group);
+      }
+    }
     const part = partOfPath(path);
     if (part === null) {
       return ALL_TESTS_PLAN;
@@ -87,6 +133,11 @@ export function planChangedTests(
     } else if (!RESERVED_GAME_IDS.has(part.id) && Object.hasOwn(scripts, gameScript(part.id))) {
       gameIds.add(part.id);
     } else {
+      return ALL_TESTS_PLAN;
+    }
+  }
+  for (const group of slowGroups) {
+    if (!Object.hasOwn(scripts, group.script)) {
       return ALL_TESTS_PLAN;
     }
   }
@@ -104,6 +155,12 @@ export function planChangedTests(
   for (const id of [...gameIds].sort()) {
     labels.push(id);
     plannedScripts.push(gameScript(id));
+    for (const group of SLOW_TEST_GROUPS) {
+      if (group.gameId === id && slowGroups.has(group)) {
+        labels.push(group.label);
+        plannedScripts.push(group.script);
+      }
+    }
   }
   labels.push(WHOLE_CHECKS_LABEL);
   plannedScripts.push(WHOLE_CHECKS_SCRIPT);

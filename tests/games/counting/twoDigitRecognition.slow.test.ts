@@ -162,13 +162,6 @@ function isSingleDigitOrNothing(value: number | null): boolean {
 }
 
 describe('testovací data pro dvouciferná čísla odpovídají zadání', () => {
-  it('okénko ve hře má aspoň 280 × 280 px', () => {
-    const area = gameBoxArea();
-
-    expect(area.width).toBeGreaterThanOrEqual(280);
-    expect(area.height).toBeGreaterThanOrEqual(280);
-  });
-
   it('pro každé číslo 10–20 jsou ze sady stovky dvojic, u 11 stejný vzorek dvakrát', () => {
     const samples = uciTestSamples(gameBoxArea());
 

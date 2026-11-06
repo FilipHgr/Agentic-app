@@ -40,7 +40,7 @@ import {
  * smazání a vyhodnocení potvrzené odpovědi. Čas se předává jako číslo v ms.
  * Rozpoznávání je podvržené jako v `writingRound.test.ts`: každý testovací
  * tah nese značku, kterou podvržené rozpoznávání vrátí jako číslici. Jak
- * dobře hra pozná skutečný zápis, měří `twoDigitRecognition.test.ts`.
+ * dobře hra pozná skutečný zápis, měří `twoDigitRecognition.slow.test.ts`.
  */
 
 /** Velikost jednoho okénka (AC7: aspoň 280 × 280 px). */

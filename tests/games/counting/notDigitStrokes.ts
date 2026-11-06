@@ -1,7 +1,7 @@
 /**
  * Pevná sada 30 zápisů, které nejsou číslice (#41, AC5): 10 teček,
  * 10 krátkých čárek a 10 čmáranic v ploše 320 × 320 px. Sdílí ji
- * `digitRecognition.test.ts` a `phonePortraitRecognition.test.ts` (#56, AC6).
+ * `digitRecognition.slow.test.ts` a `phonePortraitRecognition.slow.test.ts` (#56, AC6).
  */
 
 import type { Stroke, StrokePoint } from '../../../src/games/counting/logic/digitRecognition';
