@@ -21,15 +21,20 @@
  *
  * Vybraný nástroj (štětec, guma, fix nebo pastelka, #90, #93) je jen
  * v paměti: po otevření hry je vždy štětec, výběr barvy po gumě přepne na
- * naposledy vybraný malovací nástroj. Ťuknutí na nástroj,
- * barvu, úchyt nebo Zpět druhým prstem během tahu se nepočítá (AC3).
+ * naposledy vybraný malovací nástroj. Ťuknutí na nástroj, barvu, úchyt,
+ * přepínač velikosti nebo Zpět druhým prstem během tahu se nepočítá (AC3).
+ *
+ * Velikost čáry (#91) platí pro všechny nástroje a pamatuje se podle
+ * profilu v samostatném záznamu vedle obrázku (`toolPanel.ts`), záznam
+ * obrázku p1 a p2 zůstává beze změny. Změna velikosti obrázek nemění
+ * a do Zpět se nepočítá.
  * Čistý TypeScript bez Phaseru.
  */
 
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import type { Tone } from '../../../shared/audio/tonePlayer';
 import { HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
-import { NO_COLOR, createColoring, emptyColorLayer } from './coloring';
+import { NO_COLOR, brushWidthFor, createColoring, emptyColorLayer } from './coloring';
 import type { ChangedArea, PointerSample } from './coloring';
 import { PALETTE, initialPalette, tapColor } from './palette';
 import type { PaletteState } from './palette';
@@ -41,13 +46,17 @@ import {
   INITIAL_TOOL,
   PANEL_CLOSE_TONES,
   PANEL_OPEN_TONES,
+  SIZE_TOGGLE_TONES,
   TOOL_PICK_TONES,
+  loadLineSize,
+  nextLineSize,
   paintsWithColor,
   rememberOpened,
+  storeLineSize,
   toolAtSlot,
   wasOpenedBefore,
 } from './toolPanel';
-import type { HandleView, ToolId } from './toolPanel';
+import type { HandleView, LineSize, ToolId } from './toolPanel';
 
 /** Nejdelší záznam jedné omalovánky ve znacích (AC6). */
 export const PICTURE_RECORD_LIMIT = 50_000;
@@ -136,8 +145,18 @@ export interface SavedColoring {
    * Během tahu se nepočítá (druhý prst) a vrátí `[]`.
    */
   tapHandle(): readonly Tone[];
-  /** Co ukazuje úchyt: vybraný nástroj ve vybrané barvě, guma bez barvy (#96 AC5, #90). */
+  /**
+   * Co ukazuje úchyt: vybraný nástroj ve vybrané barvě, guma bez barvy,
+   * a vybraná velikost (#96 AC5, #90, #91).
+   */
   handleView(): HandleView;
+  /** Vybraná velikost čáry (#91). */
+  lineSize(): LineSize;
+  /**
+   * Ťuknutí na přepínač velikosti (#91 AC1): přepne malá → střední →
+   * velká → malá, hned uloží a vrátí tón. Během tahu se nepočítá a vrátí `[]`.
+   */
+  tapSizeToggle(): readonly Tone[];
   /** Vybraný nástroj (#90). */
   selectedTool(): ToolId;
   /**
@@ -336,6 +355,8 @@ export function openColoring(options: {
   let tool: ToolId = INITIAL_TOOL;
   /** Naposledy vybraný malovací nástroj, na který přepne barva po gumě (#93 AC5). */
   let paintingTool: ToolId = INITIAL_TOOL;
+  /** Velikost čáry pro všechny nástroje, pamatuje se podle profilu (#91 AC5). */
+  let lineSize: LineSize = loadLineSize(storage);
 
   /** Zapíše první otevření spolu s prvním ukládáním (#92 AC1: samotné otevření nic nezapíše). */
   const rememberOpening = (): void => {
@@ -384,7 +405,8 @@ export function openColoring(options: {
       if (strokePointer === null) {
         strokePointer = pointer.id;
       }
-      return noteChange(coloring.pointerDown(pointer, palette.selected, tool));
+      const width = brushWidthFor(regions.width, lineSize);
+      return noteChange(coloring.pointerDown(pointer, palette.selected, tool, width));
     },
 
     pointerMove(pointer) {
@@ -445,7 +467,23 @@ export function openColoring(options: {
       return panelOpen ? PANEL_OPEN_TONES : PANEL_CLOSE_TONES;
     },
 
-    handleView: () => ({ tool, color: paintsWithColor(tool) ? palette.selected : null }),
+    handleView: () => ({
+      tool,
+      color: paintsWithColor(tool) ? palette.selected : null,
+      size: lineSize,
+    }),
+
+    lineSize: () => lineSize,
+
+    tapSizeToggle() {
+      if (strokePointer !== null) {
+        return [];
+      }
+      lineSize = nextLineSize(lineSize);
+      rememberOpening();
+      storeLineSize(storage, lineSize);
+      return SIZE_TOGGLE_TONES[lineSize];
+    },
 
     selectedTool: () => tool,
 

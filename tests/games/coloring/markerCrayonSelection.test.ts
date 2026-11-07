@@ -113,16 +113,19 @@ describe('#93 AC1: fix a pastelka se vybírají v panelu jako štětec a guma', 
       const game = openOn(new RecordingStorage(), twoHalves());
       game.tapColor(BLUE);
       choose(game, tool);
-      expect(game.handleView(), NAMES[tool]).toEqual({ tool, color: BLUE });
+      expect(game.handleView(), NAMES[tool]).toMatchObject({ tool, color: BLUE });
 
       game.tapColor(BLACK);
-      expect(game.handleView(), `${NAMES[tool]} po změně barvy`).toEqual({ tool, color: BLACK });
+      expect(game.handleView(), `${NAMES[tool]} po změně barvy`).toMatchObject({
+        tool,
+        color: BLACK,
+      });
 
       if (game.panelOpen()) {
         game.tapHandle();
       }
       expect(game.panelOpen()).toBe(false);
-      expect(game.handleView(), `${NAMES[tool]} se zavřeným panelem`).toEqual({
+      expect(game.handleView(), `${NAMES[tool]} se zavřeným panelem`).toMatchObject({
         tool,
         color: BLACK,
       });
@@ -174,7 +177,7 @@ describe('#93 AC5: výběr barvy po gumě vrátí naposledy vybraný malovací n
       expect(game.selectedTool(), `${NAMES[tool]} → guma → barva`).toBe(tool);
       expect(game.palette().selected, NAMES[tool]).toBe(BLUE);
       expect(tones.length, `${NAMES[tool]}: tón výběru barvy`).toBeGreaterThan(0);
-      expect(game.handleView(), NAMES[tool]).toEqual({ tool, color: BLUE });
+      expect(game.handleView(), NAMES[tool]).toMatchObject({ tool, color: BLUE });
       expect(markedTools(game.selectedTool())[PANEL_TOOLS.indexOf(tool)], NAMES[tool]).toBe(true);
     }
   });
@@ -244,7 +247,7 @@ describe('#93 AC5: výběr barvy po gumě vrátí naposledy vybraný malovací n
 
       const again = openOn(storage, regions);
       expect(again.selectedTool(), NAMES[tool]).toBe('brush');
-      expect(again.handleView(), NAMES[tool]).toEqual({ tool: 'brush', color: BLUE });
+      expect(again.handleView(), NAMES[tool]).toMatchObject({ tool: 'brush', color: BLUE });
     }
   });
 

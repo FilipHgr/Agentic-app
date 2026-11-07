@@ -7,6 +7,9 @@
  * Guma (#90) je stejný tah se stopou širokou 1,5 W, který pixely své oblasti
  * vrací do prázdna; obrys je v mapě oblastí, takže vygumovat nejde.
  *
+ * Šířka W je díl šířky plochy podle velikosti čáry (#91): malá, střední
+ * nebo velká. Velikost se volí pro celý tah při jeho začátku.
+ *
  * Fix (#93) klade čtvercová razítka o straně 0,6 W se stranami podél os,
  * pastelka kulatá razítka 0,5 W, která barví jen mimo mezery zrna
  * (`crayonGrain.ts`). Ořez do oblasti a krok razítek jsou u všech nástrojů
@@ -25,10 +28,14 @@ import { OUTLINE_REGION, regionAt } from './regionMap';
 import type { RegionMap } from './regionMap';
 import { createStrokeJournal } from './strokeHistory';
 import type { StrokeChange } from './strokeHistory';
-import type { ToolId } from './toolPanel';
+import type { LineSize, ToolId } from './toolPanel';
 
-/** Stopa štětce je široká tento díl šířky plochy (doporučení k otázce 6). */
-const BRUSH_WIDTH_SHARE = 1 / 30;
+/** W jako díl šířky plochy podle velikosti čáry (#91 AC2); střední je W z #88. */
+const BRUSH_WIDTH_SHARE: Readonly<Record<LineSize, number>> = {
+  small: 1 / 50,
+  medium: 1 / 30,
+  large: 1 / 15,
+};
 
 /** Razítka po kroku nejvýš čtvrtiny šířky stopy, jinak by na okraji stopy zůstaly zuby. */
 const STAMPS_PER_STROKE_WIDTH = 4;
@@ -68,13 +75,19 @@ export interface ChangedArea {
 }
 
 export interface Coloring {
-  /** Šířka stopy štětce W v pixelech. */
+  /** Šířka stopy štětce W v pixelech, se kterou tah maluje, když nedostane jinou. */
   readonly brushWidth: number;
   /**
    * Prst se dotkl. Štětec, fix a pastelka malují barvou `colorIndex`, guma
-   * vrací pixely do prázdna. Vrátí, co se změnilo, nebo `null`.
+   * vrací pixely do prázdna. Celý tah má šířku W `width` (#91), nástroje
+   * z ní mají svou stopu. Vrátí, co se změnilo, nebo `null`.
    */
-  pointerDown(pointer: PointerSample, colorIndex: number, tool?: ToolId): ChangedArea | null;
+  pointerDown(
+    pointer: PointerSample,
+    colorIndex: number,
+    tool?: ToolId,
+    width?: number,
+  ): ChangedArea | null;
   /** Prst se posunul. Vrátí, co se zabarvilo, nebo `null`. */
   pointerMove(pointer: PointerSample): ChangedArea | null;
   /** Prst se zvedl. */
@@ -130,9 +143,9 @@ interface Stroke {
   last: Point | null;
 }
 
-/** Šířka stopy štětce pro plochu široké `pictureWidth` pixelů. */
-export function brushWidthFor(pictureWidth: number): number {
-  return pictureWidth * BRUSH_WIDTH_SHARE;
+/** Šířka stopy štětce W velikosti `size` pro plochu široké `pictureWidth` pixelů. */
+export function brushWidthFor(pictureWidth: number, size: LineSize = 'medium'): number {
+  return pictureWidth * BRUSH_WIDTH_SHARE[size];
 }
 
 function isUsablePoint(pointer: PointerSample): boolean {
@@ -202,7 +215,6 @@ export function createColoring(
   options: { brushWidth?: number; colors?: Uint8Array } = {},
 ): Coloring {
   const brushWidth = options.brushWidth ?? brushWidthFor(regions.width);
-  const brushRadius = brushWidth / 2;
   const colors =
     options.colors?.length === regions.width * regions.height
       ? options.colors.slice()
@@ -210,8 +222,9 @@ export function createColoring(
   const journal = createStrokeJournal(regions.width, regions.height);
   let stroke: Stroke | null = null;
 
-  /** Stopa nástroje `tool`: šířka, tvar razítka a zrno (#90, #93). */
-  const inkOf = (tool: ToolId, colorIndex: number): StrokeInk => {
+  /** Stopa nástroje `tool` při šířce W `width`: šířka, tvar razítka a zrno (#90, #93). */
+  const inkOf = (tool: ToolId, colorIndex: number, width: number): StrokeInk => {
+    const brushRadius = width / 2;
     switch (tool) {
       case 'eraser':
         return {
@@ -297,12 +310,12 @@ export function createColoring(
   return {
     brushWidth,
 
-    pointerDown(pointer, colorIndex, tool = 'brush') {
+    pointerDown(pointer, colorIndex, tool = 'brush', width = brushWidth) {
       if (stroke !== null) {
         // Druhý prst nebo dlaň během tahu nic nenamaluje.
         return null;
       }
-      const ink = inkOf(tool, colorIndex);
+      const ink = inkOf(tool, colorIndex, width);
       if (!isUsablePoint(pointer)) {
         stroke = { pointerId: pointer.id, ink, target: { kind: 'nothing' }, last: null };
         return null;

@@ -319,10 +319,10 @@ describe('#90 AC1: volba nástroje v panelu', () => {
     game.tapColor(BLUE);
 
     chooseEraser(game);
-    expect(game.handleView(), 'guma').toEqual({ tool: 'eraser', color: null });
+    expect(game.handleView(), 'guma').toMatchObject({ tool: 'eraser', color: null });
 
     chooseBrush(game);
-    expect(game.handleView(), 'štětec').toEqual({ tool: 'brush', color: BLUE });
+    expect(game.handleView(), 'štětec').toMatchObject({ tool: 'brush', color: BLUE });
   });
 
   it('úchyt ukazuje gumu bez barvy i se zavřeným panelem', () => {
@@ -330,7 +330,7 @@ describe('#90 AC1: volba nástroje v panelu', () => {
     chooseEraser(game);
     game.tapHandle();
     expect(game.panelOpen()).toBe(false);
-    expect(game.handleView()).toEqual({ tool: 'eraser', color: null });
+    expect(game.handleView()).toMatchObject({ tool: 'eraser', color: null });
   });
 });
 
@@ -520,7 +520,7 @@ describe('#90 AC3: okrajové případy gumy', () => {
 
     expect(chooseEraser(game), 'během tahu žádný tón').toEqual([]);
     expect(game.selectedTool()).toBe('brush');
-    expect(game.handleView()).toEqual({ tool: 'brush', color: RED });
+    expect(game.handleView()).toMatchObject({ tool: 'brush', color: RED });
 
     game.pointerMove({ id: 1, x: 140, y: 40, kind: 'touch' });
     game.pointerUp(1);
@@ -553,7 +553,7 @@ describe('#90 AC3: okrajové případy gumy', () => {
     game.pointerMove({ id: 1, x: 140, y: 40, kind: 'touch' });
     game.pointerUp(1);
     expect(game.colorAt(130, 40), 'tah pokračoval gumou').toBeNull();
-    expect(game.handleView()).toEqual({ tool: 'eraser', color: null });
+    expect(game.handleView()).toMatchObject({ tool: 'eraser', color: null });
   });
 
   it('ťuknutí druhým prstem na barvu během tahu štětcem se nepočítá a barva zůstane', () => {
@@ -640,7 +640,7 @@ describe('#90 AC4: Zpět po gumě a výběr barvy po gumě', () => {
     expect(game.selectedTool()).toBe('brush');
     expect(game.palette().selected).toBe(BLUE);
     expect(tones.length, 'tón výběru barvy').toBeGreaterThan(0);
-    expect(game.handleView()).toEqual({ tool: 'brush', color: BLUE });
+    expect(game.handleView()).toMatchObject({ tool: 'brush', color: BLUE });
     expect(markedTools(game.selectedTool())[BRUSH_SLOT], 'označený štětec').toBe(true);
     paint(game, [at(20, 100), at(130, 100)]);
     expect(game.colorAt(70, 100)).toBe(BLUE);

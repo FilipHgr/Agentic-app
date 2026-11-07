@@ -1,16 +1,18 @@
 /**
  * Úchyt panelu nástrojů (#96 AC2, AC5) se zástupným vzhledem A3: tlačítko
  * s modrým okrajem, uvnitř vybraný nástroj ve vybrané barvě (guma bez
- * barvy, #90) a malá šipka,
- * kam se panel po ťuknutí pohne. Ťuknutí pozná scéna přes `touchTargetAt`.
+ * barvy, #90), v pravém dolním rohu tmavá tečka vybrané velikosti čáry
+ * (#91) a malá šipka, kam se panel po ťuknutí pohne. Kam se kreslí ikona
+ * a tečka, určuje `handleFace`. Ťuknutí pozná scéna přes `touchTargetAt`.
  */
 
 import Phaser from 'phaser';
 
 import { colorNumber } from '../../../shared/logic/theme';
+import { handleFace } from '../logic/coloringLayout';
 import type { ColoringLayout, LayoutRect } from '../logic/coloringLayout';
-import { HANDLE_STYLE } from '../logic/theme';
-import type { ToolId } from '../logic/toolPanel';
+import { HANDLE_STYLE, SIZE_DOT_STYLE } from '../logic/theme';
+import type { HandleView } from '../logic/toolPanel';
 import { drawToolIcon } from './toolIcon';
 
 export class HandleButtonView {
@@ -32,8 +34,11 @@ export class HandleButtonView {
       .setDepth(depth);
   }
 
-  /** Překreslí úchyt: nástroj `tool` v barvě `colorHex` a šipka podle stavu panelu. */
-  show(tool: ToolId, colorHex: string | null, panelOpen: boolean): void {
+  /**
+   * Překreslí úchyt: nástroj a velikost z `view`, nástroj v barvě
+   * `colorHex` a šipka podle stavu panelu.
+   */
+  show(view: HandleView, colorHex: string | null, panelOpen: boolean): void {
     const graphics = this.graphics;
     const rect = this.rect;
     if (graphics === null || rect === null) {
@@ -55,7 +60,18 @@ export class HandleButtonView {
       rect.height - borderWidth,
       Math.max(0, radius - inset),
     );
-    drawToolIcon(graphics, tool, rect.width * 0.46, rect.height * 0.44, side * 0.6, colorHex);
+    // `handleFace` počítá v herních jednotkách; grafika má počátek v levém horním rohu úchytu.
+    const { icon, sizeDot } = handleFace({ ...rect, left: 0, top: 0 }, view.size);
+    drawToolIcon(
+      graphics,
+      view.tool,
+      icon.left + icon.width / 2,
+      icon.top + icon.height / 2,
+      Math.min(icon.width, icon.height),
+      colorHex,
+    );
+    graphics.fillStyle(colorNumber(SIZE_DOT_STYLE.color), 1);
+    graphics.fillCircle(sizeDot.centerX, sizeDot.centerY, sizeDot.diameter / 2);
     this.drawArrow(graphics, rect, panelOpen);
   }
 

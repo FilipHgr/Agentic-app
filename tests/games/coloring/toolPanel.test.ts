@@ -290,18 +290,18 @@ describe('#96 AC4: tah při otevřeném panelu', () => {
 describe('#96 AC5: úchyt ukazuje vybraný nástroj ve vybrané barvě', () => {
   it('na začátku úchyt ukazuje štětec v první barvě', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
-    expect(game.handleView()).toEqual({ tool: 'brush', color: RED });
+    expect(game.handleView()).toMatchObject({ tool: 'brush', color: RED });
   });
 
   it('po každé změně barvy úchyt hned ukazuje novou barvu, i se zavřeným panelem', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
     for (const color of [BLUE, BLACK, RED, BLUE]) {
       game.tapColor(color);
-      expect(game.handleView(), `barva ${color}`).toEqual({ tool: 'brush', color });
+      expect(game.handleView(), `barva ${color}`).toMatchObject({ tool: 'brush', color });
     }
     game.tapHandle();
     expect(game.panelOpen()).toBe(false);
-    expect(game.handleView()).toEqual({ tool: 'brush', color: BLUE });
+    expect(game.handleView()).toMatchObject({ tool: 'brush', color: BLUE });
   });
 
   it('po návratu do hry úchyt ukazuje naposledy vybranou barvu', () => {
@@ -310,13 +310,16 @@ describe('#96 AC5: úchyt ukazuje vybraný nástroj ve vybrané barvě', () => {
     game.tapColor(BLACK);
     game.suspend();
 
-    expect(openOn(storage, twoHalves()).handleView()).toEqual({ tool: 'brush', color: BLACK });
+    expect(openOn(storage, twoHalves()).handleView()).toMatchObject({
+      tool: 'brush',
+      color: BLACK,
+    });
   });
 
   it('neplatná barva úchyt nezmění', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
     game.tapColor(BLUE);
     game.tapColor(99);
-    expect(game.handleView()).toEqual({ tool: 'brush', color: BLUE });
+    expect(game.handleView()).toMatchObject({ tool: 'brush', color: BLUE });
   });
 });

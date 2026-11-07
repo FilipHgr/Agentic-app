@@ -20,6 +20,7 @@
 import { homeButtonInFreeArea } from '../../../shared/logic/homeButton';
 import type { GameArea, GameAreaFit } from '../../../shared/logic/viewportLayout';
 import { PALETTE } from './palette';
+import type { LineSize } from './toolPanel';
 
 /** Omalovánky chtějí herní plochu přes celou volnou plochu okna i na iPadu (#96). */
 export const COLORING_GAME_AREA_FIT: GameAreaFit = 'fullWindow';
@@ -47,12 +48,19 @@ export interface ColoringLayout {
   readonly paletteColors: readonly LayoutRect[];
   /** 10 míst pro nástroje, štětec na prvním. */
   readonly toolSlots: readonly LayoutRect[];
-  /** Přepínač velikosti (zatím prázdné místo). */
+  /** Přepínač velikosti čáry (#91). */
   readonly sizeToggle: LayoutRect;
   /** Tenká čára mezi oddílem barev a nástrojů. */
   readonly panelDivider: LayoutRect;
   /** Odkud panel vyjíždí: zleva (na šířku), nebo zdola (na výšku). */
   readonly panelSlidesFrom: 'left' | 'bottom';
+}
+
+/** Kruh v herních jednotkách (tečka velikosti čáry, #91). */
+export interface LayoutCircle {
+  readonly centerX: number;
+  readonly centerY: number;
+  readonly diameter: number;
 }
 
 /** Kam patří dotyk (#96 AC4). Malovat se smí jen u `picture`. */
@@ -456,4 +464,73 @@ export function touchTargetAt(
     return panelTarget(layout, x, y);
   }
   return contains(layout.picture, x, y) ? { kind: 'picture' } : { kind: 'none' };
+}
+
+// ---------------------------------------------------------------------------
+// Tečka velikosti čáry (#91)
+// ---------------------------------------------------------------------------
+
+/** Průměry tečky velikosti v poměru 1 : 2 : 3 (#91 AC1). */
+const SIZE_DOT_STEPS: Readonly<Record<LineSize, number>> = { small: 1, medium: 2, large: 3 };
+
+/** Velká tečka v úchytu má průměr tento díl strany úchytu (nejvýš čtvrtina, #91 AC1). */
+const HANDLE_LARGE_DOT_SHARE = 0.24;
+
+/**
+ * Střed tečky v úchytu jako díl strany od levého horního rohu: v pravém
+ * dolním rohu, uvnitř zaobleného okraje a mimo šipku panelu, která je
+ * na šířku vpravo uprostřed výšky a na výšku dole uprostřed šířky.
+ */
+const HANDLE_DOT_CENTER_SHARE = 0.8;
+
+/**
+ * Ikona nástroje v úchytu: čtverec tohoto dílu strany se středem kousek
+ * vlevo nahoru od středu úchytu, aby se nepřekrývala s tečkou ani šipkou.
+ */
+const HANDLE_ICON_SHARE = 0.56;
+const HANDLE_ICON_CENTER_SHARE = 0.43;
+
+/** Velká tečka v přepínači má průměr tento díl strany přepínače. */
+const TOGGLE_LARGE_DOT_SHARE = 0.6;
+
+function sideOf(rect: LayoutRect): number {
+  return Math.min(rect.width, rect.height);
+}
+
+/** Průměr tečky velikosti `size`, když má velká tečka průměr `largeDiameter`. */
+function dotDiameter(size: LineSize, largeDiameter: number): number {
+  return (largeDiameter * SIZE_DOT_STEPS[size]) / SIZE_DOT_STEPS.large;
+}
+
+/**
+ * Kam úchyt kreslí ikonu vybraného nástroje a tmavou tečku vybrané
+ * velikosti (#91 AC1): ikona uprostřed, tečka v pravém dolním rohu.
+ */
+export function handleFace(
+  handle: LayoutRect,
+  size: LineSize,
+): { readonly icon: LayoutRect; readonly sizeDot: LayoutCircle } {
+  const side = sideOf(handle);
+  const iconSide = side * HANDLE_ICON_SHARE;
+  const icon = {
+    left: handle.left + handle.width * HANDLE_ICON_CENTER_SHARE - iconSide / 2,
+    top: handle.top + handle.height * HANDLE_ICON_CENTER_SHARE - iconSide / 2,
+    width: iconSide,
+    height: iconSide,
+  };
+  const sizeDot = {
+    centerX: handle.left + handle.width - side * (1 - HANDLE_DOT_CENTER_SHARE),
+    centerY: handle.top + handle.height - side * (1 - HANDLE_DOT_CENTER_SHARE),
+    diameter: dotDiameter(size, side * HANDLE_LARGE_DOT_SHARE),
+  };
+  return { icon, sizeDot };
+}
+
+/** Tmavá tečka vybrané velikosti uprostřed přepínače (#91 AC1), poměr 1 : 2 : 3. */
+export function sizeToggleDot(toggle: LayoutRect, size: LineSize): LayoutCircle {
+  return {
+    centerX: toggle.left + toggle.width / 2,
+    centerY: toggle.top + toggle.height / 2,
+    diameter: dotDiameter(size, sideOf(toggle) * TOGGLE_LARGE_DOT_SHARE),
+  };
 }

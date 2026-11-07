@@ -82,6 +82,11 @@ export const HANDLE_STYLE = {
   arrowColor: BLUE,
 } as const;
 
+/** Tečka velikosti čáry (#91) v úchytu i v přepínači: tmavá jako obrys. */
+export const SIZE_DOT_STYLE = {
+  color: TEXT,
+} as const;
+
 /** Štětec: modrá rukojeť, šedomodrá objímka a špička v barvě. */
 export const BRUSH_STYLE = {
   handleColor: BLUE,

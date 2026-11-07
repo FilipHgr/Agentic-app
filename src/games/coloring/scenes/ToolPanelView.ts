@@ -3,17 +3,20 @@
  * stínem, v ní oddíl barev a oddíl nástrojů s přepínačem velikosti.
  * Místa pro nehotové položky jsou prázdná, na prvních místech nástrojů
  * jsou štětec, guma, fix a pastelka (`PANEL_TOOLS`, #90, #93), vybraný má
- * silný modrý okraj. Panel vyjíždí zleva (na šířku) nebo zdola (na výšku) do 0,3 s
- * a zajíždí pod pruh ovládání; obrázek se přitom nehne, posouvá se jen
+ * silný modrý okraj. Přepínač velikosti (#91) je tlačítko s tmavou tečkou
+ * vybrané velikosti (`sizeToggleDot`). Panel vyjíždí zleva (na šířku)
+ * nebo zdola (na výšku) do 0,3 s a zajíždí pod pruh ovládání; obrázek se přitom nehne, posouvá se jen
  * panel. Dotyky sem nechodí, rozhoduje o nich scéna přes `touchTargetAt`.
  */
 
 import Phaser from 'phaser';
 
 import { PAGE_BACKGROUND, colorNumber } from '../../../shared/logic/theme';
+import { sizeToggleDot } from '../logic/coloringLayout';
 import type { ColoringLayout, LayoutRect } from '../logic/coloringLayout';
-import { COLOR_BUTTON_STYLE, TOOL_PANEL_STYLE } from '../logic/theme';
+import { COLOR_BUTTON_STYLE, SIZE_DOT_STYLE, TOOL_PANEL_STYLE } from '../logic/theme';
 import { PANEL_TOOLS } from '../logic/toolPanel';
+import type { LineSize } from '../logic/toolPanel';
 import { drawEmptySlot } from './emptySlot';
 import { PaletteView } from './PaletteView';
 import { drawToolIcon } from './toolIcon';
@@ -28,11 +31,15 @@ export interface PanelPlacement {
   readonly depth: number;
 }
 
-/** Co je v panelu označené: barva, nástroj a barva malovacích nástrojů (`null` bez barvy). */
+/**
+ * Co je v panelu označené: barva, nástroj, barva malovacích nástrojů
+ * (`null` bez barvy) a velikost čáry v přepínači.
+ */
 export interface PanelSelection {
   readonly markedColors: readonly boolean[];
   readonly markedTools: readonly boolean[];
   readonly paintHex: string | null;
+  readonly lineSize: LineSize;
 }
 
 /** Symbol nástroje zabere tento díl strany místa. */
@@ -47,6 +54,8 @@ export class ToolPanelView {
   private backdrop: Phaser.GameObjects.Rectangle | null = null;
   /** Tlačítka nástrojů v pořadí `PANEL_TOOLS`, každé s počátkem ve středu svého místa. */
   private toolButtons: Phaser.GameObjects.Graphics[] = [];
+  /** Přepínač velikosti s počátkem ve středu svého místa. */
+  private sizeToggle: Phaser.GameObjects.Graphics | null = null;
   private readonly palette: PaletteView;
   private placement: PanelPlacement | null = null;
   private open = false;
@@ -78,26 +87,37 @@ export class ToolPanelView {
       }
     });
     const toggle = this.scene.add.graphics({
-      x: layout.sizeToggle.left,
-      y: layout.sizeToggle.top,
+      x: layout.sizeToggle.left + layout.sizeToggle.width / 2,
+      y: layout.sizeToggle.top + layout.sizeToggle.height / 2,
     });
-    drawEmptySlot(toggle, layout.sizeToggle, cssScale);
     container.add(toggle);
+    this.sizeToggle = toggle;
     this.container = container;
     this.showTools(selection);
+    this.showSize(selection.lineSize);
     this.backdrop = this.drawBackdrop(placement);
     this.jumpTo(open);
   }
 
-  /** Označí vybranou barvu a nástroj; malovací nástroje ukáže ve vybrané barvě. */
+  /** Označí vybranou barvu, nástroj a velikost; malovací nástroje ukáže ve vybrané barvě. */
   mark(selection: PanelSelection): void {
     this.palette.mark(selection.markedColors);
     this.showTools(selection);
+    this.showSize(selection.lineSize);
   }
 
   /** Ťuknutí na nástroj, který už je vybraný: nástroj se zhoupne kolem středu svého místa. */
   wobbleTool(index: number): void {
-    const graphics = this.toolButtons[index];
+    this.wobble(this.toolButtons[index]);
+  }
+
+  /** Ťuknutí na přepínač velikosti: přepínač se krátce zhoupne (#91 AC1). */
+  wobbleSizeToggle(): void {
+    this.wobble(this.sizeToggle ?? undefined);
+  }
+
+  /** Zhoupnutí kolem středu: na jednu stranu, na druhou a zpět. */
+  private wobble(graphics: Phaser.GameObjects.Graphics | undefined): void {
     if (graphics === undefined) {
       return;
     }
@@ -134,8 +154,10 @@ export class ToolPanelView {
   }
 
   destroy(): void {
-    for (const button of this.toolButtons) {
-      this.scene.tweens.killTweensOf(button);
+    for (const button of [...this.toolButtons, this.sizeToggle]) {
+      if (button !== null) {
+        this.scene.tweens.killTweensOf(button);
+      }
     }
     if (this.container !== null) {
       this.scene.tweens.killTweensOf(this.container);
@@ -146,6 +168,7 @@ export class ToolPanelView {
     this.container = null;
     this.backdrop = null;
     this.toolButtons = [];
+    this.sizeToggle = null;
   }
 
   /** Okamžitě bez animace (po otočení obrazovky). */
@@ -184,6 +207,25 @@ export class ToolPanelView {
       const size = Math.min(slot.width, slot.height) * TOOL_ICON_SHARE;
       drawToolIcon(graphics, tool, 0, 0, size, selection.paintHex);
     });
+  }
+
+  /** Překreslí přepínač velikosti: tlačítko A3 a tmavá tečka velikosti `size` (#91 AC1). */
+  private showSize(size: LineSize): void {
+    const graphics = this.sizeToggle;
+    const placement = this.placement;
+    if (graphics === null || placement === null) {
+      return;
+    }
+    const toggle = placement.layout.sizeToggle;
+    graphics.clear();
+    drawToolButton(graphics, toggle, placement.cssScale, false);
+    // `sizeToggleDot` počítá v herních jednotkách; grafika má počátek ve středu přepínače.
+    const dot = sizeToggleDot(
+      { ...toggle, left: -toggle.width / 2, top: -toggle.height / 2 },
+      size,
+    );
+    graphics.fillStyle(colorNumber(SIZE_DOT_STYLE.color), 1);
+    graphics.fillCircle(dot.centerX, dot.centerY, dot.diameter / 2);
   }
 
   /** Karta panelu se stínem a čárou mezi oddíly. */

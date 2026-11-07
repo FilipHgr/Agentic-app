@@ -1,10 +1,11 @@
 /**
  * Panel nástrojů Omalovánek (#96): nástroje na místech panelu (štětec
- * a guma od #90, fix a pastelka od #93), co ukazuje úchyt, tóny úchytu a záznam o prvním otevření
- * hry v profilu. Při úplně prvním otevření je panel
- * otevřený, aby dítě vidělo, co v něm je, jindy začíná zavřený. Záznam se
- * zapíše při prvním ukládání (tah, barva, Zpět) nebo nejpozději při
- * odchodu a schování stránky, ne hned při otevření: pouhé otevření hry do
+ * a guma od #90, fix a pastelka od #93), velikost čáry a její záznam
+ * (#91), co ukazuje úchyt, tóny úchytu a záznam o prvním otevření hry
+ * v profilu. Při úplně prvním otevření je panel otevřený, aby dítě
+ * vidělo, co v něm je, jindy začíná zavřený. Záznam se zapíše při prvním
+ * ukládání (tah, barva, velikost, Zpět) nebo nejpozději při odchodu
+ * a schování stránky, ne hned při otevření: pouhé otevření hry do
  * úložiště nic nezapíše (#92 AC1). Kdo panel nezavře, uvidí ho příště
  * zavřený. Chybějící, nesmyslný nebo nečitelný záznam znamená první otevření.
  * Čistý TypeScript bez Phaseru.
@@ -42,13 +43,66 @@ export function toolAtSlot(index: number): ToolId | null {
   return PANEL_TOOLS[index] ?? null;
 }
 
+/** Velikost čáry (#91): platí pro všechny nástroje naráz. */
+export type LineSize = 'small' | 'medium' | 'large';
+
+/** Velikosti v pořadí, ve kterém je přepínač prochází (#91 AC1). */
+export const LINE_SIZES: readonly LineSize[] = ['small', 'medium', 'large'];
+
+/** Velikost na začátku a po chybějícím nebo nesmyslném záznamu (#91 AC2, AC5). */
+export const INITIAL_LINE_SIZE: LineSize = 'medium';
+
+/** Velikost po ťuknutí na přepínač: malá → střední → velká → malá (#91 AC1). */
+export function nextLineSize(size: LineSize): LineSize {
+  const next = (LINE_SIZES.indexOf(size) + 1) % LINE_SIZES.length;
+  return LINE_SIZES[next] ?? INITIAL_LINE_SIZE;
+}
+
 /**
- * Co ukazuje úchyt (#96 AC5): vybraný nástroj ve vybrané barvě, guma bez
- * barvy (`null`, #90 AC1).
+ * Krátký tón při ťuknutí na přepínač velikosti (#91 AC1), dozní za 0,14 s.
+ * Tenká čára zní výš, tlustá níž.
+ */
+export const SIZE_TOGGLE_TONES: Readonly<Record<LineSize, readonly Tone[]>> = {
+  small: [{ frequencyHz: 880, startSeconds: 0, durationSeconds: 0.14, volume: 0.14 }],
+  medium: [{ frequencyHz: 659.25, startSeconds: 0, durationSeconds: 0.14, volume: 0.14 }],
+  large: [{ frequencyHz: 493.88, startSeconds: 0, durationSeconds: 0.14, volume: 0.14 }],
+};
+
+/** Klíč záznamu velikosti v úložišti hry profilu, samostatně vedle obrázku (#91 AC5). */
+const LINE_SIZE_KEY = 'lineSize';
+
+function isLineSize(value: string | null): value is LineSize {
+  return LINE_SIZES.some((size) => size === value);
+}
+
+/** Uložená velikost; chybějící, nesmyslný nebo nečitelný záznam je střední (#91 AC5). */
+export function loadLineSize(storage: KeyValueStorage): LineSize {
+  try {
+    const stored = storage.getItem(LINE_SIZE_KEY);
+    return isLineSize(stored) ? stored : INITIAL_LINE_SIZE;
+  } catch (error) {
+    console.warn('Omalovánky: velikost čáry nejde přečíst', error);
+    return INITIAL_LINE_SIZE;
+  }
+}
+
+/** Uloží velikost. Chyba úložiště hru nezastaví. */
+export function storeLineSize(storage: KeyValueStorage, size: LineSize): void {
+  try {
+    storage.setItem(LINE_SIZE_KEY, size);
+  } catch (error) {
+    console.warn('Omalovánky: velikost čáry nejde uložit', error);
+  }
+}
+
+/**
+ * Co ukazuje úchyt (#96 AC5, #91 AC1): vybraný nástroj ve vybrané barvě,
+ * guma bez barvy (`null`, #90 AC1), a vybranou velikost čáry.
  */
 export interface HandleView {
   readonly tool: ToolId;
   readonly color: number | null;
+  readonly size: LineSize;
 }
 
 /** Krátký stoupající tón při otevření panelu, dozní za 0,2 s. */

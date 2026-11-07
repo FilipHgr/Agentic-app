@@ -25,13 +25,14 @@ import { UNDO_WOBBLE_TONES, openColoring } from '../logic/savedPicture';
 import type { SavedColoring, UndoResult } from '../logic/savedPicture';
 import { PICTURE_STYLE } from '../logic/theme';
 import {
+  INITIAL_LINE_SIZE,
   INITIAL_TOOL,
   PANEL_CLOSE_TONES,
   PANEL_OPEN_TONES,
   markedTools,
   toolAtSlot,
 } from '../logic/toolPanel';
-import type { HandleView, ToolId } from '../logic/toolPanel';
+import type { HandleView, LineSize, ToolId } from '../logic/toolPanel';
 import { HandleButtonView } from './HandleButtonView';
 import { PaintLayer } from './PaintLayer';
 import { PICTURE, drawPictureOutline, snapshotOf } from './pictureCanvas';
@@ -73,8 +74,8 @@ const NO_PAGE: ColoringPage = {
  * Od #96 je obrázek přes celou obrazovku a nástroje jsou ve vysouvacím
  * panelu, který otevře a zavře úchyt v pruhu ovládání. Kam dotyk patří
  * (úchyt, Zpět, panel, obrázek), rozhoduje `touchTargetAt`; malovat se
- * smí jen u dotyku na obrázku. Stav panelu i vybraný nástroj (štětec nebo
- * guma, #90) drží `savedPicture.ts`.
+ * smí jen u dotyku na obrázku. Stav panelu, vybraný nástroj (štětec nebo
+ * guma, #90) i velikost čáry (#91) drží `savedPicture.ts`.
  */
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -235,22 +236,32 @@ export class ColoringScene extends Phaser.Scene {
     return this.coloring?.selectedTool() ?? INITIAL_TOOL;
   }
 
+  /** Vybraná velikost čáry; dokud se obrázek připravuje, je to střední. */
+  private lineSize(): LineSize {
+    return this.coloring?.lineSize() ?? INITIAL_LINE_SIZE;
+  }
+
   /** Co je v panelu označené; štětec, fix a pastelka jsou vždy ve vybrané barvě. */
   private panelSelection(): PanelSelection {
     return {
       markedColors: markedColors(this.palette),
       markedTools: markedTools(this.selectedTool()),
       paintHex: hexOf(this.palette.selected),
+      lineSize: this.lineSize(),
     };
   }
 
-  /** Úchyt ukazuje vybraný nástroj ve vybrané barvě, gumu bez barvy (#96 AC5, #90 AC1). */
+  /**
+   * Úchyt ukazuje vybraný nástroj ve vybrané barvě, gumu bez barvy
+   * a tečku velikosti (#96 AC5, #90 AC1, #91 AC1).
+   */
   private showHandle(open: boolean): void {
     const view: HandleView = this.coloring?.handleView() ?? {
       tool: INITIAL_TOOL,
       color: this.palette.selected,
+      size: INITIAL_LINE_SIZE,
     };
-    this.handleView.show(view.tool, view.color === null ? null : hexOf(view.color), open);
+    this.handleView.show(view, view.color === null ? null : hexOf(view.color), open);
   }
 
   /** Panel a šipka úchytu podle stavu v logice; panel se vysune nebo zasune animací. */
@@ -260,7 +271,7 @@ export class ColoringScene extends Phaser.Scene {
     this.showHandle(open);
   }
 
-  /** Vybraná barva a nástroj v panelu i v úchytu. */
+  /** Vybraná barva, nástroj a velikost v panelu i v úchytu. */
   private showSelection(): void {
     this.panelView.mark(this.panelSelection());
     this.showHandle(this.isPanelOpen());
@@ -295,6 +306,21 @@ export class ColoringScene extends Phaser.Scene {
     if (wasSelected) {
       this.panelView.wobbleTool(index);
     }
+    this.showSelection();
+  }
+
+  /**
+   * Ťuknutí na přepínač velikosti (#91 AC1): další velikost s tónem
+   * a krátkým zhoupnutím přepínače. Druhý prst během tahu nic nedělá;
+   * dokud se obrázek připravuje, zůstává střední velikost.
+   */
+  private onSizeToggleTapped(): void {
+    const tones = this.coloring?.tapSizeToggle() ?? [];
+    if (tones.length === 0) {
+      return;
+    }
+    this.sounds.play(tones);
+    this.panelView.wobbleSizeToggle();
     this.showSelection();
   }
 
@@ -387,6 +413,8 @@ export class ColoringScene extends Phaser.Scene {
         this.onToolTapped(target.index);
         return;
       case 'sizeToggle':
+        this.onSizeToggleTapped();
+        return;
       case 'recentColor':
       case 'panel':
       case 'none':
