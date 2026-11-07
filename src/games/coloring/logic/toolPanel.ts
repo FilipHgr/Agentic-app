@@ -1,6 +1,6 @@
 /**
  * Panel nástrojů Omalovánek (#96): nástroje na místech panelu (štětec
- * a guma od #90), co ukazuje úchyt, tóny úchytu a záznam o prvním otevření
+ * a guma od #90, fix a pastelka od #93), co ukazuje úchyt, tóny úchytu a záznam o prvním otevření
  * hry v profilu. Při úplně prvním otevření je panel
  * otevřený, aby dítě vidělo, co v něm je, jindy začíná zavřený. Záznam se
  * zapíše při prvním ukládání (tah, barva, Zpět) nebo nejpozději při
@@ -13,14 +13,19 @@
 import type { Tone } from '../../../shared/audio/tonePlayer';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 
-/** Nástroje Omalovánek; fix a pastelku přidají navazující úkoly. */
-export type ToolId = 'brush' | 'eraser';
+/** Nástroje Omalovánek: štětec, guma (#90), fix a pastelka (#93). */
+export type ToolId = 'brush' | 'eraser' | 'marker' | 'crayon';
 
 /** Nástroje podle míst v panelu: nástroj `PANEL_TOOLS[i]` je na místě `toolSlots[i]`. */
-export const PANEL_TOOLS: readonly ToolId[] = ['brush', 'eraser'];
+export const PANEL_TOOLS: readonly ToolId[] = ['brush', 'eraser', 'marker', 'crayon'];
 
 /** Nástroj, který je vybraný na začátku a po každém návratu do hry (#90 AC1). */
 export const INITIAL_TOOL: ToolId = 'brush';
+
+/** Maluje nástroj barvou (štětec, fix, pastelka), nebo gumuje? */
+export function paintsWithColor(tool: ToolId): boolean {
+  return tool !== 'eraser';
+}
 
 /** Krátký tón při ťuknutí na nástroj (#90 AC1), dozní za 0,12 s. */
 export const TOOL_PICK_TONES: readonly Tone[] = [

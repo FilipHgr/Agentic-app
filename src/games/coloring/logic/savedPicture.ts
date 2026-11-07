@@ -19,8 +19,9 @@
  * úchytem a zavře se i tahem po obrázku; při prvním otevření hry v profilu
  * začíná otevřený (`toolPanel.ts`).
  *
- * Vybraný nástroj (štětec nebo guma, #90) je jen v paměti: po otevření hry
- * je vždy štětec, výběr barvy přepne zpátky na štětec. Ťuknutí na nástroj,
+ * Vybraný nástroj (štětec, guma, fix nebo pastelka, #90, #93) je jen
+ * v paměti: po otevření hry je vždy štětec, výběr barvy po gumě přepne na
+ * naposledy vybraný malovací nástroj. Ťuknutí na nástroj,
  * barvu, úchyt nebo Zpět druhým prstem během tahu se nepočítá (AC3).
  * Čistý TypeScript bez Phaseru.
  */
@@ -32,7 +33,8 @@ import { NO_COLOR, createColoring, emptyColorLayer } from './coloring';
 import type { ChangedArea, PointerSample } from './coloring';
 import { PALETTE, initialPalette, tapColor } from './palette';
 import type { PaletteState } from './palette';
-import { decodeColorLayer, encodeColorLayer } from './colorLayerCode';
+import { CURRENT_LAYER_CODE, decodeColorLayer, encodeColorLayer } from './colorLayerCode';
+import type { LayerCodeVersion } from './colorLayerCode';
 import type { RegionMap } from './regionMap';
 import { createUndoHistory } from './strokeHistory';
 import {
@@ -40,6 +42,7 @@ import {
   PANEL_CLOSE_TONES,
   PANEL_OPEN_TONES,
   TOOL_PICK_TONES,
+  paintsWithColor,
   rememberOpened,
   toolAtSlot,
   wasOpenedBefore,
@@ -49,8 +52,15 @@ import type { HandleView, ToolId } from './toolPanel';
 /** Nejdelší záznam jedné omalovánky ve znacích (AC6). */
 export const PICTURE_RECORD_LIMIT = 50_000;
 
-/** Označení formátu záznamu; při změně kódování se zvýší. */
-const RECORD_FORMAT = 'p1';
+/**
+ * Označení formátu záznamu je verze kódování vrstvy barev; při změně
+ * kódování se zvýší. Ukládá se v nejnovější, číst jde i starší (p1 z #92).
+ */
+const READABLE_FORMATS: readonly LayerCodeVersion[] = ['p1', 'p2'];
+
+function isReadableFormat(format: string | undefined): format is LayerCodeVersion {
+  return READABLE_FORMATS.some((readable) => readable === format);
+}
 
 const FIELD_SEPARATOR = '|';
 
@@ -107,7 +117,8 @@ export interface SavedColoring {
   /** Odchod domečkem, schování nebo zavření stránky: ukončí tah a uloží obrázek. */
   suspend(): void;
   /**
-   * Ťuknutí na barvu: vybere ji i štětec (#90 AC4), hned uloží a vrátí tón
+   * Ťuknutí na barvu: vybere ji a po gumě i naposledy vybraný malovací
+   * nástroj (#90 AC4, #93 AC5), hned uloží a vrátí tón
    * k zahrání. Během tahu se nepočítá (druhý prst) a vrátí `[]`.
    */
   tapColor(index: number): readonly Tone[];
@@ -166,7 +177,7 @@ function recordOf(
   selectedColor: number,
 ): string {
   const body = [
-    RECORD_FORMAT,
+    CURRENT_LAYER_CODE,
     picture.id,
     String(picture.version),
     String(regions.width),
@@ -212,9 +223,11 @@ function readRecord(
   }
   const [format, id, version, width, height, selected, data, checksum] = fields;
   const body = fields.slice(0, -1).join(FIELD_SEPARATOR);
+  if (!isReadableFormat(format)) {
+    return null;
+  }
   const matches =
     checksum === checksumOf(body) &&
-    format === RECORD_FORMAT &&
     id === picture.id &&
     version === String(picture.version) &&
     width === String(regions.width) &&
@@ -223,7 +236,7 @@ function readRecord(
   if (!matches || !isPaletteIndex(selectedColor) || selected !== String(selectedColor)) {
     return null;
   }
-  const layer = decodeColorLayer(regions, data ?? '');
+  const layer = decodeColorLayer(regions, data ?? '', format);
   return layer === null ? null : { layer, selectedColor };
 }
 
@@ -321,6 +334,8 @@ export function openColoring(options: {
   let openingRemembered = !panelOpen;
   /** Vybraný nástroj; nepamatuje se, po otevření je vždy štětec (#90 AC1). */
   let tool: ToolId = INITIAL_TOOL;
+  /** Naposledy vybraný malovací nástroj, na který přepne barva po gumě (#93 AC5). */
+  let paintingTool: ToolId = INITIAL_TOOL;
 
   /** Zapíše první otevření spolu s prvním ukládáním (#92 AC1: samotné otevření nic nezapíše). */
   const rememberOpening = (): void => {
@@ -392,8 +407,8 @@ export function openColoring(options: {
         return [];
       }
       if (isPaletteIndex(index)) {
-        // Barva patří štětci: po gumě se maluje hned vybranou barvou (#90 AC4).
-        tool = 'brush';
+        // Barva patří malovacímu nástroji: po gumě se maluje hned vybranou barvou (#90 AC4).
+        tool = paintingTool;
       }
       const { state, tones } = tapColor(palette, index);
       if (state.selected !== palette.selected) {
@@ -430,7 +445,7 @@ export function openColoring(options: {
       return panelOpen ? PANEL_OPEN_TONES : PANEL_CLOSE_TONES;
     },
 
-    handleView: () => ({ tool, color: tool === 'eraser' ? null : palette.selected }),
+    handleView: () => ({ tool, color: paintsWithColor(tool) ? palette.selected : null }),
 
     selectedTool: () => tool,
 
@@ -440,6 +455,9 @@ export function openColoring(options: {
         return [];
       }
       tool = tapped;
+      if (paintsWithColor(tapped)) {
+        paintingTool = tapped;
+      }
       return TOOL_PICK_TONES;
     },
 

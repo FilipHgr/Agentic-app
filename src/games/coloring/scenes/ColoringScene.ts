@@ -235,12 +235,12 @@ export class ColoringScene extends Phaser.Scene {
     return this.coloring?.selectedTool() ?? INITIAL_TOOL;
   }
 
-  /** Co je v panelu označené; štětec je vždy ve vybrané barvě. */
+  /** Co je v panelu označené; štětec, fix a pastelka jsou vždy ve vybrané barvě. */
   private panelSelection(): PanelSelection {
     return {
       markedColors: markedColors(this.palette),
       markedTools: markedTools(this.selectedTool()),
-      brushHex: hexOf(this.palette.selected),
+      paintHex: hexOf(this.palette.selected),
     };
   }
 

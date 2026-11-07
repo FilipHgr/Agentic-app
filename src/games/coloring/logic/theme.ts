@@ -97,3 +97,16 @@ export const ERASER_STYLE = {
   /** Jemná čára pod gumou, aby bylo vidět, že něco stírá. */
   trailColor: '#D2D2D7',
 } as const;
+
+/** Fix (#93): modré tělo, šedomodrý límec, víčko a čtvercový hrot v barvě. */
+export const MARKER_STYLE = {
+  bodyColor: BRUSH_STYLE.handleColor,
+  collarColor: BRUSH_STYLE.ferruleColor,
+  noColor: BRUSH_STYLE.noColor,
+} as const;
+
+/** Pastelka (#93): tlusté tělo a špičatý hrot v barvě, na obalu modré proužky. */
+export const CRAYON_STYLE = {
+  stripeColor: BRUSH_STYLE.handleColor,
+  noColor: BRUSH_STYLE.noColor,
+} as const;

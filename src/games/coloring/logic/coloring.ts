@@ -7,6 +7,11 @@
  * Guma (#90) je stejný tah se stopou širokou 1,5 W, který pixely své oblasti
  * vrací do prázdna; obrys je v mapě oblastí, takže vygumovat nejde.
  *
+ * Fix (#93) klade čtvercová razítka o straně 0,6 W se stranami podél os,
+ * pastelka kulatá razítka 0,5 W, která barví jen mimo mezery zrna
+ * (`crayonGrain.ts`). Ořez do oblasti a krok razítek jsou u všech nástrojů
+ * stejné.
+ *
  * Maluje jen první prst: další dotyky (druhý prst, dlaň, tužka) během tahu
  * nic nenamalují a po zvednutí prvního prstu tah skončí (AC5). Každé místo
  * má jen jednu barvu z palety, bez míchání a průhlednosti.
@@ -15,6 +20,7 @@
  * Čistý TypeScript bez Phaseru.
  */
 
+import { isGrainGap } from './crayonGrain';
 import { OUTLINE_REGION, regionAt } from './regionMap';
 import type { RegionMap } from './regionMap';
 import { createStrokeJournal } from './strokeHistory';
@@ -29,6 +35,12 @@ const STAMPS_PER_STROKE_WIDTH = 4;
 
 /** Stopa gumy je o polovinu širší než stopa štětce (#90 AC2). */
 const ERASER_WIDTH_FACTOR = 1.5;
+
+/** Fix je široký 0,6 W (#93 AC2). */
+const MARKER_WIDTH_FACTOR = 0.6;
+
+/** Pastelka je široká 0,5 W (#93 AC2). */
+const CRAYON_WIDTH_FACTOR = 0.5;
 
 /** Krok v pixelech, po kterém se hledá oblast, do které prst vjel z obrysu. */
 const REGION_SEARCH_STEP = 1;
@@ -59,8 +71,8 @@ export interface Coloring {
   /** Šířka stopy štětce W v pixelech. */
   readonly brushWidth: number;
   /**
-   * Prst se dotkl. Štětec maluje barvou `colorIndex`, guma vrací pixely do
-   * prázdna. Vrátí, co se změnilo, nebo `null`.
+   * Prst se dotkl. Štětec, fix a pastelka malují barvou `colorIndex`, guma
+   * vrací pixely do prázdna. Vrátí, co se změnilo, nebo `null`.
    */
   pointerDown(pointer: PointerSample, colorIndex: number, tool?: ToolId): ChangedArea | null;
   /** Prst se posunul. Vrátí, co se zabarvilo, nebo `null`. */
@@ -99,10 +111,15 @@ type StrokeTarget =
   | { readonly kind: 'waitingForRegion' }
   | { readonly kind: 'region'; readonly region: number };
 
-/** Čím tah barví: index barvy (u gumy `NO_COLOR`) a poloměr kulatého konce. */
+/**
+ * Čím tah barví: index barvy (u gumy `NO_COLOR`), poloměr razítka (u čtverce
+ * polovina strany), tvar razítka a jestli nechává mezery zrna pastelky.
+ */
 interface StrokeInk {
   readonly colorIndex: number;
   readonly radius: number;
+  readonly shape: 'round' | 'square';
+  readonly grain: boolean;
 }
 
 interface Stroke {
@@ -193,13 +210,47 @@ export function createColoring(
   const journal = createStrokeJournal(regions.width, regions.height);
   let stroke: Stroke | null = null;
 
-  /** Štětec maluje barvou ve stopě W, guma vrací do prázdna ve stopě 1,5 W. */
-  const inkOf = (tool: ToolId, colorIndex: number): StrokeInk =>
-    tool === 'eraser'
-      ? { colorIndex: NO_COLOR, radius: brushRadius * ERASER_WIDTH_FACTOR }
-      : { colorIndex, radius: brushRadius };
+  /** Stopa nástroje `tool`: šířka, tvar razítka a zrno (#90, #93). */
+  const inkOf = (tool: ToolId, colorIndex: number): StrokeInk => {
+    switch (tool) {
+      case 'eraser':
+        return {
+          colorIndex: NO_COLOR,
+          radius: brushRadius * ERASER_WIDTH_FACTOR,
+          shape: 'round',
+          grain: false,
+        };
+      case 'marker':
+        return {
+          colorIndex,
+          radius: brushRadius * MARKER_WIDTH_FACTOR,
+          shape: 'square',
+          grain: false,
+        };
+      case 'crayon':
+        return {
+          colorIndex,
+          radius: brushRadius * CRAYON_WIDTH_FACTOR,
+          shape: 'round',
+          grain: true,
+        };
+      case 'brush':
+        return { colorIndex, radius: brushRadius, shape: 'round', grain: false };
+    }
+  };
 
-  /** Kulaté razítko poloměru `ink.radius` se středem `center`, jen do pixelů oblasti `region`. */
+  /** Patří pixel (x, y) do razítka `ink` se středem `center`? */
+  const isInStamp = (x: number, y: number, center: Point, ink: StrokeInk): boolean => {
+    const dx = x + 0.5 - center.x;
+    const dy = y + 0.5 - center.y;
+    const inShape =
+      ink.shape === 'square'
+        ? Math.abs(dx) <= ink.radius && Math.abs(dy) <= ink.radius
+        : Math.hypot(dx, dy) <= ink.radius;
+    return inShape && !(ink.grain && isGrainGap(x, y));
+  };
+
+  /** Razítko `ink` se středem `center`, jen do pixelů oblasti `region` (mezery zrna nechá). */
   const stamp = (center: Point, region: number, ink: StrokeInk): ChangedArea | null => {
     const { colorIndex, radius } = ink;
     const left = Math.max(0, Math.floor(center.x - radius));
@@ -210,8 +261,7 @@ export function createColoring(
     for (let y = top; y <= bottom; y += 1) {
       for (let x = left; x <= right; x += 1) {
         const index = y * regions.width + x;
-        const distance = Math.hypot(x + 0.5 - center.x, y + 0.5 - center.y);
-        if (distance <= radius && regions.regionIds[index] === region) {
+        if (regions.regionIds[index] === region && isInStamp(x, y, center, ink)) {
           const previous = colors[index] ?? NO_COLOR;
           if (previous !== colorIndex) {
             journal.note(index, previous);

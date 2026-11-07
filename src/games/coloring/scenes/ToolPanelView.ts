@@ -2,7 +2,8 @@
  * Vysouvací panel nástrojů (#96) se zástupným vzhledem A3: bílá karta se
  * stínem, v ní oddíl barev a oddíl nástrojů s přepínačem velikosti.
  * Místa pro nehotové položky jsou prázdná, na prvních místech nástrojů
- * jsou štětec a guma (`PANEL_TOOLS`, #90), vybraný má silný modrý okraj. Panel vyjíždí zleva (na šířku) nebo zdola (na výšku) do 0,3 s
+ * jsou štětec, guma, fix a pastelka (`PANEL_TOOLS`, #90, #93), vybraný má
+ * silný modrý okraj. Panel vyjíždí zleva (na šířku) nebo zdola (na výšku) do 0,3 s
  * a zajíždí pod pruh ovládání; obrázek se přitom nehne, posouvá se jen
  * panel. Dotyky sem nechodí, rozhoduje o nich scéna přes `touchTargetAt`.
  */
@@ -27,11 +28,11 @@ export interface PanelPlacement {
   readonly depth: number;
 }
 
-/** Co je v panelu označené: barva, nástroj a barva štětce (`null` bez barvy). */
+/** Co je v panelu označené: barva, nástroj a barva malovacích nástrojů (`null` bez barvy). */
 export interface PanelSelection {
   readonly markedColors: readonly boolean[];
   readonly markedTools: readonly boolean[];
-  readonly brushHex: string | null;
+  readonly paintHex: string | null;
 }
 
 /** Symbol nástroje zabere tento díl strany místa. */
@@ -88,7 +89,7 @@ export class ToolPanelView {
     this.jumpTo(open);
   }
 
-  /** Označí vybranou barvu a nástroj; štětec ukáže ve vybrané barvě. */
+  /** Označí vybranou barvu a nástroj; malovací nástroje ukáže ve vybrané barvě. */
   mark(selection: PanelSelection): void {
     this.palette.mark(selection.markedColors);
     this.showTools(selection);
@@ -166,7 +167,7 @@ export class ToolPanelView {
       : { x: 0, y: areaHeight - panel.top + shadow };
   }
 
-  /** Překreslí tlačítka nástrojů: označený má silný okraj, štětec je ve vybrané barvě. */
+  /** Překreslí tlačítka nástrojů: označený má silný okraj, malovací nástroje jsou ve vybrané barvě. */
   private showTools(selection: PanelSelection): void {
     const placement = this.placement;
     if (placement === null) {
@@ -181,7 +182,7 @@ export class ToolPanelView {
       graphics.clear();
       drawToolButton(graphics, slot, placement.cssScale, selection.markedTools[index] === true);
       const size = Math.min(slot.width, slot.height) * TOOL_ICON_SHARE;
-      drawToolIcon(graphics, tool, 0, 0, size, selection.brushHex);
+      drawToolIcon(graphics, tool, 0, 0, size, selection.paintHex);
     });
   }
 
