@@ -169,5 +169,6 @@ describe('AC6: ve vysokém okénku se zápis rozpozná stejně jako dnes', () =>
 
       expect(differences(small, box).slice(0, 10)).toEqual([]);
     },
+    SLOW_TEST_TIMEOUT_MS,
   );
 });

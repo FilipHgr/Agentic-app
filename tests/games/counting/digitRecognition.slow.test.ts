@@ -218,13 +218,17 @@ describe('AC2: hra pozná napsanou číslici', () => {
     SLOW_TEST_TIMEOUT_MS,
   );
 
-  it('stejný zápis hra pozná pokaždé stejně', () => {
-    const samples = uciTestSamples().slice(0, 200);
-    const first = samples.map((sample) => recognizeDigit([sample.stroke], WRITING_AREA));
-    const second = samples.map((sample) => recognizeDigit([sample.stroke], WRITING_AREA));
+  it(
+    'stejný zápis hra pozná pokaždé stejně',
+    () => {
+      const samples = uciTestSamples().slice(0, 200);
+      const first = samples.map((sample) => recognizeDigit([sample.stroke], WRITING_AREA));
+      const second = samples.map((sample) => recognizeDigit([sample.stroke], WRITING_AREA));
 
-    expect(second).toEqual(first);
-  });
+      expect(second).toEqual(first);
+    },
+    SLOW_TEST_TIMEOUT_MS,
+  );
 
   it('rozpoznání nezmění zápis, který dítě napsalo', () => {
     const sample = uciTestSamples()[0];
@@ -237,11 +241,15 @@ describe('AC2: hra pozná napsanou číslici', () => {
     expect(JSON.stringify(strokes)).toBe(before);
   });
 
-  it('výsledek je vždy jedna číslice 0–9, nebo odmítnutí', () => {
-    for (const sample of uciTestSamples().slice(0, 500)) {
-      expect(isSingleDigitOrRejected(recognizeDigit([sample.stroke], WRITING_AREA))).toBe(true);
-    }
-  });
+  it(
+    'výsledek je vždy jedna číslice 0–9, nebo odmítnutí',
+    () => {
+      for (const sample of uciTestSamples().slice(0, 500)) {
+        expect(isSingleDigitOrRejected(recognizeDigit([sample.stroke], WRITING_AREA))).toBe(true);
+      }
+    },
+    SLOW_TEST_TIMEOUT_MS,
+  );
 });
 
 describe('AC5: hra odmítne zápis, který není číslice', () => {

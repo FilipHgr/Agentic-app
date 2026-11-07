@@ -184,3 +184,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-07 Tlačítko nápovědy (#84) schváleno, symbol je modrý otazník „?“
   v tlačítku místo barevných teček. Na telefonu na šířku rozložení
   s nápovědou hned od začátku (menší příklad), po ťuknutí se nic neposune.
+- 2026-11-07 iPad z plochy (#78): vlastník nechal na Claudovi, zvolena
+  varianta A, malá úprava rozložení nastavení a průvodce na iPadu tak, aby
+  respektovalo stavový řádek a lištu domů.
