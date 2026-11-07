@@ -191,3 +191,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-07 Tlačítko nápovědy (#84) nesmí vypadat jako tlačítka čísel: kulaté
   se žárovkou (varianta C). Výjimka z 64 px: v okně iPadu 932 × 500 u číselníku
   do 20 smí mít tlačítko asi 60 px (59,8 px), mezera 8 px od číselníku zůstává.
+- 2026-11-07 Hra Omalovánky: prototyp s jednou testovací omalovánkou a sadou
+  kreslicích nástrojů, rozdělený na víc úkolů. Barví se jen tahy prstem nebo
+  tužkou, žádná automatická výplň. Tah je ořezaný do oblasti, kde začal,
+  přetažení mimo ni nic nezabarví.
