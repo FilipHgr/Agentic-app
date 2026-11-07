@@ -63,6 +63,7 @@ const NAMES: Record<ToolId, string> = {
   marker: 'fix',
   crayon: 'pastelka',
   rainbow: 'duhový štětec',
+  stamp: 'razítkový fix',
 };
 
 /** Vodorovný tah přes prázdnou oblast A. */

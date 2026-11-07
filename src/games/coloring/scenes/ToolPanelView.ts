@@ -2,7 +2,8 @@
  * Vysouvací panel nástrojů (#96) se zástupným vzhledem A3: bílá karta se
  * stínem, v ní oddíl barev a oddíl nástrojů s přepínačem velikosti.
  * Místa pro nehotové položky jsou prázdná, na prvních místech nástrojů
- * jsou štětec, guma, fix, pastelka a duha (`PANEL_TOOLS`, #90, #93, #97), vybraný má
+ * jsou štětec, guma, fix, pastelka, duha a razítkový fix (`PANEL_TOOLS`,
+ * #90, #93, #97, #98), vybraný má
  * silný modrý okraj. Přepínač velikosti (#91) je tlačítko s tmavou tečkou
  * vybrané velikosti (`sizeToggleDot`). Panel vyjíždí zleva (na šířku)
  * nebo zdola (na výšku) do 0,3 s a zajíždí pod pruh ovládání; obrázek se přitom nehne, posouvá se jen

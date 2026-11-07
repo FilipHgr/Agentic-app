@@ -30,6 +30,7 @@ const NAMES: Record<ToolId, string> = {
   marker: 'fix',
   crayon: 'pastelka',
   rainbow: 'duhový štětec',
+  stamp: 'razítkový fix',
 };
 
 let cached: ColoringCase[] | undefined;

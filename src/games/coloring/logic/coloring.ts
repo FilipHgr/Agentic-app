@@ -23,6 +23,14 @@
  * i mimo oblast tahu, a každá barva zabere 2 W stř při každé velikosti.
  * Barva tak závisí jen na dráze, ne na rychlosti ani počtu bodů.
  *
+ * Razítkový fix (#98) neklade souvislá razítka, ale plné pěticípé
+ * hvězdičky barvy tahu se špičkou nahoru, vepsané do kruhu průměru 1,5 W.
+ * První je v místě dotyku, další vždy po 2 W dráhy prstu. Dráha se měří
+ * od dotyku po celé cestě prstu, i přes obrys a cizí oblast, takže ani
+ * velmi rychlý tah žádnou nevynechá a pomalý je nepřekryje. Tah začatý
+ * na obrysu klade hvězdičky, až prst vjede do oblasti. Pixel patří
+ * hvězdičce, když v ní leží jeho střed.
+ *
  * Maluje jen první prst: další dotyky (druhý prst, dlaň, tužka) během tahu
  * nic nenamalují a po zvednutí prvního prstu tah skončí (AC5). Každé místo
  * má jen jednu barvu z palety, bez míchání a průhlednosti.
@@ -60,6 +68,27 @@ const CRAYON_WIDTH_FACTOR = 0.5;
 
 /** Každá barva duhy zabere úsek dráhy dlouhý 2 W stř (#97 AC2). */
 const RAINBOW_BAND_WIDTHS = 2;
+
+/** Hvězdička razítkového fixu je vepsaná do kruhu průměru 1,5 W (#98 AC2). */
+const STAR_DIAMETER_FACTOR = 1.5;
+
+/** Středy hvězdiček jsou od sebe 2 W po dráze prstu (#98 AC2). */
+const STAR_SPACING_FACTOR = 2;
+
+/** Počet cípů hvězdičky. */
+const STAR_TIPS = 5;
+
+/** Vnitřní poloměr hvězdičky (zářezy mezi cípy) jako díl vnějšího. */
+const STAR_INNER_SHARE = 0.45;
+
+/**
+ * Střed hvězdičky se zaokrouhlí na 1/1024 px, aby drobná nepřesnost
+ * součtu dráhy (rychlý a pomalý tah) nezměnila pixely (#98 AC3).
+ */
+const STAR_CENTER_GRID = 1024;
+
+/** Rezerva při porovnání délky dráhy, aby hvězdička přesně na konci tahu nechyběla. */
+const STAR_LENGTH_TOLERANCE = 1e-6;
 
 /** Krok v pixelech, po kterém se hledá oblast, do které prst vjel z obrysu. */
 const REGION_SEARCH_STEP = 1;
@@ -138,16 +167,22 @@ type StrokeTarget =
   | { readonly kind: 'region'; readonly region: number };
 
 /**
+ * Jak tah klade barvu: souvislými razítky, duhou (#97), nebo hvězdičkami
+ * po dráze (#98).
+ */
+type StrokeTrail = 'stamps' | 'rainbow' | 'stars';
+
+/**
  * Čím tah barví: index barvy (u gumy `NO_COLOR`, u duhy se nepoužije),
- * poloměr razítka (u čtverce polovina strany), tvar razítka, jestli nechává
- * mezery zrna pastelky a jestli maluje duhou (#97).
+ * poloměr razítka (u čtverce polovina strany, u hvězdičky poloměr kruhu),
+ * tvar razítka, jestli nechává mezery zrna pastelky a jak klade barvu.
  */
 interface StrokeInk {
   readonly colorIndex: number;
   readonly radius: number;
-  readonly shape: 'round' | 'square';
+  readonly shape: 'round' | 'square' | 'star';
   readonly grain: boolean;
-  readonly rainbow: boolean;
+  readonly trail: StrokeTrail;
 }
 
 interface Stroke {
@@ -156,13 +191,64 @@ interface Stroke {
   target: StrokeTarget;
   /** Poslední bod tahu s platnými souřadnicemi. */
   last: Point | null;
-  /** Délka dráhy prstu od dotyku do bodu `last` v pixelech (pro duhu, #97). */
+  /** Délka dráhy prstu od dotyku do bodu `last` v pixelech (pro duhu a hvězdičky). */
   travelled: number;
+  /** Rozestup hvězdiček razítkového fixu po dráze: 2 W tahu (#98). */
+  readonly starSpacing: number;
+  /** Délka dráhy, na které leží další hvězdička razítkového fixu (#98). */
+  nextStar: number;
 }
 
 /** Šířka stopy štětce W velikosti `size` pro plochu široké `pictureWidth` pixelů. */
 export function brushWidthFor(pictureWidth: number, size: LineSize = 'medium'): number {
   return pictureWidth * BRUSH_WIDTH_SHARE[size];
+}
+
+/** Střed hvězdičky zaokrouhlený na `STAR_CENTER_GRID`, aby stejný tah dal stejné pixely. */
+function starCenter(x: number, y: number): Point {
+  return {
+    x: Math.round(x * STAR_CENTER_GRID) / STAR_CENTER_GRID,
+    y: Math.round(y * STAR_CENTER_GRID) / STAR_CENTER_GRID,
+  };
+}
+
+/**
+ * Leží bod (`dx`, `dy`) od středu hvězdičky s poloměrem kruhu `radius`
+ * v ní? Hvězdička má 5 cípů, první míří nahoru (y roste dolů), zářezy
+ * leží na `STAR_INNER_SHARE` poloměru. Bod se otočí do výseče jednoho
+ * cípu a porovná s hranou mezi špičkou a zářezem.
+ */
+function isInStar(dx: number, dy: number, radius: number): boolean {
+  const distance = Math.hypot(dx, dy);
+  if (distance > radius) {
+    return false;
+  }
+  const sector = (2 * Math.PI) / STAR_TIPS;
+  // Úhel od cípu nahoru, po směru hodinových ručiček, v rozmezí 0 až sector.
+  const fromTop = Math.atan2(dx, -dy);
+  const inSector = ((fromTop % sector) + sector) % sector;
+  // Souměrně podle osy cípu: 0 je špička, sector/2 zářez.
+  const angle = Math.min(inSector, sector - inSector);
+  const pointX = distance * Math.cos(angle);
+  const pointY = distance * Math.sin(angle);
+  const inner = radius * STAR_INNER_SHARE;
+  const notchX = inner * Math.cos(sector / 2);
+  const notchY = inner * Math.sin(sector / 2);
+  // Bod je uvnitř, když leží na straně středu od hrany špička (radius, 0) – zářez.
+  const cross = (notchX - radius) * pointY - notchY * (pointX - radius);
+  return cross >= 0;
+}
+
+/** Leží bod (`dx`, `dy`) od středu razítka `ink` v jeho tvaru? */
+function isInShape(dx: number, dy: number, ink: StrokeInk): boolean {
+  switch (ink.shape) {
+    case 'square':
+      return Math.abs(dx) <= ink.radius && Math.abs(dy) <= ink.radius;
+    case 'star':
+      return isInStar(dx, dy, ink.radius);
+    case 'round':
+      return Math.hypot(dx, dy) <= ink.radius;
+  }
 }
 
 function isUsablePoint(pointer: PointerSample): boolean {
@@ -257,7 +343,7 @@ export function createColoring(
           radius: brushRadius * ERASER_WIDTH_FACTOR,
           shape: 'round',
           grain: false,
-          rainbow: false,
+          trail: 'stamps',
         };
       case 'marker':
         return {
@@ -265,7 +351,7 @@ export function createColoring(
           radius: brushRadius * MARKER_WIDTH_FACTOR,
           shape: 'square',
           grain: false,
-          rainbow: false,
+          trail: 'stamps',
         };
       case 'crayon':
         return {
@@ -273,12 +359,20 @@ export function createColoring(
           radius: brushRadius * CRAYON_WIDTH_FACTOR,
           shape: 'round',
           grain: true,
-          rainbow: false,
+          trail: 'stamps',
         };
       case 'brush':
-        return { colorIndex, radius: brushRadius, shape: 'round', grain: false, rainbow: false };
+        return { colorIndex, radius: brushRadius, shape: 'round', grain: false, trail: 'stamps' };
       case 'rainbow':
-        return { colorIndex, radius: brushRadius, shape: 'round', grain: false, rainbow: true };
+        return { colorIndex, radius: brushRadius, shape: 'round', grain: false, trail: 'rainbow' };
+      case 'stamp':
+        return {
+          colorIndex,
+          radius: (width * STAR_DIAMETER_FACTOR) / 2,
+          shape: 'star',
+          grain: false,
+          trail: 'stars',
+        };
     }
   };
 
@@ -286,11 +380,7 @@ export function createColoring(
   const isInStamp = (x: number, y: number, center: Point, ink: StrokeInk): boolean => {
     const dx = x + 0.5 - center.x;
     const dy = y + 0.5 - center.y;
-    const inShape =
-      ink.shape === 'square'
-        ? Math.abs(dx) <= ink.radius && Math.abs(dy) <= ink.radius
-        : Math.hypot(dx, dy) <= ink.radius;
-    return inShape && !(ink.grain && isGrainGap(x, y));
+    return isInShape(dx, dy, ink) && !(ink.grain && isGrainGap(x, y));
   };
 
   /** Razítko `ink` se středem `center`, jen do pixelů oblasti `region` (mezery zrna nechá). */
@@ -409,6 +499,31 @@ export function createColoring(
     return paintedAny ? { left, top, right: right + 1, bottom: bottom + 1 } : null;
   };
 
+  /**
+   * Hvězdičky na úseku dráhy `from`–`to`, který začíná po `startLength`
+   * pixelech dráhy (#98 AC2): každá, jejíž délka dráhy na úsek padne. Když
+   * tah zatím nemá oblast (`region` je `null`), hvězdičky se jen odpočítají.
+   */
+  const paintStarSegment = (
+    current: Stroke,
+    from: Point,
+    to: Point,
+    startLength: number,
+    region: number | null,
+  ): ChangedArea | null => {
+    const segment = Math.hypot(to.x - from.x, to.y - from.y);
+    let changed: ChangedArea | null = null;
+    while (segment > 0 && current.nextStar <= startLength + segment + STAR_LENGTH_TOLERANCE) {
+      const share = (current.nextStar - startLength) / segment;
+      const center = starCenter(from.x + (to.x - from.x) * share, from.y + (to.y - from.y) * share);
+      if (region !== null) {
+        changed = joinAreas(changed, stamp(center, region, current.ink));
+      }
+      current.nextStar += current.starSpacing;
+    }
+    return changed;
+  };
+
   /** Úsek tahu `from`–`to` nástrojem tahu, jen do oblasti `region`. */
   const paintStrokeSegment = (
     current: Stroke,
@@ -416,10 +531,16 @@ export function createColoring(
     to: Point,
     startLength: number,
     region: number,
-  ): ChangedArea | null =>
-    current.ink.rainbow
-      ? paintRainbowSegment(from, to, startLength, region, current.ink.radius)
-      : paintSegment(from, to, region, current.ink);
+  ): ChangedArea | null => {
+    switch (current.ink.trail) {
+      case 'rainbow':
+        return paintRainbowSegment(from, to, startLength, region, current.ink.radius);
+      case 'stars':
+        return paintStarSegment(current, from, to, startLength, region);
+      case 'stamps':
+        return paintSegment(from, to, region, current.ink);
+    }
+  };
 
   return {
     brushWidth,
@@ -437,21 +558,38 @@ export function createColoring(
           target: { kind: 'nothing' },
           last: null,
           travelled: 0,
+          starSpacing: 0,
+          nextStar: 0,
         };
         return null;
       }
-      if (ink.rainbow) {
+      if (ink.trail === 'rainbow') {
         startRainbow();
       }
       const point = { x: pointer.x, y: pointer.y };
       const target = targetAt(regions, point);
-      stroke = { pointerId: pointer.id, ink, target, last: point, travelled: 0 };
+      // První hvězdička je v místě dotyku, další po rozestupu (#98 AC2).
+      const starSpacing = width * STAR_SPACING_FACTOR;
+      stroke = {
+        pointerId: pointer.id,
+        ink,
+        target,
+        last: point,
+        travelled: 0,
+        starSpacing,
+        nextStar: starSpacing,
+      };
       if (target.kind !== 'region') {
         return null;
       }
-      return ink.rainbow
-        ? paintRainbowSegment(point, point, 0, target.region, ink.radius)
-        : stamp(point, target.region, ink);
+      switch (ink.trail) {
+        case 'rainbow':
+          return paintRainbowSegment(point, point, 0, target.region, ink.radius);
+        case 'stars':
+          return stamp(starCenter(point.x, point.y), target.region, ink);
+        case 'stamps':
+          return stamp(point, target.region, ink);
+      }
     },
 
     pointerMove(pointer) {
@@ -474,6 +612,10 @@ export function createColoring(
         }
       }
       if (stroke.target.kind !== 'region') {
+        if (stroke.ink.trail === 'stars') {
+          // Rozestup hvězdiček běží po dráze, i když tah zatím nic nebarví (#98).
+          paintStarSegment(stroke, from, to, startLength, null);
+        }
         return null;
       }
       return paintStrokeSegment(stroke, from, to, startLength, stroke.target.region);

@@ -260,7 +260,10 @@ describe('#91 AC2: šířka W podle velikosti', () => {
 
 describe('#91 AC3: velikost platí pro všechny nástroje naráz', () => {
   it('štětec, fix, pastelka i guma mají v každé velikosti svou šířku v násobcích W', () => {
-    for (const tool of PANEL_TOOLS) {
+    // Razítkový fix (#98) nedělá souvislou čáru, ale hvězdičky s ostrými
+    // cípy; jeho velikost hvězdiček a rozestup v každé velikosti hlídá
+    // `stampStrokes.test.ts` (#98 AC5).
+    for (const tool of PANEL_TOOLS.filter((each) => each !== 'stamp')) {
       for (const size of SIZES) {
         const game = strokeWith(tool, size);
         const what = `${TOOL_NAMES[tool]}, ${SIZE_NAMES[size]}`;
