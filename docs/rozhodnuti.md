@@ -201,3 +201,8 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   s obrázky.
 - 2026-11-07 Omalovánky si po návratu pamatují naposledy vybranou barvu
   v paletě, i když se jí ještě nemalovalo (#92).
+- 2026-11-07 Noční úkoly Omalovánek schváleny podle doporučení (#96–#104 a
+  úpravy #90, #91, #93 kvůli panelu): obrázek přes celou obrazovku, panel
+  L-A (pruh vlevo) a na výšku P-A (úchyt dole uprostřed), paleta 12 barev
+  varianta A (navíc růžová, tělová, šedá, světle modrá). Pořadí #96, #90,
+  #93, #91, #97, #98, #99, #100, #101, #102, #103, #104.
