@@ -27,6 +27,15 @@ export const PALETTE: readonly PaletteColor[] = [
   { id: 'black', hex: '#2C2C2E' },
 ];
 
+/**
+ * Barvy duhového štětce (#97 AC2) v pořadí duhy jako indexy v `PALETTE`:
+ * červená, oranžová, žlutá, zelená, modrá, fialová (podle doporučení
+ * k otázce 2 bez hnědé a černé).
+ */
+export const RAINBOW_COLORS: readonly number[] = (
+  ['red', 'orange', 'yellow', 'green', 'blue', 'purple'] as const
+).map((id) => PALETTE.findIndex((color) => color.id === id));
+
 /** Která barva je vybraná (index v `PALETTE`). */
 export interface PaletteState {
   readonly selected: number;

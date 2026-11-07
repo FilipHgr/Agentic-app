@@ -19,9 +19,10 @@
  * úchytem a zavře se i tahem po obrázku; při prvním otevření hry v profilu
  * začíná otevřený (`toolPanel.ts`).
  *
- * Vybraný nástroj (štětec, guma, fix nebo pastelka, #90, #93) je jen
- * v paměti: po otevření hry je vždy štětec, výběr barvy po gumě přepne na
- * naposledy vybraný malovací nástroj. Ťuknutí na nástroj, barvu, úchyt,
+ * Vybraný nástroj (štětec, guma, fix, pastelka nebo duha, #90, #93, #97)
+ * je jen v paměti: po otevření hry je vždy štětec, výběr barvy po gumě
+ * přepne na naposledy vybraný malovací nástroj. Duha vybranou barvu
+ * nepoužívá, výběr barvy u ní (i po gumě) přepne na štětec. Ťuknutí na nástroj, barvu, úchyt,
  * přepínač velikosti nebo Zpět druhým prstem během tahu se nepočítá (AC3).
  *
  * Velikost čáry (#91) platí pro všechny nástroje a pamatuje se podle
@@ -54,6 +55,8 @@ import {
   rememberOpened,
   storeLineSize,
   toolAtSlot,
+  toolForColor,
+  usesSelectedColor,
   wasOpenedBefore,
 } from './toolPanel';
 import type { HandleView, LineSize, ToolId } from './toolPanel';
@@ -127,7 +130,7 @@ export interface SavedColoring {
   suspend(): void;
   /**
    * Ťuknutí na barvu: vybere ji a po gumě i naposledy vybraný malovací
-   * nástroj (#90 AC4, #93 AC5), hned uloží a vrátí tón
+   * nástroj (#90 AC4, #93 AC5), u duhy štětec (#97 AC4), hned uloží a vrátí tón
    * k zahrání. Během tahu se nepočítá (druhý prst) a vrátí `[]`.
    */
   tapColor(index: number): readonly Tone[];
@@ -146,8 +149,8 @@ export interface SavedColoring {
    */
   tapHandle(): readonly Tone[];
   /**
-   * Co ukazuje úchyt: vybraný nástroj ve vybrané barvě, guma bez barvy,
-   * a vybraná velikost (#96 AC5, #90, #91).
+   * Co ukazuje úchyt: vybraný nástroj ve vybrané barvě, guma a duha bez
+   * barvy, a vybraná velikost (#96 AC5, #90, #91, #97).
    */
   handleView(): HandleView;
   /** Vybraná velikost čáry (#91). */
@@ -429,8 +432,10 @@ export function openColoring(options: {
         return [];
       }
       if (isPaletteIndex(index)) {
-        // Barva patří malovacímu nástroji: po gumě se maluje hned vybranou barvou (#90 AC4).
-        tool = paintingTool;
+        // Barva patří malovacímu nástroji: po gumě se maluje hned vybranou barvou (#90 AC4),
+        // u duhy štětcem (#97 AC4).
+        tool = toolForColor(paintingTool);
+        paintingTool = tool;
       }
       const { state, tones } = tapColor(palette, index);
       if (state.selected !== palette.selected) {
@@ -469,7 +474,7 @@ export function openColoring(options: {
 
     handleView: () => ({
       tool,
-      color: paintsWithColor(tool) ? palette.selected : null,
+      color: usesSelectedColor(tool) ? palette.selected : null,
       size: lineSize,
     }),
 

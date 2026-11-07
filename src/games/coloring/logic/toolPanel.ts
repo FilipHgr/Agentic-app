@@ -1,6 +1,6 @@
 /**
  * Panel nástrojů Omalovánek (#96): nástroje na místech panelu (štětec
- * a guma od #90, fix a pastelka od #93), velikost čáry a její záznam
+ * a guma od #90, fix a pastelka od #93, duhový štětec od #97), velikost čáry a její záznam
  * (#91), co ukazuje úchyt, tóny úchytu a záznam o prvním otevření hry
  * v profilu. Při úplně prvním otevření je panel otevřený, aby dítě
  * vidělo, co v něm je, jindy začíná zavřený. Záznam se zapíše při prvním
@@ -14,18 +14,32 @@
 import type { Tone } from '../../../shared/audio/tonePlayer';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 
-/** Nástroje Omalovánek: štětec, guma (#90), fix a pastelka (#93). */
-export type ToolId = 'brush' | 'eraser' | 'marker' | 'crayon';
+/** Nástroje Omalovánek: štětec, guma (#90), fix a pastelka (#93), duhový štětec (#97). */
+export type ToolId = 'brush' | 'eraser' | 'marker' | 'crayon' | 'rainbow';
 
 /** Nástroje podle míst v panelu: nástroj `PANEL_TOOLS[i]` je na místě `toolSlots[i]`. */
-export const PANEL_TOOLS: readonly ToolId[] = ['brush', 'eraser', 'marker', 'crayon'];
+export const PANEL_TOOLS: readonly ToolId[] = ['brush', 'eraser', 'marker', 'crayon', 'rainbow'];
 
 /** Nástroj, který je vybraný na začátku a po každém návratu do hry (#90 AC1). */
 export const INITIAL_TOOL: ToolId = 'brush';
 
-/** Maluje nástroj barvou (štětec, fix, pastelka), nebo gumuje? */
+/** Maluje nástroj (štětec, fix, pastelka, duha), nebo gumuje? */
 export function paintsWithColor(tool: ToolId): boolean {
   return tool !== 'eraser';
+}
+
+/** Maluje nástroj barvou vybranou v paletě? Guma ani duha (#97) ne. */
+export function usesSelectedColor(tool: ToolId): boolean {
+  return tool !== 'eraser' && tool !== 'rainbow';
+}
+
+/**
+ * Nástroj, na který přepne ťuknutí na barvu (#90 AC4, #93 AC5, #97 AC4):
+ * naposledy vybraný malovací nástroj, u duhy štětec, protože duha
+ * vybranou barvu nepoužívá.
+ */
+export function toolForColor(paintingTool: ToolId): ToolId {
+  return usesSelectedColor(paintingTool) ? paintingTool : INITIAL_TOOL;
 }
 
 /** Krátký tón při ťuknutí na nástroj (#90 AC1), dozní za 0,12 s. */
@@ -97,7 +111,7 @@ export function storeLineSize(storage: KeyValueStorage, size: LineSize): void {
 
 /**
  * Co ukazuje úchyt (#96 AC5, #91 AC1): vybraný nástroj ve vybrané barvě,
- * guma bez barvy (`null`, #90 AC1), a vybranou velikost čáry.
+ * guma a duha bez barvy (`null`, #90 AC1, #97 AC1), a vybranou velikost čáry.
  */
 export interface HandleView {
   readonly tool: ToolId;

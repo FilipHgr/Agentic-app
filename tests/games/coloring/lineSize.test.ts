@@ -81,11 +81,19 @@ function freshBigGame(storage = new RecordingStorage()): SavedColoring {
   return openOn(storage, bigHalves());
 }
 
-/** Polovina šířky stopy v měřených sloupcích: barvy `color`, u gumy prázdné místo. */
+/**
+ * Polovina šířky stopy v měřených sloupcích: barvy `color`, u gumy prázdné
+ * místo. Duha (#97) maluje na prázdný obrázek vlastními barvami, proto se
+ * u ní měří každý zabarvený pixel.
+ */
 function measuredHalf(game: SavedColoring, tool: ToolId, color: number): number {
-  return tool === 'eraser'
-    ? reachOf(game, (each) => each === null)
-    : reachOf(game, (each) => each === color);
+  if (tool === 'eraser') {
+    return reachOf(game, (each) => each === null);
+  }
+  if (tool === 'rainbow') {
+    return reachOf(game, (each) => each !== null);
+  }
+  return reachOf(game, (each) => each === color);
 }
 
 function expectHalfWidth(measured: number, expected: number, what: string): void {

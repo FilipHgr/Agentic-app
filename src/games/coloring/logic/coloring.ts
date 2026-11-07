@@ -15,6 +15,14 @@
  * (`crayonGrain.ts`). Ořez do oblasti a krok razítek jsou u všech nástrojů
  * stejné.
  *
+ * Duhový štětec (#97) má stopu štětce (kulatá, 1,0 W), ale nekreslí se
+ * razítky: každý úsek dráhy zabarví pixely do vzdálenosti W/2 barvou
+ * duhy podle délky dráhy prstu v nejbližším bodě úseku. Pixel, na který
+ * dosáhne víc míst dráhy, dostane barvu nejbližšího z nich (při stejné
+ * vzdálenosti pozdějšího). Délka se měří od dotyku po celé dráze prstu,
+ * i mimo oblast tahu, a každá barva zabere 2 W stř při každé velikosti.
+ * Barva tak závisí jen na dráze, ne na rychlosti ani počtu bodů.
+ *
  * Maluje jen první prst: další dotyky (druhý prst, dlaň, tužka) během tahu
  * nic nenamalují a po zvednutí prvního prstu tah skončí (AC5). Každé místo
  * má jen jednu barvu z palety, bez míchání a průhlednosti.
@@ -24,6 +32,7 @@
  */
 
 import { isGrainGap } from './crayonGrain';
+import { RAINBOW_COLORS } from './palette';
 import { OUTLINE_REGION, regionAt } from './regionMap';
 import type { RegionMap } from './regionMap';
 import { createStrokeJournal } from './strokeHistory';
@@ -48,6 +57,9 @@ const MARKER_WIDTH_FACTOR = 0.6;
 
 /** Pastelka je široká 0,5 W (#93 AC2). */
 const CRAYON_WIDTH_FACTOR = 0.5;
+
+/** Každá barva duhy zabere úsek dráhy dlouhý 2 W stř (#97 AC2). */
+const RAINBOW_BAND_WIDTHS = 2;
 
 /** Krok v pixelech, po kterém se hledá oblast, do které prst vjel z obrysu. */
 const REGION_SEARCH_STEP = 1;
@@ -79,8 +91,9 @@ export interface Coloring {
   readonly brushWidth: number;
   /**
    * Prst se dotkl. Štětec, fix a pastelka malují barvou `colorIndex`, guma
-   * vrací pixely do prázdna. Celý tah má šířku W `width` (#91), nástroje
-   * z ní mají svou stopu. Vrátí, co se změnilo, nebo `null`.
+   * vrací pixely do prázdna, duha maluje barvami duhy a `colorIndex`
+   * nepoužije. Celý tah má šířku W `width` (#91), nástroje z ní mají svou
+   * stopu. Vrátí, co se změnilo, nebo `null`.
    */
   pointerDown(
     pointer: PointerSample,
@@ -125,14 +138,16 @@ type StrokeTarget =
   | { readonly kind: 'region'; readonly region: number };
 
 /**
- * Čím tah barví: index barvy (u gumy `NO_COLOR`), poloměr razítka (u čtverce
- * polovina strany), tvar razítka a jestli nechává mezery zrna pastelky.
+ * Čím tah barví: index barvy (u gumy `NO_COLOR`, u duhy se nepoužije),
+ * poloměr razítka (u čtverce polovina strany), tvar razítka, jestli nechává
+ * mezery zrna pastelky a jestli maluje duhou (#97).
  */
 interface StrokeInk {
   readonly colorIndex: number;
   readonly radius: number;
   readonly shape: 'round' | 'square';
   readonly grain: boolean;
+  readonly rainbow: boolean;
 }
 
 interface Stroke {
@@ -141,6 +156,8 @@ interface Stroke {
   target: StrokeTarget;
   /** Poslední bod tahu s platnými souřadnicemi. */
   last: Point | null;
+  /** Délka dráhy prstu od dotyku do bodu `last` v pixelech (pro duhu, #97). */
+  travelled: number;
 }
 
 /** Šířka stopy štětce W velikosti `size` pro plochu široké `pictureWidth` pixelů. */
@@ -221,6 +238,14 @@ export function createColoring(
       : emptyColorLayer(regions);
   const journal = createStrokeJournal(regions.width, regions.height);
   let stroke: Stroke | null = null;
+  /** Délka úseku jedné barvy duhy: 2 W stř podle šířky plochy, ne podle velikosti (#97 AC5). */
+  const rainbowBand = RAINBOW_BAND_WIDTHS * brushWidthFor(regions.width, 'medium');
+  /**
+   * Vzdálenost každého pixelu od nejbližšího místa dráhy, které ho v tomto
+   * tahu duhou zabarvilo (`Infinity`, když žádné). Založí se až při prvním
+   * tahu duhou a před každým dalším se vymaže.
+   */
+  let rainbowNearest: Float32Array | null = null;
 
   /** Stopa nástroje `tool` při šířce W `width`: šířka, tvar razítka a zrno (#90, #93). */
   const inkOf = (tool: ToolId, colorIndex: number, width: number): StrokeInk => {
@@ -232,6 +257,7 @@ export function createColoring(
           radius: brushRadius * ERASER_WIDTH_FACTOR,
           shape: 'round',
           grain: false,
+          rainbow: false,
         };
       case 'marker':
         return {
@@ -239,6 +265,7 @@ export function createColoring(
           radius: brushRadius * MARKER_WIDTH_FACTOR,
           shape: 'square',
           grain: false,
+          rainbow: false,
         };
       case 'crayon':
         return {
@@ -246,9 +273,12 @@ export function createColoring(
           radius: brushRadius * CRAYON_WIDTH_FACTOR,
           shape: 'round',
           grain: true,
+          rainbow: false,
         };
       case 'brush':
-        return { colorIndex, radius: brushRadius, shape: 'round', grain: false };
+        return { colorIndex, radius: brushRadius, shape: 'round', grain: false, rainbow: false };
+      case 'rainbow':
+        return { colorIndex, radius: brushRadius, shape: 'round', grain: false, rainbow: true };
     }
   };
 
@@ -307,6 +337,90 @@ export function createColoring(
     return changed;
   };
 
+  /** Barva duhy (index palety) v místě dráhy, kam prst došel po `length` pixelech. */
+  const rainbowColorAt = (length: number): number => {
+    const band = Math.floor(length / rainbowBand) % RAINBOW_COLORS.length;
+    return RAINBOW_COLORS[band] ?? NO_COLOR;
+  };
+
+  /** Nový tah duhou: žádný pixel zatím nemá nejbližší místo dráhy. */
+  const startRainbow = (): void => {
+    rainbowNearest ??= new Float32Array(regions.width * regions.height);
+    rainbowNearest.fill(Number.POSITIVE_INFINITY);
+  };
+
+  /**
+   * Úsek dráhy duhy `from`–`to`, který začíná po `startLength` pixelech
+   * dráhy (#97 AC2). Pixel oblasti `region` do vzdálenosti `radius` od úseku
+   * dostane barvu podle délky dráhy v nejbližším bodě úseku, když je mu
+   * úsek blíž (nebo stejně blízko) než dřívější místa tahu.
+   */
+  const paintRainbowSegment = (
+    from: Point,
+    to: Point,
+    startLength: number,
+    region: number,
+    radius: number,
+  ): ChangedArea | null => {
+    const nearest = rainbowNearest;
+    if (nearest === null) {
+      return null;
+    }
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const segment = Math.hypot(dx, dy);
+    const left = Math.max(0, Math.floor(Math.min(from.x, to.x) - radius));
+    const right = Math.min(regions.width - 1, Math.ceil(Math.max(from.x, to.x) + radius));
+    const top = Math.max(0, Math.floor(Math.min(from.y, to.y) - radius));
+    const bottom = Math.min(regions.height - 1, Math.ceil(Math.max(from.y, to.y) + radius));
+    let paintedAny = false;
+    for (let y = top; y <= bottom; y += 1) {
+      for (let x = left; x <= right; x += 1) {
+        const index = y * regions.width + x;
+        if (regions.regionIds[index] !== region) {
+          continue;
+        }
+        const centerX = x + 0.5;
+        const centerY = y + 0.5;
+        const projected =
+          segment === 0
+            ? 0
+            : ((centerX - from.x) * dx + (centerY - from.y) * dy) / (segment * segment);
+        const share = Math.max(0, Math.min(1, projected));
+        const distance = Math.hypot(
+          centerX - (from.x + share * dx),
+          centerY - (from.y + share * dy),
+        );
+        // Vzdálenost se ukládá jako float32, porovnává se proto taky zaokrouhlená.
+        const rounded = Math.fround(distance);
+        if (distance > radius || rounded > (nearest[index] ?? Number.POSITIVE_INFINITY)) {
+          continue;
+        }
+        nearest[index] = rounded;
+        const colorIndex = rainbowColorAt(startLength + share * segment);
+        const previous = colors[index] ?? NO_COLOR;
+        if (previous !== colorIndex) {
+          journal.note(index, previous);
+          colors[index] = colorIndex;
+        }
+        paintedAny = true;
+      }
+    }
+    return paintedAny ? { left, top, right: right + 1, bottom: bottom + 1 } : null;
+  };
+
+  /** Úsek tahu `from`–`to` nástrojem tahu, jen do oblasti `region`. */
+  const paintStrokeSegment = (
+    current: Stroke,
+    from: Point,
+    to: Point,
+    startLength: number,
+    region: number,
+  ): ChangedArea | null =>
+    current.ink.rainbow
+      ? paintRainbowSegment(from, to, startLength, region, current.ink.radius)
+      : paintSegment(from, to, region, current.ink);
+
   return {
     brushWidth,
 
@@ -317,13 +431,27 @@ export function createColoring(
       }
       const ink = inkOf(tool, colorIndex, width);
       if (!isUsablePoint(pointer)) {
-        stroke = { pointerId: pointer.id, ink, target: { kind: 'nothing' }, last: null };
+        stroke = {
+          pointerId: pointer.id,
+          ink,
+          target: { kind: 'nothing' },
+          last: null,
+          travelled: 0,
+        };
         return null;
+      }
+      if (ink.rainbow) {
+        startRainbow();
       }
       const point = { x: pointer.x, y: pointer.y };
       const target = targetAt(regions, point);
-      stroke = { pointerId: pointer.id, ink, target, last: point };
-      return target.kind === 'region' ? stamp(point, target.region, ink) : null;
+      stroke = { pointerId: pointer.id, ink, target, last: point, travelled: 0 };
+      if (target.kind !== 'region') {
+        return null;
+      }
+      return ink.rainbow
+        ? paintRainbowSegment(point, point, 0, target.region, ink.radius)
+        : stamp(point, target.region, ink);
     },
 
     pointerMove(pointer) {
@@ -336,6 +464,9 @@ export function createColoring(
       if (from === null) {
         return null;
       }
+      // Délka dráhy se počítá od dotyku, i na obrysu a mimo oblast tahu (#97).
+      const startLength = stroke.travelled;
+      stroke.travelled += Math.hypot(to.x - from.x, to.y - from.y);
       if (stroke.target.kind === 'waitingForRegion') {
         const entered = firstRegionOnSegment(regions, from, to);
         if (entered !== null) {
@@ -345,7 +476,7 @@ export function createColoring(
       if (stroke.target.kind !== 'region') {
         return null;
       }
-      return paintSegment(from, to, stroke.target.region, stroke.ink);
+      return paintStrokeSegment(stroke, from, to, startLength, stroke.target.region);
     },
 
     pointerUp(pointerId) {

@@ -29,6 +29,7 @@ const NAMES: Record<ToolId, string> = {
   eraser: 'guma',
   marker: 'fix',
   crayon: 'pastelka',
+  rainbow: 'duhový štětec',
 };
 
 let cached: ColoringCase[] | undefined;

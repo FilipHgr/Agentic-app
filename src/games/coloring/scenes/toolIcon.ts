@@ -1,6 +1,6 @@
 /**
- * Symbol nástroje (#90, #93) pro úchyt i panel: štětec, fix a pastelka
- * ve vybrané barvě, guma vždy bez barvy.
+ * Symbol nástroje (#90, #93, #97) pro úchyt i panel: štětec, fix a pastelka
+ * ve vybrané barvě, guma vždy bez barvy a duha vždy v barvách duhy.
  */
 
 import Phaser from 'phaser';
@@ -10,8 +10,9 @@ import { drawBrush } from './brushIcon';
 import { drawCrayon } from './crayonIcon';
 import { drawEraser } from './eraserIcon';
 import { drawMarker } from './markerIcon';
+import { drawRainbow } from './rainbowIcon';
 
-/** Nástroj `tool` se středem `x`, `y` velikosti `size`; `colorHex` gumu nemění. */
+/** Nástroj `tool` se středem `x`, `y` velikosti `size`; `colorHex` gumu ani duhu nemění. */
 export function drawToolIcon(
   graphics: Phaser.GameObjects.Graphics,
   tool: ToolId,
@@ -32,6 +33,9 @@ export function drawToolIcon(
       return;
     case 'crayon':
       drawCrayon(graphics, x, y, size, colorHex);
+      return;
+    case 'rainbow':
+      drawRainbow(graphics, x, y, size);
       return;
   }
 }

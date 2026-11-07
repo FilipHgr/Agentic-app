@@ -241,7 +241,7 @@ export class ColoringScene extends Phaser.Scene {
     return this.coloring?.lineSize() ?? INITIAL_LINE_SIZE;
   }
 
-  /** Co je v panelu označené; štětec, fix a pastelka jsou vždy ve vybrané barvě. */
+  /** Co je v panelu označené; štětec, fix a pastelka jsou vždy ve vybrané barvě, duha v duhových. */
   private panelSelection(): PanelSelection {
     return {
       markedColors: markedColors(this.palette),
