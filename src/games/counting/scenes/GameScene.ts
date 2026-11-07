@@ -11,7 +11,7 @@ import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import type { TapOutcome } from '../logic/answerRound';
 import { createCountingSession } from '../logic/countingSession';
 import type { CountingSession, SessionChange, SessionPage } from '../logic/countingSession';
-import { hintMovesLayout, isTwoBoxRound, playStateAfterResize } from '../logic/deviceLayout';
+import { isTwoBoxRound, playStateAfterResize } from '../logic/deviceLayout';
 import type { PlayState } from '../logic/deviceLayout';
 import type { GameProgress } from '../logic/progress';
 import { loadDigitRecognizer } from '../logic/recognizerLoading';
@@ -51,7 +51,7 @@ export class GameScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined);
   /** Je nakreslený příklad (při průvodci na začátku ještě ne)? */
   private roundDrawn = false;
-  /** Jsou nakreslené tečky nápovědy? */
+  /** Ukázala se nápověda (tečky jsou nakreslené, nebo naskočí po zhoupnutí tlačítka, #84)? */
   private hintIsShown = false;
   private readonly panels = new ParentPanels(this, {
     settings: () => this.session.settings(),
@@ -64,13 +64,13 @@ export class GameScene extends Phaser.Scene {
     gameArea: this.gameArea,
     settings: this.shownSettings(),
     round: this.roundDrawn ? this.session.round() : undefined,
-    hintIsShown: this.hintIsShown,
   }));
   private readonly view = new RoundView(this, this.layouts, {
     onAnswerTapped: (button) => this.onAnswerTapped(button),
     onNumberWritten: (number) => this.showWrittenNumber(number),
     onWritingConfirmed: (result) => this.onWritingConfirmed(result),
     onDotTapped: (index, circle) => this.onDotTapped(index, circle),
+    onHintButtonTapped: () => this.onHintButtonTapped(),
   });
   private readonly starRow = new StarRow(this, this.layouts, () => this.currentProgress());
   private readonly confetti = new Confetti(this);
@@ -189,7 +189,7 @@ export class GameScene extends Phaser.Scene {
       this.session.switchToKeypad(switchToKeypad(pad.state));
       // Příklad se nakreslí znovu s „?“ a s číselníkem místo okének.
       this.view.clear();
-      this.relayoutRound(false);
+      this.relayoutRound();
     }
   }
 
@@ -208,17 +208,16 @@ export class GameScene extends Phaser.Scene {
     // Rozložení pro starou plochu už nebudou potřeba.
     this.layouts.clear();
     this.starRow.redraw();
-    this.relayoutRound(false);
+    this.relayoutRound();
     this.panels.fitTo(this.gameArea);
   }
 
   /**
    * Rozehrané kolo podle nového rozložení, bez nového příkladu
-   * a bez započtení odpovědi. Rozepsané tahy se smažou.
-   *
-   * @param animateHint Tečky nápovědy naskočí (nápověda se právě ukázala).
+   * a bez započtení odpovědi. Rozepsané tahy se smažou a nápověda je
+   * vidět hned, bez naskakování.
    */
-  private relayoutRound(animateHint: boolean): void {
+  private relayoutRound(): void {
     if (!this.roundDrawn) {
       return;
     }
@@ -227,7 +226,6 @@ export class GameScene extends Phaser.Scene {
     this.view.clear();
     this.drawRound(
       after.writing !== null && isTwoBoxRound(after.writing) ? after.writing : undefined,
-      animateHint,
     );
   }
 
@@ -276,6 +274,7 @@ export class GameScene extends Phaser.Scene {
       settings: this.shownSettings(),
       recognizer: session.recognizer(),
       hintIsShown: this.hintIsShown,
+      hintButtonVisible: session.hintButtonVisible(),
       counting: session.dotCounting(),
     };
     this.view.draw(drawing, writingState, animateHint);
@@ -321,6 +320,7 @@ export class GameScene extends Phaser.Scene {
   ): void {
     if (outcome === 'correct') {
       visuals.onCorrect();
+      this.view.hideHintButton();
       this.view.problem.reveal(this.session.round(), this.layouts.scenery());
       this.starRow.flyToRow(origin, () => undefined);
     } else if (outcome === 'wrong') {
@@ -329,19 +329,30 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Nápověda po 2. chybě nahradí tlačítko nápovědy. Rozložení se nemění:
+   * na telefonu na šířku má nápověda místo od začátku příkladu (#84).
+   */
   private showHintWhenNeeded(): void {
     const session = this.session;
     if (this.hintIsShown || !session.hintVisible()) {
       return;
     }
     this.hintIsShown = true;
-    if (hintMovesLayout(this.layouts.answer())) {
-      // Na telefonu na šířku nápověda potřebuje místo: rozložení se přepočítá (V2, #54).
-      // Na výšku má místo vyhrazené (#56) a nic se neposune.
-      this.relayoutRound(true);
+    this.view.hideHintButton();
+    this.view.drawHint(session.round(), session.dotCounting(), true);
+  }
+
+  /** Tlačítko nápovědy (#84): tón zahraje sezení, tlačítko se zhoupne a tečky naskočí. */
+  private onHintButtonTapped(): void {
+    const session = this.session;
+    if (this.hintIsShown || !session.tapHintButton()) {
       return;
     }
-    this.view.drawHint(session.round(), session.dotCounting(), true);
+    this.hintIsShown = true;
+    this.view.swingAwayHintButton(() =>
+      this.view.drawHint(session.round(), session.dotCounting(), true),
+    );
   }
 
   /** Ťuknutá tečka se rozsvítí, ukáže pořadové číslo a zazní o tón výš (tón hraje sezení). */

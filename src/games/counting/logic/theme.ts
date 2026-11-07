@@ -32,6 +32,23 @@ export const KEYPAD_BUTTON_STYLE = {
   digitFontWeight: 700,
 } as const;
 
+/**
+ * Tlačítko nápovědy (#84, varianta C): světle žlutý kruh se žlutým okrajem
+ * a uvnitř žárovka (žlutá baňka s paprsky, šedá patice) s malým tmavým „?“.
+ * Na první pohled se liší od modrého číselníku.
+ */
+export const HINT_BUTTON_STYLE = {
+  background: '#FFF6D6',
+  borderColor: '#FFD60A',
+  borderWidth: 2,
+  bulbColor: '#FFCC00',
+  rayColor: '#FFCC00',
+  baseColor: '#8E8E93',
+  symbolColor: TEXT,
+  symbolFontWeight: 700,
+  shadowAlpha: 0.08,
+} as const;
+
 export type AnswerButtonState = 'idle' | TapOutcome;
 
 export interface AnswerButtonLook {

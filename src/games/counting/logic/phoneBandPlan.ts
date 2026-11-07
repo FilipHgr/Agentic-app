@@ -26,6 +26,7 @@ import {
   FONT_SIZES,
   GEAR_CORNER_GAP,
   GEAR_CORNER_SIZE,
+  HINT_BUTTON_MIN_SIDE,
   MIN_GAP_BOTTOM,
   PROBLEM_HINT_GAP,
   STAR_SIZE,
@@ -83,7 +84,7 @@ function layoutBandStars(free: FreeSize, starCount: number): Point[] {
 }
 
 /** Místo pro příklad v pásu: mezi rohem domečku a hvězdičkami, z obou stran stejný odstup. */
-function problemRegion(free: FreeSize): { left: number; right: number } {
+export function problemRegion(free: FreeSize): { left: number; right: number } {
   return {
     left: GEAR_CORNER_SIZE + PROBLEM_STARS_GAP,
     right: starsLeft(free) - PROBLEM_STARS_GAP,
@@ -97,12 +98,19 @@ function problemRegion(free: FreeSize): { left: number; right: number } {
 /** Tečky v řadě: po pěti, nebo v nouzi dvě pětice vedle sebe. */
 type DotRow = 5 | 10;
 
+/**
+ * Tečky v pásu: `dotsWidth` a `dotsHeight` zaberou samotné tečky, `width`
+ * a `height` místo pro ně, aspoň tolik jako tlačítko nápovědy (#84), které
+ * je na stejném místě, než ho tečky nahradí.
+ */
 interface DotBlock {
   readonly groups: readonly number[];
   readonly grid: DotGrid;
   readonly perRow: DotRow;
   readonly width: number;
   readonly height: number;
+  readonly dotsWidth: number;
+  readonly dotsHeight: number;
 }
 
 function columnOffset(column: number, cell: number): number {
@@ -112,12 +120,16 @@ function columnOffset(column: number, cell: number): number {
 function dotBlock(groups: readonly number[], grid: DotGrid, perRow: DotRow): DotBlock {
   const total = groups.reduce((sum, count) => sum + count, 0);
   const columns = Math.min(total, perRow);
+  const dotsWidth = columns > 0 ? columnOffset(columns - 1, grid.cell) + grid.cell : 0;
+  const dotsHeight = Math.ceil(total / perRow) * grid.cell;
   return {
     groups,
     grid,
     perRow,
-    width: columns > 0 ? columnOffset(columns - 1, grid.cell) + grid.cell : 0,
-    height: Math.ceil(total / perRow) * grid.cell,
+    width: Math.max(dotsWidth, HINT_BUTTON_MIN_SIDE),
+    height: Math.max(dotsHeight, HINT_BUTTON_MIN_SIDE),
+    dotsWidth,
+    dotsHeight,
   };
 }
 
@@ -171,7 +183,11 @@ function bandWithoutHint(free: FreeSize, sizes: ProblemSizes): BandPlacement | n
   };
 }
 
-/** Příklad a tečky vedle sebe, dvojice vodorovně uprostřed místa pro příklad. */
+/**
+ * Příklad a místo pro nápovědu vedle sebe, dvojice vodorovně uprostřed
+ * místa pro příklad. Tečky i tlačítko nápovědy (#84) začínají hned vedle
+ * příkladu.
+ */
 function bandBeside(free: FreeSize, sizes: ProblemSizes, block: DotBlock): BandPlacement | null {
   const region = problemRegion(free);
   const pairWidth = sizes.problem.width + PROBLEM_HINT_GAP + block.width;
@@ -187,7 +203,7 @@ function bandBeside(free: FreeSize, sizes: ProblemSizes, block: DotBlock): BandP
     hintDots: placeDots(
       block,
       left + sizes.problem.width + PROBLEM_HINT_GAP,
-      centerY - block.height / 2,
+      centerY - block.dotsHeight / 2,
     ),
     bottom: top + pairHeight + 1,
   };
@@ -196,7 +212,8 @@ function bandBeside(free: FreeSize, sizes: ProblemSizes, block: DotBlock): BandP
 /**
  * Tečky pod příkladem, obojí vodorovně uprostřed místa pro příklad.
  * Příklad je svisle ve středu pásu, nebo (když je pod ním málo místa)
- * u horního okraje (`atTop`).
+ * u horního okraje (`atTop`). Pod příkladem je místo i pro tlačítko
+ * nápovědy (#84).
  */
 function bandBelow(
   free: FreeSize,
@@ -214,7 +231,7 @@ function bandBelow(
   const dotsTop = top + sizes.problem.height + PROBLEM_DOTS_BELOW_GAP;
   return {
     problem: { x: centerX, y: top + sizes.problem.height / 2 },
-    hintDots: placeDots(block, centerX - block.width / 2, dotsTop),
+    hintDots: placeDots(block, centerX - block.dotsWidth / 2, dotsTop),
     bottom: dotsTop + block.height + 1,
   };
 }

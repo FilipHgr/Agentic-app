@@ -13,7 +13,14 @@ import type { Tone } from '../../../shared/audio/tonePlayer';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { loadSettingsState, saveSettings } from '../storage/settingsStorage';
-import { createAnswerRound, isHintVisible, tapAnswer } from './answerRound';
+import {
+  createAnswerRound,
+  isHintButtonVisible,
+  isHintVisible,
+  keepRequestedHint,
+  requestHint,
+  tapAnswer,
+} from './answerRound';
 import type { AnswerRound, TapOutcome } from './answerRound';
 import { SOUNDS, soundForOutcome } from './answerSounds';
 import { countDot, countingTone, startDotCounting } from './dotCounting';
@@ -101,8 +108,10 @@ export interface CountingSession {
   round(): AnswerRound;
   problem(): Problem;
   wrongAnswers(): number;
-  /** Má se ukázat nápověda s tečkami (po 2. chybě)? */
+  /** Má se ukázat nápověda s tečkami (po tlačítku nebo po 2. chybě)? */
   hintVisible(): boolean;
+  /** Je vidět tlačítko nápovědy (#84)? */
+  hintButtonVisible(): boolean;
   /** Které tečky nápovědy už dítě spočítalo (#43). */
   dotCounting(): DotCounting;
   starProgress(): StarProgress;
@@ -130,6 +139,11 @@ export interface CountingSession {
   answerWritten(answer: AnswerRound, outcome: TapOutcome): TapOutcome;
   /** Ťuknutí na tečku nápovědy; vrátí číslo, které tečka dostala, nebo `null`. */
   tapDot(index: number): number | null;
+  /**
+   * Ťuknutí na tlačítko nápovědy (#84): ukáže tečky, není to odpověď ani
+   * chyba. Vrátí `true`, když se nápověda právě ukázala.
+   */
+  tapHintButton(): boolean;
   /** Stahování rozpoznávání selhalo uprostřed příkladu: odpovídá se číselníkem (#58 AC5). */
   switchToKeypad(answer: AnswerRound): void;
   /** Příklad je nakreslený: první spustí stahování rozpoznávání (#58 AC2). */
@@ -281,6 +295,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     problem: () => round.problem,
     wrongAnswers: () => round.wrongAnswers,
     hintVisible: () => isHintVisible(round),
+    hintButtonVisible: () => isHintButtonVisible(round),
     dotCounting: () => counting,
     starProgress: () => stars,
     starCount: () => stars.earned,
@@ -306,7 +321,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       if (!acceptsAnswers()) {
         return 'ignored';
       }
-      round = answer;
+      round = keepRequestedHint(answer, round);
       return applyOutcome(outcome);
     },
 
@@ -322,11 +337,20 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       return result.countedNumber;
     },
 
+    tapHintButton(): boolean {
+      if (!acceptsAnswers() || !isHintButtonVisible(round)) {
+        return false;
+      }
+      round = requestHint(round);
+      sounds.play(SOUNDS.hint);
+      return true;
+    },
+
     switchToKeypad(answer: AnswerRound): void {
       if (left) {
         return;
       }
-      round = answer;
+      round = keepRequestedHint(answer, round);
       roundInput = 'keypad';
     },
 

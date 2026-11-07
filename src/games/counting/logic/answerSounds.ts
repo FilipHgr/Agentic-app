@@ -6,7 +6,7 @@
 import type { TapOutcome } from './answerRound';
 import type { Tone } from '../../../shared/audio/tonePlayer';
 
-export type SoundName = 'correct' | 'wrong' | 'celebration';
+export type SoundName = 'correct' | 'wrong' | 'celebration' | 'hint';
 
 /** Veselá stoupající melodie C5, E5, G5. */
 const CORRECT_TONES: readonly Tone[] = [
@@ -32,10 +32,16 @@ const CELEBRATION_TONES: readonly Tone[] = [
   { frequencyHz: 1046.5, startSeconds: 1.4, durationSeconds: 0.6, volume: 0.35 },
 ];
 
+/** Krátký jemný tón po ťuknutí na tlačítko nápovědy (#84); není to odpověď. */
+const HINT_TONES: readonly Tone[] = [
+  { frequencyHz: 587.33, startSeconds: 0, durationSeconds: 0.1, volume: 0.25 },
+];
+
 export const SOUNDS: Readonly<Record<SoundName, readonly Tone[]>> = {
   correct: CORRECT_TONES,
   wrong: WRONG_TONES,
   celebration: CELEBRATION_TONES,
+  hint: HINT_TONES,
 };
 
 /** Vrátí zvuk pro výsledek ťuknutí, nebo `null`, když se nemá ozvat nic. */

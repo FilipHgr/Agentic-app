@@ -27,6 +27,8 @@ export interface AnswerRound {
   readonly wrongAnswers: number;
   /** Hráč už ťukl na správné číslo, kolo je u konce. */
   readonly solved: boolean;
+  /** Dítě si nápovědu ukázalo tlačítkem (#84); bez tohoto pole ne. */
+  readonly hintRequested?: boolean;
 }
 
 /**
@@ -75,9 +77,42 @@ export function tapAnswer(round: AnswerRound, tappedNumber: number): TapResult {
   };
 }
 
-/** Má se teď ukázat nápověda s tečkami? */
+/** Má se teď ukázat nápověda s tečkami (po tlačítku nebo po 2. chybě)? */
 export function isHintVisible(round: AnswerRound): boolean {
-  return !round.solved && round.wrongAnswers >= WRONG_ANSWERS_BEFORE_HINT;
+  if (round.solved) {
+    return false;
+  }
+  return round.hintRequested === true || round.wrongAnswers >= WRONG_ANSWERS_BEFORE_HINT;
+}
+
+/**
+ * Je vidět tlačítko nápovědy (#84)? U nevyřešeného příkladu, dokud není
+ * nápověda vidět, a jen když má příklad tečky (0 + 0 a 0 − 0 je nemají).
+ */
+export function isHintButtonVisible(round: AnswerRound): boolean {
+  return !round.solved && !isHintVisible(round) && hintDotGroups(round.problem).length > 0;
+}
+
+/**
+ * Ťuknutí na tlačítko nápovědy (#84): ukáže tečky, není to odpověď ani
+ * chyba. Když tlačítko vidět není, kolo zůstane beze změny.
+ */
+export function requestHint(round: AnswerRound): AnswerRound {
+  if (!isHintButtonVisible(round)) {
+    return round;
+  }
+  return { ...round, hintRequested: true };
+}
+
+/**
+ * Kolo `answer` s nápovědou z kola `current`: okénka na psaní si kolo
+ * vezmou na začátku příkladu, ještě před ťuknutím na tlačítko (#84).
+ */
+export function keepRequestedHint(answer: AnswerRound, current: AnswerRound): AnswerRound {
+  if (current.hintRequested !== true || answer.hintRequested === true) {
+    return answer;
+  }
+  return { ...answer, hintRequested: true };
 }
 
 /**

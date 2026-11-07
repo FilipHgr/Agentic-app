@@ -7,6 +7,8 @@
  *
  * Schválené výjimky z pravidel jsou tady u prvků, každá s odkazem:
  * - ťukací tečka nápovědy na telefonu 48 px (#54, #56 AC5),
+ * - tlačítko nápovědy 60 px v okně 932×500 u číselníku do 20 (#84,
+ *   rozhodnutí 2026-11-07),
  * - tečka nápovědy a rámeček průvodce na iPadu měří 64 a 4 herní jednotky
  *   (#43 AC7, #49 AC5); iPad se nemění (#54 AC5), v okně 1180×760
  *   a 932×500 je plocha zmenšená pod 1 px na jednotku,
@@ -22,6 +24,7 @@ import {
   isPortraitLayout,
   layoutDeviceGuideStep,
   layoutDeviceHint,
+  layoutDeviceHintButton,
   layoutDeviceScreen,
   layoutDeviceSettingsPanel,
   layoutDeviceWritingScreen,
@@ -85,6 +88,24 @@ export const PLAY_WINDOWS: readonly TestWindow[] = [
 
 /** Ťukací tečka nápovědy na telefonu smí mít 48 px místo 64 px (#54, #56 AC5). */
 const PHONE_DOT_HIT_SIDE = 48;
+
+/**
+ * Tlačítko nápovědy smí mít 60 px místo 64 px jen v okně 932×500 u číselníku
+ * do 20 (#84, rozhodnutí 2026-11-07): plocha je tam zmenšená pod 1 px na
+ * herní jednotku a tlačítko měří 59,83 px, což vlastník schválil jako
+ * „60 px“. Hranice je proto 59,8 px, ne zaokrouhlených 60. Mezera 8 px od
+ * číselníku platí dál.
+ */
+const NARROW_IPAD_HINT_BUTTON_SIDE = 59.8;
+
+/** Platí pro tento případ výjimka 60 px pro tlačítko nápovědy? */
+function hasNarrowIpadHintButton(testCase: PlayCase): boolean {
+  return (
+    testCase.window === JUST_ABOVE_LIMIT &&
+    testCase.maxNumber === 20 &&
+    testCase.mode === 'číselník'
+  );
+}
 
 /** Roh kolečka a domečku na telefonu na šířku: 88 × 88 px (#54, #68). */
 const LANDSCAPE_CORNER_SIZE = 88;
@@ -385,7 +406,8 @@ function isOwnSurrounding(button: LayoutItem, surrounding: LayoutItem): boolean 
   return SURROUNDING_OF[button.name] === surrounding.name;
 }
 
-function isDot(item: LayoutItem): boolean {
+/** Tečka nápovědy (#43). */
+export function isDot(item: LayoutItem): boolean {
   return item.name.startsWith('tečka ');
 }
 
@@ -442,6 +464,45 @@ export function playScene(testCase: PlayCase): LayoutScene {
       isOwnSurrounding(second, first),
     // #43: plochy teček se smí dotýkat, jen nepřekrývat.
     gapExempt: (first, second) => isDot(first) && isDot(second),
+  };
+}
+
+/** Název tlačítka nápovědy ve zprávách pravidel (#84). */
+export const HINT_BUTTON_NAME = 'tlačítko nápovědy';
+
+/**
+ * Nový příklad `testCase.hint` s tlačítkem nápovědy, ještě bez teček (#84).
+ * Rozložení je stejné jako s ukázanou nápovědou (`playScene`): na telefonu
+ * na šířku má nápověda místo hned od začátku (rozhodnutí 2026-11-07,
+ * varianta A) a tlačítko leží tam, kde se pak ukážou tečky (otázka 2,
+ * varianta a). Tečky ve scéně nejsou, místo nich je tlačítko. Když pro
+ * příklad tlačítko není (0 + 0, 0 − 0, AC5), ve scéně chybí.
+ */
+export function hintButtonScene(testCase: PlayCase): LayoutScene {
+  if (!testCase.hint) {
+    throw new Error(`${playLabel(testCase)}: tlačítko nápovědy potřebuje příklad`);
+  }
+  const { area, layout } = playLayoutOf(testCase);
+  const withDots = playScene(testCase);
+  const button = layoutDeviceHintButton(layout, hintDotGroups(testCase.hint));
+  const items = withDots.items.filter((item) => !isDot(item));
+  if (button) {
+    const item = slotItem(HINT_BUTTON_NAME, button, area);
+    // #84, rozhodnutí 2026-11-07: v okně 932×500 u číselníku do 20 stačí 60 px.
+    items.push(
+      hasNarrowIpadHintButton(testCase) ? { ...item, minSide: NARROW_IPAD_HINT_BUTTON_SIDE } : item,
+    );
+  }
+  const isButton = (item: LayoutItem): boolean => item.name === HINT_BUTTON_NAME;
+  return {
+    ...withDots,
+    label: `${withDots.label}, tlačítko nápovědy`,
+    items,
+    // Na výšku leží tlačítko ve vyhrazeném místě pro nápovědu jako tečky (#56).
+    mayOverlap: (first, second) =>
+      (withDots.mayOverlap?.(first, second) ?? false) ||
+      ([first, second].some(isButton) &&
+        [first, second].some((item) => item.name === 'místo pro nápovědu')),
   };
 }
 

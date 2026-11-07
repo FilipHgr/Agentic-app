@@ -523,6 +523,30 @@ export function layoutHint(
   return alignRowsToTop(dots, visibleGroups, style, top + style.dotSize / 2);
 }
 
+/** Největší strana tlačítka nápovědy na iPadu (#84). */
+const HINT_BUTTON_MAX_SIZE = 112;
+
+/**
+ * Odstup tlačítka nápovědy od ovládání na iPadu (#84): 8 CSS px i v nejmenším
+ * okně s rozložením iPadu (932 × 500, 0,65 px na herní jednotku).
+ */
+const HINT_BUTTON_CONTROLS_GAP = 12.5;
+
+/**
+ * Tlačítko nápovědy na iPadu (#84): ve volném pásu mezi příkladem
+ * a ovládáním, kde se pak ukážou tečky, pod středem příkladu. Strana je
+ * nejvýš `HINT_BUTTON_MAX_SIZE` a tlačítko nechá odstup od ovládání.
+ */
+export function layoutHintButton(layout: ScreenLayout | WritingLayout): ButtonSlot {
+  const problemBottom = Math.max(
+    layout.problem.y + (TEXT_BOX_RATIO * layout.problemFontSize) / 2,
+    layout.problem.y + layout.problemSize.height / 2,
+  );
+  const bandBottom = controlsTopOf(layout) - HINT_BUTTON_CONTROLS_GAP;
+  const size = Math.min(HINT_BUTTON_MAX_SIZE, bandBottom - problemBottom);
+  return { x: layout.problem.x, y: (problemBottom + bandBottom) / 2, size };
+}
+
 /** Horní hrana ovládání: horní řada číselníku, nebo okénka na psaní. */
 function controlsTopOf(layout: ScreenLayout | WritingLayout): number {
   const tops =

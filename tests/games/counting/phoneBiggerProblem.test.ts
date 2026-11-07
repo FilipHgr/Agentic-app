@@ -13,6 +13,7 @@ import type {
   PhoneScreenLayout,
   PhoneWritingLayout,
 } from '../../../src/games/counting/logic/deviceLayout';
+import { HINT_BUTTON_MIN_SIDE } from '../../../src/games/counting/logic/phonePlan';
 import { slotWidth } from '../../../src/games/counting/logic/screenLayout';
 import type { HintDot } from '../../../src/games/counting/logic/screenLayout';
 import type { MaxNumber, OperationMode } from '../../../src/games/counting/logic/settings';
@@ -217,7 +218,9 @@ describe('#63 AC3: telefon na šířku', () => {
    * pod hvězdičkami, ale v horním pásu mezi rohem domečku a hvězdičkami
    * u kolečka. Tečky nápovědy jsou hned vpravo vedle příkladu a dvojice je
    * uprostřed tohoto místa, nebo (když se vedle nevejdou) hned pod
-   * příkladem. Číselník do 20 už není vpravo od příkladu.
+   * příkladem. Číselník do 20 už není vpravo od příkladu. Od #84 je vedle
+   * příkladu místo i pro tlačítko nápovědy (aspoň 64 px), dvojice je tedy
+   * příklad a místo pro nápovědu.
    */
   it('bez nápovědy je příklad v horním pásu uprostřed mezi rohem domečku a hvězdičkami (#68)', () => {
     for (const [where, window, maxNumber, mode] of LANDSCAPE_CASES) {
@@ -249,7 +252,12 @@ describe('#63 AC3: telefon na šířku', () => {
         const where = `${label}, nápověda [${groups.join(', ')}]`;
 
         if (dots.left >= problem.right - TOLERANCE) {
-          const pair = boundsOf([problem, dots]);
+          // #84: místo vedle příkladu je pro tečky i tlačítko nápovědy, aspoň 64 px široké.
+          const hintPlace = {
+            ...dots,
+            right: Math.max(dots.right, dots.left + HINT_BUTTON_MIN_SIDE),
+          };
+          const pair = boundsOf([problem, hintPlace]);
           expect(dots.left - problem.right, `${where}: hned vedle`).toBeLessThanOrEqual(
             MAX_PROBLEM_DOTS_GAP,
           );

@@ -16,6 +16,7 @@ import type { WritingAreaSize } from './digitRecognition';
 import { canCountDots } from './dotCounting';
 import type { DotCounting } from './dotCounting';
 import { visibleGroups } from './phoneHint';
+import { layoutPhoneHintButton } from './phoneHintButton';
 import { planPhoneScreen } from './phoneLayout';
 import { layoutPhoneLandscapeGuide, layoutPhonePortraitGuide } from './phoneGuideLayout';
 import type { GuideStepParts } from './phoneGuideLayout';
@@ -34,6 +35,7 @@ import {
   HINT_DOT_HIT_SIZE,
   STAR_SIZE,
   layoutHint,
+  layoutHintButton,
   layoutScreen,
   layoutWritingScreen,
 } from './screenLayout';
@@ -263,12 +265,36 @@ export function layoutDeviceHint(
 }
 
 /**
- * Posune nápověda rozložení? Na telefonu na šířku ano (#54), proto se po
- * jejím ukázání rozložení přepočítá. Na výšku má nápověda místo vyhrazené
- * (#56) a na iPadu má místo vždy.
+ * Posune nápověda rozložení? Jen na telefonu na šířku, když rozložení
+ * nemá místo pro tečky. Scéna ho tam ale počítá pro tečky příkladu hned
+ * od začátku, nejdřív je v tom místě tlačítko nápovědy (#84, rozhodnutí
+ * 2026-11-07, varianta A), takže se po ukázání nápovědy nic neposune.
+ * Na výšku má nápověda místo vyhrazené (#56) a na iPadu má místo vždy.
  */
 export function hintMovesLayout(layout: DeviceScreenLayout | DeviceWritingLayout): boolean {
-  return layout.device === 'phone' && !isPortraitLayout(layout);
+  if (layout.device !== 'phone' || isPortraitLayout(layout)) {
+    return false;
+  }
+  return layout.request.hintGroups.length === 0;
+}
+
+/**
+ * Tlačítko nápovědy (#84) tam, kde se po ťuknutí ukážou tečky, v rozložení
+ * počítaném pro skupinky `groups`. Příklad bez teček (0 + 0, 0 − 0)
+ * tlačítko nemá (`null`).
+ */
+export function layoutDeviceHintButton(
+  layout: DeviceScreenLayout | DeviceWritingLayout,
+  groups: readonly number[],
+): ButtonSlot | null {
+  const dots = layoutDeviceHint(layout, groups);
+  if (dots.length === 0) {
+    return null;
+  }
+  if (layout.device === 'tablet') {
+    return layoutHintButton(layout);
+  }
+  return layoutPhoneHintButton(layout, dots);
 }
 
 /**

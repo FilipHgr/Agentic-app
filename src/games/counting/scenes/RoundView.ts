@@ -1,7 +1,8 @@
 import type Phaser from 'phaser';
 
-import { answerChoices } from '../logic/answerRound';
+import { answerChoices, hintDotGroups } from '../logic/answerRound';
 import type { AnswerRound } from '../logic/answerRound';
+import { layoutDeviceHintButton } from '../logic/deviceLayout';
 import type { DeviceScreenLayout } from '../logic/deviceLayout';
 import type { DotCounting } from '../logic/dotCounting';
 import { isWritingActive } from '../logic/settings';
@@ -10,6 +11,8 @@ import type { TwoBoxConfirmResult, TwoBoxRound } from '../logic/twoBoxWriting';
 import type { DigitRecognizer } from '../logic/writingRound';
 import { createAnswerButton, paintAnswerButton } from './AnswerButton';
 import type { AnswerButton } from './AnswerButton';
+import { createHintButton, swingHintButton } from './HintButton';
+import type { HintButton } from './HintButton';
 import { drawHintDots, showDotCounted } from './HintDots';
 import type { HintDotsContext } from './HintDots';
 import { ProblemView } from './ProblemView';
@@ -26,6 +29,8 @@ export interface RoundViewEvents {
   readonly onWritingConfirmed: (result: TwoBoxConfirmResult) => void;
   /** Dítě ťuklo na tečku nápovědy s pořadím `index`. */
   readonly onDotTapped: (index: number, circle: Phaser.GameObjects.Arc) => void;
+  /** Dítě ťuklo na tlačítko nápovědy (#84). */
+  readonly onHintButtonTapped: () => void;
 }
 
 /** Co je potřeba k nakreslení rozehraného kola. */
@@ -36,11 +41,14 @@ export interface RoundDrawing {
   /** Stažené rozpoznávání pro okénka; `null`, dokud se stahuje. */
   readonly recognizer: DigitRecognizer | null;
   readonly hintIsShown: boolean;
+  /** Je vidět tlačítko nápovědy (#84)? Jen dokud tečky nejsou nakreslené. */
+  readonly hintButtonVisible: boolean;
   readonly counting: DotCounting;
 }
 
 /**
- * Nakreslené kolo: příklad, číselník nebo okénka na psaní a tečky nápovědy.
+ * Nakreslené kolo: příklad, číselník nebo okénka na psaní, tlačítko
+ * nápovědy a tečky nápovědy.
  * Všechno se smaže najednou, když přijde nový příklad nebo jiné rozložení.
  */
 export class RoundView {
@@ -50,6 +58,8 @@ export class RoundView {
   private keypadPointerId: number | undefined;
   /** Plocha na psaní, když dítě odpovídá psaním (#41); jinak číselník. */
   private pad: WritingPad | undefined;
+  /** Tlačítko nápovědy, dokud ho tečky nenahradí (#84). */
+  private hintButton: HintButton | undefined;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -77,7 +87,8 @@ export class RoundView {
 
   /**
    * Nakreslí rozehrané kolo: příklad, číselník nebo okénka a nápovědu,
-   * pokud už je vidět (po změně velikosti okna hned, bez naskakování).
+   * pokud už je vidět (po změně velikosti okna hned, bez naskakování),
+   * jinak na jejím místě tlačítko nápovědy.
    *
    * @param writingState Stav okének po změně velikosti okna; jinak prázdná okénka.
    * @param animateHint Tečky nápovědy naskočí jedna po druhé.
@@ -94,7 +105,51 @@ export class RoundView {
     }
     if (drawing.hintIsShown) {
       this.drawHint(round, drawing.counting, animateHint);
+    } else if (drawing.hintButtonVisible) {
+      this.drawHintButton(round);
     }
+  }
+
+  /** Tlačítko nápovědy na místě, kde se pak ukážou tečky (#84). */
+  private drawHintButton(round: AnswerRound): void {
+    const layout = this.layouts.answer();
+    const slot = layoutDeviceHintButton(layout, hintDotGroups(round.problem));
+    if (!slot) {
+      return;
+    }
+    this.hintButton = createHintButton(this.scene, slot, layout.detailScale, () =>
+      this.events.onHintButtonTapped(),
+    );
+    this.objects.push(this.hintButton.container);
+  }
+
+  /**
+   * Ťuknuté tlačítko nápovědy se zhoupne a zmizí, pak zavolá `onGone`
+   * (scéna nakreslí tečky). Když se kolo mezitím překreslilo, nic se nestane.
+   */
+  swingAwayHintButton(onGone: () => void): void {
+    const button = this.hintButton;
+    if (!button) {
+      return;
+    }
+    swingHintButton(this.scene, button, () => {
+      if (this.hintButton === button) {
+        this.hideHintButton();
+        onGone();
+      }
+    });
+  }
+
+  /** Tlačítko nápovědy zmizí (nápověda se ukázala, nebo je příklad vyřešený). */
+  hideHintButton(): void {
+    const button = this.hintButton;
+    if (!button) {
+      return;
+    }
+    this.hintButton = undefined;
+    this.objects = this.objects.filter((object) => object !== button.container);
+    this.scene.tweens.killTweensOf(button.container);
+    button.container.destroy();
   }
 
   /** Tečky nápovědy v rozložení se skutečným ovládáním. */
@@ -116,6 +171,7 @@ export class RoundView {
   clear(): void {
     this.pad?.destroy();
     this.pad = undefined;
+    this.hintButton = undefined;
     for (const object of this.objects) {
       this.scene.tweens.killTweensOf(object);
       object.destroy();

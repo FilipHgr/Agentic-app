@@ -68,6 +68,11 @@ export const MIN_GAP_ABOVE_CONTROLS = 6;
 export const MIN_GAP_BOTTOM = 4;
 
 export const PROBLEM_HINT_GAP = 12;
+/**
+ * Nejmenší místo pro nápovědu na šířku (#84): stejné místo zabere
+ * tlačítko nápovědy, které tečky po ťuknutí nahradí (aspoň 64 × 64 px).
+ */
+export const HINT_BUTTON_MIN_SIDE = 64;
 /** Odstup teček od okolí, když mají vlastní volné místo. */
 export const HINT_REGION_GAP = 4;
 

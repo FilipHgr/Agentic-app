@@ -17,7 +17,6 @@ export interface LayoutInputs {
   readonly gameArea: GameArea;
   readonly settings: GameSettings;
   readonly round: AnswerRound | undefined;
-  readonly hintIsShown: boolean;
 }
 
 /** Herní plocha z registru; dokud tam není, dnešní 1024 × 768. */
@@ -124,7 +123,12 @@ function layoutKey(
   return [input, mode, width, height, maxNumber, operations, groups.join('+')].join('|');
 }
 
-/** Skupinky teček, pro které má rozložení udělat místo (na telefonu, #54). */
+/**
+ * Skupinky teček, pro které má rozložení udělat místo (na telefonu na
+ * šířku, #54). Místo je tam hned od začátku příkladu, nejdřív pro tlačítko
+ * nápovědy a pak pro tečky, takže se po ukázání nápovědy nic neposune
+ * (#84, rozhodnutí 2026-11-07, varianta A).
+ */
 function shownHintGroups(inputs: LayoutInputs): number[] {
-  return inputs.round && inputs.hintIsShown ? hintDotGroups(inputs.round.problem) : [];
+  return inputs.round ? hintDotGroups(inputs.round.problem) : [];
 }
