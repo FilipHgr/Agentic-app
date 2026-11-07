@@ -6,6 +6,7 @@ export default {
   categories: {
     all: { title: 'Vše' },
     addingSubtracting: { title: 'Sčítání a odčítání' },
+    drawing: { title: 'Kreslení' },
   },
   profiles: {
     nicknameTitle: 'Přezdívka',

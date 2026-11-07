@@ -5,6 +5,9 @@
  * (`gameRunner.ts`), v testech falešné.
  *
  * Domeček je vidět jen tehdy, když hra ohlásí, že jde použít (#68 AC4).
+ * Kolečko nastavení je vidět jen tehdy, když je na něj napojená běžící hra
+ * (#88 AC6): hra s nastavením (Počítání) se napojí, hra bez nastavení
+ * (Omalovánky) ne, a kolečko pak zůstane skryté.
  * Odchod: hra se nejdřív zastaví (`GameHost.onLeave`), domeček se skryje,
  * pak se zavolá úklid ze spuštění scén (odpojení tlačítek a hlídání okna,
  * zničení hry) a nakonec se ohlásí `onLeft`. Druhý odchod nic neudělá
@@ -14,13 +17,18 @@
 import type { GameHost, GameProfileMarker } from '../logic/gameHost';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
 
-/** Domeček stránky; hra u něj přepíná jen `hidden`. */
+/** Tlačítko v rohu stránky (domeček, kolečko); hra u něj přepíná jen `hidden`. */
 export interface HomeButton {
   hidden: boolean;
 }
 
+/** Kolečko nastavení stránky; přepíná se u něj jen `hidden` jako u domečku. */
+export type SettingsButton = HomeButton;
+
 export interface GameSessionOptions {
   readonly homeButton: HomeButton | null;
+  /** Kolečko nastavení; bez něj (`null` nebo chybí) hra běží bez kolečka. */
+  readonly settingsButton?: SettingsButton | null | undefined;
   /** Úložiště hry pro aktivní profil (#71); bez něj hra ukládá jen do paměti. */
   readonly storage?: KeyValueStorage | undefined;
   /** Značka aktivního profilu (#87): jen barva a písmeno. */
@@ -57,13 +65,24 @@ export function startGameSession(options: GameSessionOptions): GameSession {
       options.homeButton.hidden = !homeAvailable;
     }
   };
+  /** Kolečko je vidět, jen dokud ho běžící hra poslouchá. */
+  const showSettings = (): void => {
+    if (options.settingsButton) {
+      options.settingsButton.hidden = settingsOpener === null;
+    }
+  };
 
   const host: GameHost = {
     attachSettingsGear: (open) => {
+      if (hasLeft) {
+        return () => undefined;
+      }
       settingsOpener = open;
+      showSettings();
       return () => {
         if (settingsOpener === open) {
           settingsOpener = null;
+          showSettings();
         }
       };
     },
@@ -93,6 +112,7 @@ export function startGameSession(options: GameSessionOptions): GameSession {
         handler();
       }
       settingsOpener = null;
+      showSettings();
       showHome();
       cleanUpScenes?.();
       cleanUpScenes = null;
@@ -100,6 +120,8 @@ export function startGameSession(options: GameSessionOptions): GameSession {
     },
   };
 
+  // Kolečko se ukáže, až se na něj hra napojí.
+  showSettings();
   cleanUpScenes = options.startScenes(session);
   return session;
 }

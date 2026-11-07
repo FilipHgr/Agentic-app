@@ -63,6 +63,26 @@ function allBoxes(layout: MenuLayout): MenuBox[] {
   ];
 }
 
+/**
+ * Plochy, které jsou na začátku vidět celé. Řada kategorií, která se na
+ * telefonu na výšku nevejde (#88), se posouvá a ořízne výřezem řady jako
+ * posouvaný obsah v #82: kategorie uříznutá okrajem řady se do „úplně
+ * vpravo“ nepočítá, její viditelnou část hlídá pravidlo 4 px od okraje.
+ */
+function wholeVisibleBoxes(layout: MenuLayout): MenuBox[] {
+  const viewport = layout.categoryScroll.viewport;
+  const categories = layout.categories
+    .map((category) => category.hit)
+    .filter((hit) => layout.categoryScroll.maxOffset === 0 || isInside(hit, viewport));
+  return [
+    layout.profileSlot,
+    layout.languageSlot,
+    ...layout.placeholders,
+    ...categories,
+    ...layout.tiles,
+  ];
+}
+
 /** Sousední dvojice v pořadí: [1., 2.], [2., 3.], … */
 function neighbours<T>(items: readonly T[]): Array<[T, T]> {
   return items.slice(1).map((next, index): [T, T] => [items[index] as T, next]);
@@ -91,7 +111,7 @@ describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', 
     for (const window of MENU_WINDOWS) {
       const layout = todayLayout(window);
       expect(layout.placeholders, window.name).toHaveLength(isPhone(window) ? 1 : 2);
-      const rightmost = Math.max(...allBoxes(layout).map((box) => box.right));
+      const rightmost = Math.max(...wholeVisibleBoxes(layout).map((box) => box.right));
       const lastPlaceholder = layout.placeholders[layout.placeholders.length - 1];
       expect(lastPlaceholder?.right, window.name).toBeCloseTo(rightmost, 5);
       for (const placeholder of layout.placeholders) {

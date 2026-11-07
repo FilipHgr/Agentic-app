@@ -43,13 +43,14 @@ export interface PageMenuOptions extends Omit<MenuOptions, 'start' | 'onStarted'
 }
 
 /**
- * Kolečko nastavení a domeček podle logiky menu (#67 AC1, AC2, #68 AC1):
- * v menu obojí skryté, po naběhnutí hry kolečko vidět. Domeček menu jen
- * skrývá, ve hře ho ukáže hra, když jde použít (#68 AC4).
+ * Kolečko nastavení a domeček podle logiky menu (#67 AC1, #68 AC1): v menu
+ * obojí skryté. Obojí menu jen skrývá, ve hře je ukáže stránka hry:
+ * domeček, když jde použít (#68 AC4), kolečko, když se na něj hra napojí
+ * (#88 AC6, v Omalovánkách není).
  */
 export function showCornerButtons(menu: Menu, buttons: CornerButtons): void {
-  if (buttons.settingsButton) {
-    buttons.settingsButton.hidden = !menu.canOpenSettings();
+  if (buttons.settingsButton && !menu.canOpenSettings()) {
+    buttons.settingsButton.hidden = true;
   }
   if (buttons.homeButton && !menu.canGoHome()) {
     buttons.homeButton.hidden = true;

@@ -5,13 +5,15 @@
  * se stáhne až po ťuknutí na její dlaždici.
  */
 
+import { COLORING_META } from './games/coloring/meta';
 import { COUNTING_META } from './games/counting/meta';
 import { gameEntry } from './shared/logic/gameRegistry';
 import type { GameEntry, GameMeta } from './shared/logic/gameRegistry';
 
 /** Údaje všech her pro menu, ve stejném pořadí jako `GAMES`. */
-export const GAME_METAS: readonly GameMeta[] = [COUNTING_META];
+export const GAME_METAS: readonly GameMeta[] = [COUNTING_META, COLORING_META];
 
 export const GAMES: readonly GameEntry[] = [
   gameEntry(COUNTING_META, () => import('./games/counting')),
+  gameEntry(COLORING_META, () => import('./games/coloring')),
 ];

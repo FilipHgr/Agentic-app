@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { GAMES } from '../../src/gameList';
 import { menuLayoutFor } from '../../src/menu/logic/menuLayout';
 import type { MenuBox, MenuLayout } from '../../src/menu/logic/menuLayout';
+import { chooseLayoutMode } from '../../src/shared/logic/viewportLayout';
 import {
   freeAreaOf,
   gapBetween,
@@ -23,6 +24,7 @@ import {
 } from './manyGamesFixtures';
 import {
   describeLayoutRules,
+  gridScenes,
   scrollScenes,
   unseenElements,
   shiftCategory,
@@ -118,6 +120,10 @@ function categoryAxis(layout: MenuLayout): {
   return { end, viewportEnd, overflowing };
 }
 
+function isPhonePortrait(window: TestWindow): boolean {
+  return chooseLayoutMode(viewportOf(window)) === 'phonePortrait';
+}
+
 /** Okna, ve kterých se 13 kategorií nevejde. */
 function overflowingWindows(): TestWindow[] {
   return MENU_WINDOWS.filter((window) => categoryAxis(manyGamesLayout(window)).overflowing);
@@ -139,18 +145,41 @@ describe('#82 AC1: posouvání ukáže každou dlaždici a kategorii', () => {
   });
 });
 
-describe('#69 AC1: dnes (jedna hra) se nic neposouvá a menu vypadá stejně', () => {
-  it('mřížka ani kategorie nemají kam posunout a dnešní dlaždice i kategorie jsou celé vidět', () => {
+/** Okna, ve kterých se dnešní kategorie vejdou do řady nebo sloupce. */
+function todayFits(window: TestWindow): boolean {
+  return !categoryAxis(todayLayout(window)).overflowing;
+}
+
+describe('#69 AC1: dnes (jedna hra) se nic neposouvá, když se kategorie vejdou, a menu vypadá stejně', () => {
+  it('mřížka nemá kam posunout a dnešní dlaždice jsou celé vidět', () => {
     for (const window of MENU_WINDOWS) {
       const layout = todayLayout(window);
       expect(layout.gridScroll.maxOffset, window.name).toBe(0);
-      expect(layout.categoryScroll.maxOffset, window.name).toBe(0);
       for (const tile of layout.tiles) {
         expect(isInside(tile, layout.gridScroll.viewport), window.name).toBe(true);
       }
+    }
+  });
+
+  it('když se dnešní kategorie vejdou, nemají kam posunout a jsou celé vidět', () => {
+    const fitting = MENU_WINDOWS.filter(todayFits);
+    expect(fitting.length, 'aspoň v jednom okně se kategorie vejdou').toBeGreaterThan(0);
+    for (const window of fitting) {
+      const layout = todayLayout(window);
+      expect(layout.categoryScroll.maxOffset, window.name).toBe(0);
       for (const category of layout.categories) {
         expect(isInside(category.hit, layout.categoryScroll.viewport), window.name).toBe(true);
       }
+    }
+  });
+
+  it('mimo telefon na výšku se dnešní kategorie vždy vejdou (posouvat se smí jen řada na telefonu na výšku, #88)', () => {
+    for (const window of MENU_WINDOWS) {
+      if (isPhonePortrait(window)) {
+        continue;
+      }
+      expect(todayFits(window), window.name).toBe(true);
+      expect(todayLayout(window).categoryScroll.maxOffset, window.name).toBe(0);
     }
   });
 
@@ -162,6 +191,56 @@ describe('#69 AC1: dnes (jedna hra) se nic neposouvá a menu vypadá stejně', (
         allTileCount: GAMES.length,
       });
       expect(withAll, window.name).toEqual(todayLayout(window));
+    }
+  });
+});
+
+describe('#88: dnešní řada kategorií se na telefonu na výšku posouvá, když se nevejde', () => {
+  const overflowingToday = (): TestWindow[] =>
+    MENU_WINDOWS.filter((window) => isPhonePortrait(window) && !todayFits(window));
+
+  it('na telefonu na výšku jde řadu posunout až na poslední kategorii, která je pak celá vidět', () => {
+    expect(overflowingToday().length, 'aspoň jedno okno přetéká').toBeGreaterThan(0);
+    for (const window of overflowingToday()) {
+      const layout = todayLayout(window);
+      const { viewport, maxOffset } = layout.categoryScroll;
+      const hits = layout.categories.map((category) => category.hit);
+      expect(layout.categoryDirection, window.name).toBe('row');
+      expect(maxOffset, window.name).toBeGreaterThan(0);
+      const first = hits[0] ?? { ...viewport, left: -1 };
+      expect(isInside(first, viewport), `${window.name}: „Vše“ na začátku`).toBe(true);
+      const last = shiftCategory(layout, lastOf(hits, window), maxOffset);
+      expect(isInside(last, viewport), `${window.name}: poslední kategorie na konci`).toBe(true);
+      const { end, viewportEnd } = categoryAxis(layout);
+      expect(viewportEnd - end(last), `${window.name}: prázdné místo na konci`).toBeLessThanOrEqual(
+        MAX_END_SPACE,
+      );
+    }
+  });
+
+  it('z kategorie, která se nevejde, je vidět aspoň 24 px, aby bylo poznat, že je jich víc', () => {
+    for (const window of overflowingToday()) {
+      const layout = todayLayout(window);
+      const { end, viewportEnd } = categoryAxis(layout);
+      const viewport = layout.categoryScroll.viewport;
+      const pill = layout.categories.find(
+        (category) => end(category.pill) > viewportEnd + ROUNDING,
+      )?.pill;
+      const part = visiblePart(pill ?? viewport, viewport);
+      expect(part, window.name).toBeDefined();
+      expect(part === undefined ? 0 : widthOf(part), window.name).toBeGreaterThanOrEqual(
+        CATEGORY_PEEK,
+      );
+    }
+  });
+
+  it('každá dnešní kategorie je při některém posunu celá vidět a změří ji společná pravidla', () => {
+    const titles = todayCategoryTitles().map((title) => `kategorie ${title}`);
+    const scenes = gridScenes();
+    for (const window of overflowingToday()) {
+      const own = scenes.filter((scene) => scene.label.includes(`, ${window.name}, `));
+      expect(own.length, window.name).toBeGreaterThan(1);
+      expect(unseenElements(own, titles), window.name).toEqual([]);
     }
   });
 });

@@ -142,14 +142,32 @@ describe('#83 AC1: zamčená hra nejde na stránce menu spustit', () => {
   });
 });
 
-describe('#83 AC2: kolečko nastavení je vidět jen v běžící hře', () => {
-  it('kolečko je v menu skryté, po naběhnutí hry vidět a po návratu do menu zase skryté', async () => {
+/**
+ * #83 AC2 upřesnilo #88 AC6: kolečko je vidět jen v běžící hře, která se
+ * na něj napojí (Počítání ano, Omalovánky ne). Napojení a ukázání kolečka
+ * dělá stránka hry (`startGameSession`, `tests/shared/settingsGearShown.test.ts`),
+ * menu kolečko jen skrývá. Tady se ověří, že menu kolečko samo neukáže, napojené
+ * hře ho při naběhnutí neschová a po návratu ho vždy schová. Napojení hry
+ * napodobí falešná Phaser hra: ukáže kolečko jako skutečná stránka hry.
+ */
+describe('#83 AC2, #88 AC6: kolečko nastavení je vidět jen v běžící hře, která se na něj napojí', () => {
+  /** Falešná hra se při spuštění napojí na kolečko, jako to dělá Počítání. */
+  function gameAttachesGear(page: TestPage): void {
+    vi.mocked(runGame).mockImplementation(() => {
+      page.settingsButton.hidden = false;
+      // Phaser hra v node nevzniká, menu ji nepoužívá.
+      return undefined as never;
+    });
+  }
+
+  it('kolečko je v menu skryté, u hry napojené na kolečko po naběhnutí vidět a po návratu do menu zase skryté', async () => {
     const page = testPage();
+    gameAttachesGear(page);
     expect(page.settingsButton.hidden, 'v menu').toBe(true);
 
     await tapTile(page, 'zebra');
     expect(page.menu.runningGame()?.id, 'hra naběhla').toBe('zebra');
-    expect(page.settingsButton.hidden, 'po naběhnutí hry').toBe(false);
+    expect(page.settingsButton.hidden, 'po naběhnutí hry napojené na kolečko').toBe(false);
 
     lastRunOptions().onLeft();
     expect(page.menu.runningGame(), 'dítě je zpátky v menu').toBeNull();
@@ -157,8 +175,19 @@ describe('#83 AC2: kolečko nastavení je vidět jen v běžící hře', () => {
     expect(page.reopened, 'menu se znovu ukázalo').toHaveLength(1);
   });
 
-  it('kolečko se ukáže i při každém dalším vstupu do hry a po každém návratu se skryje', async () => {
+  it('u hry, která se na kolečko nenapojí, menu kolečko samo neukáže ani po naběhnutí hry', async () => {
     const page = testPage();
+    await tapTile(page, 'zebra');
+    expect(page.menu.runningGame()?.id, 'hra naběhla').toBe('zebra');
+    expect(page.settingsButton.hidden, 'po naběhnutí hry bez kolečka').toBe(true);
+
+    lastRunOptions().onLeft();
+    expect(page.settingsButton.hidden, 'po návratu do menu').toBe(true);
+  });
+
+  it('kolečko se u napojené hry ukáže i při každém dalším vstupu do hry a po každém návratu se skryje', async () => {
+    const page = testPage();
+    gameAttachesGear(page);
     for (let round = 1; round <= 3; round += 1) {
       await tapTile(page, 'zebra');
       expect(page.settingsButton.hidden, `${round}. vstup do hry`).toBe(false);

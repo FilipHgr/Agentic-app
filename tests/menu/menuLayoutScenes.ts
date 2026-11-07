@@ -59,6 +59,10 @@ import {
  * musí). O 8 px a 4 px rozhodne vlastník. Jinak menu výjimky z pravidel
  * nemá.
  *
+ * Dnešní řada kategorií se na telefonu na výšku smí dočasně posouvat, když
+ * se nevejde (rozhodnutí vlastníka k #88, později ji nahradí rozbalovací
+ * výběr). Pak se měří jako posouvaný obsah: viditelná část v ořezu řady.
+ *
  * Karta (nabídka jazyků, rámeček potvrzení) leží nad obrazovkou a nese
  * svůj obsah: obsah smí ležet na kartě, jen když je na ní celý.
  *
@@ -275,19 +279,67 @@ export function todayLayout(window: TestWindow, language: Language = 'cs'): Menu
   });
 }
 
+/**
+ * Kategorie dnešního menu při posunu řady `offset`. Když se kategorie
+ * vejdou (`maxOffset` 0), jsou to celé plochy a platí pro ně všechna
+ * pravidla bez výjimky. Když se nevejdou (telefon na výšku od 3. kategorie,
+ * rozhodnutí vlastníka k #88), řada se posouvá a měří se viditelná část
+ * v ořezu řady stejně jako u posouvání (#82): smí být u okraje volné
+ * plochy (`minEdge` 0 px), do plochy se vejít musí. Mezery 8 px od lišty
+ * a mřížky se hlídají dál bez výjimky (dnešní rozložení je splní).
+ */
+function todayCategoryItems(
+  layout: MenuLayout,
+  titles: readonly string[],
+  offset: number,
+): LayoutItem[] {
+  const scrolls = layout.categoryScroll.maxOffset > 0;
+  return layout.categories.flatMap((category, index): LayoutItem[] => {
+    const name = `kategorie ${titles[index] ?? index + 1}`;
+    const pill = shiftCategory(layout, category.pill, offset);
+    const texts: LayoutText[] = [
+      { text: titles[index] ?? '', fontSize: layout.categoryFontSize, box: pill },
+    ];
+    if (!scrolls) {
+      return [{ name, box: category.hit, tappable: true, texts }];
+    }
+    return scrolledItem(
+      name,
+      shiftCategory(layout, category.hit, offset),
+      layout.categoryScroll.clip,
+      texts,
+    );
+  });
+}
+
+/**
+ * Zkoušené posuny dnešní řady kategorií: bez posouvání jen začátek, jinak
+ * začátek, půlka, konec a posuny, po kterých je každá kategorie celá vidět.
+ */
+function todayCategoryOffsets(layout: MenuLayout, titles: readonly string[]): Offset[] {
+  const { maxOffset } = layout.categoryScroll;
+  const listed = offsetsOf(maxOffset, LIST_OFFSET_FRACTIONS);
+  if (maxOffset === 0) {
+    return listed;
+  }
+  const reach = reachOffsets(
+    maxOffset,
+    layout.categories.map((category, index) => ({
+      name: `kategorie ${titles[index] ?? index + 1}`,
+      end: categoryEnd(layout, category.hit),
+    })),
+    categoryEnd(layout, layout.categoryScroll.viewport),
+    listed,
+  );
+  return [...listed, ...reach];
+}
+
 export function gridScenes(windows: readonly TestWindow[] = MENU_WINDOWS): LayoutScene[] {
   return LANGUAGES.flatMap((language) =>
-    windows.map((window): LayoutScene => {
+    windows.flatMap((window): LayoutScene[] => {
       const layout = todayLayout(window, language);
       const titles = todayCategoryTitles(language);
-      const categories = layout.categories.map((category, index): LayoutItem => ({
-        name: `kategorie ${titles[index] ?? index + 1}`,
-        box: category.hit,
-        tappable: true,
-        texts: [
-          { text: titles[index] ?? '', fontSize: layout.categoryFontSize, box: category.pill },
-        ],
-      }));
+      const scrolls = layout.categoryScroll.maxOffset > 0;
       const tiles = layout.tiles.map((tile, index): LayoutItem => {
         const game = GAMES[index];
         return {
@@ -302,11 +354,17 @@ export function gridScenes(windows: readonly TestWindow[] = MENU_WINDOWS): Layou
           ],
         };
       });
-      return {
-        label: `mřížka her a kategorie, ${window.name}, ${language}`,
+      return todayCategoryOffsets(layout, titles).map((offset): LayoutScene => ({
+        label:
+          `mřížka her a kategorie, ${window.name}, ${language}` +
+          (scrolls ? `, kategorie ${offset.name}` : ''),
         free: freeAreaOf(window),
-        items: [...barItems(layout, LANGUAGES), ...categories, ...tiles],
-      };
+        items: [
+          ...barItems(layout, LANGUAGES),
+          ...todayCategoryItems(layout, titles, offset.value),
+          ...tiles,
+        ],
+      }));
     }),
   );
 }

@@ -124,8 +124,8 @@ function destroyGame(game: Phaser.Game): void {
  * 1024 × 768, na telefonu na šířku i na výšku přes celou volnou plochu.
  * Prvek s hrou leží přesně tam, kde má být plátno, a Scale.FIT do něj
  * plátno roztáhne (#77). Kolečko nastavení
- * ukáže stránka menu, až hra naběhne (#67 AC1); domeček ukáže hra, když
- * jde použít (#68 AC4).
+ * je vidět, jen když se na něj hra napojí (#88 AC6); domeček ukáže hra,
+ * když jde použít (#68 AC4).
  */
 export function runGame(module: GameModule, options: RunGameOptions): Phaser.Game {
   const parent = document.getElementById('game');
@@ -145,6 +145,7 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
   const running: { game: Phaser.Game | null } = { game: null };
   startGameSession({
     homeButton: page.homeButton,
+    settingsButton: page.settingsButton,
     storage: options.storage,
     profileMarker: options.profileMarker,
     onLeft: options.onLeft,

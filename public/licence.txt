@@ -10,3 +10,6 @@ převedených na formát pro hru.
 Hlas v průvodci nastavením (public/voice/cs/counting/guide/) je vytvořený službou
 ElevenLabs (https://elevenlabs.io), hlas ID 7JbZPqJGWUfXXBim0T8U, model
 eleven_multilingual_v2. Použito v rámci komerčního tarifu vlastníka hry.
+
+Testovací omalovánka (src/games/coloring/pictures/house.svg, domeček, strom
+a slunce) je vlastní dílo vytvořené pro tuto hru, bez cizích zdrojů.

@@ -10,6 +10,7 @@ export interface MenuTexts {
   readonly categories: {
     readonly all: { readonly title: string };
     readonly addingSubtracting: { readonly title: string };
+    readonly drawing: { readonly title: string };
   };
   /**
    * Formulář profilu (#72): nadpisy 1. a 2. kroku; potvrzení smazání
