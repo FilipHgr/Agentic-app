@@ -18,6 +18,7 @@ import Phaser from 'phaser';
 import { canvasResolutionFor } from '../logic/canvasResolution';
 import type { CanvasResolution } from '../logic/canvasResolution';
 import { GAME_HOST_KEY } from '../logic/gameHost';
+import type { GameProfileMarker } from '../logic/gameHost';
 import { homeButtonFor } from '../logic/homeButton';
 import { settingsGearFor } from '../logic/settingsGear';
 import { PAGE_BACKGROUND } from '../logic/theme';
@@ -71,6 +72,8 @@ export interface RunGameOptions {
   readonly onLeft: () => void;
   /** Úložiště hry pro aktivní profil (#71); bez něj hra ukládá jen do paměti. */
   readonly storage?: KeyValueStorage | undefined;
+  /** Značka aktivního profilu (#87): jen barva a první písmeno přezdívky. */
+  readonly profileMarker?: GameProfileMarker | undefined;
 }
 
 /** Phaser hra bez vlastních zvuků: hry hrají přes společný zvukový kontext stránky. */
@@ -143,6 +146,7 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
   startGameSession({
     homeButton: page.homeButton,
     storage: options.storage,
+    profileMarker: options.profileMarker,
     onLeft: options.onLeft,
     startScenes: (session) => {
       const started = createGame(module, resolution);

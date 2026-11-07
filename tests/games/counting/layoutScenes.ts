@@ -349,7 +349,7 @@ function grow(b: Box, by: number): Box {
 }
 
 /** Kolečko a domeček s místem, do kterého nesmí žádný herní prvek (#44, #54, #56, #68). */
-function cornerItems(window: TestWindow, area: GameArea): LayoutItem[] {
+export function cornerItems(window: TestWindow, area: GameArea): LayoutItem[] {
   if (area.mode === 'phoneLandscape') {
     const free = freeAreaOf(window);
     return [
@@ -402,7 +402,7 @@ const SURROUNDING_OF: Readonly<Record<string, string>> = {
   domeček: 'okolí domečku',
 };
 
-function isOwnSurrounding(button: LayoutItem, surrounding: LayoutItem): boolean {
+export function isOwnSurrounding(button: LayoutItem, surrounding: LayoutItem): boolean {
   return SURROUNDING_OF[button.name] === surrounding.name;
 }
 

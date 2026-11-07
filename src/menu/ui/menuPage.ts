@@ -24,6 +24,7 @@
 import Phaser from 'phaser';
 
 import { unlockSharedAudio } from '../../shared/audio/sharedAudio';
+import { profileMarkerOf } from '../../shared/logic/gameHost';
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
 import { PAGE_BACKGROUND } from '../../shared/logic/theme';
 import { browserStorage } from '../../shared/storage/keyValueStorage';
@@ -165,6 +166,7 @@ export function startMenuPage(options: MenuPageOptions): void {
     closeMenu: () => view.close?.(),
     reopenMenu: () => view.reopen?.(),
     gameStorage: (gameId) => options.profiles.gameStorage(gameId),
+    profileMarker: () => profileMarkerOf(options.profiles.activeProfile()),
     onPageStateChanged: (shown) => {
       document.title = shown.pageTitle();
     },

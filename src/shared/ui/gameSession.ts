@@ -11,7 +11,7 @@
  * a hlášení domečku po odchodu ho už neukáže.
  */
 
-import type { GameHost } from '../logic/gameHost';
+import type { GameHost, GameProfileMarker } from '../logic/gameHost';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
 
 /** Domeček stránky; hra u něj přepíná jen `hidden`. */
@@ -23,6 +23,8 @@ export interface GameSessionOptions {
   readonly homeButton: HomeButton | null;
   /** Úložiště hry pro aktivní profil (#71); bez něj hra ukládá jen do paměti. */
   readonly storage?: KeyValueStorage | undefined;
+  /** Značka aktivního profilu (#87): jen barva a písmeno. */
+  readonly profileMarker?: GameProfileMarker | undefined;
   /**
    * Spustí scény hry s `session.host`. Vrátí úklid, který se zavolá při
    * odchodu z hry.
@@ -73,6 +75,7 @@ export function startGameSession(options: GameSessionOptions): GameSession {
       leaveHandlers.push(handler);
     },
     storage: options.storage,
+    profileMarker: options.profileMarker,
   };
 
   const session: GameSession = {

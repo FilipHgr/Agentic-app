@@ -10,6 +10,7 @@
  * `onPageStateChanged` (název stránky).
  */
 
+import type { GameProfileMarker } from '../../shared/logic/gameHost';
 import { chooseSubscriptionSource } from '../../shared/logic/subscriptionSource';
 import type { KeyValueStorage } from '../../shared/storage/keyValueStorage';
 import { createMenu } from '../logic/menu';
@@ -35,6 +36,8 @@ export interface PageMenuOptions extends Omit<MenuOptions, 'start' | 'onStarted'
   readonly reopenMenu: () => void;
   /** Úložiště hry pro aktivní profil (#71); bez něj hra ukládá jen do paměti. */
   readonly gameStorage?: ((gameId: string) => KeyValueStorage) | undefined;
+  /** Značka aktivního profilu pro hru (#87): jen barva a písmeno. */
+  readonly profileMarker?: (() => GameProfileMarker) | undefined;
   /** Menu právě nastavilo tlačítka: stránka podle menu nastaví svůj název. */
   readonly onPageStateChanged?: ((menu: Menu) => void) | undefined;
 }
@@ -54,8 +57,15 @@ export function showCornerButtons(menu: Menu, buttons: CornerButtons): void {
 }
 
 export function createPageMenu(options: PageMenuOptions): Menu {
-  const { buttons, closeMenu, reopenMenu, gameStorage, onPageStateChanged, ...menuOptions } =
-    options;
+  const {
+    buttons,
+    closeMenu,
+    reopenMenu,
+    gameStorage,
+    profileMarker,
+    onPageStateChanged,
+    ...menuOptions
+  } = options;
   const showPageState = (): void => {
     onPageStateChanged?.(menu);
     showCornerButtons(menu, buttons);
@@ -68,6 +78,7 @@ export function createPageMenu(options: PageMenuOptions): Menu {
         returnToMenu: () => menu.returnFromGame(),
         subscription: chooseSubscriptionSource(),
         gameStorage,
+        profileMarker,
       }),
     onStarted: () => showPageState(),
     onReturned: () => {

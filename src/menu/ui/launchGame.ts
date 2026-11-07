@@ -6,11 +6,13 @@
  * vyhodí výjimku a menu nechá dítě v menu se zatřesením. Rozehranou hru
  * pozdější změna stavu neukončí, zamčení platí až od dalšího spuštění.
  * Název stránky a kolečko nastaví stránka menu podle logiky menu.
- * Hra dostane úložiště aktivního profilu (#71), jiné úložiště nemá.
+ * Hra dostane úložiště aktivního profilu (#71), jiné úložiště nemá,
+ * a značku profilu (#87): jen barvu a první písmeno přezdívky.
  */
 
 import { isGameUnlocked } from '../../shared/logic/gameAccess';
 import type { SubscriptionSource } from '../../shared/logic/gameAccess';
+import type { GameProfileMarker } from '../../shared/logic/gameHost';
 import type { GameEntry } from '../../shared/logic/gameRegistry';
 import type { KeyValueStorage } from '../../shared/storage/keyValueStorage';
 import { isGameModule, runGame } from '../../shared/ui/gameRunner';
@@ -27,6 +29,8 @@ export interface LaunchContext {
    * ukládá jen do paměti.
    */
   readonly gameStorage?: ((gameId: string) => KeyValueStorage) | undefined;
+  /** Značka aktivního profilu v době spuštění (#87). */
+  readonly profileMarker?: (() => GameProfileMarker) | undefined;
 }
 
 export function launchGame(game: GameEntry, loaded: unknown, context: LaunchContext): void {
@@ -39,6 +43,7 @@ export function launchGame(game: GameEntry, loaded: unknown, context: LaunchCont
   runGame(loaded, {
     onLeft: context.returnToMenu,
     storage: context.gameStorage?.(game.id),
+    profileMarker: context.profileMarker?.(),
   });
   context.closeMenu();
 }

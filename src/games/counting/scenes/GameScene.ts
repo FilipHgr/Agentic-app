@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { sharedToneContext } from '../../../shared/audio/sharedAudio';
 import { createTonePlayer } from '../../../shared/audio/tonePlayer';
 import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
+import { DEFAULT_PROFILE_COLOR } from '../../../shared/logic/profiles';
 import type { GameHost } from '../../../shared/logic/gameHost';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
@@ -14,6 +15,8 @@ import type { CountingSession, SessionChange, SessionPage } from '../logic/count
 import { isTwoBoxRound, playStateAfterResize } from '../logic/deviceLayout';
 import type { PlayState } from '../logic/deviceLayout';
 import type { GameProgress } from '../logic/progress';
+import { mapMarkerFor } from '../logic/progressMap';
+import type { MapMarker } from '../logic/progressMap';
 import { loadDigitRecognizer } from '../logic/recognizerLoading';
 import type { RecognizerLoadStatus } from '../logic/recognizerLoading';
 import type { GameSettings } from '../logic/settings';
@@ -23,6 +26,7 @@ import { highlightCorrectButton, shakeWrongButton } from './AnswerButton';
 import type { AnswerButton } from './AnswerButton';
 import { Confetti } from './Confetti';
 import { ParentPanels } from './ParentPanels';
+import { ProgressMapView } from './ProgressMapView';
 import { RoundView } from './RoundView';
 import { SceneLayouts, gameAreaFromRegistry } from './SceneLayouts';
 import { StarRow } from './StarRow';
@@ -38,8 +42,9 @@ const NO_PAGE: SessionPage = { attachSettingsGear: () => () => undefined };
  * Rozložení se bere podle herní plochy (iPad, telefon na šířku #54, nebo
  * na výšku #56) a při otočení telefonu se překreslí bez nového příkladu.
  * Části obrazovky kreslí samostatné soubory vedle (#57): `RoundView`
- * (příklad, číselník, okénka, nápověda), `StarRow`, `Confetti`
- * a `ParentPanels` (nastavení a průvodce).
+ * (příklad, číselník, okénka, nápověda), `StarRow`, `Confetti`,
+ * `ProgressMapView` (mapa postupu po oslavě, #87) a `ParentPanels`
+ * (nastavení a průvodce).
  */
 export class GameScene extends Phaser.Scene {
   /**
@@ -74,6 +79,7 @@ export class GameScene extends Phaser.Scene {
   });
   private readonly starRow = new StarRow(this, this.layouts, () => this.currentProgress());
   private readonly confetti = new Confetti(this);
+  private readonly progressMap = new ProgressMapView(this, () => this.profileMarker());
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu (#67 AC6).
   private readonly sounds = createTonePlayer(sharedToneContext);
 
@@ -129,6 +135,15 @@ export class GameScene extends Phaser.Scene {
     return isGameHost(stored) ? stored : undefined;
   }
 
+  /** Značka hráče na mapě v barvě profilu od stránky (#87); bez stránky výchozí barva. */
+  private profileMarker(): MapMarker {
+    const marker = this.readHost()?.profileMarker;
+    return mapMarkerFor({
+      nickname: marker?.letter,
+      color: marker?.color ?? DEFAULT_PROFILE_COLOR,
+    });
+  }
+
   /** Domeček je vidět jen tehdy, když jde použít (ne v nastavení a průvodci, #68 AC4). */
   private updateHome(): void {
     this.readHost()?.setHomeAvailable(this.session.homeAvailable());
@@ -154,6 +169,13 @@ export class GameScene extends Phaser.Scene {
         this.confetti.clear();
         this.starRow.paint();
         break;
+      case 'mapShown':
+        this.showProgressMap();
+        break;
+      case 'mapHidden':
+      case 'mapStopped':
+        this.progressMap.hide();
+        break;
       case 'settingsOpened':
         this.panels.openSettings();
         break;
@@ -165,6 +187,13 @@ export class GameScene extends Phaser.Scene {
         break;
     }
     this.updateHome();
+  }
+
+  private showProgressMap(): void {
+    const move = this.session.shownMap();
+    if (move !== null) {
+      this.progressMap.show(this.gameArea, move);
+    }
   }
 
   /** Nastavení, jak se má rozehraný příklad ukázat: s číselníkem, nebo s okénky. */
@@ -209,6 +238,7 @@ export class GameScene extends Phaser.Scene {
     this.layouts.clear();
     this.starRow.redraw();
     this.relayoutRound();
+    this.progressMap.redraw(this.gameArea);
     this.panels.fitTo(this.gameArea);
   }
 

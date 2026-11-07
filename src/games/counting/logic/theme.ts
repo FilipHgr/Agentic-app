@@ -195,3 +195,23 @@ export const CONFETTI_COLORS: readonly string[] = [
   '#C93400',
   STAR_STYLE.earnedOutlineColor,
 ];
+
+// ---------------------------------------------------------------------------
+// Mapa postupu (#87): zatím jen zástupný vzhled v barvách A3.
+// ---------------------------------------------------------------------------
+
+export const PROGRESS_MAP_STYLE = {
+  background: PAGE_BACKGROUND,
+  pathColor: '#D2D2D7',
+  /** Zastávka, kam značka ještě nedošla: jako tlačítko číselníku. */
+  placeColor: KEYPAD_BUTTON_STYLE.background,
+  placeBorderColor: KEYPAD_BUTTON_STYLE.borderColor,
+  /** Prošlá zastávka: plná modrá. */
+  visitedColor: BLUE,
+  visitedBorderColor: BLUE,
+  /** Cíl má zelený okraj, aby byl vidět i před dojitím. */
+  goalBorderColor: SUCCESS_GREEN,
+  markerBorderColor: WHITE,
+  markerLetterColor: WHITE,
+  markerLetterWeight: 700,
+} as const;
