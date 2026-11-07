@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { GAMES } from '../../src/gameList';
-import { ALL_CATEGORY, visibleCategories } from '../../src/menu/logic/menuCategories';
 import { menuLayoutFor } from '../../src/menu/logic/menuLayout';
 import type { MenuBox, MenuLayout } from '../../src/menu/logic/menuLayout';
-import { menuText } from '../../src/menu/logic/menuTexts';
-import { GAME_CATEGORIES } from '../../src/shared/logic/gameRegistry';
 import {
   freeAreaOf,
   gapBetween,
@@ -16,14 +13,24 @@ import {
   widthOf,
 } from '../shared/viewportFixtures';
 import type { TestWindow } from '../shared/viewportFixtures';
+import { MIN_EDGE_DISTANCE } from '../shared/layoutRules';
 import {
-  MANY_GAMES,
   MANY_GAMES_COUNT,
   MANY_MENU_CATEGORY_TITLES,
-  MANY_TEXTS_CS,
   MENU_WINDOWS,
+  findWindow,
   manyGamesLayout,
 } from './manyGamesFixtures';
+import {
+  describeLayoutRules,
+  scrollScenes,
+  unseenElements,
+  shiftCategory,
+  shiftY,
+  todayCategoryTitles,
+  todayLayout,
+  visiblePart,
+} from './menuLayoutScenes';
 
 /**
  * Testy k #69 (posouvání mřížky a kategorií prstem), část rozložení:
@@ -38,18 +45,41 @@ import {
  *   0 = nic se neposouvá). Polohy dlaždic a kategorií v rozložení jsou bez
  *   posunu; mřížka se posouvá svisle, kategorie v řadě vodorovně a ve
  *   sloupci svisle.
+ *
+ * Společná pravidla pro viditelnou část každé dlaždice a kategorie při
+ * každém zkoušeném posunu hlídá `describeLayoutRules` (#82). Tady
+ * zůstávají kontroly podle schválených obrázků, každá v cyklu přes okna.
  */
 
-const MIN_TAP = 64;
-const MIN_GAP = 8;
-const EDGE_MARGIN = 4;
 const ROUNDING = 1e-6;
-const CHARACTER_WIDTH_RATIO = 0.6;
-const TEXT_PADDING = 8;
 /** Z další skryté kategorie je vidět aspoň tolik (AC4). */
 const CATEGORY_PEEK = 24;
 /** Na konci posouvání nezůstane větší prázdné místo, než je okraj mřížky. */
 const MAX_END_SPACE = 24;
+/** Rezerva kolem dlaždice v ořezu kamery (pulzování o 5 % a stín). */
+const CLIP_RESERVE = 8;
+
+/**
+ * Kolik různých kombinací (okno × stav) pravidlo na posouvání hlídalo
+ * před #82, spočítáno jednorázově z testů před #82. Stav je počet her
+ * a zkoušený posun: 64 px, 8 px, text a viditelná plocha jen ve 40 hrách
+ * bez posunu (17 oken), překryv v 17 oknech se 4 posuny mřížky a ve 16
+ * oknech, kde se kategorie posouvají, se 2 dalšími posuny kategorií.
+ */
+const TODAY_COMBINATIONS: Readonly<Record<string, number>> = {
+  'vejde se do okna i mimo výřez': 17,
+  'nic se nepřekrývá': 100,
+  'ťukací plocha aspoň 64 px': 17,
+  'mezera mezi plochami aspoň 8 px': 17,
+  'aspoň 4 px od okraje': 17,
+  'text se vejde do své plochy': 17,
+};
+
+describeLayoutRules(
+  'posouvání mřížky a kategorií (40 her, 13 kategorií)',
+  scrollScenes,
+  TODAY_COMBINATIONS,
+);
 
 function insetBox(outer: MenuBox, margin: number): MenuBox {
   return {
@@ -60,325 +90,259 @@ function insetBox(outer: MenuBox, margin: number): MenuBox {
   };
 }
 
-function shiftY(box: MenuBox, offset: number): MenuBox {
-  return { ...box, top: box.top - offset, bottom: box.bottom - offset };
-}
-
-function shiftX(box: MenuBox, offset: number): MenuBox {
-  return { ...box, left: box.left - offset, right: box.right - offset };
-}
-
-function shiftCategory(layout: MenuLayout, box: MenuBox, offset: number): MenuBox {
-  return layout.categoryDirection === 'row' ? shiftX(box, offset) : shiftY(box, offset);
-}
-
-/** Část obdélníku, která je vidět ve viditelné ploše, nebo `undefined`. */
-function visiblePart(box: MenuBox, viewport: MenuBox): MenuBox | undefined {
-  const part = {
-    left: Math.max(box.left, viewport.left),
-    right: Math.min(box.right, viewport.right),
-    top: Math.max(box.top, viewport.top),
-    bottom: Math.min(box.bottom, viewport.bottom),
-  };
-  return part.left < part.right && part.top < part.bottom ? part : undefined;
-}
-
 function barBoxes(layout: MenuLayout): MenuBox[] {
   return [layout.profileSlot, layout.languageSlot, ...layout.placeholders];
 }
 
-function textWidth(text: string, fontSize: number): number {
-  return [...text].length * CHARACTER_WIDTH_RATIO * fontSize;
+function lastOf<T>(items: readonly T[], window: TestWindow): T {
+  const last = items[items.length - 1];
+  if (last === undefined) {
+    throw new Error(`${window.name}: seznam je prázdný`);
+  }
+  return last;
 }
 
-/** Názvy kategorií, které dnes menu ukáže. */
-function todayCategoryTitles(): string[] {
-  const all = [ALL_CATEGORY, ...GAME_CATEGORIES];
-  return visibleCategories(GAMES, GAME_CATEGORIES).map((id) => {
-    const category = all.find((candidate) => candidate.id === id);
-    return menuText(category?.titleKey ?? '', 'cs') ?? '';
-  });
+/** Kategorie ve zkušebním menu: směr, konec plochy a konec viditelné plochy. */
+function categoryAxis(layout: MenuLayout): {
+  end: (box: MenuBox) => number;
+  viewportEnd: number;
+  overflowing: boolean;
+} {
+  const viewport = layout.categoryScroll.viewport;
+  const isRow = layout.categoryDirection === 'row';
+  const end = (box: MenuBox): number => (isRow ? box.right : box.bottom);
+  const viewportEnd = isRow ? viewport.right : viewport.bottom;
+  const overflowing = layout.categories.some(
+    (category) => end(category.hit) > viewportEnd + ROUNDING,
+  );
+  return { end, viewportEnd, overflowing };
 }
 
-function todayLayout(window: TestWindow): MenuLayout {
-  return menuLayoutFor(viewportOf(window), {
-    categoryTitles: todayCategoryTitles(),
-    tileCount: GAMES.length,
-  });
+/** Okna, ve kterých se 13 kategorií nevejde. */
+function overflowingWindows(): TestWindow[] {
+  return MENU_WINDOWS.filter((window) => categoryAxis(manyGamesLayout(window)).overflowing);
 }
+
+describe('#82 AC1: posouvání ukáže každou dlaždici a kategorii', () => {
+  it('každá dlaždice a kategorie je změřená v každém případu a aspoň v jednom je celá vidět', () => {
+    const scenes = scrollScenes();
+    const names = [
+      ...Array.from({ length: MANY_GAMES_COUNT }, (_, index) => `dlaždice ${index + 1}`),
+      ...MANY_MENU_CATEGORY_TITLES.map((title) => `kategorie ${title}`),
+    ];
+    for (const window of MENU_WINDOWS) {
+      const prefix = `posouvání, ${window.name}, ${MANY_GAMES_COUNT} her`;
+      const own = scenes.filter((scene) => scene.label.startsWith(prefix));
+      expect(own.length, window.name).toBeGreaterThan(0);
+      expect(unseenElements(own, names), window.name).toEqual([]);
+    }
+  });
+});
 
 describe('#69 AC1: dnes (jedna hra) se nic neposouvá a menu vypadá stejně', () => {
-  for (const window of MENU_WINDOWS) {
-    it(`${window.name}: mřížka ani kategorie nemají kam posunout`, () => {
+  it('mřížka ani kategorie nemají kam posunout a dnešní dlaždice i kategorie jsou celé vidět', () => {
+    for (const window of MENU_WINDOWS) {
       const layout = todayLayout(window);
-      expect(layout.gridScroll.maxOffset).toBe(0);
-      expect(layout.categoryScroll.maxOffset).toBe(0);
-    });
-
-    it(`${window.name}: dnešní dlaždice i kategorie jsou celé ve viditelné ploše`, () => {
-      const layout = todayLayout(window);
+      expect(layout.gridScroll.maxOffset, window.name).toBe(0);
+      expect(layout.categoryScroll.maxOffset, window.name).toBe(0);
       for (const tile of layout.tiles) {
-        expect(isInside(tile, layout.gridScroll.viewport)).toBe(true);
+        expect(isInside(tile, layout.gridScroll.viewport), window.name).toBe(true);
       }
       for (const category of layout.categories) {
-        expect(isInside(category.hit, layout.categoryScroll.viewport)).toBe(true);
+        expect(isInside(category.hit, layout.categoryScroll.viewport), window.name).toBe(true);
       }
-    });
+    }
+  });
 
-    it(`${window.name}: počet her v „Vše“ navíc dnešní rozložení nezmění`, () => {
-      const plain = todayLayout(window);
+  it('počet her v „Vše“ navíc dnešní rozložení nezmění', () => {
+    for (const window of MENU_WINDOWS) {
       const withAll = menuLayoutFor(viewportOf(window), {
         categoryTitles: todayCategoryTitles(),
         tileCount: GAMES.length,
         allTileCount: GAMES.length,
       });
-      expect(withAll).toEqual(plain);
-    });
-  }
+      expect(withAll, window.name).toEqual(todayLayout(window));
+    }
+  });
 });
 
 describe('#69 AC1: mřížka se 40 hrami se posouvá svisle a je poznat, že je toho víc', () => {
-  for (const window of MENU_WINDOWS) {
-    describe(window.name, () => {
+  it(`ve „Vše“ je ${MANY_GAMES_COUNT} dlaždic, mřížka jde posunout, na začátku je první celá vidět a poslední jde posunout celá do viditelné plochy`, () => {
+    for (const window of MENU_WINDOWS) {
+      const layout = manyGamesLayout(window);
+      const { viewport, maxOffset } = layout.gridScroll;
+      expect(layout.tiles, window.name).toHaveLength(MANY_GAMES_COUNT);
+      expect(maxOffset, window.name).toBeGreaterThan(0);
+      expect(isInside(layout.tiles[0] ?? { ...viewport, top: -1 }, viewport), window.name).toBe(
+        true,
+      );
+      expect(isInside(shiftY(lastOf(layout.tiles, window), maxOffset), viewport), window.name).toBe(
+        true,
+      );
+    }
+  });
+
+  it('z první skryté řady je vidět 20–60 % výšky dlaždice', () => {
+    for (const window of MENU_WINDOWS) {
       const layout = manyGamesLayout(window);
       const viewport = layout.gridScroll.viewport;
-      const max = layout.gridScroll.maxOffset;
+      const firstHidden = layout.tiles.find((tile) => tile.bottom > viewport.bottom + ROUNDING);
+      expect(firstHidden, window.name).toBeDefined();
+      const tile = firstHidden ?? viewport;
+      const visible = (viewport.bottom - tile.top) / heightOf(tile);
+      expect(visible, window.name).toBeGreaterThanOrEqual(0.2);
+      expect(visible, window.name).toBeLessThanOrEqual(0.6);
+    }
+  });
 
-      it('dlaždice se nevejdou, takže mřížka jde posunout', () => {
-        expect(max).toBeGreaterThan(0);
-      });
+  it('na konci se mřížka zastaví bez prázdného místa pod poslední řadou', () => {
+    for (const window of MENU_WINDOWS) {
+      const layout = manyGamesLayout(window);
+      const { viewport, maxOffset } = layout.gridScroll;
+      const last = shiftY(lastOf(layout.tiles, window), maxOffset);
+      expect(viewport.bottom - last.bottom, window.name).toBeLessThanOrEqual(MAX_END_SPACE);
+    }
+  });
 
-      it('z první skryté řady je vidět 20–60 % výšky dlaždice', () => {
-        const firstHidden = layout.tiles.find((tile) => tile.bottom > viewport.bottom + ROUNDING);
-        expect(firstHidden).toBeDefined();
-        const tile = firstHidden ?? viewport;
-        const visible = (viewport.bottom - tile.top) / heightOf(tile);
-        expect(visible).toBeGreaterThanOrEqual(0.2);
-        expect(visible).toBeLessThanOrEqual(0.6);
-      });
-
-      it('poslední dlaždice jde posunout celá do viditelné plochy', () => {
-        const last = layout.tiles[layout.tiles.length - 1];
-        expect(last).toBeDefined();
-        expect(isInside(shiftY(last ?? viewport, max), viewport)).toBe(true);
-      });
-
-      it('na konci se mřížka zastaví bez prázdného místa pod poslední řadou', () => {
-        const last = layout.tiles[layout.tiles.length - 1] ?? viewport;
-        expect(viewport.bottom - shiftY(last, max).bottom).toBeLessThanOrEqual(MAX_END_SPACE);
-      });
-
-      it('na začátku je první dlaždice celá vidět v levém horním rohu', () => {
-        const first = layout.tiles[0];
-        expect(first).toBeDefined();
-        expect(isInside(first ?? { ...viewport, top: -1 }, viewport)).toBe(true);
-      });
-
-      it('viditelná plocha mřížky není pod lištou ani pod kategoriemi', () => {
-        for (const box of barBoxes(layout)) {
-          expect(overlaps(viewport, box)).toBe(false);
-          expect(viewport.top).toBeGreaterThanOrEqual(box.bottom);
-        }
-        expect(overlaps(viewport, layout.categoryScroll.viewport)).toBe(false);
-      });
-
-      it('žádná dlaždice není pod lištou ani pod kategoriemi při žádném posunu', () => {
-        const steps = [0, max / 3, max / 2, max];
-        for (const offset of steps) {
-          for (const tile of layout.tiles) {
-            const part = visiblePart(shiftY(tile, offset), viewport);
-            if (part === undefined) {
-              continue;
-            }
-            for (const box of barBoxes(layout)) {
-              expect(overlaps(part, box)).toBe(false);
-            }
-            for (const category of layout.categories) {
-              expect(overlaps(part, category.hit)).toBe(false);
-            }
-          }
-        }
-      });
-
-      it('viditelná plocha mřížky není pod výřezem a je aspoň 4 px od okraje volné plochy', () => {
-        expect(isInside(viewport, insetBox(freeAreaOf(window), EDGE_MARGIN))).toBe(true);
-      });
-
-      it('každá dlaždice má aspoň 64 × 64 px a mezi dlaždicemi je aspoň 8 px', () => {
-        for (const tile of layout.tiles) {
-          expect(widthOf(tile)).toBeGreaterThanOrEqual(MIN_TAP - ROUNDING);
-          expect(heightOf(tile)).toBeGreaterThanOrEqual(MIN_TAP - ROUNDING);
-        }
-        const [first, second] = layout.tiles;
-        const below = layout.tiles[layout.gridColumns];
-        expect(gapBetween(first ?? viewport, second ?? viewport)).toBeGreaterThanOrEqual(MIN_GAP);
-        expect(gapBetween(first ?? viewport, below ?? viewport)).toBeGreaterThanOrEqual(MIN_GAP);
-      });
-
-      it('název každé hry se vejde do dlaždice', () => {
-        MANY_GAMES.forEach((game, index) => {
-          const tile = layout.tiles[index] ?? viewport;
-          const title = MANY_TEXTS_CS[game.titleKey] ?? '';
-          expect(textWidth(title, layout.tileTitleFontSize) + 2 * TEXT_PADDING).toBeLessThanOrEqual(
-            widthOf(tile) + ROUNDING,
-          );
-        });
-      });
-
-      it('v kategorii s méně hrami mají dlaždice stejnou velikost jako ve „Vše“', () => {
-        const fewer = manyGamesLayout(window, 4);
-        expect(fewer.tiles[0]).toEqual(layout.tiles[0]);
-        expect(fewer.gridScroll.viewport).toEqual(viewport);
-      });
-
-      it('kategorie s hrami, které se vejdou, se neposouvá', () => {
-        const fewer = manyGamesLayout(window, 1);
-        expect(fewer.gridScroll.maxOffset).toBe(0);
-      });
-
-      it(`ve „Vše“ je ${MANY_GAMES_COUNT} dlaždic, jedna na hru`, () => {
-        expect(layout.tiles).toHaveLength(MANY_GAMES_COUNT);
-      });
-    });
-  }
+  it('v kategorii s méně hrami mají dlaždice stejnou velikost jako ve „Vše“ a kategorie, jejíž hry se vejdou, se neposouvá', () => {
+    for (const window of MENU_WINDOWS) {
+      const layout = manyGamesLayout(window);
+      const fewer = manyGamesLayout(window, 4);
+      expect(fewer.tiles[0], window.name).toEqual(layout.tiles[0]);
+      expect(fewer.gridScroll.viewport, window.name).toEqual(layout.gridScroll.viewport);
+      expect(manyGamesLayout(window, 1).gridScroll.maxOffset, window.name).toBe(0);
+    }
+  });
 });
 
-describe('#69 AC1: kamera mřížky má rezervu na pulzování, zatřesení a stín', () => {
-  /** Rezerva kolem dlaždice v ořezu kamery (pulzování o 5 % a stín). */
-  const RESERVE = 8;
-  for (const window of MENU_WINDOWS) {
-    it(`${window.name}: ořez obsahuje viditelnou plochu a kolem krajních dlaždic je aspoň 8 px`, () => {
+describe('#69 AC1: kamera mřížky má rezervu a nezasahuje do lišty, kategorií ani pod výřez', () => {
+  it('ořez obsahuje viditelnou plochu a kolem krajních dlaždic je aspoň 8 px', () => {
+    for (const window of MENU_WINDOWS) {
       const layout = manyGamesLayout(window);
       const { clip, viewport, maxOffset } = layout.gridScroll;
-      expect(isInside(viewport, clip)).toBe(true);
+      expect(isInside(viewport, clip), window.name).toBe(true);
       const first = layout.tiles[0] ?? viewport;
-      const last = shiftY(layout.tiles[layout.tiles.length - 1] ?? viewport, maxOffset);
+      const last = shiftY(lastOf(layout.tiles, window), maxOffset);
       const rightmost = layout.tiles[layout.gridColumns - 1] ?? viewport;
-      expect(first.top - clip.top).toBeGreaterThanOrEqual(RESERVE - ROUNDING);
-      expect(first.left - clip.left).toBeGreaterThanOrEqual(RESERVE - ROUNDING);
-      expect(clip.right - rightmost.right).toBeGreaterThanOrEqual(RESERVE - ROUNDING);
-      expect(clip.bottom - last.bottom).toBeGreaterThanOrEqual(RESERVE - ROUNDING);
-    });
+      expect(first.top - clip.top, window.name).toBeGreaterThanOrEqual(CLIP_RESERVE - ROUNDING);
+      expect(first.left - clip.left, window.name).toBeGreaterThanOrEqual(CLIP_RESERVE - ROUNDING);
+      expect(clip.right - rightmost.right, window.name).toBeGreaterThanOrEqual(
+        CLIP_RESERVE - ROUNDING,
+      );
+      expect(clip.bottom - last.bottom, window.name).toBeGreaterThanOrEqual(
+        CLIP_RESERVE - ROUNDING,
+      );
+    }
+  });
 
-    it(`${window.name}: ořez kamery mřížky nezasahuje do lišty, kategorií ani pod výřez`, () => {
+  it('ořez a viditelné plochy mřížky a kategorií nezasahují do lišty, do sebe navzájem ani pod výřez', () => {
+    for (const window of MENU_WINDOWS) {
       const layout = manyGamesLayout(window);
       const { clip } = layout.gridScroll;
-      for (const box of barBoxes(layout)) {
-        expect(overlaps(clip, box)).toBe(false);
+      const gridViewport = layout.gridScroll.viewport;
+      const categoryViewport = layout.categoryScroll.viewport;
+      const free = freeAreaOf(window);
+      for (const bar of barBoxes(layout)) {
+        expect(overlaps(clip, bar), `${window.name}: ořez × lišta`).toBe(false);
+        expect(overlaps(gridViewport, bar), `${window.name}: mřížka × lišta`).toBe(false);
+        expect(gridViewport.top, `${window.name}: mřížka pod lištou`).toBeGreaterThanOrEqual(
+          bar.bottom,
+        );
+        expect(overlaps(categoryViewport, bar), `${window.name}: kategorie × lišta`).toBe(false);
+        // Viditelná plocha, ve které prst posouvá a ťuká, je od lišty aspoň 4 px jako
+        // dnes. Kreslený ořez sahá až k liště (výjimka v menuLayoutScenes.ts).
+        for (const viewport of [gridViewport, categoryViewport]) {
+          expect(
+            gapBetween(viewport, bar),
+            `${window.name}: mezera od lišty`,
+          ).toBeGreaterThanOrEqual(MIN_EDGE_DISTANCE - ROUNDING);
+        }
       }
       for (const category of layout.categories) {
-        expect(overlaps(clip, category.hit)).toBe(false);
+        expect(overlaps(clip, category.hit), `${window.name}: ořez × kategorie`).toBe(false);
       }
-      expect(overlaps(clip, layout.categoryScroll.viewport)).toBe(false);
-      expect(isInside(clip, freeAreaOf(window))).toBe(true);
-    });
-  }
-});
-
-describe('#69 AC4: rozestup kategorií podle schváleného obrázku', () => {
-  for (const name of ['744×296', '800×300']) {
-    it(`${name}: rozestup kategorií je nejvýš 88 px jako na obrázku`, () => {
-      const window = MENU_WINDOWS.find((candidate) => candidate.name.startsWith(name));
-      expect(window).toBeDefined();
-      const layout = manyGamesLayout(window ?? MENU_WINDOWS[0]!);
-      const [first, second] = layout.categories;
-      expect((second?.hit.top ?? Infinity) - (first?.hit.top ?? 0)).toBeLessThanOrEqual(88);
-    });
-  }
+      expect(overlaps(clip, categoryViewport), `${window.name}: ořez × kategorie`).toBe(false);
+      expect(overlaps(gridViewport, categoryViewport), `${window.name}: mřížka × kategorie`).toBe(
+        false,
+      );
+      expect(isInside(clip, free), `${window.name}: ořez pod výřezem`).toBe(true);
+      for (const viewport of [gridViewport, categoryViewport]) {
+        expect(
+          isInside(viewport, insetBox(free, MIN_EDGE_DISTANCE)),
+          `${window.name}: viditelná plocha 4 px od okraje`,
+        ).toBe(true);
+      }
+    }
+  });
 });
 
 describe('#69 AC4: 13 kategorií (12 a „Vše“) se posouvá a je poznat, že je jich víc', () => {
-  for (const window of MENU_WINDOWS) {
-    describe(window.name, () => {
+  it('rozestup kategorií je nejvýš 88 px jako na obrázku (744×296 a 800×300)', () => {
+    for (const name of ['744×296', '800×300']) {
+      const [first, second] = manyGamesLayout(findWindow(name)).categories;
+      expect((second?.hit.top ?? Infinity) - (first?.hit.top ?? 0), name).toBeLessThanOrEqual(88);
+    }
+  });
+
+  it('každá kategorie má svou ťukací plochu a na začátku je „Vše“ celá vidět', () => {
+    for (const window of MENU_WINDOWS) {
       const layout = manyGamesLayout(window);
       const viewport = layout.categoryScroll.viewport;
-      const max = layout.categoryScroll.maxOffset;
+      expect(layout.categories, window.name).toHaveLength(MANY_MENU_CATEGORY_TITLES.length);
+      const all = layout.categories[0]?.hit ?? { ...viewport, top: -1 };
+      expect(isInside(all, viewport), window.name).toBe(true);
+    }
+  });
+
+  it('kategorie, které se nevejdou, jdou posunout až na poslední; ty, které se vejdou, se neposouvají', () => {
+    for (const window of MENU_WINDOWS) {
+      const layout = manyGamesLayout(window);
+      const { viewport, maxOffset } = layout.categoryScroll;
       const hits = layout.categories.map((category) => category.hit);
-      const pills = layout.categories.map((category) => category.pill);
-      const isRow = layout.categoryDirection === 'row';
-      const end = (box: MenuBox): number => (isRow ? box.right : box.bottom);
-      const viewportEnd = isRow ? viewport.right : viewport.bottom;
-
-      it('každá kategorie má svou ťukací plochu aspoň 64 px vysokou a mezery aspoň 8 px', () => {
-        expect(layout.categories).toHaveLength(MANY_MENU_CATEGORY_TITLES.length);
-        for (const hit of hits) {
-          expect(heightOf(hit)).toBeGreaterThanOrEqual(MIN_TAP - ROUNDING);
-          expect(widthOf(hit)).toBeGreaterThanOrEqual(MIN_TAP - ROUNDING);
-        }
-        for (let index = 1; index < hits.length; index += 1) {
-          expect(
-            gapBetween(hits[index - 1] ?? viewport, hits[index] ?? viewport),
-          ).toBeGreaterThanOrEqual(MIN_GAP - ROUNDING);
-        }
-      });
-
-      const overflowing = hits.some((hit) => end(hit) > viewportEnd + ROUNDING);
-
-      if (overflowing) {
-        it('z další skryté kategorie je vidět aspoň 24 px', () => {
-          const index = pills.findIndex((pill) => end(pill) > viewportEnd + ROUNDING);
-          const pill = pills[index] ?? viewport;
-          const part = visiblePart(pill, viewport);
-          expect(part).toBeDefined();
-          const shown = part === undefined ? 0 : isRow ? widthOf(part) : heightOf(part);
-          expect(shown).toBeGreaterThanOrEqual(CATEGORY_PEEK);
-        });
-
-        it('kategorie jdou posunout tak, že je celá vidět i poslední', () => {
-          expect(max).toBeGreaterThan(0);
-          const last = hits[hits.length - 1] ?? viewport;
-          expect(isInside(shiftCategory(layout, last, max), viewport)).toBe(true);
-        });
-
-        it('na konci se kategorie zastaví bez prázdného místa za poslední', () => {
-          const last = hits[hits.length - 1] ?? viewport;
-          expect(viewportEnd - end(shiftCategory(layout, last, max))).toBeLessThanOrEqual(
-            MAX_END_SPACE,
-          );
-        });
+      if (categoryAxis(layout).overflowing) {
+        expect(maxOffset, window.name).toBeGreaterThan(0);
+        const last = shiftCategory(layout, lastOf(hits, window), maxOffset);
+        expect(isInside(last, viewport), window.name).toBe(true);
       } else {
-        it('kategorie se vejdou celé, takže se neposouvají', () => {
-          expect(max).toBe(0);
-          for (const hit of hits) {
-            expect(isInside(hit, viewport)).toBe(true);
-          }
-        });
+        expect(maxOffset, window.name).toBe(0);
+        for (const hit of hits) {
+          expect(isInside(hit, viewport), window.name).toBe(true);
+        }
       }
+    }
+  });
 
-      it('na začátku je „Vše“ celá vidět', () => {
-        expect(isInside(hits[0] ?? { ...viewport, top: -1 }, viewport)).toBe(true);
-      });
+  it('z další skryté kategorie je vidět aspoň 24 px', () => {
+    expect(overflowingWindows().length, 'aspoň jedno okno přetéká').toBeGreaterThan(0);
+    for (const window of MENU_WINDOWS) {
+      const layout = manyGamesLayout(window);
+      const { end, viewportEnd, overflowing } = categoryAxis(layout);
+      if (!overflowing) {
+        continue;
+      }
+      const viewport = layout.categoryScroll.viewport;
+      const pill = layout.categories.find(
+        (category) => end(category.pill) > viewportEnd + ROUNDING,
+      )?.pill;
+      const part = visiblePart(pill ?? viewport, viewport);
+      expect(part, window.name).toBeDefined();
+      const isRow = layout.categoryDirection === 'row';
+      const shown = part === undefined ? 0 : isRow ? widthOf(part) : heightOf(part);
+      expect(shown, window.name).toBeGreaterThanOrEqual(CATEGORY_PEEK);
+    }
+  });
 
-      it('viditelná plocha kategorií není pod lištou, pod výřezem ani u okraje', () => {
-        for (const box of barBoxes(layout)) {
-          expect(overlaps(viewport, box)).toBe(false);
-        }
-        expect(isInside(viewport, insetBox(freeAreaOf(window), EDGE_MARGIN))).toBe(true);
-      });
-
-      it('posunuté kategorie nejsou pod lištou ani v mřížce', () => {
-        for (const offset of [0, max / 2, max]) {
-          for (const hit of hits) {
-            const part = visiblePart(shiftCategory(layout, hit, offset), viewport);
-            if (part === undefined) {
-              continue;
-            }
-            for (const box of barBoxes(layout)) {
-              expect(overlaps(part, box)).toBe(false);
-            }
-            expect(overlaps(part, layout.gridScroll.viewport)).toBe(false);
-          }
-        }
-      });
-
-      it('název každé kategorie se vejde do své pilulky', () => {
-        MANY_MENU_CATEGORY_TITLES.forEach((title, index) => {
-          const pill = pills[index] ?? viewport;
-          expect(textWidth(title, layout.categoryFontSize) + 2 * TEXT_PADDING).toBeLessThanOrEqual(
-            widthOf(pill) + ROUNDING,
-          );
-        });
-      });
-    });
-  }
+  it('na konci se kategorie zastaví bez prázdného místa za poslední', () => {
+    expect(overflowingWindows().length, 'aspoň jedno okno přetéká').toBeGreaterThan(0);
+    for (const window of MENU_WINDOWS) {
+      const layout = manyGamesLayout(window);
+      const { end, viewportEnd, overflowing } = categoryAxis(layout);
+      if (!overflowing) {
+        continue;
+      }
+      const hits = layout.categories.map((category) => category.hit);
+      const last = shiftCategory(layout, lastOf(hits, window), layout.categoryScroll.maxOffset);
+      expect(viewportEnd - end(last), window.name).toBeLessThanOrEqual(MAX_END_SPACE);
+    }
+  });
 });

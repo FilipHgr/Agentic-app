@@ -7,6 +7,7 @@ import {
   overlapViolations,
   tapGapViolations,
   tapSizeViolations,
+  textFitViolations,
 } from './layoutRules';
 import type { LayoutItem, LayoutScene } from './layoutRules';
 import type { Box } from './viewportFixtures';
@@ -114,6 +115,90 @@ describe('#81: společná pravidla rozložení', () => {
     ]);
     expect(edgeViolations(sceneWith([strict]))).toEqual([
       '400×300, zkušební obrazovka: volba je blíž než 8 px k okraji, levý okraj o 2 px',
+    ]);
+  });
+
+  it('oříznutá dlaždice v posouvané ploše měří 64 px na celé ploše, ne na viditelné části', () => {
+    const cut: LayoutItem = {
+      name: 'dlaždice 5',
+      box: { left: 20, right: 84, top: 20, bottom: 30 },
+      whole: square(20, -34),
+      tappable: true,
+    };
+
+    expect(tapSizeViolations(sceneWith([cut]))).toEqual([]);
+    expect(tapSizeViolations(sceneWith([{ ...cut, whole: square(20, -34, 40) }]))).toEqual([
+      '400×300, zkušební obrazovka: dlaždice 5 má jen 40 px × 40 px, potřebuje aspoň 64 px',
+    ]);
+  });
+
+  it('skrytý posouvaný prvek měří jen 64 px a text, schválená menší mezera dvojice se hlídá taky', () => {
+    const hidden: LayoutItem = {
+      name: 'dlaždice 30',
+      box: square(20, 400, 40),
+      whole: square(20, 400, 40),
+      hidden: true,
+      tappable: true,
+      texts: [{ text: 'Hra 30 je moc dlouhá', fontSize: 20 }],
+    };
+    const scene = sceneWith([...GOOD_ITEMS, hidden]);
+    const bar: LayoutItem = { name: 'lišta', box: square(20, 20), tappable: true };
+    const touching: LayoutItem = { name: 'dlaždice 1', box: square(84, 20), tappable: true };
+    const pair = sceneWith([bar, touching], { minGap: () => 0 });
+
+    expect(fitViolations(scene)).toEqual([]);
+    expect(overlapViolations(scene)).toEqual([]);
+    expect(tapGapViolations(scene)).toEqual([]);
+    expect(tapSizeViolations(scene)).toEqual([
+      '400×300, zkušební obrazovka: dlaždice 30 má jen 40 px × 40 px, potřebuje aspoň 64 px',
+    ]);
+    expect(textFitViolations(scene)).toHaveLength(1);
+    expect(tapGapViolations(pair)).toEqual([]);
+    expect(tapGapViolations({ ...pair, minGap: () => 2 })).toEqual([
+      '400×300, zkušební obrazovka: mezi lišta a dlaždice 1 je jen 0 px, potřebuje aspoň 2 px',
+    ]);
+  });
+});
+
+describe('#82: pravidlo „text se vejde do své plochy“', () => {
+  const tile: LayoutItem = { name: 'dlaždice 1', box: square(20, 20, 100) };
+
+  it('text, který se vejde i s rezervou 8 px, projde; delší nebo prázdný ne', () => {
+    // „Hra 1“ má 5 znaků: 5 × 0,6 × 20 + 2 × 8 = 76 px ≤ 100 px.
+    const fits = sceneWith([{ ...tile, texts: [{ text: 'Hra 1', fontSize: 20 }] }]);
+    // 8 znaků: 8 × 0,6 × 20 + 16 = 112 px > 100 px.
+    const tooWide = sceneWith([{ ...tile, texts: [{ text: 'Hra 1234', fontSize: 20 }] }]);
+    const empty = sceneWith([{ ...tile, texts: [{ text: ' ', fontSize: 20 }] }]);
+
+    expect(textFitViolations(fits)).toEqual([]);
+    expect(textFitViolations(tooWide)).toEqual([
+      '400×300, zkušební obrazovka: text „Hra 1234“ v dlaždice 1 potřebuje šířku 112 px, plocha má 100 px',
+    ]);
+    expect(textFitViolations(empty)).toEqual([
+      '400×300, zkušební obrazovka: v dlaždice 1 chybí text',
+    ]);
+  });
+
+  it('přezdívka na dva řádky se dělí rovným dílem a hlídá se i výška řádků', () => {
+    const nickname = (height: number): LayoutItem => ({
+      name: 'přezdívka 1',
+      box: { left: 20, right: 116, top: 100, bottom: 100 + height },
+      texts: [
+        {
+          text: 'WWWWWWWWWWWW',
+          fontSize: 16,
+          charWidth: 1,
+          maxLines: 2,
+          lineHeight: 20,
+          padding: 0,
+        },
+      ],
+    });
+
+    // 6 písmen × 16 px = 96 px na řádek, dva řádky po 20 px = 40 px.
+    expect(textFitViolations(sceneWith([nickname(40)]))).toEqual([]);
+    expect(textFitViolations(sceneWith([nickname(39)]))).toEqual([
+      '400×300, zkušební obrazovka: text „WWWWWWWWWWWW“ v přezdívka 1 potřebuje výšku 40 px, plocha má 39 px',
     ]);
   });
 });

@@ -1,22 +1,27 @@
 import { describe, expect, it } from 'vitest';
 
-import { profilePickerLayoutFor } from '../../src/menu/logic/profileLayout';
-import type { ProfilePickerLayout } from '../../src/menu/logic/profileLayout';
 import type { MenuBox } from '../../src/menu/logic/menuLayout';
+import type { ProfilePickerLayout } from '../../src/menu/logic/profileLayout';
 import { chooseLayoutMode } from '../../src/shared/logic/viewportLayout';
-import { LANGUAGES } from '../../src/shared/texts/languages';
-import { sharedTexts } from '../../src/shared/texts/sharedTexts';
 import {
-  freeAreaOf,
-  gapBetween,
-  heightOf,
-  isInside,
-  overlaps,
-  viewportOf,
-  widthOf,
-} from '../shared/viewportFixtures';
+  edgeViolations,
+  fitViolations,
+  overlapViolations,
+  tapGapViolations,
+  tapSizeViolations,
+  textFitViolations,
+} from '../shared/layoutRules';
+import type { LayoutItem, LayoutRule, LayoutScene } from '../shared/layoutRules';
+import { freeAreaOf, heightOf, viewportOf, widthOf } from '../shared/viewportFixtures';
 import type { TestWindow } from '../shared/viewportFixtures';
-import { MENU_WINDOWS } from './manyGamesFixtures';
+import { MENU_WINDOWS, findWindow } from './manyGamesFixtures';
+import {
+  PICKER_CASES,
+  TODAY_LANGUAGE_NAMES,
+  describeLayoutRules,
+  pickerLayout,
+  pickerScenes,
+} from './menuLayoutScenes';
 
 /**
  * Testy k #72 AC1 a AC4, rozložení výběru profilu (obrázek P a obrázek
@@ -33,58 +38,36 @@ import { MENU_WINDOWS } from './manyGamesFixtures';
  * - `languageSlot`, `languageButtonFontSize` a `languagePanel` jako
  *   v menu (#70), tlačítko jazyka vpravo nahoře.
  *
- * Šířka textu se odhaduje jako v #65 (znaky × 0,6 × písmo), přezdívka pod
- * kolečkem podle AC4 jako 1,0 × písmo na písmeno. Vzhled (plné „CS“,
- * barvy, háčky nad písmeny) se kontroluje ručně.
+ * Společná pravidla (odhad šířky textu podle #65, i písmeno v kolečku, přezdívka „WWWWWWWWWWWW“ na dva
+ * řádky a otevřená nabídka jazyků) hlídá `describeLayoutRules` (#82). Tady
+ * zůstávají kontroly podle obrázku, každá v cyklu přes okna, a test zprávy
+ * při selhání (#82 AC5). Vzhled (plné „CS“, barvy, háčky nad písmeny) se
+ * kontroluje ručně.
  */
 
-const MIN_TAP = 64;
-const MIN_GAP = 8;
-const EDGE_MARGIN = 4;
 const ROUNDING = 1e-6;
-const CHARACTER_WIDTH_RATIO = 0.6;
-const TEXT_PADDING = 8;
-/** Písmena přezdívky pod kolečkem se počítají jako 1,0 × písmo (AC4). */
-const NICKNAME_LETTER_RATIO = 1;
-/** Dva řádky přezdívky 16 px mají 40 px (výpočet v #72). */
-const NICKNAME_LINE_HEIGHT_RATIO = 1.25;
-const WIDEST_NICKNAME = 'WWWWWWWWWWWW';
-
 const TABLET_CIRCLE = 140;
 const PHONE_CIRCLE = 110;
 
-const TODAY_LANGUAGE_NAMES: readonly string[] = LANGUAGES.map(
-  (language) => sharedTexts(language).languageName,
-);
+/**
+ * Kolik různých kombinací (okno × počet profilů) pravidlo na výběru
+ * profilu hlídalo před #82: 17 oken a 3 počty profilů, spočítáno
+ * jednorázově z testů před #82.
+ */
+const TODAY_COMBINATIONS: Readonly<Record<string, number>> = {
+  'vejde se do okna i mimo výřez': 51,
+  'nic se nepřekrývá': 51,
+  'ťukací plocha aspoň 64 px': 51,
+  'mezera mezi plochami aspoň 8 px': 51,
+  'aspoň 4 px od okraje': 51,
+  'text se vejde do své plochy': 51,
+};
 
-function insetBox(outer: MenuBox, margin: number): MenuBox {
-  return {
-    left: outer.left + margin,
-    right: outer.right - margin,
-    top: outer.top + margin,
-    bottom: outer.bottom - margin,
-  };
-}
-
-function textWidth(text: string, fontSize: number, ratio = CHARACTER_WIDTH_RATIO): number {
-  return [...text].length * ratio * fontSize;
-}
+describeLayoutRules('výběr profilu', pickerScenes, TODAY_COMBINATIONS);
 
 function isPhone(window: TestWindow): boolean {
   const mode = chooseLayoutMode(viewportOf(window));
   return mode === 'phoneLandscape' || mode === 'phonePortrait';
-}
-
-function layoutWith(
-  window: TestWindow,
-  profileCount: number,
-  showAdd: boolean,
-): ProfilePickerLayout {
-  return profilePickerLayoutFor(viewportOf(window), {
-    profileCount,
-    showAdd,
-    languageNames: TODAY_LANGUAGE_NAMES,
-  });
 }
 
 /** Všechna kolečka (profily a „+“) v pořadí, jak jdou za sebou. */
@@ -99,164 +82,207 @@ function comesAfter(previous: MenuBox, next: MenuBox): boolean {
   return sameRow ? next.left >= previous.right - ROUNDING : next.top >= previous.bottom - ROUNDING;
 }
 
-const CASES: ReadonlyArray<{
-  readonly name: string;
-  readonly count: number;
-  readonly add: boolean;
-}> = [
-  { name: '6 profilů bez „+“', count: 6, add: false },
-  { name: '5 profilů a „+“', count: 5, add: true },
-  { name: '2 profily a „+“', count: 2, add: true },
-];
-
-describe('#72 AC1: výběr profilu se vejde do všech zkušebních oken bez posouvání', () => {
-  for (const { name, count, add } of CASES) {
+/** Každý případ: počet profilů a okno, s rozložením a popisem pro zprávu. */
+function eachCase(
+  check: (label: string, layout: ProfilePickerLayout, window: TestWindow, add: boolean) => void,
+): void {
+  for (const { name, count, add } of PICKER_CASES) {
     for (const window of MENU_WINDOWS) {
-      describe(`${name}, ${window.name}`, () => {
-        const layout = layoutWith(window, count, add);
-        const free = insetBox(freeAreaOf(window), EDGE_MARGIN);
-        const circles = circlesOf(layout);
-
-        it('každý profil má kolečko a „+“ je jen tam, kde má být', () => {
-          expect(layout.profiles).toHaveLength(count);
-          expect(layout.add === null).toBe(!add);
-        });
-
-        it(`kolečka mají ${isPhone(window) ? PHONE_CIRCLE : TABLET_CIRCLE} px a „+“ je stejně velké`, () => {
-          const size = isPhone(window) ? PHONE_CIRCLE : TABLET_CIRCLE;
-          for (const circle of circles) {
-            expect(widthOf(circle)).toBeCloseTo(size, 5);
-            expect(heightOf(circle)).toBeCloseTo(size, 5);
-          }
-        });
-
-        it('kolečka, přezdívky i tlačítko jazyka jsou celé ve volné ploše a 4 px od okraje', () => {
-          for (const box of [
-            ...circles,
-            ...layout.profiles.map((slot) => slot.nickname),
-            layout.languageSlot,
-          ]) {
-            expect(isInside(box, free)).toBe(true);
-          }
-        });
-
-        it('mezi kolečky a tlačítkem jazyka je mezera aspoň 8 px', () => {
-          const taps = [...circles, layout.languageSlot];
-          taps.forEach((a, i) => {
-            taps.slice(i + 1).forEach((b) => {
-              expect(gapBetween(a, b)).toBeGreaterThanOrEqual(MIN_GAP - ROUNDING);
-            });
-          });
-        });
-
-        it('přezdívky nepřekrývají kolečka, jiné přezdívky ani tlačítko jazyka', () => {
-          layout.profiles.forEach((slot, index) => {
-            expect(slot.nickname.top).toBeGreaterThanOrEqual(slot.circle.bottom - ROUNDING);
-            const others = [
-              ...circles,
-              ...layout.profiles.filter((_, other) => other !== index).map((s) => s.nickname),
-              layout.languageSlot,
-            ];
-            for (const other of others) {
-              expect(overlaps(slot.nickname, other)).toBe(false);
-            }
-          });
-        });
-
-        it('kolečka jdou v pořadí založení profilů a „+“ je za nimi', () => {
-          circles.slice(1).forEach((circle, index) => {
-            const previous = circles[index];
-            expect(previous).toBeDefined();
-            expect(comesAfter(previous ?? circle, circle)).toBe(true);
-          });
-        });
-
-        it('tlačítko jazyka je vpravo nahoře a má aspoň 64 × 64 px', () => {
-          const area = freeAreaOf(window);
-          expect(widthOf(layout.languageSlot)).toBeGreaterThanOrEqual(MIN_TAP - ROUNDING);
-          expect(heightOf(layout.languageSlot)).toBeGreaterThanOrEqual(MIN_TAP - ROUNDING);
-          for (const circle of circles) {
-            expect(layout.languageSlot.top).toBeLessThan(circle.top);
-          }
-          expect(area.right - layout.languageSlot.right).toBeLessThan(
-            layout.languageSlot.left - area.left,
-          );
-        });
-
-        it('zkratka jazyka se vejde do tlačítka a nabídka jazyků do volné plochy', () => {
-          for (const language of LANGUAGES) {
-            expect(
-              textWidth(language.toUpperCase(), layout.languageButtonFontSize) + 2 * TEXT_PADDING,
-            ).toBeLessThanOrEqual(widthOf(layout.languageSlot) + ROUNDING);
-          }
-          expect(isInside(layout.languagePanel.panel, free)).toBe(true);
-          expect(layout.languagePanel.rows).toHaveLength(TODAY_LANGUAGE_NAMES.length);
-        });
-
-        it('písmeno nebo hvězdička se vejde do kolečka', () => {
-          for (const circle of circles) {
-            expect(textWidth('W', layout.symbolFontSize, 1) + 2 * TEXT_PADDING).toBeLessThanOrEqual(
-              widthOf(circle) + ROUNDING,
-            );
-          }
-        });
-      });
+      check(`${name}, ${window.name}`, pickerLayout(window, count, add), window, add);
     }
   }
+}
+
+describe('#72 AC1: výběr profilu podle obrázku P ve všech zkušebních oknech', () => {
+  it('každý profil má kolečko, „+“ je jen tam, kde má být, a nabídka jazyků má řádek na jazyk', () => {
+    for (const { name, count, add } of PICKER_CASES) {
+      for (const window of MENU_WINDOWS) {
+        const label = `${name}, ${window.name}`;
+        const layout = pickerLayout(window, count, add);
+        expect(layout.profiles, label).toHaveLength(count);
+        expect(layout.add === null, label).toBe(!add);
+        expect(layout.languagePanel.rows, label).toHaveLength(TODAY_LANGUAGE_NAMES.length);
+      }
+    }
+  });
+
+  it(`kolečka mají na telefonu ${PHONE_CIRCLE} px, na iPadu ${TABLET_CIRCLE} px a „+“ je stejně velké`, () => {
+    eachCase((label, layout, window) => {
+      const size = isPhone(window) ? PHONE_CIRCLE : TABLET_CIRCLE;
+      for (const circle of circlesOf(layout)) {
+        expect(widthOf(circle), label).toBeCloseTo(size, 5);
+        expect(heightOf(circle), label).toBeCloseTo(size, 5);
+      }
+    });
+  });
+
+  it('přezdívka je pod svým kolečkem', () => {
+    eachCase((label, layout) => {
+      layout.profiles.forEach((slot, index) => {
+        expect(slot.nickname.top, `${label}: profil ${index + 1}`).toBeGreaterThanOrEqual(
+          slot.circle.bottom - ROUNDING,
+        );
+      });
+    });
+  });
+
+  it('kolečka jdou v pořadí založení profilů a „+“ je za nimi', () => {
+    eachCase((label, layout) => {
+      const circles = circlesOf(layout);
+      circles.slice(1).forEach((circle, index) => {
+        const previous = circles[index] ?? circle;
+        expect(comesAfter(previous, circle), `${label}: kolečko ${index + 2}`).toBe(true);
+      });
+    });
+  });
+
+  it('tlačítko jazyka je vpravo nahoře nad kolečky', () => {
+    eachCase((label, layout, window) => {
+      const area = freeAreaOf(window);
+      const button = layout.languageSlot;
+      for (const circle of circlesOf(layout)) {
+        expect(button.top, label).toBeLessThan(circle.top);
+      }
+      expect(area.right - button.right, label).toBeLessThan(button.left - area.left);
+    });
+  });
 });
 
 describe('#72 AC1: rozložení koleček na telefonu podle obrázku', () => {
-  for (const window of MENU_WINDOWS) {
-    const mode = chooseLayoutMode(viewportOf(window));
-    if (mode === 'phoneLandscape') {
-      it(`${window.name}: na šířku je 6 profilů v jedné řadě bez zalomení`, () => {
-        const circles = circlesOf(layoutWith(window, 6, false));
-        const tops = new Set(circles.map((circle) => Math.round(circle.top)));
-        expect(tops.size).toBe(1);
-      });
-
-      it(`${window.name}: na šířku je i 5 profilů s „+“ v jedné řadě`, () => {
-        const circles = circlesOf(layoutWith(window, 5, true));
-        const tops = new Set(circles.map((circle) => Math.round(circle.top)));
-        expect(tops.size).toBe(1);
-      });
+  it('na šířku je 6 profilů i 5 profilů s „+“ v 1 řadě, na výšku ve 2 sloupcích s „+“ na konci', () => {
+    for (const window of MENU_WINDOWS) {
+      const mode = chooseLayoutMode(viewportOf(window));
+      for (const { count, add } of PICKER_CASES.slice(0, 2)) {
+        const layout = pickerLayout(window, count, add);
+        const circles = circlesOf(layout);
+        const label = `${window.name}, ${count} profilů${add ? ' a „+“' : ''}`;
+        if (mode === 'phoneLandscape') {
+          expect(new Set(circles.map((circle) => Math.round(circle.top))).size, label).toBe(1);
+        }
+        if (mode === 'phonePortrait') {
+          expect(new Set(circles.map((circle) => Math.round(circle.left))).size, label).toBe(2);
+          if (add) {
+            const last = layout.profiles[count - 1]?.circle;
+            expect(last, label).toBeDefined();
+            expect(layout.add?.top, label).toBeCloseTo(last?.top ?? -1, 5);
+          }
+        }
+      }
     }
-    if (mode === 'phonePortrait') {
-      it(`${window.name}: na výšku je 6 profilů ve 2 sloupcích`, () => {
-        const circles = circlesOf(layoutWith(window, 6, false));
-        const lefts = new Set(circles.map((circle) => Math.round(circle.left)));
-        expect(lefts.size).toBe(2);
-      });
-
-      it(`${window.name}: na výšku je 5 profilů s „+“ ve 2 sloupcích, „+“ na konci`, () => {
-        const layout = layoutWith(window, 5, true);
-        const lefts = new Set(circlesOf(layout).map((circle) => Math.round(circle.left)));
-        expect(lefts.size).toBe(2);
-        const last = layout.profiles[4]?.circle;
-        expect(last).toBeDefined();
-        expect(layout.add?.top).toBeCloseTo(last?.top ?? -1, 5);
-      });
-    }
-  }
+  });
 });
 
-describe('#72 AC4: přezdívka pod kolečkem se vejde do sloupce', () => {
-  for (const window of MENU_WINDOWS) {
-    it(`${window.name}: písmo 16 px, nejvýš dva řádky a „${WIDEST_NICKNAME}“ se vejde`, () => {
-      const layout = layoutWith(window, 6, false);
+describe('#72 AC4: přezdívka pod kolečkem', () => {
+  it('přezdívka má písmo 16 px a nejvýš dva řádky', () => {
+    for (const window of MENU_WINDOWS) {
+      const layout = pickerLayout(window, 6, false);
+      expect(layout.nicknameFontSize, window.name).toBe(16);
+      expect(layout.nicknameMaxLines, window.name).toBe(2);
+    }
+  });
+});
 
-      expect(layout.nicknameFontSize).toBe(16);
-      expect(layout.nicknameMaxLines).toBe(2);
-      const halfLength = Math.ceil([...WIDEST_NICKNAME].length / layout.nicknameMaxLines);
-      for (const slot of layout.profiles) {
-        // Každý ze dvou řádků má půlku přezdívky, písmena po 1,0 × písmo.
-        expect(
-          textWidth('W'.repeat(halfLength), layout.nicknameFontSize, NICKNAME_LETTER_RATIO),
-        ).toBeLessThanOrEqual(widthOf(slot.nickname) + ROUNDING);
-        expect(
-          layout.nicknameMaxLines * layout.nicknameFontSize * NICKNAME_LINE_HEIGHT_RATIO,
-        ).toBeLessThanOrEqual(heightOf(slot.nickname) + ROUNDING);
-      }
-    });
+// ---------------------------------------------------------------------------
+// #82 AC5: zpráva při selhání
+// ---------------------------------------------------------------------------
+
+function sceneOf(label: string): LayoutScene {
+  const scene = pickerScenes().find((candidate) => candidate.label === label);
+  if (scene === undefined) {
+    throw new Error(`případ ${label} neexistuje`);
   }
+  return scene;
+}
+
+function itemOf(scene: LayoutScene, name: string): LayoutItem {
+  const item = scene.items.find((candidate) => candidate.name === name);
+  if (item === undefined) {
+    throw new Error(`${scene.label}: chybí ${name}`);
+  }
+  return item;
+}
+
+function withItem(
+  scene: LayoutScene,
+  name: string,
+  change: (item: LayoutItem) => LayoutItem,
+): LayoutScene {
+  itemOf(scene, name);
+  return {
+    ...scene,
+    items: scene.items.map((item) => (item.name === name ? change(item) : item)),
+  };
+}
+
+function moved(item: LayoutItem, dx: number, dy: number): LayoutItem {
+  const { box } = item;
+  return {
+    ...item,
+    box: { left: box.left + dx, right: box.right + dx, top: box.top + dy, bottom: box.bottom + dy },
+  };
+}
+
+describe('#82 AC5: zpráva o porušeném pravidle řekne obrazovku, okno, stav a prvek', () => {
+  it('úmyslně chybný výběr profilu 844×340 se 6 profily: každé pravidlo uvede, kde se co stalo', () => {
+    const window = findWindow('844×340');
+    const scene = sceneOf(`výběr profilu, ${window.name}, 6 profilů bez „+“`);
+    const free = scene.free;
+    const sixth = itemOf(scene, 'kolečko 6');
+    const fifth = itemOf(scene, 'kolečko 5');
+    const broken: Array<[string, LayoutRule, LayoutScene, string]> = [
+      [
+        'kolečko za pravým okrajem',
+        fitViolations,
+        withItem(scene, 'kolečko 6', (item) => moved(item, free.right - item.box.left - 20, 0)),
+        'kolečko 6 přesahuje pravý okraj',
+      ],
+      [
+        'kolečko u okraje',
+        edgeViolations,
+        withItem(scene, 'kolečko 6', (item) => moved(item, free.right - 2 - item.box.right, 0)),
+        'kolečko 6 je blíž než 4 px k okraji',
+      ],
+      [
+        'kolečko na přezdívce',
+        overlapViolations,
+        withItem(scene, 'kolečko 6', (item) => moved(item, 0, 20)),
+        'kolečko 6 se překrývá s přezdívka 6',
+      ],
+      [
+        'malé kolečko',
+        tapSizeViolations,
+        withItem(scene, 'kolečko 6', (item) => ({
+          ...item,
+          box: { ...item.box, right: item.box.left + 40, bottom: item.box.top + 40 },
+        })),
+        'kolečko 6 má jen 40 px × 40 px',
+      ],
+      [
+        'kolečko těsně u vedlejšího',
+        tapGapViolations,
+        withItem(scene, 'kolečko 6', (item) =>
+          moved(item, fifth.box.right + 2 - sixth.box.left, fifth.box.top - sixth.box.top),
+        ),
+        'mezi kolečko 5 a kolečko 6 je jen 2 px',
+      ],
+      [
+        'velké písmeno v kolečku',
+        textFitViolations,
+        withItem(scene, 'kolečko 6', (item) => ({
+          ...item,
+          texts: [{ text: 'W', fontSize: 200, charWidth: 1 }],
+        })),
+        'text „W“ v kolečko 6 potřebuje šířku',
+      ],
+    ];
+
+    for (const [what, rule, brokenScene, expectedPart] of broken) {
+      const messages = rule(brokenScene);
+      const message = messages.find((text) => text.includes(expectedPart)) ?? '';
+      expect(message, `${what}: ${messages.join(' | ')}`).toContain(expectedPart);
+      for (const part of ['výběr profilu', '844×340', '6 profilů']) {
+        expect(message, `${what}: ${part}`).toContain(part);
+      }
+    }
+  });
 });
