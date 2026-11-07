@@ -176,3 +176,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-06 Testy sharpCanvas z #77 patří do #81. Všechny nové testy rovnou
   jako pravidla v cyklu (jeden test na pravidlo, popis případu v `expect`),
   ne parametry po jednom oknu.
+- 2026-11-07 Testy rozložení menu: posouvaný obsah se smí dotknout lišty,
+  druhé posouvané plochy a spodního okraje (0 px, nic se nepřekrývá), jak je
+  v dnešním rozložení. Úprava rozložení na 8 px se nedělá (#82, varianta A).
