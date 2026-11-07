@@ -19,7 +19,7 @@
  */
 
 import { gapBetween, heightOf, overlaps, widthOf } from './viewportFixtures';
-import type { Box } from './viewportFixtures';
+import type { Box, TestWindow } from './viewportFixtures';
 
 /** Ťukací plocha pro dětský prst v CSS px (CLAUDE.md). */
 export const MIN_TAP_SIDE = 64;
@@ -35,6 +35,41 @@ export const CHARACTER_WIDTH_RATIO = 0.6;
 
 /** Rezerva na každé straně textu v CSS px (#65, #67). */
 export const TEXT_PADDING = 8;
+
+/**
+ * Zkušební okna aplikace spuštěné z plochy (#78 AC3): bez lišty Safari,
+ * s volnými okraji nahoře / vpravo / dole / vlevo podle zadání. Na iPadu
+ * je nahoře stavový řádek (24 px), pod který hra ani menu nesmí. Pravidla
+ * se na nich zkouší pro menu (`tests/menu/menuLayoutScenes.ts`) i pro
+ * Počítání (`tests/games/counting/layoutScenes.ts`). iPad na výšku je mimo
+ * rozsah (#34).
+ */
+export const HOME_SCREEN_WINDOWS: readonly TestWindow[] = [
+  {
+    name: 'iPad na šířku z plochy (stavový řádek 24, lišta 20)',
+    width: 1180,
+    height: 820,
+    safeArea: { top: 24, right: 0, bottom: 20, left: 0 },
+  },
+  {
+    name: 'iPhone 430×932 na výšku z plochy (výřez 59, lišta 34)',
+    width: 430,
+    height: 932,
+    safeArea: { top: 59, right: 0, bottom: 34, left: 0 },
+  },
+  {
+    name: 'iPhone 393×852 na výšku z plochy (výřez 59, lišta 34)',
+    width: 393,
+    height: 852,
+    safeArea: { top: 59, right: 0, bottom: 34, left: 0 },
+  },
+  {
+    name: 'iPhone 932×430 na šířku z plochy (výřez 59, lišta 21)',
+    width: 932,
+    height: 430,
+    safeArea: { top: 0, right: 59, bottom: 21, left: 59 },
+  },
+];
 
 /** Tolerance na zaokrouhlení v CSS px. */
 const TOLERANCE = 0.01;

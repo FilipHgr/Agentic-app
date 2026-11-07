@@ -9,9 +9,12 @@ import { GAMES } from './gameList';
 import { registerGameImport } from './menu/ui/gameImport';
 import { startMenuPage } from './menu/ui/menuPage';
 import { GAME_CATEGORIES } from './shared/logic/gameRegistry';
+import { blockInstallOffer } from './shared/logic/installOffer';
 import { browserStorage } from './shared/storage/keyValueStorage';
 import { openProfiles } from './shared/storage/profileStorage';
 
+// Chrome nesmí dítěti sám nabídnout instalaci, v menu ani ve hře (#78).
+blockInstallOffer(window);
 // Dřív než menu: menu může hru začít stahovat hned po prvním ťuknutí.
 registerGameImport();
 startMenuPage({

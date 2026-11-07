@@ -275,9 +275,9 @@ export function todayLayout(window: TestWindow, language: Language = 'cs'): Menu
   });
 }
 
-export function gridScenes(): LayoutScene[] {
+export function gridScenes(windows: readonly TestWindow[] = MENU_WINDOWS): LayoutScene[] {
   return LANGUAGES.flatMap((language) =>
-    MENU_WINDOWS.map((window): LayoutScene => {
+    windows.map((window): LayoutScene => {
       const layout = todayLayout(window, language);
       const titles = todayCategoryTitles(language);
       const categories = layout.categories.map((category, index): LayoutItem => ({
@@ -394,9 +394,9 @@ function scrolledGap(first: LayoutItem, second: LayoutItem): number | undefined 
   return parts.includes('jiné') ? undefined : 0;
 }
 
-export function scrollScenes(): LayoutScene[] {
+export function scrollScenes(windows: readonly TestWindow[] = MENU_WINDOWS): LayoutScene[] {
   return SCROLL_CONTENTS.flatMap(({ name, count }) =>
-    MENU_WINDOWS.flatMap((window) => {
+    windows.flatMap((window) => {
       const layout = manyGamesLayout(window, count);
       const gridOffsets = offsetsOf(layout.gridScroll.maxOffset, GRID_OFFSET_FRACTIONS);
       const categoryOffsets = offsetsOf(layout.categoryScroll.maxOffset, LIST_OFFSET_FRACTIONS);
@@ -444,9 +444,9 @@ export function languageLayout(window: TestWindow, names: readonly string[]): Me
   return manyGamesLayout(window, MANY_GAMES_COUNT, names);
 }
 
-export function languageScenes(): LayoutScene[] {
+export function languageScenes(windows: readonly TestWindow[] = MENU_WINDOWS): LayoutScene[] {
   return LANGUAGE_CASES.flatMap(({ name, names, codes }) =>
-    MENU_WINDOWS.flatMap((window) => {
+    windows.flatMap((window) => {
       const layout = languageLayout(window, names);
       const panel = layout.languagePanel;
       const fractions = offsetsOf(panel.list.maxOffset, LIST_OFFSET_FRACTIONS);
@@ -491,9 +491,9 @@ export function pickerLayout(window: TestWindow, profileCount: number, showAdd: 
   });
 }
 
-export function pickerScenes(): LayoutScene[] {
+export function pickerScenes(windows: readonly TestWindow[] = MENU_WINDOWS): LayoutScene[] {
   return PICKER_CASES.flatMap(({ name, count, add }) =>
-    MENU_WINDOWS.flatMap((window): LayoutScene[] => {
+    windows.flatMap((window): LayoutScene[] => {
       const layout = pickerLayout(window, count, add);
       const free = freeAreaOf(window);
       const symbol = (): LayoutText[] => [
@@ -664,10 +664,10 @@ function formStepItems(window: TestWindow, step: FormStep, language: Language): 
   }
 }
 
-export function formScenes(): LayoutScene[] {
+export function formScenes(windows: readonly TestWindow[] = MENU_WINDOWS): LayoutScene[] {
   return LANGUAGES.flatMap((language) =>
     FORM_STEPS.flatMap((step) =>
-      MENU_WINDOWS.map((window): LayoutScene => ({
+      windows.map((window): LayoutScene => ({
         label: `formulář profilu, ${window.name}, ${step}, ${language}`,
         free: freeAreaOf(window),
         items: formStepItems(window, step, language),
@@ -680,9 +680,9 @@ export function formScenes(): LayoutScene[] {
 // Potvrzení smazání (#73 AC2)
 // ---------------------------------------------------------------------------
 
-export function deleteScenes(): LayoutScene[] {
+export function deleteScenes(windows: readonly TestWindow[] = MENU_WINDOWS): LayoutScene[] {
   return LANGUAGES.flatMap((language) =>
-    MENU_WINDOWS.map((window): LayoutScene => {
+    windows.map((window): LayoutScene => {
       const layout = deleteConfirmLayoutFor(viewportOf(window));
       const text = (key: string, fontSize: number): LayoutText[] => [
         { text: menuText(key, language) ?? '', fontSize },
@@ -731,6 +731,22 @@ export function deleteScenes(): LayoutScene[] {
 // ---------------------------------------------------------------------------
 // Testy pravidel a počtu kombinací (AC1, AC4)
 // ---------------------------------------------------------------------------
+
+/**
+ * Všechny obrazovky menu v zadaných oknech (#78 AC3), podle názvu obrazovky.
+ */
+export function menuScenesIn(
+  windows: readonly TestWindow[],
+): Readonly<Record<string, () => LayoutScene[]>> {
+  return {
+    'mřížka her a kategorie': () => gridScenes(windows),
+    'posouvání mřížky a kategorií': () => scrollScenes(windows),
+    'nabídka jazyků': () => languageScenes(windows),
+    'výběr profilu': () => pickerScenes(windows),
+    'formulář profilu': () => formScenes(windows),
+    'potvrzení smazání profilu': () => deleteScenes(windows),
+  };
+}
 
 /**
  * Projde posouvané prvky `names` v případech jednoho okna a stavu (#82):

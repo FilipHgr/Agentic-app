@@ -306,6 +306,26 @@ export function panelPlacement(area: GameSize): PanelPlacement {
   };
 }
 
+/**
+ * Panel na iPadu (#78): když část plochy leží pod stavovým řádkem nebo
+ * lištou domů (aplikace spuštěná z plochy), panel se zmenší a dá na střed
+ * zbylé části. Bez zakrytých okrajů (záložka Safari, ostatní okna) je to
+ * přesně `panelPlacement`, rozložení se nemění. Telefon má vlastní
+ * rozložení ve volné ploše a zmenšené zobrazení se nemění.
+ */
+function tabletPanelPlacement(area: GameArea): PanelPlacement {
+  const covered = area.coveredEdges;
+  if (area.mode !== 'tablet' || covered === undefined) {
+    return panelPlacement(area);
+  }
+  const free = {
+    width: area.width - covered.left - covered.right,
+    height: area.height - covered.top - covered.bottom,
+  };
+  const inFree = panelPlacement(free);
+  return { scale: inFree.scale, x: covered.left + inFree.x, y: covered.top + inFree.y };
+}
+
 /** Nastavení otevřené kolečkem pro danou herní plochu (#59). */
 export interface DeviceSettingsLayout extends SettingsLayout {
   readonly mode: LayoutMode;
@@ -339,7 +359,7 @@ export function layoutDeviceSettingsPanel(area: GameArea): DeviceSettingsLayout 
   return {
     ...layoutSettingsPanel(TABLET_GAME_WIDTH, TABLET_GAME_HEIGHT),
     mode: area.mode,
-    placement: panelPlacement(area),
+    placement: tabletPanelPlacement(area),
   };
 }
 
@@ -370,7 +390,7 @@ export function layoutDeviceGuideStep(area: GameArea, step: GuideStep): DeviceGu
       placement: PHONE_SETTINGS_PLACEMENT,
     };
   }
-  return { ...todayGuideStep(step), mode: area.mode, placement: panelPlacement(area) };
+  return { ...todayGuideStep(step), mode: area.mode, placement: tabletPanelPlacement(area) };
 }
 
 /** Dnešní krok průvodce na ploše 1024 × 768: rada dva řádky ze scénáře na středu. */

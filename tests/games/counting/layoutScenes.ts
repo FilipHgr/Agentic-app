@@ -446,8 +446,11 @@ export function playScene(testCase: PlayCase): LayoutScene {
 }
 
 /** Všechna zadání herní obrazovky bez nápovědy pro dané ovládání. */
-export function playCasesWithoutHint(mode: Mode): PlayCase[] {
-  return PLAY_WINDOWS.flatMap((window) =>
+export function playCasesWithoutHint(
+  mode: Mode,
+  windows: readonly TestWindow[] = PLAY_WINDOWS,
+): PlayCase[] {
+  return windows.flatMap((window) =>
     RANGES.flatMap((maxNumber) =>
       OPERATIONS.flatMap((operations) =>
         STAR_COUNTS.map((starCount) => ({
@@ -464,8 +467,8 @@ export function playCasesWithoutHint(mode: Mode): PlayCase[] {
 }
 
 /** Všechna zadání herní obrazovky s nápovědou (číselník i psaní). */
-export function playCasesWithHint(): PlayCase[] {
-  return PLAY_WINDOWS.flatMap((window) => {
+export function playCasesWithHint(windows: readonly TestWindow[] = PLAY_WINDOWS): PlayCase[] {
+  return windows.flatMap((window) => {
     const area = gameAreaFor(viewportOf(window));
     // Druh příkladů mění rozložení jen na výšku (vyhrazené místo, #56 AC5).
     const operationsList: readonly OperationMode[] =
@@ -617,10 +620,26 @@ export function guideScene(window: TestWindow, step: GuideStep): LayoutScene {
   };
 }
 
-export function guideScenes(): LayoutScene[] {
-  return PANEL_WINDOWS.flatMap((window) => GUIDE_STEPS.map((step) => guideScene(window, step)));
+export function guideScenes(windows: readonly TestWindow[] = PANEL_WINDOWS): LayoutScene[] {
+  return windows.flatMap((window) => GUIDE_STEPS.map((step) => guideScene(window, step)));
 }
 
-export function settingsScenes(): LayoutScene[] {
-  return PANEL_WINDOWS.map(settingsScene);
+export function settingsScenes(windows: readonly TestWindow[] = PANEL_WINDOWS): LayoutScene[] {
+  return windows.map((window) => settingsScene(window));
+}
+
+/**
+ * Všechny obrazovky Počítání v zadaných oknech (#78 AC3): hra s číselníkem,
+ * psaní, nápověda, nastavení a průvodce, podle názvu obrazovky.
+ */
+export function countingScenesIn(
+  windows: readonly TestWindow[],
+): Readonly<Record<string, () => LayoutScene[]>> {
+  return {
+    'hra s číselníkem': () => playCasesWithoutHint('číselník', windows).map(playScene),
+    'psaní prstem': () => playCasesWithoutHint('psaní', windows).map(playScene),
+    'nápověda po 2. chybě': () => playCasesWithHint(windows).map(playScene),
+    'nastavení pro rodiče': () => settingsScenes(windows),
+    'průvodce nastavením': () => guideScenes(windows),
+  };
 }

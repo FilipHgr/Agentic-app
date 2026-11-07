@@ -9,7 +9,9 @@ import {
   tapSizeViolations,
 } from '../../shared/layoutRules';
 import type { LayoutItem, LayoutRule, LayoutScene } from '../../shared/layoutRules';
+import { HOME_SCREEN_WINDOWS } from '../../shared/layoutRules';
 import {
+  countingScenesIn,
   guideScenes,
   playCasesWithHint,
   playCasesWithoutHint,
@@ -115,6 +117,47 @@ describe('AC2: pravidla projdou aspoň tolik kombinací jako testy před #81', (
         // Každá obrazovka je jiná kombinace, žádná se nepočítá dvakrát.
         expect(new Set(labels).size, `${screen}: různé kombinace`).toBe(labels.length);
         expect(labels.length, screen).toBeGreaterThanOrEqual(today?.[screen] ?? Infinity);
+      }
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// #78 AC3: hra spuštěná z plochy (bez lišty Safari)
+// ---------------------------------------------------------------------------
+
+/**
+ * Hra z plochy má stejné rozložení jako v záložce, jen v oknech bez lišty
+ * Safari (`HOME_SCREEN_WINDOWS`). Na iPadu se do volné plochy počítá
+ * i stavový řádek nahoře: pravidlo „vejde se“ selže, když hra zasáhne pod
+ * něj. Výjimka 48 px pro tečky na telefonu zůstává (`layoutScenes.ts`).
+ */
+describe('#78 AC3: hra spuštěná z plochy dodrží společná pravidla', () => {
+  const homeScreens = countingScenesIn(HOME_SCREEN_WINDOWS);
+
+  it('zkouší se všechna okna z plochy ze zadání', () => {
+    expect(HOME_SCREEN_WINDOWS.map((window) => `${window.width}×${window.height}`)).toEqual([
+      '1180×820',
+      '430×932',
+      '393×852',
+      '932×430',
+    ]);
+  });
+
+  for (const [screenTitle, buildScenes] of Object.entries(homeScreens)) {
+    describe(screenTitle, () => {
+      let cached: LayoutScene[] | undefined;
+      const scenes = (): LayoutScene[] => {
+        cached ??= buildScenes();
+        return cached;
+      };
+      for (const [ruleName, rule] of Object.entries(LAYOUT_RULES)) {
+        it(`${ruleName} ve všech oknech z plochy`, () => {
+          expect(scenes().length, screenTitle).toBeGreaterThan(0);
+          for (const scene of scenes()) {
+            expect(rule(scene), scene.label).toEqual([]);
+          }
+        });
       }
     });
   }

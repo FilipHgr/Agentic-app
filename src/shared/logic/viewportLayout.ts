@@ -44,6 +44,13 @@ export interface GameArea extends GameSize {
   readonly scale: number;
   readonly offsetX: number;
   readonly offsetY: number;
+  /**
+   * Kolik herní plochy z každé strany leží pod výřezem, stavovým řádkem
+   * nebo lištou domů, v herních jednotkách (#78). Chybí, když nic: na
+   * telefonu je plocha vždy jen ve volné ploše a v záložce Safari je okraj
+   * nulový. Nenulový bývá jen u aplikace spuštěné z plochy na iPadu.
+   */
+  readonly coveredEdges?: SafeArea;
 }
 
 /** Dnešní herní plocha 4:3 (iPad na šířku). */
@@ -165,6 +172,24 @@ function todayGameArea(mode: LayoutMode, window: GameSize): GameArea {
   };
 }
 
+/**
+ * Části dnešní plochy (na středu okna) pod výřezem a lištou v herních
+ * jednotkách (#78), `undefined` když plocha celá leží ve volné ploše.
+ */
+function coveredEdgesOf(area: GameArea, safeArea: SafeArea): SafeArea | undefined {
+  // Plocha je na středu okna: od spodního okraje okna je stejně daleko jako od horního.
+  const coveredUnits = (inset: number, gap: number): number =>
+    Math.max(0, inset - gap) / area.scale;
+  const edges: SafeArea = {
+    top: coveredUnits(safeArea.top, area.offsetY),
+    right: coveredUnits(safeArea.right, area.offsetX),
+    bottom: coveredUnits(safeArea.bottom, area.offsetY),
+    left: coveredUnits(safeArea.left, area.offsetX),
+  };
+  const isCovered = [edges.top, edges.right, edges.bottom, edges.left].some((edge) => edge > 0);
+  return isCovered ? edges : undefined;
+}
+
 /** Velikost okna; nesmyslný údaj se bere jako okno 0 × 0. */
 function windowSizeOf(viewport: Viewport | undefined): GameSize {
   if (!viewport || !isPositiveSize(viewport.width) || !isPositiveSize(viewport.height)) {
@@ -179,7 +204,12 @@ export function gameAreaFor(viewport: Viewport | undefined): GameArea {
   if (isValidViewport(viewport) && isPhoneMode(mode)) {
     return phoneGameArea(viewport, mode);
   }
-  return todayGameArea(mode, windowSizeOf(viewport));
+  const area = todayGameArea(mode, windowSizeOf(viewport));
+  if (!isValidViewport(viewport) || !Number.isFinite(area.scale) || area.scale <= 0) {
+    return area;
+  }
+  const coveredEdges = coveredEdgesOf(area, viewport.safeArea);
+  return coveredEdges ? { ...area, coveredEdges } : area;
 }
 
 /** Okno bez výřezu, když výřez chybí nebo je nesmyslný. */
