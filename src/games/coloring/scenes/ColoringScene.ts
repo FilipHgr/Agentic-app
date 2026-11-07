@@ -13,8 +13,7 @@ import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { colorNumber } from '../../../shared/logic/theme';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
-import { createColoring } from '../logic/coloring';
-import type { Coloring, PointerSample } from '../logic/coloring';
+import type { PointerSample } from '../logic/coloring';
 import { layoutColoring } from '../logic/coloringLayout';
 import type { ColoringLayout } from '../logic/coloringLayout';
 import { startColoringSession } from '../logic/coloringSession';
@@ -22,10 +21,12 @@ import type { ColoringPage } from '../logic/coloringSession';
 import { initialPalette, markedColors, tapColor } from '../logic/palette';
 import type { PaletteState } from '../logic/palette';
 import { buildRegionMap, outlineFromImage } from '../logic/regionMap';
+import { openColoring } from '../logic/savedPicture';
+import type { SavedColoring } from '../logic/savedPicture';
 import { PICTURE_STYLE } from '../logic/theme';
 import { PaintLayer } from './PaintLayer';
 import { PaletteView } from './PaletteView';
-import { drawPictureOutline, snapshotOf } from './pictureCanvas';
+import { PICTURE, drawPictureOutline, snapshotOf } from './pictureCanvas';
 
 /** Vrstva barev a obrys mají 1024 × 768 pixelů (poměr plochy 4 : 3). */
 const PICTURE_PIXEL_WIDTH = TABLET_GAME_WIDTH;
@@ -50,13 +51,18 @@ const NO_PAGE: ColoringPage = {
  * první prst) řeší logika `coloring.ts`, výběr barvy `palette.ts`
  * a rozložení `coloringLayout.ts`. Obrys se vykreslí do plátna při startu,
  * z něj se spočítá mapa oblastí a nakreslí se nad vrstvou barev.
+ * Rozmalovaný obrázek a vybranou barvu ukládá podle profilu
+ * `savedPicture.ts` (#92).
  */
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined);
   private layout: ColoringLayout = layoutColoring(this.gameArea);
   private palette: PaletteState = initialPalette();
-  /** Malování; vznikne, až se vykreslí obrys a spočítá mapa oblastí. */
-  private coloring: Coloring | null = null;
+  /**
+   * Malování s ukládáním podle profilu (#92); vznikne, až se vykreslí obrys
+   * a spočítá mapa oblastí.
+   */
+  private coloring: SavedColoring | null = null;
   private paintLayer: PaintLayer | null = null;
   private pictureBackground: Phaser.GameObjects.Rectangle | null = null;
   private paintImage: Phaser.GameObjects.Image | null = null;
@@ -66,6 +72,14 @@ export class ColoringScene extends Phaser.Scene {
   private readonly sounds = createTonePlayer(sharedToneContext);
   /** Přerušení tahu systémem (hovor, gesto systému) hlásí prohlížeč jako zrušený dotyk. */
   private readonly onPointerCancel = (): void => this.interruptStroke();
+  /** Schovaná stránka (přepnutí aplikace, zamčení iPadu) obrázek uloží (#92). */
+  private readonly onVisibilityChange = (): void => {
+    if (document.visibilityState === 'hidden') {
+      this.coloring?.suspend();
+    }
+  };
+  /** Zavíraná nebo obnovovaná stránka obrázek uloží (#92). */
+  private readonly onPageHide = (): void => this.coloring?.suspend();
 
   constructor() {
     super('coloring');
@@ -101,14 +115,23 @@ export class ColoringScene extends Phaser.Scene {
 
   /** Vykreslí obrys, spočítá z něj mapu oblastí a připraví vrstvu barev. */
   private async preparePicture(): Promise<void> {
-    const outlineCanvas = await drawPictureOutline(PICTURE_PIXEL_WIDTH, PICTURE_PIXEL_HEIGHT);
+    const outline = await drawPictureOutline(PICTURE_PIXEL_WIDTH, PICTURE_PIXEL_HEIGHT);
     if (!this.sys.isActive()) {
       // Dítě odešlo dřív, než se obrázek připravil.
       return;
     }
+    const outlineCanvas = outline.canvas;
     const regions = buildRegionMap(outlineFromImage(snapshotOf(outlineCanvas)));
-    this.coloring = createColoring(regions);
+    this.coloring = openColoring({
+      regions,
+      picture: PICTURE,
+      // Bez obrysu se maluje jen v paměti, aby se uložený obrázek nepřepsal prázdnou plochou.
+      storage: outline.drawn ? this.readHost()?.storage : undefined,
+    });
+    this.palette = this.coloring.palette();
+    this.paletteView.mark(markedColors(this.palette));
     this.paintLayer = new PaintLayer(this, PAINT_TEXTURE_KEY, regions);
+    this.paintLayer.paintAll(this.coloring);
     this.textures.addCanvas(OUTLINE_TEXTURE_KEY, outlineCanvas);
     this.paintImage = this.add.image(0, 0, PAINT_TEXTURE_KEY).setOrigin(0, 0);
     this.outlineImage = this.add.image(0, 0, OUTLINE_TEXTURE_KEY).setOrigin(0, 0);
@@ -167,10 +190,16 @@ export class ColoringScene extends Phaser.Scene {
   // -------------------------------------------------------------------------
 
   private onColorTapped(index: number): void {
-    const { state, tones } = tapColor(this.palette, index);
-    this.palette = state;
-    this.paletteView.mark(markedColors(state));
-    this.sounds.play(tones);
+    if (this.coloring === null) {
+      // Obrázek se ještě připravuje: barva se jen vybere, uloží se až s obrázkem.
+      const { state, tones } = tapColor(this.palette, index);
+      this.palette = state;
+      this.sounds.play(tones);
+    } else {
+      this.sounds.play(this.coloring.tapColor(index));
+      this.palette = this.coloring.palette();
+    }
+    this.paletteView.mark(markedColors(this.palette));
   }
 
   // -------------------------------------------------------------------------
@@ -185,11 +214,7 @@ export class ColoringScene extends Phaser.Scene {
     }
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (pointer: Phaser.Input.Pointer) => {
       if (this.coloring !== null) {
-        const sample = this.sampleOf(pointer);
-        this.paintLayer?.paint(
-          this.coloring.pointerDown(sample, this.palette.selected),
-          this.coloring,
-        );
+        this.paintLayer?.paint(this.coloring.pointerDown(this.sampleOf(pointer)), this.coloring);
       }
     });
     this.input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) => {
@@ -219,7 +244,8 @@ export class ColoringScene extends Phaser.Scene {
 
   /**
    * Systémové přerušení (zrušený dotyk, skrytá stránka, odchod z okna)
-   * ukončí tah tam, kam došel (#88 AC5).
+   * ukončí tah tam, kam došel (#88 AC5). Schování a zavření stránky
+   * obrázek synchronně uloží (#92 AC1, AC3).
    */
   private listenForInterruptions(): void {
     const canvas = this.game.canvas;
@@ -227,20 +253,24 @@ export class ColoringScene extends Phaser.Scene {
     canvas.addEventListener('touchcancel', this.onPointerCancel);
     this.game.events.on(Phaser.Core.Events.HIDDEN, this.onPointerCancel);
     this.game.events.on(Phaser.Core.Events.BLUR, this.onPointerCancel);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    window.addEventListener('pagehide', this.onPageHide);
     this.registry.events.on(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       canvas.removeEventListener('pointercancel', this.onPointerCancel);
       canvas.removeEventListener('touchcancel', this.onPointerCancel);
       this.game.events.off(Phaser.Core.Events.HIDDEN, this.onPointerCancel);
       this.game.events.off(Phaser.Core.Events.BLUR, this.onPointerCancel);
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+      window.removeEventListener('pagehide', this.onPageHide);
       this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
       this.stop();
     });
   }
 
-  /** Odchod z hry: tah skončí a zvuky ztichnou. */
+  /** Odchod z hry: tah skončí tam, kam došel, obrázek se uloží (#92) a zvuky ztichnou. */
   private stop(): void {
-    this.interruptStroke();
+    this.coloring?.suspend();
     this.sounds.stopAll();
   }
 }

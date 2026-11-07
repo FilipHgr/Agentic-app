@@ -62,7 +62,7 @@ export class PaintLayer {
   }
 
   /** Přepíše pixely v obdélníku `area` podle barev omalovánky. */
-  paint(area: ChangedArea | null, coloring: Coloring): void {
+  paint(area: ChangedArea | null, coloring: Pick<Coloring, 'colorAt'>): void {
     if (area === null) {
       return;
     }
@@ -76,6 +76,14 @@ export class PaintLayer {
       }
     }
     this.pending = joinAreas(this.pending, area);
+  }
+
+  /** Překreslí celý obrázek, například po načtení uloženého (#92). */
+  paintAll(coloring: Pick<Coloring, 'colorAt'>): void {
+    this.paint(
+      { left: 0, top: 0, right: this.regions.width, bottom: this.regions.height },
+      coloring,
+    );
   }
 
   /** Pošle změněný obdélník do textury. Volá se jednou za snímek. */

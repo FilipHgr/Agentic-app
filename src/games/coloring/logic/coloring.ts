@@ -24,8 +24,8 @@ const STAMPS_PER_BRUSH_WIDTH = 4;
 /** Krok v pixelech, po kterém se hledá oblast, do které prst vjel z obrysu. */
 const REGION_SEARCH_STEP = 1;
 
-/** Pixel vrstvy barev bez barvy. */
-const NO_COLOR = 255;
+/** Pixel vrstvy barev bez barvy (prázdné místo i obrys). */
+export const NO_COLOR = 255;
 
 export type PointerKind = 'touch' | 'pen' | 'mouse';
 
@@ -59,6 +59,11 @@ export interface Coloring {
   interrupt(): void;
   /** Index barvy palety v pixelu; `null` u prázdného pixelu, obrysu a mimo plochu. */
   colorAt(x: number, y: number): number | null;
+  /**
+   * Vrstva barev po řádcích (index barvy, `NO_COLOR` bez barvy) pro uložení
+   * obrázku (#92). Jen ke čtení, malování ji dál mění.
+   */
+  colorLayer(): Uint8Array;
 }
 
 interface Point {
@@ -141,14 +146,26 @@ export function joinAreas(
   };
 }
 
+/** Prázdná vrstva barev pro mapu oblastí `regions`. */
+export function emptyColorLayer(regions: RegionMap): Uint8Array {
+  return new Uint8Array(regions.width * regions.height).fill(NO_COLOR);
+}
+
+/**
+ * Malování nad mapou oblastí. `colors` je rozmalovaný obrázek, ve kterém
+ * se pokračuje (#92); musí mít rozměr mapy, jinak se začne s prázdným.
+ */
 export function createColoring(
   regions: RegionMap,
-  options: { brushWidth?: number } = {},
+  options: { brushWidth?: number; colors?: Uint8Array } = {},
 ): Coloring {
   const brushWidth = options.brushWidth ?? brushWidthFor(regions.width);
   const radius = brushWidth / 2;
   const stampSpacing = brushWidth / STAMPS_PER_BRUSH_WIDTH;
-  const colors = new Uint8Array(regions.width * regions.height).fill(NO_COLOR);
+  const colors =
+    options.colors?.length === regions.width * regions.height
+      ? options.colors.slice()
+      : emptyColorLayer(regions);
   let stroke: Stroke | null = null;
 
   /** Kulaté razítko průměru W se středem `center`, jen do pixelů oblasti `region`. */
@@ -248,5 +265,7 @@ export function createColoring(
       const color = colors[Math.floor(y) * regions.width + Math.floor(x)] ?? NO_COLOR;
       return color === NO_COLOR ? null : color;
     },
+
+    colorLayer: () => colors,
   };
 }
