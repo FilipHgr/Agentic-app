@@ -199,3 +199,5 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   kategorie Kreslení, #88), řada se dočasně posouvá prstem. Vlastník chce
   místo toho rozbalovací výběr kategorií, navrhne se jako samostatný úkol
   s obrázky.
+- 2026-11-07 Omalovánky si po návratu pamatují naposledy vybranou barvu
+  v paletě, i když se jí ještě nemalovalo (#92).
