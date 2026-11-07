@@ -179,3 +179,8 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-07 Testy rozložení menu: posouvaný obsah se smí dotknout lišty,
   druhé posouvané plochy a spodního okraje (0 px, nic se nepřekrývá), jak je
   v dnešním rozložení. Úprava rozložení na 8 px se nedělá (#82, varianta A).
+- 2026-11-07 Zrcadlově napsané číslo hra jen přijme, ukázání správného tvaru
+  je samostatný úkol (#85, #86).
+- 2026-11-07 Tlačítko nápovědy (#84) schváleno, symbol je modrý otazník „?“
+  v tlačítku místo barevných teček. Na telefonu na šířku rozložení
+  s nápovědou hned od začátku (menší příklad), po ťuknutí se nic neposune.
