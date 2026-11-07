@@ -33,3 +33,16 @@ export function rgbOf(hex: string): readonly [number, number, number] {
   const value = Number.parseInt(hex.replace('#', ''), 16);
   return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
 }
+
+/** Tlačítko Zpět (#89): zástupně jako tlačítko barvy, uprostřed modrá šipka zpět. */
+export const UNDO_BUTTON_STYLE = {
+  background: COLOR_BUTTON_STYLE.background,
+  borderColor: COLOR_BUTTON_STYLE.borderColor,
+  borderWidthCss: COLOR_BUTTON_STYLE.borderWidthCss,
+  cornerRadiusShare: COLOR_BUTTON_STYLE.cornerRadiusShare,
+  symbolColor: BLUE,
+  /** Šířka čáry šipky jako díl strany tlačítka. */
+  symbolLineShare: 0.09,
+  /** Poloměr oblouku šipky jako díl strany tlačítka. */
+  symbolRadiusShare: 0.22,
+} as const;

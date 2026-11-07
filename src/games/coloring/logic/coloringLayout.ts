@@ -4,7 +4,10 @@
  * Na šířku je paleta vpravo ve dvou sloupcích po čtyřech, na výšku dole
  * ve dvou řadách po čtyřech (u palce). Nic neleží v rohu domečku vlevo
  * nahoře ani pod výřezem a lištou domů. Kolečko nastavení v Omalovánkách
- * není, jeho roh se nevyhrazuje. Zástupné rozložení, doladí se se vzhledem.
+ * není, jeho roh se nevyhrazuje. Tlačítko Zpět (#89) leží zástupně u palety:
+ * na šířku vedle spodní barvy na vnější straně, na výšku nad poslední barvou
+ * horní řady; konečné místo určí úkol s gumou. Zástupné rozložení, doladí
+ * se se vzhledem.
  * Čistý TypeScript bez Phaseru.
  */
 
@@ -24,6 +27,8 @@ export interface ColoringLayout {
   readonly picture: LayoutRect;
   /** Ťukací plochy barev v pořadí palety. */
   readonly paletteColors: readonly LayoutRect[];
+  /** Ťukací plocha tlačítka Zpět (#89), zatím zástupně u palety. */
+  readonly undoButton: LayoutRect;
 }
 
 /** Poměr stran obrázku a vrstvy barev (1024 × 768). */
@@ -144,14 +149,22 @@ function colorGrid(
 /** Na šířku: paleta vpravo, dva sloupce po čtyřech barvách, na středu výšky. */
 function landscapeLayout(content: Box, corner: Box, area: GameArea): ColoringLayout {
   const { side, gap } = colorSizingFor(content.bottom - content.top, area);
+  // Zpět má vlastní sloupec na vnější straně palety, u spodní barvy.
+  const undoLeft = content.right - side;
   const paletteWidth = PALETTE_LINES * side + (PALETTE_LINES - 1) * gap;
   const paletteHeight = COLORS_PER_LINE * side + (COLORS_PER_LINE - 1) * gap;
-  const paletteLeft = content.right - paletteWidth;
+  const paletteLeft = undoLeft - gap - paletteWidth;
   const paletteTop = content.top + (content.bottom - content.top - paletteHeight) / 2;
   const picture = pictureBesideHome({ ...content, right: paletteLeft - gap }, corner);
   return {
     picture,
     paletteColors: colorGrid(paletteLeft, paletteTop, side, gap, PALETTE_LINES),
+    undoButton: {
+      left: undoLeft,
+      top: paletteTop + paletteHeight - side,
+      width: side,
+      height: side,
+    },
   };
 }
 
@@ -162,10 +175,18 @@ function portraitLayout(content: Box, corner: Box, area: GameArea): ColoringLayo
   const paletteHeight = PALETTE_LINES * side + (PALETTE_LINES - 1) * gap;
   const paletteLeft = content.left + (content.right - content.left - paletteWidth) / 2;
   const paletteTop = content.bottom - paletteHeight;
-  const picture = pictureBesideHome({ ...content, bottom: paletteTop - gap }, corner);
+  // Zpět má vlastní řadu nad paletou, nad poslední barvou (u palce pravé ruky).
+  const undoTop = paletteTop - gap - side;
+  const picture = pictureBesideHome({ ...content, bottom: undoTop - gap }, corner);
   return {
     picture,
     paletteColors: colorGrid(paletteLeft, paletteTop, side, gap, COLORS_PER_LINE),
+    undoButton: {
+      left: paletteLeft + paletteWidth - side,
+      top: undoTop,
+      width: side,
+      height: side,
+    },
   };
 }
 

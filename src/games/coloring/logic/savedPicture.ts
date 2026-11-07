@@ -12,17 +12,22 @@
  * Chybějící, poškozený, nečitelný nebo cizí záznam (jiná verze nebo
  * rozměr) dá prázdnou omalovánku a první barvu (AC4). Selhání úložiště
  * hra nikdy nevyhodí (AC5); co se nepodaří uložit, drží v paměti úložiště
- * profilu (`gameStorage`) do zavření stránky. Čistý TypeScript bez Phaseru.
+ * profilu (`gameStorage`) do zavření stránky.
+ *
+ * Zpět (#89) vrací tahy z historie v paměti (`strokeHistory.ts`), vrácený
+ * stav se uloží stejně jako po tahu. Čistý TypeScript bez Phaseru.
  */
 
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import type { Tone } from '../../../shared/audio/tonePlayer';
+import { HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
 import { NO_COLOR, createColoring, emptyColorLayer } from './coloring';
 import type { ChangedArea, PointerSample } from './coloring';
 import { PALETTE, initialPalette, tapColor } from './palette';
 import type { PaletteState } from './palette';
 import { decodeColorLayer, encodeColorLayer } from './colorLayerCode';
 import type { RegionMap } from './regionMap';
+import { createUndoHistory } from './strokeHistory';
 
 /** Nejdelší záznam jedné omalovánky ve znacích (AC6). */
 export const PICTURE_RECORD_LIMIT = 50_000;
@@ -52,6 +57,24 @@ export interface DecodedPicture {
   readonly colors: PictureColors;
 }
 
+/** Krátký tón po vrácení tahu (#89 AC1): dva klesající tóny, dozní za 0,2 s. */
+export const UNDO_TONES: readonly Tone[] = [
+  { frequencyHz: 659.25, startSeconds: 0, durationSeconds: 0.08, volume: 0.14 },
+  { frequencyHz: 523.25, startSeconds: 0.08, durationSeconds: 0.12, volume: 0.14 },
+];
+
+/** Tichý tón, když se Zpět jen zhoupne (#89 AC3), stejný jako u domečku. */
+export const UNDO_WOBBLE_TONES: readonly Tone[] = HOME_WOBBLE_TONES;
+
+/** Co udělalo ťuknutí na Zpět (#89). */
+export type UndoResult =
+  /** Obrázek se vrátil o tah: scéna překreslí `changed` a zahraje tón. */
+  | { readonly kind: 'undone'; readonly changed: ChangedArea; readonly tones: readonly Tone[] }
+  /** Není co vracet: tlačítko se jen zhoupne s tichým tónem. */
+  | { readonly kind: 'wobble'; readonly tones: readonly Tone[] }
+  /** Ťuknutí uprostřed tahu: nic se nestane, tah pokračuje. */
+  | { readonly kind: 'ignored' };
+
 export interface SavedColoring {
   /** Prst se dotkl; maluje barvou vybranou v paletě. Vrátí, co se zabarvilo. */
   pointerDown(pointer: PointerSample): ChangedArea | null;
@@ -65,6 +88,11 @@ export interface SavedColoring {
   suspend(): void;
   /** Ťuknutí na barvu: vybere ji, hned uloží a vrátí tón k zahrání. */
   tapColor(index: number): readonly Tone[];
+  /**
+   * Ťuknutí na Zpět (#89): vrátí poslední tah (nejvýš 20 zpět) a hned
+   * uloží. Historie je jen v paměti do odchodu z hry; `suspend` ji nemaže.
+   */
+  tapUndo(): UndoResult;
   /** Stav palety (vybraná barva). */
   palette(): PaletteState;
   /** Index barvy v pixelu; `null` bez barvy, na obrysu a mimo plochu. */
@@ -245,6 +273,8 @@ export function openColoring(options: {
   let strokePointer: number | null = null;
   /** Je od posledního úspěšného uložení něco nového? */
   let unsaved = false;
+  /** Vratné tahy od otevření omalovánky (#89); nové otevření začne bez historie. */
+  const history = createUndoHistory();
 
   const save = (): void => {
     if (!unsaved) {
@@ -263,10 +293,19 @@ export function openColoring(options: {
     return area;
   };
 
+  /** Tah skončil: co opravdu změnil, jde vrátit (#89 AC4), a obrázek se uloží. */
+  const finishStroke = (): void => {
+    strokePointer = null;
+    const change = coloring.takeStrokeChange();
+    if (change !== null) {
+      history.push(change);
+    }
+    save();
+  };
+
   const endStroke = (): void => {
     coloring.interrupt();
-    strokePointer = null;
-    save();
+    finishStroke();
   };
 
   return {
@@ -284,8 +323,7 @@ export function openColoring(options: {
     pointerUp(pointerId) {
       coloring.pointerUp(pointerId);
       if (strokePointer === pointerId) {
-        strokePointer = null;
-        save();
+        finishStroke();
       }
     },
 
@@ -301,6 +339,20 @@ export function openColoring(options: {
       palette = state;
       save();
       return tones;
+    },
+
+    tapUndo() {
+      if (strokePointer !== null) {
+        return { kind: 'ignored' };
+      }
+      const change = history.pop();
+      if (change === null) {
+        return { kind: 'wobble', tones: UNDO_WOBBLE_TONES };
+      }
+      coloring.restore(change);
+      unsaved = true;
+      save();
+      return { kind: 'undone', changed: change.area, tones: UNDO_TONES };
     },
 
     palette: () => palette,

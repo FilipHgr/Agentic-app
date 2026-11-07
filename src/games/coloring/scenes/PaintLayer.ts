@@ -20,6 +20,9 @@ const OPAQUE = 255;
 /** Barvy palety jako RGB, ať se při malování nepřevádějí znovu. */
 const PALETTE_RGB = PALETTE.map((color) => rgbOf(color.hex));
 
+/** Bílá plocha pod barvami. */
+const BACKGROUND_RGB = rgbOf(PICTURE_STYLE.background);
+
 export class PaintLayer {
   private readonly texture: Phaser.Textures.CanvasTexture;
   private readonly pixels: ImageData;
@@ -44,11 +47,10 @@ export class PaintLayer {
 
   /** Prázdná omalovánka: bílá plocha a tmavé pixely obrysu. */
   private fillEmptyPicture(): void {
-    const background = rgbOf(PICTURE_STYLE.background);
     const outline = rgbOf(PICTURE_STYLE.outlineColor);
     const { regionIds } = this.regions;
     for (let index = 0; index < regionIds.length; index += 1) {
-      this.setPixel(index, regionIds[index] === OUTLINE_REGION ? outline : background);
+      this.setPixel(index, regionIds[index] === OUTLINE_REGION ? outline : BACKGROUND_RGB);
     }
   }
 
@@ -61,18 +63,23 @@ export class PaintLayer {
     data[offset + 3] = OPAQUE;
   }
 
-  /** Přepíše pixely v obdélníku `area` podle barev omalovánky. */
+  /**
+   * Přepíše pixely v obdélníku `area` podle barev omalovánky. Pixel bez
+   * barvy (např. po vrácení tahu, #89) dostane zase bílou plochu.
+   */
   paint(area: ChangedArea | null, coloring: Pick<Coloring, 'colorAt'>): void {
     if (area === null) {
       return;
     }
+    const { regionIds, width } = this.regions;
     for (let y = area.top; y < area.bottom; y += 1) {
       for (let x = area.left; x < area.right; x += 1) {
-        const color = coloring.colorAt(x, y);
-        const rgb = color === null ? undefined : PALETTE_RGB[color];
-        if (rgb !== undefined) {
-          this.setPixel(y * this.regions.width + x, rgb);
+        const index = y * width + x;
+        if (regionIds[index] === OUTLINE_REGION) {
+          continue;
         }
+        const color = coloring.colorAt(x, y);
+        this.setPixel(index, (color === null ? undefined : PALETTE_RGB[color]) ?? BACKGROUND_RGB);
       }
     }
     this.pending = joinAreas(this.pending, area);

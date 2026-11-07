@@ -14,6 +14,8 @@
 
 import { OUTLINE_REGION, regionAt } from './regionMap';
 import type { RegionMap } from './regionMap';
+import { createStrokeJournal } from './strokeHistory';
+import type { StrokeChange } from './strokeHistory';
 
 /** Stopa štětce je široká tento díl šířky plochy (doporučení k otázce 6). */
 const BRUSH_WIDTH_SHARE = 1 / 30;
@@ -64,6 +66,13 @@ export interface Coloring {
    * obrázku (#92). Jen ke čtení, malování ji dál mění.
    */
   colorLayer(): Uint8Array;
+  /**
+   * Co se od minula opravdu změnilo (obdélník a barvy před tím) pro Zpět
+   * (#89), nebo `null`, když nic. Volá se po skončení tahu.
+   */
+  takeStrokeChange(): StrokeChange | null;
+  /** Vrátí pixely v obdélníku změny na barvy před tahem (#89). */
+  restore(change: StrokeChange): void;
 }
 
 interface Point {
@@ -166,6 +175,7 @@ export function createColoring(
     options.colors?.length === regions.width * regions.height
       ? options.colors.slice()
       : emptyColorLayer(regions);
+  const journal = createStrokeJournal(regions.width, regions.height);
   let stroke: Stroke | null = null;
 
   /** Kulaté razítko průměru W se středem `center`, jen do pixelů oblasti `region`. */
@@ -180,7 +190,11 @@ export function createColoring(
         const index = y * regions.width + x;
         const distance = Math.hypot(x + 0.5 - center.x, y + 0.5 - center.y);
         if (distance <= radius && regions.regionIds[index] === region) {
-          colors[index] = colorIndex;
+          const previous = colors[index] ?? NO_COLOR;
+          if (previous !== colorIndex) {
+            journal.note(index, previous);
+            colors[index] = colorIndex;
+          }
           paintedAny = true;
         }
       }
@@ -267,5 +281,15 @@ export function createColoring(
     },
 
     colorLayer: () => colors,
+
+    takeStrokeChange: () => journal.finish(colors),
+
+    restore({ area, previous }) {
+      const areaWidth = area.right - area.left;
+      for (let y = area.top; y < area.bottom; y += 1) {
+        const start = (y - area.top) * areaWidth;
+        colors.set(previous.subarray(start, start + areaWidth), y * regions.width + area.left);
+      }
+    },
   };
 }

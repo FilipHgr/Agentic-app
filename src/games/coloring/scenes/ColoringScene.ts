@@ -21,12 +21,13 @@ import type { ColoringPage } from '../logic/coloringSession';
 import { initialPalette, markedColors, tapColor } from '../logic/palette';
 import type { PaletteState } from '../logic/palette';
 import { buildRegionMap, outlineFromImage } from '../logic/regionMap';
-import { openColoring } from '../logic/savedPicture';
-import type { SavedColoring } from '../logic/savedPicture';
+import { UNDO_WOBBLE_TONES, openColoring } from '../logic/savedPicture';
+import type { SavedColoring, UndoResult } from '../logic/savedPicture';
 import { PICTURE_STYLE } from '../logic/theme';
 import { PaintLayer } from './PaintLayer';
 import { PaletteView } from './PaletteView';
 import { PICTURE, drawPictureOutline, snapshotOf } from './pictureCanvas';
+import { UndoButtonView } from './UndoButtonView';
 
 /** Vrstva barev a obrys mají 1024 × 768 pixelů (poměr plochy 4 : 3). */
 const PICTURE_PIXEL_WIDTH = TABLET_GAME_WIDTH;
@@ -52,7 +53,8 @@ const NO_PAGE: ColoringPage = {
  * a rozložení `coloringLayout.ts`. Obrys se vykreslí do plátna při startu,
  * z něj se spočítá mapa oblastí a nakreslí se nad vrstvou barev.
  * Rozmalovaný obrázek a vybranou barvu ukládá podle profilu
- * `savedPicture.ts` (#92).
+ * `savedPicture.ts` (#92). Tlačítko Zpět vrací tahy (#89); co se vrátí,
+ * řeší také `savedPicture.ts`.
  */
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined);
@@ -68,6 +70,7 @@ export class ColoringScene extends Phaser.Scene {
   private paintImage: Phaser.GameObjects.Image | null = null;
   private outlineImage: Phaser.GameObjects.Image | null = null;
   private readonly paletteView = new PaletteView(this, (index) => this.onColorTapped(index));
+  private readonly undoView = new UndoButtonView(this, () => this.onUndoTapped());
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu (#67 AC6).
   private readonly sounds = createTonePlayer(sharedToneContext);
   /** Přerušení tahu systémem (hovor, gesto systému) hlásí prohlížeč jako zrušený dotyk. */
@@ -157,6 +160,7 @@ export class ColoringScene extends Phaser.Scene {
       markedColors(this.palette),
       this.gameArea.scale,
     );
+    this.undoView.place(this.layout.undoButton, this.gameArea.scale);
   }
 
   /** Bílá plocha s rámečkem, vrstva barev a obrys přesně na místo omalovánky. */
@@ -200,6 +204,35 @@ export class ColoringScene extends Phaser.Scene {
       this.palette = this.coloring.palette();
     }
     this.paletteView.mark(markedColors(this.palette));
+  }
+
+  // -------------------------------------------------------------------------
+  // Zpět
+  // -------------------------------------------------------------------------
+
+  /**
+   * Ťuknutí na Zpět (#89). Druhý prst během tahu logika přeskočí
+   * (`ignored`), tah pokračuje. Dokud se obrázek připravuje, není co vracet.
+   */
+  private onUndoTapped(): void {
+    const result: UndoResult = this.coloring?.tapUndo() ?? {
+      kind: 'wobble',
+      tones: UNDO_WOBBLE_TONES,
+    };
+    switch (result.kind) {
+      case 'undone':
+        if (this.coloring !== null) {
+          this.paintLayer?.paint(result.changed, this.coloring);
+        }
+        this.sounds.play(result.tones);
+        return;
+      case 'wobble':
+        this.undoView.wobble();
+        this.sounds.play(result.tones);
+        return;
+      case 'ignored':
+        return;
+    }
   }
 
   // -------------------------------------------------------------------------
