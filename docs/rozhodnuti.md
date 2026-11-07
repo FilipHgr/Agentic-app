@@ -195,3 +195,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   kreslicích nástrojů, rozdělený na víc úkolů. Barví se jen tahy prstem nebo
   tužkou, žádná automatická výplň. Tah je ořezaný do oblasti, kde začal,
   přetažení mimo ni nic nezabarví.
+- 2026-11-07 Kategorie v menu na telefonu na výšku: když se nevejdou (od 3.
+  kategorie Kreslení, #88), řada se dočasně posouvá prstem. Vlastník chce
+  místo toho rozbalovací výběr kategorií, navrhne se jako samostatný úkol
+  s obrázky.
