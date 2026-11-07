@@ -46,3 +46,46 @@ export const UNDO_BUTTON_STYLE = {
   /** Poloměr oblouku šipky jako díl strany tlačítka. */
   symbolRadiusShare: 0.22,
 } as const;
+
+/**
+ * Panel nástrojů (#96): bílá karta se stínem a zaoblenými rohy, mezi
+ * oddílem barev a nástrojů jemná čára. Zástupný vzhled, konečný přijde
+ * s ikonami (mimo rozsah #96).
+ */
+export const TOOL_PANEL_STYLE = {
+  background: WHITE,
+  cornerRadiusCss: 24,
+  dividerColor: '#D2D2D7',
+  shadowColor: '#000000',
+  /** Stín: několik průsvitných vrstev kolem karty, posunutých dolů. */
+  shadowLayers: 5,
+  shadowSpreadCss: 3,
+  shadowOffsetCss: 4,
+  shadowAlpha: 0.035,
+  /** Vysunutí a zasunutí trvá nejvýš 0,3 s (#96 AC7). */
+  slideMs: 220,
+} as const;
+
+/** Prázdné místo pro nehotovou položku: jen slabý obrys bez výplně, nevypadá jako tlačítko. */
+export const EMPTY_SLOT_STYLE = {
+  borderColor: '#E3E3E8',
+  borderWidthCss: 1.5,
+  cornerRadiusShare: COLOR_BUTTON_STYLE.cornerRadiusShare,
+} as const;
+
+/** Úchyt panelu (#96 AC5): tlačítko A3 s modrým okrajem, štětec ve vybrané barvě a šipka. */
+export const HANDLE_STYLE = {
+  background: COLOR_BUTTON_STYLE.background,
+  borderColor: BLUE,
+  borderWidthCss: 3,
+  cornerRadiusShare: COLOR_BUTTON_STYLE.cornerRadiusShare,
+  arrowColor: BLUE,
+} as const;
+
+/** Štětec: modrá rukojeť, šedomodrá objímka a špička v barvě. */
+export const BRUSH_STYLE = {
+  handleColor: BLUE,
+  ferruleColor: '#6E9FD6',
+  /** Guma a další nástroje bez barvy (#90) mají špičku šedou. */
+  noColor: '#C7C7CC',
+} as const;

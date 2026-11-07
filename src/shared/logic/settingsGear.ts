@@ -53,13 +53,22 @@ const TABLET_GEAR: Omit<SettingsGear, 'top' | 'right'> = {
 };
 const TABLET_GEAR_INSET = 12;
 
+/** Velikost kolečka a jeho odstup od rohu volné plochy v CSS px: telefon, nebo iPad. */
+export function gearSizingFor(isPhone: boolean): {
+  readonly sizes: Omit<SettingsGear, 'top' | 'right'>;
+  readonly inset: number;
+} {
+  return isPhone
+    ? { sizes: PHONE_GEAR, inset: PHONE_GEAR_INSET }
+    : { sizes: TABLET_GEAR, inset: TABLET_GEAR_INSET };
+}
+
 export function settingsGearFor(viewport: Viewport | undefined): SettingsGear {
   if (!isValidViewport(viewport)) {
     return { ...TABLET_GEAR, top: TABLET_GEAR_INSET, right: TABLET_GEAR_INSET };
   }
   const isPhone = Math.min(viewport.width, viewport.height) < PHONE_GEAR_MAX_SHORT_SIDE;
-  const sizes = isPhone ? PHONE_GEAR : TABLET_GEAR;
-  const inset = isPhone ? PHONE_GEAR_INSET : TABLET_GEAR_INSET;
+  const { sizes, inset } = gearSizingFor(isPhone);
   return {
     ...sizes,
     top: viewport.safeArea.top + inset,

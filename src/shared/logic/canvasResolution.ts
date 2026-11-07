@@ -2,11 +2,13 @@
  * Rozlišení plátna hry (#77), společné pro všechny hry. Čistý TypeScript
  * bez Phaseru.
  *
- * Herní plocha (`gameAreaFor`) se nemění: na iPadu a ve zmenšeném zobrazení
- * má dál 1024 × 768 herních jednotek na stejném místě okna. Plátno ale
- * dostane pevně 2 obrazové body na každý zobrazený CSS px, stejně jako
- * telefon a menu, a kamera hry herní jednotky zvětší (`zoom`) na obrazové
- * body. Telefon zůstává přesně jako dřív: jednotka je obrazový bod plátna.
+ * Herní plocha (`gameAreaFor`) se nemění. S plochou `fixed` má iPad
+ * a zmenšené zobrazení dál 1024 × 768 herních jednotek na stejném místě
+ * okna; plátno ale dostane pevně 2 obrazové body na každý zobrazený CSS px,
+ * stejně jako telefon a menu, a kamera hry herní jednotky zvětší (`zoom`)
+ * na obrazové body. Telefon zůstává přesně jako dřív: jednotka je obrazový
+ * bod plátna. S plochou `fullWindow` (#96) má iPad jednotky jako telefon
+ * (2 na CSS px), plátno má tedy velikost plochy a `zoom` vyjde 1.
  *
  * Hustota displeje (`devicePixelRatio`) se záměrně nepoužívá, hra se kreslí
  * všude stejně (mimo rozsah #77 je kreslení podle skutečné hustoty).

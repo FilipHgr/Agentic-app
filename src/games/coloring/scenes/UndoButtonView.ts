@@ -1,8 +1,9 @@
 /**
- * Tlačítko Zpět u palety (#89) se zástupným vzhledem A3: světle modrý
- * čtverec jako tlačítko barvy a uprostřed modrá šipka zpět (↶), bez textu.
- * Ťuknutí (už při dotyku) ohlásí scéně; co se vrátí, řídí logika
- * (`savedPicture.ts`). Když není co vracet, scéna tlačítko jen zhoupne.
+ * Tlačítko Zpět v pruhu u úchytu (#89, #96) se zástupným vzhledem A3:
+ * světle modrý čtverec jako tlačítko barvy a uprostřed modrá šipka zpět
+ * (↶), bez textu. Ťuknutí pozná scéna přes `touchTargetAt`; co se vrátí,
+ * řídí logika (`savedPicture.ts`). Když není co vracet, scéna tlačítko
+ * jen zhoupne.
  */
 
 import Phaser from 'phaser';
@@ -17,24 +18,17 @@ const WOBBLE = { angle: 8, durationMs: 90 };
 export class UndoButtonView {
   private graphics: Phaser.GameObjects.Graphics | null = null;
 
-  constructor(
-    private readonly scene: Phaser.Scene,
-    private readonly onTapped: () => void,
-  ) {}
+  constructor(private readonly scene: Phaser.Scene) {}
 
-  /** Postaví tlačítko na místo `rect`, např. po otočení. */
-  place(rect: LayoutRect, cssScale: number): void {
+  /** Postaví tlačítko na místo `rect` v hloubce `depth`, např. po otočení. */
+  place(rect: LayoutRect, cssScale: number, depth: number): void {
     this.destroy();
     // Střed tlačítka je počátek, aby se zhoupnutí točilo kolem středu.
     const graphics = this.scene.add.graphics({
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,
     });
-    graphics.setInteractive(
-      new Phaser.Geom.Rectangle(-rect.width / 2, -rect.height / 2, rect.width, rect.height),
-      Phaser.Geom.Rectangle.Contains,
-    );
-    graphics.on('pointerdown', () => this.onTapped());
+    graphics.setDepth(depth);
     drawButton(graphics, rect, cssScale);
     this.graphics = graphics;
   }

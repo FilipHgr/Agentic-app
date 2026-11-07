@@ -14,24 +14,36 @@ import { colorNumber } from '../../../shared/logic/theme';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import type { PointerSample } from '../logic/coloring';
-import { layoutColoring } from '../logic/coloringLayout';
+import { COLORING_GAME_AREA_FIT, layoutColoring, touchTargetAt } from '../logic/coloringLayout';
 import type { ColoringLayout } from '../logic/coloringLayout';
 import { startColoringSession } from '../logic/coloringSession';
 import type { ColoringPage } from '../logic/coloringSession';
-import { initialPalette, markedColors, tapColor } from '../logic/palette';
+import {
+  COLOR_PICK_TONES,
+  PALETTE,
+  initialPalette,
+  markedColors,
+  tapColor,
+} from '../logic/palette';
 import type { PaletteState } from '../logic/palette';
 import { buildRegionMap, outlineFromImage } from '../logic/regionMap';
 import { UNDO_WOBBLE_TONES, openColoring } from '../logic/savedPicture';
 import type { SavedColoring, UndoResult } from '../logic/savedPicture';
 import { PICTURE_STYLE } from '../logic/theme';
+import { PANEL_CLOSE_TONES, PANEL_OPEN_TONES } from '../logic/toolPanel';
+import { HandleButtonView } from './HandleButtonView';
 import { PaintLayer } from './PaintLayer';
-import { PaletteView } from './PaletteView';
 import { PICTURE, drawPictureOutline, snapshotOf } from './pictureCanvas';
+import { ToolPanelView } from './ToolPanelView';
 import { UndoButtonView } from './UndoButtonView';
 
 /** Vrstva barev a obrys mají 1024 × 768 pixelů (poměr plochy 4 : 3). */
 const PICTURE_PIXEL_WIDTH = TABLET_GAME_WIDTH;
 const PICTURE_PIXEL_HEIGHT = TABLET_GAME_HEIGHT;
+
+/** Hloubky: obrázek dole, nad ním panel, pozadí pruhu a nahoře pruh ovládání. */
+const PANEL_DEPTH = 10;
+const STRIP_DEPTH = 20;
 
 const PAINT_TEXTURE_KEY = 'coloringPaint';
 const OUTLINE_TEXTURE_KEY = 'coloringOutline';
@@ -55,11 +67,18 @@ const NO_PAGE: ColoringPage = {
  * Rozmalovaný obrázek a vybranou barvu ukládá podle profilu
  * `savedPicture.ts` (#92). Tlačítko Zpět vrací tahy (#89); co se vrátí,
  * řeší také `savedPicture.ts`.
+ *
+ * Od #96 je obrázek přes celou obrazovku a nástroje jsou ve vysouvacím
+ * panelu, který otevře a zavře úchyt v pruhu ovládání. Kam dotyk patří
+ * (úchyt, Zpět, panel, obrázek), rozhoduje `touchTargetAt`; malovat se
+ * smí jen u dotyku na obrázku. Stav panelu drží `savedPicture.ts`.
  */
 export class ColoringScene extends Phaser.Scene {
-  private gameArea: GameArea = gameAreaFor(undefined);
+  private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
   private layout: ColoringLayout = layoutColoring(this.gameArea);
   private palette: PaletteState = initialPalette();
+  /** Panel, dokud se obrázek připravuje (pak ho drží `coloring`). */
+  private panelOpenBeforeReady = false;
   /**
    * Malování s ukládáním podle profilu (#92); vznikne, až se vykreslí obrys
    * a spočítá mapa oblastí.
@@ -69,8 +88,9 @@ export class ColoringScene extends Phaser.Scene {
   private pictureBackground: Phaser.GameObjects.Rectangle | null = null;
   private paintImage: Phaser.GameObjects.Image | null = null;
   private outlineImage: Phaser.GameObjects.Image | null = null;
-  private readonly paletteView = new PaletteView(this, (index) => this.onColorTapped(index));
-  private readonly undoView = new UndoButtonView(this, () => this.onUndoTapped());
+  private readonly panelView = new ToolPanelView(this);
+  private readonly handleView = new HandleButtonView(this);
+  private readonly undoView = new UndoButtonView(this);
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu (#67 AC6).
   private readonly sounds = createTonePlayer(sharedToneContext);
   /** Přerušení tahu systémem (hovor, gesto systému) hlásí prohlížeč jako zrušený dotyk. */
@@ -113,7 +133,7 @@ export class ColoringScene extends Phaser.Scene {
 
   private readGameArea(): GameArea {
     const stored: unknown = this.registry.get(GAME_AREA_KEY);
-    return isGameArea(stored) ? stored : gameAreaFor(undefined);
+    return isGameArea(stored) ? stored : gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
   }
 
   /** Vykreslí obrys, spočítá z něj mapu oblastí a připraví vrstvu barev. */
@@ -132,7 +152,8 @@ export class ColoringScene extends Phaser.Scene {
       storage: outline.drawn ? this.readHost()?.storage : undefined,
     });
     this.palette = this.coloring.palette();
-    this.paletteView.mark(markedColors(this.palette));
+    this.showSelection();
+    this.showPanel();
     this.paintLayer = new PaintLayer(this, PAINT_TEXTURE_KEY, regions);
     this.paintLayer.paintAll(this.coloring);
     this.textures.addCanvas(OUTLINE_TEXTURE_KEY, outlineCanvas);
@@ -155,12 +176,22 @@ export class ColoringScene extends Phaser.Scene {
         colorNumber(PICTURE_STYLE.frameColor),
       );
     this.placePicture();
-    this.paletteView.place(
-      this.layout.paletteColors,
+    const open = this.isPanelOpen();
+    this.panelView.place(
+      {
+        layout: this.layout,
+        cssScale: this.gameArea.scale,
+        areaWidth: this.gameArea.width,
+        areaHeight: this.gameArea.height,
+        depth: PANEL_DEPTH,
+      },
       markedColors(this.palette),
-      this.gameArea.scale,
+      this.brushHex(),
+      open,
     );
-    this.undoView.place(this.layout.undoButton, this.gameArea.scale);
+    this.handleView.place(this.layout, this.gameArea.scale, STRIP_DEPTH);
+    this.handleView.show(this.brushHex(), open);
+    this.undoView.place(this.layout.undoButton, this.gameArea.scale, STRIP_DEPTH);
   }
 
   /** Bílá plocha s rámečkem, vrstva barev a obrys přesně na místo omalovánky. */
@@ -190,6 +221,56 @@ export class ColoringScene extends Phaser.Scene {
   }
 
   // -------------------------------------------------------------------------
+  // Panel nástrojů a úchyt
+  // -------------------------------------------------------------------------
+
+  private isPanelOpen(): boolean {
+    return this.coloring?.panelOpen() ?? this.panelOpenBeforeReady;
+  }
+
+  /** Barva štětce v úchytu a v panelu (#96 AC5). */
+  private brushHex(): string | null {
+    const color = this.coloring?.handleView().color ?? this.palette.selected;
+    return color === null ? null : (PALETTE[color]?.hex ?? null);
+  }
+
+  /** Panel a šipka úchytu podle stavu v logice; panel se vysune nebo zasune animací. */
+  private showPanel(): void {
+    const open = this.isPanelOpen();
+    this.panelView.setOpen(open);
+    this.handleView.show(this.brushHex(), open);
+  }
+
+  /** Vybraná barva v panelu i v úchytu. */
+  private showSelection(): void {
+    this.panelView.mark(markedColors(this.palette), this.brushHex());
+    this.handleView.show(this.brushHex(), this.isPanelOpen());
+  }
+
+  /** Ťuknutí na úchyt: panel se otevře nebo zavře s tónem; během tahu nic (#96 AC2). */
+  private onHandleTapped(): void {
+    if (this.coloring === null) {
+      this.panelOpenBeforeReady = !this.panelOpenBeforeReady;
+      this.sounds.play(this.panelOpenBeforeReady ? PANEL_OPEN_TONES : PANEL_CLOSE_TONES);
+    } else {
+      this.sounds.play(this.coloring.tapHandle());
+    }
+    this.showPanel();
+  }
+
+  /**
+   * Ťuknutí na nástroj. Štětec je zatím jediný a vždy vybraný: zhoupne se
+   * s tónem jako ťuknutí na už vybranou barvu. Prázdná místa nic nedělají.
+   */
+  private onToolTapped(index: number): void {
+    if (index !== 0) {
+      return;
+    }
+    this.panelView.wobbleBrush();
+    this.sounds.play(COLOR_PICK_TONES);
+  }
+
+  // -------------------------------------------------------------------------
   // Paleta
   // -------------------------------------------------------------------------
 
@@ -203,7 +284,7 @@ export class ColoringScene extends Phaser.Scene {
       this.sounds.play(this.coloring.tapColor(index));
       this.palette = this.coloring.palette();
     }
-    this.paletteView.mark(markedColors(this.palette));
+    this.showSelection();
   }
 
   // -------------------------------------------------------------------------
@@ -245,11 +326,9 @@ export class ColoringScene extends Phaser.Scene {
     if (trackedTouches < TRACKED_TOUCHES) {
       this.input.addPointer(TRACKED_TOUCHES - trackedTouches);
     }
-    this.input.on(Phaser.Input.Events.POINTER_DOWN, (pointer: Phaser.Input.Pointer) => {
-      if (this.coloring !== null) {
-        this.paintLayer?.paint(this.coloring.pointerDown(this.sampleOf(pointer)), this.coloring);
-      }
-    });
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, (pointer: Phaser.Input.Pointer) =>
+      this.onPointerDown(pointer),
+    );
     this.input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) => {
       if (this.coloring !== null) {
         this.paintLayer?.paint(this.coloring.pointerMove(this.sampleOf(pointer)), this.coloring);
@@ -258,6 +337,44 @@ export class ColoringScene extends Phaser.Scene {
     const onUp = (pointer: Phaser.Input.Pointer): void => this.coloring?.pointerUp(pointer.id);
     this.input.on(Phaser.Input.Events.POINTER_UP, onUp);
     this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, onUp);
+  }
+
+  /** Kam dotyk patří, rozhodne `touchTargetAt` (#96 AC4); malovat se smí jen na obrázku. */
+  private onPointerDown(pointer: Phaser.Input.Pointer): void {
+    const target = touchTargetAt(this.layout, this.isPanelOpen(), pointer.worldX, pointer.worldY);
+    switch (target.kind) {
+      case 'picture':
+        this.paintFrom(pointer);
+        return;
+      case 'handle':
+        this.onHandleTapped();
+        return;
+      case 'undo':
+        this.onUndoTapped();
+        return;
+      case 'color':
+        this.onColorTapped(target.index);
+        return;
+      case 'tool':
+        this.onToolTapped(target.index);
+        return;
+      case 'sizeToggle':
+      case 'recentColor':
+      case 'panel':
+      case 'none':
+        // Prázdné místo, pozadí panelu nebo místo vedle: nic se nestane a nemaluje se.
+        return;
+    }
+  }
+
+  /** Tah začatý na obrázku maluje a otevřený panel zavře (#96 AC4). */
+  private paintFrom(pointer: Phaser.Input.Pointer): void {
+    if (this.coloring === null) {
+      this.panelOpenBeforeReady = false;
+    } else {
+      this.paintLayer?.paint(this.coloring.pointerDown(this.sampleOf(pointer)), this.coloring);
+    }
+    this.showPanel();
   }
 
   /** Dotyk v pixelech vrstvy barev; bod mimo omalovánku je mimo plochu. */

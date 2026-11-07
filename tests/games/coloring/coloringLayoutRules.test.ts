@@ -1,19 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
+import { touchTargetAt } from '../../../src/games/coloring/logic/coloringLayout';
 import { PALETTE } from '../../../src/games/coloring/logic/palette';
 import { HOME_SCREEN_WINDOWS, LAYOUT_RULES } from '../../shared/layoutRules';
-import { heightOf, overlaps, widthOf } from '../../shared/viewportFixtures';
-import { COLORING_WINDOWS, coloringCases } from './coloringLayoutScenes';
+import { heightOf, widthOf } from '../../shared/viewportFixtures';
+import { COLORING_WINDOWS, PLANNED_COLORS, coloringCases } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
 
 /**
  * Testy k #88 AC1 (plocha celá vidět, kratší strana aspoň 240 px), AC4
- * (paleta 8 barev vedle omalovánky) a AC6 (barvy aspoň 64 × 64 px
- * s mezerami, domeček): společná pravidla rozložení
+ * (paleta vedle omalovánky, od #96 v panelu) a AC6 (barvy aspoň
+ * 64 × 64 px s mezerami, domeček): společná pravidla rozložení
  * (`tests/shared/layoutRules.ts`) na obrazovce Omalovánek. Každé pravidlo
  * má jeden test, který v cyklu projde všechna okna (iPad na šířku, telefon
- * na šířku i na výšku, hranice, úzký iPad a spuštění z plochy). Obrazovku
- * skládá `coloringLayoutScenes.ts`.
+ * na šířku i na výšku, hranice, úzký iPad a spuštění z plochy), od #96
+ * vždy se zavřeným i otevřeným panelem. Obrazovku skládá
+ * `coloringLayoutScenes.ts`.
+ *
+ * Dřívější test „žádná barva neleží na ploše omalovánky“ nahrazuje od #96
+ * test, že ťuknutí na barvu v otevřeném panelu vybere barvu a nemaluje
+ * (panel leží přes obrázek, #96 AC4).
  */
 
 /** Kratší strana plochy omalovánky aspoň 240 CSS px (AC1). */
@@ -31,14 +37,16 @@ function cases(): ColoringCase[] {
 }
 
 describe('#88 AC1, AC6: obrazovka Omalovánek dodrží společná pravidla rozložení', () => {
-  it('zkouší se iPad na šířku, telefon na šířku i na výšku a okna z plochy', () => {
+  it('zkouší se iPad na šířku, telefon na šířku i na výšku a okna z plochy, oba stavy panelu', () => {
     const modes = new Set(cases().map((testCase) => testCase.area.mode));
     expect([...modes].sort()).toEqual(['phoneLandscape', 'phonePortrait', 'tablet']);
     for (const window of HOME_SCREEN_WINDOWS) {
       expect(COLORING_WINDOWS, window.name).toContain(window);
     }
+    const panels = new Set(cases().map((testCase) => testCase.panel));
+    expect([...panels].sort()).toEqual(['closed', 'open']);
     const labels = cases().map((testCase) => testCase.scene.label);
-    expect(new Set(labels).size, 'každé okno je jiný případ').toBe(labels.length);
+    expect(new Set(labels).size, 'každé okno a stav panelu je jiný případ').toBe(labels.length);
   });
 
   for (const [ruleName, rule] of Object.entries(LAYOUT_RULES)) {
@@ -68,21 +76,32 @@ describe('#88 AC1: plocha omalovánky je celá vidět a dost velká', () => {
   });
 });
 
-describe('#88 AC4: na ploše vedle omalovánky je paleta 8 barev', () => {
-  it('ve všech oknech je vidět 8 barev, jedna na každou barvu palety', () => {
+describe('#88 AC4, #96 AC3: v panelu je každá barva palety', () => {
+  it('ve všech oknech má panel místo pro 12 barev a každá barva palety má své tlačítko', () => {
     for (const testCase of cases()) {
-      expect(testCase.colors.length, testCase.scene.label).toBe(PALETTE.length);
-      expect(testCase.colors.length, testCase.scene.label).toBe(8);
+      expect(testCase.colors.length, testCase.scene.label).toBe(PLANNED_COLORS);
+      expect(testCase.colors.length, testCase.scene.label).toBeGreaterThanOrEqual(PALETTE.length);
     }
   });
 
-  it('žádná barva neleží na ploše omalovánky, ťuknutí na barvu nic nenamaluje', () => {
+  it('ťuknutí na barvu v otevřeném panelu vybere tu barvu a nic nenamaluje', () => {
     for (const testCase of cases()) {
-      testCase.colors.forEach((color, index) => {
-        expect(
-          overlaps(color, testCase.picture),
-          `${testCase.scene.label}: barva ${index + 1} na ploše omalovánky`,
-        ).toBe(false);
+      const { layout } = testCase;
+      PALETTE.forEach((_, index) => {
+        const slot = layout.paletteColors[index];
+        if (slot === undefined) {
+          throw new Error(`${testCase.scene.label}: chybí místo barvy ${index + 1}`);
+        }
+        const target = touchTargetAt(
+          layout,
+          true,
+          slot.left + slot.width / 2,
+          slot.top + slot.height / 2,
+        );
+        expect(target, `${testCase.scene.label}: barva ${index + 1}`).toEqual({
+          kind: 'color',
+          index,
+        });
       });
     }
   });

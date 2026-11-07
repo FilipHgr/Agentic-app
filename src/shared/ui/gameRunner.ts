@@ -23,7 +23,7 @@ import { homeButtonFor } from '../logic/homeButton';
 import { settingsGearFor } from '../logic/settingsGear';
 import { PAGE_BACKGROUND } from '../logic/theme';
 import { gameAreaFor } from '../logic/viewportLayout';
-import type { Viewport } from '../logic/viewportLayout';
+import type { GameAreaFit, Viewport } from '../logic/viewportLayout';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
 import { startGameSession } from './gameSession';
 import { applyHomeButton, attachHomeButton } from './homeButton';
@@ -38,9 +38,18 @@ import {
   watchViewport,
 } from './viewport';
 
-/** Co vstup hry (`src/games/<hra>/index.ts`) vydává: scény hry, první se spustí. */
+/**
+ * Co vstup hry (`src/games/<hra>/index.ts`) vydává: scény hry, první se
+ * spustí, a volitelně jakou herní plochu hra chce (#96, bez ní dnešní).
+ */
 export interface GameModule {
   readonly scenes: readonly Phaser.Types.Scenes.SceneType[];
+  readonly gameAreaFit?: GameAreaFit;
+}
+
+/** Plocha, o kterou si hra řekla; cokoli jiného je dnešní plocha. */
+function gameAreaFitOf(module: GameModule): GameAreaFit {
+  return module.gameAreaFit === 'fullWindow' ? 'fullWindow' : 'fixed';
 }
 
 /** Je stažený soubor opravdu vstup hry se scénami? */
@@ -122,6 +131,7 @@ function destroyGame(game: Phaser.Game): void {
 /**
  * Herní plocha podle okna (#54, #56): na iPadu a v ostatních oknech pevně
  * 1024 × 768, na telefonu na šířku i na výšku přes celou volnou plochu.
+ * Hra s `gameAreaFit: 'fullWindow'` ji má přes volnou plochu i na iPadu (#96).
  * Prvek s hrou leží přesně tam, kde má být plátno, a Scale.FIT do něj
  * plátno roztáhne (#77). Kolečko nastavení
  * je vidět, jen když se na něj hra napojí (#88 AC6); domeček ukáže hra,
@@ -133,7 +143,8 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
     settingsButton: document.getElementById('settings-button'),
     homeButton: document.getElementById('home-button'),
   };
-  let area = gameAreaFor(readViewport());
+  const fit = gameAreaFitOf(module);
+  let area = gameAreaFor(readViewport(), fit);
   let resolution = canvasResolutionFor(area);
   if (parent) {
     parent.hidden = false;
@@ -173,7 +184,7 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
       const stopWatchingViewport = watchViewport(() => {
         const viewport = readViewport();
         placeCornerButtons(page, viewport);
-        const next = gameAreaFor(viewport);
+        const next = gameAreaFor(viewport, fit);
         const layoutChanged = !hasSameLayout(next, area);
         const nextResolution = canvasResolutionFor(next);
         const canvasChanged = !hasSameCanvasSize(nextResolution, resolution);

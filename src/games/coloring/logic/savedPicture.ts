@@ -15,7 +15,9 @@
  * profilu (`gameStorage`) do zavření stránky.
  *
  * Zpět (#89) vrací tahy z historie v paměti (`strokeHistory.ts`), vrácený
- * stav se uloží stejně jako po tahu. Čistý TypeScript bez Phaseru.
+ * stav se uloží stejně jako po tahu. Panel nástrojů (#96) se otevírá
+ * úchytem a zavře se i tahem po obrázku; při prvním otevření hry v profilu
+ * začíná otevřený (`toolPanel.ts`). Čistý TypeScript bez Phaseru.
  */
 
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
@@ -28,6 +30,8 @@ import type { PaletteState } from './palette';
 import { decodeColorLayer, encodeColorLayer } from './colorLayerCode';
 import type { RegionMap } from './regionMap';
 import { createUndoHistory } from './strokeHistory';
+import { PANEL_CLOSE_TONES, PANEL_OPEN_TONES, rememberOpened, wasOpenedBefore } from './toolPanel';
+import type { HandleView } from './toolPanel';
 
 /** Nejdelší záznam jedné omalovánky ve znacích (AC6). */
 export const PICTURE_RECORD_LIMIT = 50_000;
@@ -76,7 +80,10 @@ export type UndoResult =
   | { readonly kind: 'ignored' };
 
 export interface SavedColoring {
-  /** Prst se dotkl; maluje barvou vybranou v paletě. Vrátí, co se zabarvilo. */
+  /**
+   * Prst se dotkl obrázku; maluje barvou vybranou v paletě a otevřený
+   * panel nástrojů zavře (#96 AC4). Vrátí, co se zabarvilo.
+   */
   pointerDown(pointer: PointerSample): ChangedArea | null;
   /** Prst se posunul. Vrátí, co se zabarvilo. */
   pointerMove(pointer: PointerSample): ChangedArea | null;
@@ -95,6 +102,15 @@ export interface SavedColoring {
   tapUndo(): UndoResult;
   /** Stav palety (vybraná barva). */
   palette(): PaletteState;
+  /** Je panel nástrojů otevřený (#96)? */
+  panelOpen(): boolean;
+  /**
+   * Ťuknutí na úchyt (#96 AC2): panel otevře, nebo zavře a vrátí tón.
+   * Během tahu se nepočítá (druhý prst) a vrátí `[]`.
+   */
+  tapHandle(): readonly Tone[];
+  /** Co ukazuje úchyt: vybraný nástroj ve vybrané barvě (#96 AC5). */
+  handleView(): HandleView;
   /** Index barvy v pixelu; `null` bez barvy, na obrysu a mimo plochu. */
   colorAt(x: number, y: number): number | null;
 }
@@ -275,8 +291,21 @@ export function openColoring(options: {
   let unsaved = false;
   /** Vratné tahy od otevření omalovánky (#89); nové otevření začne bez historie. */
   const history = createUndoHistory();
+  /** Panel nástrojů: otevřený jen při úplně prvním otevření hry v profilu (#96 AC2). */
+  let panelOpen = !wasOpenedBefore(storage);
+  /** Je v úložišti záznam, že profil hru už otevřel? */
+  let openingRemembered = !panelOpen;
+
+  /** Zapíše první otevření spolu s prvním ukládáním (#92 AC1: samotné otevření nic nezapíše). */
+  const rememberOpening = (): void => {
+    if (!openingRemembered) {
+      rememberOpened(storage);
+      openingRemembered = true;
+    }
+  };
 
   const save = (): void => {
+    rememberOpening();
     if (!unsaved) {
       return;
     }
@@ -310,6 +339,7 @@ export function openColoring(options: {
 
   return {
     pointerDown(pointer) {
+      panelOpen = false;
       if (strokePointer === null) {
         strokePointer = pointer.id;
       }
@@ -356,6 +386,18 @@ export function openColoring(options: {
     },
 
     palette: () => palette,
+
+    panelOpen: () => panelOpen,
+
+    tapHandle() {
+      if (strokePointer !== null) {
+        return [];
+      }
+      panelOpen = !panelOpen;
+      return panelOpen ? PANEL_OPEN_TONES : PANEL_CLOSE_TONES;
+    },
+
+    handleView: () => ({ tool: 'brush', color: palette.selected }),
 
     colorAt: (x, y) => coloring.colorAt(x, y),
   };

@@ -6,9 +6,9 @@
  */
 
 import type { Tone } from '../audio/tonePlayer';
-import { HOLD_TO_OPEN_SETTINGS_MS, settingsGearFor } from './settingsGear';
-import { isValidViewport } from './viewportLayout';
-import type { Viewport } from './viewportLayout';
+import { HOLD_TO_OPEN_SETTINGS_MS, gearSizingFor, settingsGearFor } from './settingsGear';
+import { isPhoneMode, isValidViewport } from './viewportLayout';
+import type { GameArea, Viewport } from './viewportLayout';
 
 /** Jak dlouho musí dítě domeček držet, aby se vrátilo do menu (stejně jako kolečko). */
 export const HOLD_TO_GO_HOME_MS = HOLD_TO_OPEN_SETTINGS_MS;
@@ -45,5 +45,29 @@ export function homeButtonFor(viewport: Viewport | undefined): HomeButton {
     left: safeLeft + insetFromEdge,
     ringDiameter: gear.ringDiameter,
     ringStrokeWidth: gear.ringStrokeWidth,
+  };
+}
+
+/** Plocha domečku pro prst v herních jednotkách herní plochy. */
+export interface HomeButtonPlace {
+  readonly left: number;
+  readonly top: number;
+  readonly size: number;
+}
+
+/**
+ * Kde je domeček v herní ploše, která leží přes volnou plochu okna
+ * (telefon a plocha `fullWindow`, #96): levý horní roh plochy je levý horní
+ * roh volné plochy, domeček je od něj stejně daleko jako v `homeButtonFor`.
+ * Telefon, nebo iPad pozná podle druhu plochy: telefonní plocha má vždy
+ * kratší stranu okna pod 500 px, iPad aspoň 500 px, stejně jako u kolečka.
+ */
+export function homeButtonInFreeArea(area: GameArea): HomeButtonPlace {
+  const { sizes, inset } = gearSizingFor(isPhoneMode(area.mode));
+  const unitsPerCss = 1 / area.scale;
+  return {
+    left: inset * unitsPerCss,
+    top: inset * unitsPerCss,
+    size: sizes.hitSize * unitsPerCss,
   };
 }

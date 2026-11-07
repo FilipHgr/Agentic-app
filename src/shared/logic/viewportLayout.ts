@@ -2,10 +2,12 @@
  * Herní plocha podle velikosti okna (#54, #56), společná pro všechny hry:
  * telefon na šířku i na výšku dostane plochu přes celou volnou plochu
  * okna, iPad dnešní plochu 1024 × 768 a ostatní okna dnešní zmenšené
- * zobrazení. Čistý TypeScript bez Phaseru.
+ * zobrazení. Hra si může říct o plochu přes celou volnou plochu okna i na
+ * iPadu (`GameAreaFit`, #96); bez toho je všechno jako dřív.
+ * Čistý TypeScript bez Phaseru.
  */
 
-/** Herní jednotky na 1 CSS px na telefonu. */
+/** Herní jednotky na 1 CSS px na telefonu a v ploše přes celé okno (#96). */
 export const PHONE_UNITS_PER_CSS_PX = 2;
 
 // ---------------------------------------------------------------------------
@@ -52,6 +54,13 @@ export interface GameArea extends GameSize {
    */
   readonly coveredEdges?: SafeArea;
 }
+
+/**
+ * Jakou plochu hra chce: `fixed` dnešní (iPad 1024 × 768, telefon přes
+ * volnou plochu), `fullWindow` přes celou volnou plochu okna i na iPadu
+ * (#96). Zmenšené zobrazení zůstává v obou případech stejné.
+ */
+export type GameAreaFit = 'fixed' | 'fullWindow';
 
 /** Dnešní herní plocha 4:3 (iPad na šířku). */
 export const TABLET_GAME_WIDTH = 1024;
@@ -145,8 +154,8 @@ export function isPhoneMode(mode: LayoutMode): mode is 'phoneLandscape' | 'phone
   return mode === 'phoneLandscape' || mode === 'phonePortrait';
 }
 
-/** Telefon: herní plocha přesně přes volnou plochu, 2 jednotky na CSS px. */
-function phoneGameArea(viewport: Viewport, mode: 'phoneLandscape' | 'phonePortrait'): GameArea {
+/** Herní plocha přesně přes volnou plochu, 2 jednotky na CSS px (telefon, `fullWindow`). */
+function freeGameArea(viewport: Viewport, mode: LayoutMode): GameArea {
   const free = freeSizeOf(viewport);
   return {
     mode,
@@ -198,11 +207,16 @@ function windowSizeOf(viewport: Viewport | undefined): GameSize {
   return { width: viewport.width, height: viewport.height };
 }
 
-/** Kam a jak velká se herní plocha v okně dá. */
-export function gameAreaFor(viewport: Viewport | undefined): GameArea {
+/** Dostane okno plochu přes celou volnou plochu? Telefon vždy, iPad jen u `fullWindow`. */
+function fillsFreeArea(mode: LayoutMode, fit: GameAreaFit): boolean {
+  return isPhoneMode(mode) || (fit === 'fullWindow' && mode === 'tablet');
+}
+
+/** Kam a jak velká se herní plocha v okně dá; `fit` podle toho, co hra chce (#96). */
+export function gameAreaFor(viewport: Viewport | undefined, fit: GameAreaFit = 'fixed'): GameArea {
   const mode = chooseLayoutMode(viewport);
-  if (isValidViewport(viewport) && isPhoneMode(mode)) {
-    return phoneGameArea(viewport, mode);
+  if (isValidViewport(viewport) && fillsFreeArea(mode, fit)) {
+    return freeGameArea(viewport, mode);
   }
   const area = todayGameArea(mode, windowSizeOf(viewport));
   if (!isValidViewport(viewport) || !Number.isFinite(area.scale) || area.scale <= 0) {

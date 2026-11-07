@@ -1,26 +1,31 @@
 import { describe, expect, it } from 'vitest';
 
 import { LAYOUT_RULES, MIN_TAP_SIDE } from '../../shared/layoutRules';
-import { gapBetween, heightOf, widthOf } from '../../shared/viewportFixtures';
+import { gapBetween, heightOf, overlaps, widthOf } from '../../shared/viewportFixtures';
 import { undoCases } from './undoLayoutScenes';
 import type { UndoCase } from './undoLayoutScenes';
 
 /**
- * Testy k #89 AC7: tlačítko Zpět má aspoň 64 × 64 px, zatím leží zástupně
- * u palety a kratší strana plochy omalovánky má dál aspoň 240 px. Každé
- * pravidlo má jeden test, který v cyklu projde všechna okna Omalovánek
- * (iPad na šířku, telefon na šířku i na výšku, hranice, úzký iPad
- * a spuštění z plochy). Obrazovku skládá `undoLayoutScenes.ts`.
+ * Testy k #89 AC7 s novým místem Zpět z #96 AC3: tlačítko Zpět má aspoň
+ * 64 × 64 px, leží v pruhu ovládání (na šířku hned pod úchytem nebo vedle
+ * něj, na výšku vpravo u palce), nikdy na obrázku ani pod otevřeným
+ * panelem, a kratší strana plochy omalovánky má dál aspoň 240 px.
+ * Nahrazuje dřívější test „Zpět leží hned u palety“ (nejvýš 24 px od
+ * barvy) stejně přísnou vzdáleností od úchytu. Každé pravidlo má jeden
+ * test, který v cyklu projde všechna okna se zavřeným i otevřeným panelem.
  */
 
 /** Kratší strana plochy omalovánky aspoň 240 CSS px (#88 AC1, pravidla rozložení). */
 const MIN_PICTURE_SIDE = 240;
 
-/**
- * „U palety“: Zpět je od nejbližší barvy nejvýš o dvě běžné mezery palety
- * (2 × 12 CSS px). Zástupné místo, konečné určí úkol s gumou.
- */
-const MAX_GAP_TO_PALETTE = 24;
+/** „Hned u úchytu“: nejvýš dvě mezery po 12 CSS px, stejně jako dřív u palety. */
+const MAX_GAP_TO_HANDLE = 24;
+
+/** Na výšku je Zpět vpravo u palce: od pravého okraje nejvýš mezera pruhu a odstup. */
+const MAX_DISTANCE_FROM_RIGHT_EDGE = 16;
+
+/** Tolerance na zaokrouhlení v CSS px. */
+const TOLERANCE = 0.01;
 
 let cached: UndoCase[] | undefined;
 
@@ -30,9 +35,9 @@ function cases(): UndoCase[] {
   return cached;
 }
 
-describe('#89 AC7: obrazovka se Zpět dodrží společná pravidla rozložení', () => {
+describe('#89 AC7, #96 AC3: obrazovka se Zpět dodrží společná pravidla rozložení', () => {
   for (const [ruleName, rule] of Object.entries(LAYOUT_RULES)) {
-    it(`${ruleName} ve všech oknech i s tlačítkem Zpět`, () => {
+    it(`${ruleName} ve všech oknech i s tlačítkem Zpět, se zavřeným i otevřeným panelem`, () => {
       for (const testCase of cases()) {
         expect(rule(testCase.scene), testCase.scene.label).toEqual([]);
       }
@@ -40,7 +45,7 @@ describe('#89 AC7: obrazovka se Zpět dodrží společná pravidla rozložení',
   }
 });
 
-describe('#89 AC7: tlačítko Zpět jde pohodlně trefit prstem a leží u palety', () => {
+describe('#89 AC7, #96 AC3: tlačítko Zpět jde pohodlně trefit prstem a leží v pruhu u úchytu', () => {
   it('tlačítko Zpět má ve všech oknech aspoň 64 × 64 px', () => {
     for (const testCase of cases()) {
       expect(widthOf(testCase.undo), `${testCase.scene.label}: šířka Zpět`).toBeGreaterThanOrEqual(
@@ -52,12 +57,54 @@ describe('#89 AC7: tlačítko Zpět jde pohodlně trefit prstem a leží u palet
     }
   });
 
-  it('tlačítko Zpět leží ve všech oknech hned u palety', () => {
-    for (const testCase of cases()) {
-      const nearest = Math.min(...testCase.colors.map((color) => gapBetween(testCase.undo, color)));
-      expect(nearest, `${testCase.scene.label}: mezera od nejbližší barvy`).toBeLessThanOrEqual(
-        MAX_GAP_TO_PALETTE,
+  it('na šířku leží Zpět hned pod úchytem nebo vedle něj, nikdy nad ním', () => {
+    for (const testCase of cases().filter((each) => each.landscape)) {
+      const { label } = testCase.scene;
+      expect(
+        gapBetween(testCase.undo, testCase.handle),
+        `${label}: mezera od úchytu`,
+      ).toBeLessThanOrEqual(MAX_GAP_TO_HANDLE);
+      expect(testCase.undo.top, `${label}: Zpět je výš než úchyt`).toBeGreaterThanOrEqual(
+        testCase.handle.top - TOLERANCE,
       );
+    }
+  });
+
+  it('na šířku v jednom sloupci pruhu leží Zpět přímo pod úchytem', () => {
+    for (const testCase of cases().filter((each) => each.landscape)) {
+      const { label } = testCase.scene;
+      const sameColumn =
+        testCase.undo.left < testCase.handle.right && testCase.handle.left < testCase.undo.right;
+      if (!sameColumn) {
+        continue;
+      }
+      expect(testCase.undo.top, `${label}: Zpět pod úchytem`).toBeGreaterThanOrEqual(
+        testCase.handle.bottom - TOLERANCE,
+      );
+    }
+  });
+
+  it('na výšku leží Zpět v pruhu dole vpravo od úchytu, u pravého okraje', () => {
+    for (const testCase of cases().filter((each) => !each.landscape)) {
+      const { label } = testCase.scene;
+      expect(testCase.undo.left, `${label}: Zpět vpravo od úchytu`).toBeGreaterThanOrEqual(
+        testCase.handle.right - TOLERANCE,
+      );
+      expect(
+        testCase.visible.right - testCase.undo.right,
+        `${label}: vzdálenost Zpět od pravého okraje`,
+      ).toBeLessThanOrEqual(MAX_DISTANCE_FROM_RIGHT_EDGE);
+      expect(testCase.undo.top, `${label}: Zpět pod obrázkem`).toBeGreaterThanOrEqual(
+        testCase.picture.bottom - TOLERANCE,
+      );
+    }
+  });
+
+  it('tlačítko Zpět neleží na obrázku ani pod otevřeným panelem, jde trefit v obou stavech', () => {
+    for (const testCase of cases()) {
+      const { label } = testCase.scene;
+      expect(overlaps(testCase.undo, testCase.picture), `${label}: Zpět na obrázku`).toBe(false);
+      expect(overlaps(testCase.undo, testCase.panelBox), `${label}: Zpět pod panelem`).toBe(false);
     }
   });
 

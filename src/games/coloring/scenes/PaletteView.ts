@@ -1,8 +1,9 @@
 /**
- * Paleta 8 barev vedle omalovánky (#88 AC4) se zástupným vzhledem A3:
+ * Barvy v panelu nástrojů (#88 AC4, #96 AC3) se zástupným vzhledem A3:
  * světle modrý čtverec s kolečkem barvy, označená barva má silný modrý
- * okraj. Ťuknutí (už při dotyku) ohlásí scéně index barvy; co je vybrané,
- * řídí logika palety (`palette.ts`).
+ * okraj. Místa bez barvy (12 míst, barev je zatím méně) jsou prázdná.
+ * Dotyky sem nechodí: kam dotyk patří, rozhoduje scéna přes
+ * `touchTargetAt`, co je vybrané, logika palety (`palette.ts`).
  */
 
 import Phaser from 'phaser';
@@ -11,6 +12,7 @@ import { colorNumber } from '../../../shared/logic/theme';
 import type { LayoutRect } from '../logic/coloringLayout';
 import { PALETTE } from '../logic/palette';
 import { COLOR_BUTTON_STYLE } from '../logic/theme';
+import { drawEmptySlot } from './emptySlot';
 
 interface ColorButton {
   readonly graphics: Phaser.GameObjects.Graphics;
@@ -22,22 +24,20 @@ export class PaletteView {
   /** CSS px na herní jednotku; okraje tlačítek se zadávají v CSS px. */
   private cssScale = 1;
 
-  constructor(
-    private readonly scene: Phaser.Scene,
-    private readonly onColorTapped: (index: number) => void,
-  ) {}
+  constructor(private readonly scene: Phaser.Scene) {}
 
-  /** Postaví tlačítka barev na místa `rects` (v pořadí palety), např. po otočení. */
-  place(rects: readonly LayoutRect[], marked: readonly boolean[], cssScale: number): void {
+  /** Postaví tlačítka barev do panelu `parent` na místa `rects` (v pořadí palety). */
+  place(
+    rects: readonly LayoutRect[],
+    marked: readonly boolean[],
+    cssScale: number,
+    parent: Phaser.GameObjects.Container,
+  ): void {
     this.destroy();
     this.cssScale = cssScale;
-    this.buttons = rects.map((rect, index) => {
+    this.buttons = rects.map((rect) => {
       const graphics = this.scene.add.graphics({ x: rect.left, y: rect.top });
-      graphics.setInteractive(
-        new Phaser.Geom.Rectangle(0, 0, rect.width, rect.height),
-        Phaser.Geom.Rectangle.Contains,
-      );
-      graphics.on('pointerdown', () => this.onColorTapped(index));
+      parent.add(graphics);
       return { graphics, rect };
     });
     this.mark(marked);
@@ -67,6 +67,12 @@ function drawButton(
   isMarked: boolean,
   cssScale: number,
 ): void {
+  const swatch = PALETTE[index];
+  if (swatch === undefined) {
+    // Místo pro barvu z navazujícího úkolu: zatím jen slabý obrys.
+    drawEmptySlot(button, rect, cssScale);
+    return;
+  }
   const style = COLOR_BUTTON_STYLE;
   const borderWidth = (isMarked ? style.selectedBorderWidthCss : style.borderWidthCss) / cssScale;
   const borderColor = isMarked ? style.selectedBorderColor : style.borderColor;
@@ -83,13 +89,10 @@ function drawButton(
     rect.height - borderWidth,
     Math.max(0, radius - inset),
   );
-  const swatch = PALETTE[index];
-  if (swatch !== undefined) {
-    button.fillStyle(colorNumber(swatch.hex), 1);
-    button.fillCircle(
-      rect.width / 2,
-      rect.height / 2,
-      (Math.min(rect.width, rect.height) * style.swatchShare) / 2,
-    );
-  }
+  button.fillStyle(colorNumber(swatch.hex), 1);
+  button.fillCircle(
+    rect.width / 2,
+    rect.height / 2,
+    (Math.min(rect.width, rect.height) * style.swatchShare) / 2,
+  );
 }
