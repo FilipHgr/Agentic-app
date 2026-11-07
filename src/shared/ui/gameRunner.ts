@@ -9,7 +9,8 @@
  * Odchod domečkem (#68): hra se nejdřív zastaví (`GameHost.onLeave`), pak se
  * odpojí kolečko, domeček i hlídání okna, Phaser hra se zničí i s plátnem
  * a kontextem WebGL a nakonec se ohlásí `onLeft`. Po odchodu nezůstane
- * žádný posluchač, časovač ani zvuk.
+ * žádný posluchač, časovač ani zvuk. Domeček a pořadí odchodu řídí
+ * `gameSession.ts`, tady je Phaser hra a skutečná tlačítka stránky.
  */
 
 import Phaser from 'phaser';
@@ -17,13 +18,13 @@ import Phaser from 'phaser';
 import { canvasResolutionFor } from '../logic/canvasResolution';
 import type { CanvasResolution } from '../logic/canvasResolution';
 import { GAME_HOST_KEY } from '../logic/gameHost';
-import type { GameHost } from '../logic/gameHost';
 import { homeButtonFor } from '../logic/homeButton';
 import { settingsGearFor } from '../logic/settingsGear';
 import { PAGE_BACKGROUND } from '../logic/theme';
 import { gameAreaFor } from '../logic/viewportLayout';
 import type { Viewport } from '../logic/viewportLayout';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
+import { startGameSession } from './gameSession';
 import { applyHomeButton, attachHomeButton } from './homeButton';
 import { attachSettingsButton } from './settingsButton';
 import { applySettingsGear } from './settingsGear';
@@ -137,104 +138,74 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
   }
   placeCornerButtons(page, readViewport());
 
-  const game = createGame(module, resolution);
-  game.registry.set(GAME_AREA_KEY, area);
-  game.registry.set(CANVAS_RESOLUTION_KEY, resolution);
+  // Phaser hru založí až spuštění scén, aby hned dostala hostitele hry.
+  const running: { game: Phaser.Game | null } = { game: null };
+  startGameSession({
+    homeButton: page.homeButton,
+    storage: options.storage,
+    onLeft: options.onLeft,
+    startScenes: (session) => {
+      const started = createGame(module, resolution);
+      running.game = started;
+      started.registry.set(GAME_AREA_KEY, area);
+      started.registry.set(CANVAS_RESOLUTION_KEY, resolution);
+      started.registry.set(GAME_HOST_KEY, session.host);
 
-  /** Kdo teď poslouchá podržení kolečka (jen právě hraná hra). */
-  let openSettings: (() => void) | null = null;
-  let homeAvailable = false;
-  const leaveHandlers: Array<() => void> = [];
-  let hasLeft = false;
+      const detachSettings = page.settingsButton
+        ? attachSettingsButton(page.settingsButton, () => session.openSettings())
+        : () => undefined;
+      const detachHome = page.homeButton
+        ? attachHomeButton(page.homeButton, {
+            isEnabled: () => session.isHomeEnabled(),
+            onGoHome: () => session.leave(),
+          })
+        : () => undefined;
+      /**
+       * Po otočení nebo změně lišty prohlížeče se herní plocha přepočítá. Scéna
+       * se překreslí jen při jiném rozložení, jinak se plocha jen posune nebo
+       * zmenší. Plátno dostane nové rozlišení podle zobrazené velikosti (#77 AC7).
+       */
+      const stopWatchingViewport = watchViewport(() => {
+        const viewport = readViewport();
+        placeCornerButtons(page, viewport);
+        const next = gameAreaFor(viewport);
+        const layoutChanged = !hasSameLayout(next, area);
+        const nextResolution = canvasResolutionFor(next);
+        const canvasChanged = !hasSameCanvasSize(nextResolution, resolution);
+        area = next;
+        resolution = nextResolution;
+        if (parent) {
+          placeGameParent(parent, resolution);
+        }
+        // Phaser si velikost prvku s hrou jinak přečte až později a hru by zmenšil podle staré.
+        started.scale.getParentBounds();
+        if (canvasChanged) {
+          started.scale.setGameSize(resolution.pixelWidth, resolution.pixelHeight);
+        } else {
+          started.scale.refresh();
+        }
+        // Kamera scény se zvětší podle nového plátna; rozložení se tím nemění.
+        started.registry.set(CANVAS_RESOLUTION_KEY, resolution);
+        if (layoutChanged) {
+          // Scéna poslouchá změnu v registru a překreslí se podle nové plochy.
+          started.registry.set(GAME_AREA_KEY, area);
+        }
+      });
 
-  const host: GameHost = {
-    attachSettingsGear: (open) => {
-      openSettings = open;
       return () => {
-        if (openSettings === open) {
-          openSettings = null;
+        detachSettings();
+        detachHome();
+        stopWatchingViewport();
+        destroyGame(started);
+        // Prázdný prvek hry by jinak ležel přes menu a bral mu ťuknutí.
+        if (parent) {
+          parent.hidden = true;
         }
       };
     },
-    setHomeAvailable: (available) => {
-      homeAvailable = available && !hasLeft;
-      if (page.homeButton) {
-        page.homeButton.hidden = !homeAvailable;
-      }
-    },
-    onLeave: (handler) => {
-      leaveHandlers.push(handler);
-    },
-    storage: options.storage,
-  };
-  game.registry.set(GAME_HOST_KEY, host);
-
-  const detachSettings = page.settingsButton
-    ? attachSettingsButton(page.settingsButton, () => openSettings?.())
-    : () => undefined;
-  const detachHome = page.homeButton
-    ? attachHomeButton(page.homeButton, {
-        isEnabled: () => homeAvailable && !hasLeft,
-        onGoHome: () => leave(),
-      })
-    : () => undefined;
-
-  /**
-   * Po otočení nebo změně lišty prohlížeče se herní plocha přepočítá. Scéna
-   * se překreslí jen při jiném rozložení, jinak se plocha jen posune nebo
-   * zmenší. Plátno dostane nové rozlišení podle zobrazené velikosti (#77 AC7).
-   */
-  const stopWatchingViewport = watchViewport(() => {
-    const viewport = readViewport();
-    placeCornerButtons(page, viewport);
-    const next = gameAreaFor(viewport);
-    const layoutChanged = !hasSameLayout(next, area);
-    const nextResolution = canvasResolutionFor(next);
-    const canvasChanged = !hasSameCanvasSize(nextResolution, resolution);
-    area = next;
-    resolution = nextResolution;
-    if (parent) {
-      placeGameParent(parent, resolution);
-    }
-    // Phaser si velikost prvku s hrou jinak přečte až později a hru by zmenšil podle staré.
-    game.scale.getParentBounds();
-    if (canvasChanged) {
-      game.scale.setGameSize(resolution.pixelWidth, resolution.pixelHeight);
-    } else {
-      game.scale.refresh();
-    }
-    // Kamera scény se zvětší podle nového plátna; rozložení se tím nemění.
-    game.registry.set(CANVAS_RESOLUTION_KEY, resolution);
-    if (layoutChanged) {
-      // Scéna poslouchá změnu v registru a překreslí se podle nové plochy.
-      game.registry.set(GAME_AREA_KEY, area);
-    }
   });
-
-  function leave(): void {
-    if (hasLeft) {
-      return;
-    }
-    hasLeft = true;
-    homeAvailable = false;
-    // Hra se zastaví dřív, než zmizí: ztiší zvuky a zruší naplánované akce.
-    for (const handler of leaveHandlers.splice(0)) {
-      handler();
-    }
-    openSettings = null;
-    detachSettings();
-    detachHome();
-    stopWatchingViewport();
-    if (page.homeButton) {
-      page.homeButton.hidden = true;
-    }
-    destroyGame(game);
-    // Prázdný prvek hry by jinak ležel přes menu a bral mu ťuknutí.
-    if (parent) {
-      parent.hidden = true;
-    }
-    options.onLeft();
+  if (running.game === null) {
+    throw new Error('hra se nespustila');
   }
-
-  return game;
+  return running.game;
 }

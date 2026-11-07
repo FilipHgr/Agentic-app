@@ -16,6 +16,9 @@ import { TEST_CATEGORIES, translatorOf, watchedLocalStorage } from './menuFixtur
  * Hraje se skutečné menu a skutečné `launchGame`, jen Phaser hra
  * (`runGame`) je nahrazená záznamem spuštění. Zkušební hra „v předplatném“
  * a zkušební hra zdarma jsou jen v testech.
+ *
+ * To, že stránka menu bere zdroj stavu z výběru zdroje, ověřuje chováním
+ * `menuPageButtons.test.ts` (#83 AC1).
  */
 
 vi.mock('../../src/shared/ui/gameRunner', () => ({
@@ -218,10 +221,6 @@ describe('#74 AC4: jiná cesta ke spuštění hry než launchGame neexistuje', (
       .filter(([path]) => !path.endsWith('/src/menu/ui/launchGame.ts'))
       .filter(([, text]) => /\blaunchGame\b/.test(text))
       .map(([path]) => path.replace(/^.*\/src\//, 'src/'));
-    expect(callers).toEqual(['src/menu/ui/menuPage.ts']);
-  });
-
-  it('stránka menu předává launchGame zdroj stavu z výběru zdroje, ne vlastní', () => {
-    expect(SOURCES['../../src/menu/ui/menuPage.ts']).toMatch(/chooseSubscriptionSource\(\)/);
+    expect(callers).toEqual(['src/menu/ui/pageMenu.ts']);
   });
 });

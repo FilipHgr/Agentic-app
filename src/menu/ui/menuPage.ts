@@ -1,6 +1,7 @@
 /**
  * Stránka s menu (#67): plátno menu přes celé okno, logika menu, odemčení
- * zvuku prvním ťuknutím a spuštění hry. Po spuštění hry se menu schová
+ * zvuku prvním ťuknutím a spuštění hry (napojení menu na spouštění her,
+ * kolečko a domeček je v `pageMenu.ts`). Po spuštění hry se menu schová
  * a uspí (nekreslí se), po návratu z hry domečkem (#68) se znovu ukáže
  * na stejné kategorii a se stejným posunem mřížky i kategorií (#69).
  * Plátno menu je jedno pro celé načtení stránky, takže
@@ -24,13 +25,11 @@ import Phaser from 'phaser';
 
 import { unlockSharedAudio } from '../../shared/audio/sharedAudio';
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
-import { chooseSubscriptionSource } from '../../shared/logic/subscriptionSource';
 import { PAGE_BACKGROUND } from '../../shared/logic/theme';
 import { browserStorage } from '../../shared/storage/keyValueStorage';
 import type { ProfileStore } from '../../shared/storage/profileStorage';
 import { currentLanguage } from '../../shared/texts/languages';
 import { readViewport, watchViewport } from '../../shared/ui/viewport';
-import { createMenu } from '../logic/menu';
 import type { Menu } from '../logic/menu';
 import { menuLayoutFor } from '../logic/menuLayout';
 import type { MenuLayout } from '../logic/menuLayout';
@@ -41,8 +40,8 @@ import type { PageUpdate } from '../logic/pageUpdate';
 import { createProfileScreens } from '../logic/profileScreens';
 import { MENU_SCENE_KEY, MENU_UNITS_PER_CSS_PX, MenuScene } from '../scenes/MenuScene';
 import { PROFILE_SCENE_KEY, ProfileScene } from '../scenes/ProfileScene';
-import { launchGame } from './launchGame';
 import { showPageLanguage } from './pageLanguage';
+import { createPageMenu } from './pageMenu';
 
 export interface MenuPageOptions {
   readonly games: readonly GameEntry[];
@@ -94,23 +93,6 @@ function createMenuGame(scenes: readonly Phaser.Scene[]): Phaser.Game {
     },
     scene: [...scenes],
   });
-}
-
-/**
- * Název stránky, kolečko nastavení a domeček podle logiky menu (#67 AC1,
- * AC2, #68 AC1): v menu „Matematika“ a obojí skryté, po naběhnutí hry její
- * název a kolečko. Domeček ve hře ukáže hra, když jde použít.
- */
-function showPageState(menu: Menu): void {
-  document.title = menu.pageTitle();
-  const settingsButton = document.getElementById('settings-button');
-  if (settingsButton) {
-    settingsButton.hidden = !menu.canOpenSettings();
-  }
-  const homeButton = document.getElementById('home-button');
-  if (homeButton && !menu.canGoHome()) {
-    homeButton.hidden = true;
-  }
 }
 
 /** Jak dlouho se čeká na odpověď serveru, než se bere jako výpadek sítě. */
@@ -172,30 +154,25 @@ export function startMenuPage(options: MenuPageOptions): void {
   if (pageUpdate.startScreen(options.profiles.profiles()) === 'profilePicker') {
     screens.open();
   }
-  const menu: Menu = createMenu({
+  const menu: Menu = createPageMenu({
     games: options.games,
     categories: options.categories,
     translate,
-    start: (game, loaded) =>
-      launchGame(game, loaded, {
-        closeMenu: () => view.close?.(),
-        returnToMenu: () => menu.returnFromGame(),
-        subscription: chooseSubscriptionSource(),
-        gameStorage: (gameId) => options.profiles.gameStorage(gameId),
-      }),
+    buttons: {
+      settingsButton: document.getElementById('settings-button'),
+      homeButton: document.getElementById('home-button'),
+    },
+    closeMenu: () => view.close?.(),
+    reopenMenu: () => view.reopen?.(),
+    gameStorage: (gameId) => options.profiles.gameStorage(gameId),
+    onPageStateChanged: (shown) => {
+      document.title = shown.pageTitle();
+    },
     feedback: (event) => view.scene?.play(event),
     profile: () => options.profiles.activeProfile(),
     onOpenProfilePicker: () => view.openProfiles?.(),
     pageUpdate,
-    onStarted: () => showPageState(menu),
-    onReturned: () => {
-      showPageState(menu);
-      view.reopen?.();
-    },
-    onLanguageChanged: () => {
-      showPageLanguage(document, currentLanguage());
-      showPageState(menu);
-    },
+    onLanguageChanged: () => showPageLanguage(document, currentLanguage()),
   });
 
   // „Vše“ ukáže všechny hry; podle jejich počtu se volí výška dlaždic (#69).
@@ -235,7 +212,6 @@ export function startMenuPage(options: MenuPageOptions): void {
 
   const menuGame = createMenuGame([scene, profileScene]);
   showPageLanguage(document, currentLanguage());
-  showPageState(menu);
   unlockAudioOnTouch();
 
   const parent = document.getElementById('menu');

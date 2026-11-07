@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { recognizeDigit } from '../../../src/games/counting/logic/digitRecognition';
+import { DIGIT_TEMPLATES } from '../../../src/games/counting/logic/digitTemplates';
 import { loadDigitRecognizer } from '../../../src/games/counting/logic/recognizerLoading';
 
 /**
@@ -127,7 +128,6 @@ describe('hra s číselníkem se spustí bez vzorů číslic (AC2)', () => {
   });
 
   it('vzory číslic se při startu nestahují', () => {
-    expect(SOURCES[TEMPLATES]).toContain('0027023e0b053f00642b596324640039');
     expect(startupFiles().has(TEMPLATES)).toBe(false);
   });
 
@@ -137,5 +137,58 @@ describe('hra s číselníkem se spustí bez vzorů číslic (AC2)', () => {
 
   it('rozpoznávání se dá stáhnout dodatečně a je to totéž rozpoznávání jako dnes', async () => {
     await expect(loadDigitRecognizer()).resolves.toBe(recognizeDigit);
+  });
+});
+
+/** Vzor číslice: 8 bodů (x, y), každé číslo dva šestnáctkové znaky. */
+const TEMPLATE_PATTERN = /^[0-9a-f]{32}$/;
+/** Vzor číslice zapsaný v kódu jako text v uvozovkách. */
+const TEMPLATE_LITERAL = /['"`][0-9a-f]{32}['"`]/g;
+const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+describe('#83 AC5: vzory číslic leží v souboru, který kontrola startu vylučuje', () => {
+  it('soubor se vzory nic neimportuje ani nepřebírá z jiného souboru', () => {
+    const code = withoutComments(SOURCES[TEMPLATES] ?? '');
+    const imports = [...code.matchAll(/^\s*import\b.*$/gm)].map((match) => match[0].trim());
+    const reexports = [...code.matchAll(/^\s*export\b[^;]*\bfrom\s+['"][^'"]+['"]/gm)].map(
+      (match) => match[0].trim(),
+    );
+    const dynamicImports = [...code.matchAll(/\bimport\s*\(/g)].map((match) => match[0]);
+    expect(SOURCES[TEMPLATES], `${TEMPLATES} existuje`).toBeDefined();
+    expect(imports, `${TEMPLATES}: importy`).toEqual([]);
+    expect(reexports, `${TEMPLATES}: převzaté exporty`).toEqual([]);
+    expect(dynamicImports, `${TEMPLATES}: dynamické importy`).toEqual([]);
+  });
+
+  it('soubor se vzory má zapsané vzory pro každou číslici 0–9', () => {
+    expect(DIGIT_TEMPLATES, 'jedna řada vzorů na číslici').toHaveLength(DIGITS.length);
+    for (const digit of DIGITS) {
+      const templates = DIGIT_TEMPLATES[digit] ?? [];
+      const malformed = templates.filter((template) => !TEMPLATE_PATTERN.test(template));
+      expect(templates.length, `číslice ${digit}: počet vzorů`).toBeGreaterThan(0);
+      expect(malformed, `číslice ${digit}: vzory ve špatném tvaru`).toEqual([]);
+    }
+  });
+
+  it('vzory jsou v souboru zapsané přímo jako text, ne spočítané nebo poskládané odjinud', () => {
+    const written = new Set(
+      [...withoutComments(SOURCES[TEMPLATES] ?? '').matchAll(TEMPLATE_LITERAL)].map((match) =>
+        match[0].slice(1, -1),
+      ),
+    );
+    for (const digit of DIGITS) {
+      const missing = (DIGIT_TEMPLATES[digit] ?? []).filter((template) => !written.has(template));
+      expect(missing, `číslice ${digit}: vzory, které v souboru nejsou zapsané`).toEqual([]);
+    }
+  });
+
+  it('jinde v src/ žádné vzory číslic zapsané nejsou', () => {
+    for (const [path, text] of Object.entries(SOURCES)) {
+      if (path === TEMPLATES) {
+        continue;
+      }
+      const found = withoutComments(text).match(TEMPLATE_LITERAL) ?? [];
+      expect(found.length, `${path}: zapsané vzory číslic`).toBe(0);
+    }
   });
 });
