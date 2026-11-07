@@ -86,6 +86,14 @@ export const HANDLE_STYLE = {
 export const BRUSH_STYLE = {
   handleColor: BLUE,
   ferruleColor: '#6E9FD6',
-  /** Guma a další nástroje bez barvy (#90) mají špičku šedou. */
+  /** Štětec bez barvy má špičku šedou. */
   noColor: '#C7C7CC',
+} as const;
+
+/** Guma (#90): šikmý kvádr bez barvy, modrý obal jako rukojeť štětce a šedá pryž. */
+export const ERASER_STYLE = {
+  sleeveColor: BRUSH_STYLE.handleColor,
+  rubberColor: BRUSH_STYLE.noColor,
+  /** Jemná čára pod gumou, aby bylo vidět, že něco stírá. */
+  trailColor: '#D2D2D7',
 } as const;

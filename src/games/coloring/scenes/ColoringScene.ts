@@ -18,23 +18,25 @@ import { COLORING_GAME_AREA_FIT, layoutColoring, touchTargetAt } from '../logic/
 import type { ColoringLayout } from '../logic/coloringLayout';
 import { startColoringSession } from '../logic/coloringSession';
 import type { ColoringPage } from '../logic/coloringSession';
-import {
-  COLOR_PICK_TONES,
-  PALETTE,
-  initialPalette,
-  markedColors,
-  tapColor,
-} from '../logic/palette';
+import { PALETTE, initialPalette, markedColors, tapColor } from '../logic/palette';
 import type { PaletteState } from '../logic/palette';
 import { buildRegionMap, outlineFromImage } from '../logic/regionMap';
 import { UNDO_WOBBLE_TONES, openColoring } from '../logic/savedPicture';
 import type { SavedColoring, UndoResult } from '../logic/savedPicture';
 import { PICTURE_STYLE } from '../logic/theme';
-import { PANEL_CLOSE_TONES, PANEL_OPEN_TONES } from '../logic/toolPanel';
+import {
+  INITIAL_TOOL,
+  PANEL_CLOSE_TONES,
+  PANEL_OPEN_TONES,
+  markedTools,
+  toolAtSlot,
+} from '../logic/toolPanel';
+import type { HandleView, ToolId } from '../logic/toolPanel';
 import { HandleButtonView } from './HandleButtonView';
 import { PaintLayer } from './PaintLayer';
 import { PICTURE, drawPictureOutline, snapshotOf } from './pictureCanvas';
 import { ToolPanelView } from './ToolPanelView';
+import type { PanelSelection } from './ToolPanelView';
 import { UndoButtonView } from './UndoButtonView';
 
 /** Vrstva barev a obrys mají 1024 × 768 pixelů (poměr plochy 4 : 3). */
@@ -71,7 +73,8 @@ const NO_PAGE: ColoringPage = {
  * Od #96 je obrázek přes celou obrazovku a nástroje jsou ve vysouvacím
  * panelu, který otevře a zavře úchyt v pruhu ovládání. Kam dotyk patří
  * (úchyt, Zpět, panel, obrázek), rozhoduje `touchTargetAt`; malovat se
- * smí jen u dotyku na obrázku. Stav panelu drží `savedPicture.ts`.
+ * smí jen u dotyku na obrázku. Stav panelu i vybraný nástroj (štětec nebo
+ * guma, #90) drží `savedPicture.ts`.
  */
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -185,12 +188,11 @@ export class ColoringScene extends Phaser.Scene {
         areaHeight: this.gameArea.height,
         depth: PANEL_DEPTH,
       },
-      markedColors(this.palette),
-      this.brushHex(),
+      this.panelSelection(),
       open,
     );
     this.handleView.place(this.layout, this.gameArea.scale, STRIP_DEPTH);
-    this.handleView.show(this.brushHex(), open);
+    this.showHandle(open);
     this.undoView.place(this.layout.undoButton, this.gameArea.scale, STRIP_DEPTH);
   }
 
@@ -228,23 +230,40 @@ export class ColoringScene extends Phaser.Scene {
     return this.coloring?.panelOpen() ?? this.panelOpenBeforeReady;
   }
 
-  /** Barva štětce v úchytu a v panelu (#96 AC5). */
-  private brushHex(): string | null {
-    const color = this.coloring?.handleView().color ?? this.palette.selected;
-    return color === null ? null : (PALETTE[color]?.hex ?? null);
+  /** Vybraný nástroj; dokud se obrázek připravuje, je to štětec. */
+  private selectedTool(): ToolId {
+    return this.coloring?.selectedTool() ?? INITIAL_TOOL;
+  }
+
+  /** Co je v panelu označené; štětec je vždy ve vybrané barvě. */
+  private panelSelection(): PanelSelection {
+    return {
+      markedColors: markedColors(this.palette),
+      markedTools: markedTools(this.selectedTool()),
+      brushHex: hexOf(this.palette.selected),
+    };
+  }
+
+  /** Úchyt ukazuje vybraný nástroj ve vybrané barvě, gumu bez barvy (#96 AC5, #90 AC1). */
+  private showHandle(open: boolean): void {
+    const view: HandleView = this.coloring?.handleView() ?? {
+      tool: INITIAL_TOOL,
+      color: this.palette.selected,
+    };
+    this.handleView.show(view.tool, view.color === null ? null : hexOf(view.color), open);
   }
 
   /** Panel a šipka úchytu podle stavu v logice; panel se vysune nebo zasune animací. */
   private showPanel(): void {
     const open = this.isPanelOpen();
     this.panelView.setOpen(open);
-    this.handleView.show(this.brushHex(), open);
+    this.showHandle(open);
   }
 
-  /** Vybraná barva v panelu i v úchytu. */
+  /** Vybraná barva a nástroj v panelu i v úchytu. */
   private showSelection(): void {
-    this.panelView.mark(markedColors(this.palette), this.brushHex());
-    this.handleView.show(this.brushHex(), this.isPanelOpen());
+    this.panelView.mark(this.panelSelection());
+    this.showHandle(this.isPanelOpen());
   }
 
   /** Ťuknutí na úchyt: panel se otevře nebo zavře s tónem; během tahu nic (#96 AC2). */
@@ -259,15 +278,24 @@ export class ColoringScene extends Phaser.Scene {
   }
 
   /**
-   * Ťuknutí na nástroj. Štětec je zatím jediný a vždy vybraný: zhoupne se
-   * s tónem jako ťuknutí na už vybranou barvu. Prázdná místa nic nedělají.
+   * Ťuknutí na nástroj (#90 AC1): vybere ho s tónem, už vybraný nástroj se
+   * navíc zhoupne. Prázdná místa a druhý prst během tahu nic nedělají;
+   * dokud se obrázek připravuje, zůstává štětec.
    */
   private onToolTapped(index: number): void {
-    if (index !== 0) {
+    if (this.coloring === null) {
       return;
     }
-    this.panelView.wobbleBrush();
-    this.sounds.play(COLOR_PICK_TONES);
+    const wasSelected = toolAtSlot(index) === this.coloring.selectedTool();
+    const tones = this.coloring.tapTool(index);
+    if (tones.length === 0) {
+      return;
+    }
+    this.sounds.play(tones);
+    if (wasSelected) {
+      this.panelView.wobbleTool(index);
+    }
+    this.showSelection();
   }
 
   // -------------------------------------------------------------------------
@@ -423,6 +451,11 @@ export class ColoringScene extends Phaser.Scene {
     this.coloring?.suspend();
     this.sounds.stopAll();
   }
+}
+
+/** Odstín barvy palety `index`, nebo `null` mimo paletu. */
+function hexOf(index: number): string | null {
+  return PALETTE[index]?.hex ?? null;
 }
 
 /** Je hodnota z registru herní plocha? */

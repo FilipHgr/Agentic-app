@@ -1,6 +1,7 @@
 /**
- * Panel nástrojů Omalovánek (#96): co ukazuje úchyt, tóny úchytu a záznam
- * o prvním otevření hry v profilu. Při úplně prvním otevření je panel
+ * Panel nástrojů Omalovánek (#96): nástroje na místech panelu (štětec
+ * a guma od #90), co ukazuje úchyt, tóny úchytu a záznam o prvním otevření
+ * hry v profilu. Při úplně prvním otevření je panel
  * otevřený, aby dítě vidělo, co v něm je, jindy začíná zavřený. Záznam se
  * zapíše při prvním ukládání (tah, barva, Zpět) nebo nejpozději při
  * odchodu a schování stránky, ne hned při otevření: pouhé otevření hry do
@@ -12,10 +13,34 @@
 import type { Tone } from '../../../shared/audio/tonePlayer';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 
-/** Nástroje Omalovánek; další přidají navazující úkoly (guma od #90). */
-export type ToolId = 'brush';
+/** Nástroje Omalovánek; fix a pastelku přidají navazující úkoly. */
+export type ToolId = 'brush' | 'eraser';
 
-/** Co ukazuje úchyt (#96 AC5): vybraný nástroj ve vybrané barvě (`null` bez barvy). */
+/** Nástroje podle míst v panelu: nástroj `PANEL_TOOLS[i]` je na místě `toolSlots[i]`. */
+export const PANEL_TOOLS: readonly ToolId[] = ['brush', 'eraser'];
+
+/** Nástroj, který je vybraný na začátku a po každém návratu do hry (#90 AC1). */
+export const INITIAL_TOOL: ToolId = 'brush';
+
+/** Krátký tón při ťuknutí na nástroj (#90 AC1), dozní za 0,12 s. */
+export const TOOL_PICK_TONES: readonly Tone[] = [
+  { frequencyHz: 698.46, startSeconds: 0, durationSeconds: 0.12, volume: 0.15 },
+];
+
+/** U každého nástroje z `PANEL_TOOLS`, jestli je označený (vždy právě jeden). */
+export function markedTools(selected: ToolId): readonly boolean[] {
+  return PANEL_TOOLS.map((tool) => tool === selected);
+}
+
+/** Nástroj na místě `index` v panelu, nebo `null` u prázdného místa. */
+export function toolAtSlot(index: number): ToolId | null {
+  return PANEL_TOOLS[index] ?? null;
+}
+
+/**
+ * Co ukazuje úchyt (#96 AC5): vybraný nástroj ve vybrané barvě, guma bez
+ * barvy (`null`, #90 AC1).
+ */
 export interface HandleView {
   readonly tool: ToolId;
   readonly color: number | null;

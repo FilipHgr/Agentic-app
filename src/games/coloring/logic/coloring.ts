@@ -4,6 +4,9 @@
  * barva nikdy nepřeteče přes obrys (AC2). Mezi body tahu se razítka kladou
  * po kroku nejvýš W/4, čára je tak souvislá a dosáhne až k obrysu (AC3).
  *
+ * Guma (#90) je stejný tah se stopou širokou 1,5 W, který pixely své oblasti
+ * vrací do prázdna; obrys je v mapě oblastí, takže vygumovat nejde.
+ *
  * Maluje jen první prst: další dotyky (druhý prst, dlaň, tužka) během tahu
  * nic nenamalují a po zvednutí prvního prstu tah skončí (AC5). Každé místo
  * má jen jednu barvu z palety, bez míchání a průhlednosti.
@@ -16,12 +19,16 @@ import { OUTLINE_REGION, regionAt } from './regionMap';
 import type { RegionMap } from './regionMap';
 import { createStrokeJournal } from './strokeHistory';
 import type { StrokeChange } from './strokeHistory';
+import type { ToolId } from './toolPanel';
 
 /** Stopa štětce je široká tento díl šířky plochy (doporučení k otázce 6). */
 const BRUSH_WIDTH_SHARE = 1 / 30;
 
-/** Razítka po kroku nejvýš W/4, jinak by na okraji stopy zůstaly zuby. */
-const STAMPS_PER_BRUSH_WIDTH = 4;
+/** Razítka po kroku nejvýš čtvrtiny šířky stopy, jinak by na okraji stopy zůstaly zuby. */
+const STAMPS_PER_STROKE_WIDTH = 4;
+
+/** Stopa gumy je o polovinu širší než stopa štětce (#90 AC2). */
+const ERASER_WIDTH_FACTOR = 1.5;
 
 /** Krok v pixelech, po kterém se hledá oblast, do které prst vjel z obrysu. */
 const REGION_SEARCH_STEP = 1;
@@ -51,8 +58,11 @@ export interface ChangedArea {
 export interface Coloring {
   /** Šířka stopy štětce W v pixelech. */
   readonly brushWidth: number;
-  /** Prst se dotkl. Vrátí, co se zabarvilo, nebo `null`. */
-  pointerDown(pointer: PointerSample, colorIndex: number): ChangedArea | null;
+  /**
+   * Prst se dotkl. Štětec maluje barvou `colorIndex`, guma vrací pixely do
+   * prázdna. Vrátí, co se změnilo, nebo `null`.
+   */
+  pointerDown(pointer: PointerSample, colorIndex: number, tool?: ToolId): ChangedArea | null;
   /** Prst se posunul. Vrátí, co se zabarvilo, nebo `null`. */
   pointerMove(pointer: PointerSample): ChangedArea | null;
   /** Prst se zvedl. */
@@ -89,9 +99,15 @@ type StrokeTarget =
   | { readonly kind: 'waitingForRegion' }
   | { readonly kind: 'region'; readonly region: number };
 
+/** Čím tah barví: index barvy (u gumy `NO_COLOR`) a poloměr kulatého konce. */
+interface StrokeInk {
+  readonly colorIndex: number;
+  readonly radius: number;
+}
+
 interface Stroke {
   readonly pointerId: number;
-  readonly colorIndex: number;
+  readonly ink: StrokeInk;
   target: StrokeTarget;
   /** Poslední bod tahu s platnými souřadnicemi. */
   last: Point | null;
@@ -169,8 +185,7 @@ export function createColoring(
   options: { brushWidth?: number; colors?: Uint8Array } = {},
 ): Coloring {
   const brushWidth = options.brushWidth ?? brushWidthFor(regions.width);
-  const radius = brushWidth / 2;
-  const stampSpacing = brushWidth / STAMPS_PER_BRUSH_WIDTH;
+  const brushRadius = brushWidth / 2;
   const colors =
     options.colors?.length === regions.width * regions.height
       ? options.colors.slice()
@@ -178,8 +193,15 @@ export function createColoring(
   const journal = createStrokeJournal(regions.width, regions.height);
   let stroke: Stroke | null = null;
 
-  /** Kulaté razítko průměru W se středem `center`, jen do pixelů oblasti `region`. */
-  const stamp = (center: Point, region: number, colorIndex: number): ChangedArea | null => {
+  /** Štětec maluje barvou ve stopě W, guma vrací do prázdna ve stopě 1,5 W. */
+  const inkOf = (tool: ToolId, colorIndex: number): StrokeInk =>
+    tool === 'eraser'
+      ? { colorIndex: NO_COLOR, radius: brushRadius * ERASER_WIDTH_FACTOR }
+      : { colorIndex, radius: brushRadius };
+
+  /** Kulaté razítko poloměru `ink.radius` se středem `center`, jen do pixelů oblasti `region`. */
+  const stamp = (center: Point, region: number, ink: StrokeInk): ChangedArea | null => {
+    const { colorIndex, radius } = ink;
     const left = Math.max(0, Math.floor(center.x - radius));
     const right = Math.min(regions.width - 1, Math.ceil(center.x + radius));
     const top = Math.max(0, Math.floor(center.y - radius));
@@ -203,20 +225,21 @@ export function createColoring(
     return paintedAny ? { left, top, right: right + 1, bottom: bottom + 1 } : null;
   };
 
-  /** Razítka po úsečce `from`–`to` po kroku nejvýš W/4. */
+  /** Razítka po úsečce `from`–`to` po kroku nejvýš čtvrtiny šířky stopy. */
   const paintSegment = (
     from: Point,
     to: Point,
     region: number,
-    colorIndex: number,
+    ink: StrokeInk,
   ): ChangedArea | null => {
+    const stampSpacing = (2 * ink.radius) / STAMPS_PER_STROKE_WIDTH;
     const length = Math.hypot(to.x - from.x, to.y - from.y);
     const steps = Math.max(1, Math.ceil(length / stampSpacing));
     let changed: ChangedArea | null = null;
     for (let step = 0; step <= steps; step += 1) {
       const share = step / steps;
       const center = { x: from.x + (to.x - from.x) * share, y: from.y + (to.y - from.y) * share };
-      changed = joinAreas(changed, stamp(center, region, colorIndex));
+      changed = joinAreas(changed, stamp(center, region, ink));
     }
     return changed;
   };
@@ -224,19 +247,20 @@ export function createColoring(
   return {
     brushWidth,
 
-    pointerDown(pointer, colorIndex) {
+    pointerDown(pointer, colorIndex, tool = 'brush') {
       if (stroke !== null) {
         // Druhý prst nebo dlaň během tahu nic nenamaluje.
         return null;
       }
+      const ink = inkOf(tool, colorIndex);
       if (!isUsablePoint(pointer)) {
-        stroke = { pointerId: pointer.id, colorIndex, target: { kind: 'nothing' }, last: null };
+        stroke = { pointerId: pointer.id, ink, target: { kind: 'nothing' }, last: null };
         return null;
       }
       const point = { x: pointer.x, y: pointer.y };
       const target = targetAt(regions, point);
-      stroke = { pointerId: pointer.id, colorIndex, target, last: point };
-      return target.kind === 'region' ? stamp(point, target.region, colorIndex) : null;
+      stroke = { pointerId: pointer.id, ink, target, last: point };
+      return target.kind === 'region' ? stamp(point, target.region, ink) : null;
     },
 
     pointerMove(pointer) {
@@ -258,7 +282,7 @@ export function createColoring(
       if (stroke.target.kind !== 'region') {
         return null;
       }
-      return paintSegment(from, to, stroke.target.region, stroke.colorIndex);
+      return paintSegment(from, to, stroke.target.region, stroke.ink);
     },
 
     pointerUp(pointerId) {

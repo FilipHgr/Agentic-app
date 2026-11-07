@@ -1,8 +1,8 @@
 /**
  * Vysouvací panel nástrojů (#96) se zástupným vzhledem A3: bílá karta se
  * stínem, v ní oddíl barev a oddíl nástrojů s přepínačem velikosti.
- * Místa pro nehotové položky jsou prázdná, na prvním místě nástrojů je
- * štětec. Panel vyjíždí zleva (na šířku) nebo zdola (na výšku) do 0,3 s
+ * Místa pro nehotové položky jsou prázdná, na prvních místech nástrojů
+ * jsou štětec a guma (`PANEL_TOOLS`, #90), vybraný má silný modrý okraj. Panel vyjíždí zleva (na šířku) nebo zdola (na výšku) do 0,3 s
  * a zajíždí pod pruh ovládání; obrázek se přitom nehne, posouvá se jen
  * panel. Dotyky sem nechodí, rozhoduje o nich scéna přes `touchTargetAt`.
  */
@@ -12,9 +12,10 @@ import Phaser from 'phaser';
 import { PAGE_BACKGROUND, colorNumber } from '../../../shared/logic/theme';
 import type { ColoringLayout, LayoutRect } from '../logic/coloringLayout';
 import { COLOR_BUTTON_STYLE, TOOL_PANEL_STYLE } from '../logic/theme';
-import { drawBrush } from './brushIcon';
+import { PANEL_TOOLS } from '../logic/toolPanel';
 import { drawEmptySlot } from './emptySlot';
 import { PaletteView } from './PaletteView';
+import { drawToolIcon } from './toolIcon';
 
 /** Kde a jak velký panel je: rozložení, CSS px na jednotku a velikost herní plochy. */
 export interface PanelPlacement {
@@ -26,6 +27,16 @@ export interface PanelPlacement {
   readonly depth: number;
 }
 
+/** Co je v panelu označené: barva, nástroj a barva štětce (`null` bez barvy). */
+export interface PanelSelection {
+  readonly markedColors: readonly boolean[];
+  readonly markedTools: readonly boolean[];
+  readonly brushHex: string | null;
+}
+
+/** Symbol nástroje zabere tento díl strany místa. */
+const TOOL_ICON_SHARE = 0.62;
+
 /** Zhoupnutí jako u Zpět a dlaždic v menu: na jednu stranu, na druhou a zpět. */
 const WOBBLE = { angle: 8, durationMs: 90 };
 
@@ -33,7 +44,8 @@ export class ToolPanelView {
   private container: Phaser.GameObjects.Container | null = null;
   /** Pozadí pruhu ovládání: panel pod něj zajíždí. */
   private backdrop: Phaser.GameObjects.Rectangle | null = null;
-  private brushSlot: Phaser.GameObjects.Graphics | null = null;
+  /** Tlačítka nástrojů v pořadí `PANEL_TOOLS`, každé s počátkem ve středu svého místa. */
+  private toolButtons: Phaser.GameObjects.Graphics[] = [];
   private readonly palette: PaletteView;
   private placement: PanelPlacement | null = null;
   private open = false;
@@ -43,28 +55,23 @@ export class ToolPanelView {
   }
 
   /** Postaví panel podle rozložení (po startu a po otočení), hned v daném stavu. */
-  place(
-    placement: PanelPlacement,
-    marked: readonly boolean[],
-    brushHex: string | null,
-    open: boolean,
-  ): void {
+  place(placement: PanelPlacement, selection: PanelSelection, open: boolean): void {
     this.destroy();
     this.placement = placement;
     this.open = open;
     const { layout, cssScale, depth } = placement;
     const container = this.scene.add.container(0, 0).setDepth(depth);
     container.add(this.drawCard(layout, cssScale));
-    this.palette.place(layout.paletteColors, marked, cssScale, container);
+    this.palette.place(layout.paletteColors, selection.markedColors, cssScale, container);
     layout.toolSlots.forEach((slot, index) => {
-      // Střed místa je počátek, aby se štětec při zhoupnutí točil kolem středu.
+      // Střed místa je počátek, aby se nástroj při zhoupnutí točil kolem středu.
       const graphics = this.scene.add.graphics({
         x: slot.left + slot.width / 2,
         y: slot.top + slot.height / 2,
       });
       container.add(graphics);
-      if (index === 0) {
-        this.brushSlot = graphics;
+      if (index < PANEL_TOOLS.length) {
+        this.toolButtons.push(graphics);
       } else {
         drawEmptySlot(graphics, slot, cssScale, -slot.width / 2, -slot.height / 2);
       }
@@ -76,21 +83,21 @@ export class ToolPanelView {
     drawEmptySlot(toggle, layout.sizeToggle, cssScale);
     container.add(toggle);
     this.container = container;
-    this.showBrush(brushHex);
+    this.showTools(selection);
     this.backdrop = this.drawBackdrop(placement);
     this.jumpTo(open);
   }
 
-  /** Označí vybranou barvu a štětec v panelu ukáže v ní. */
-  mark(marked: readonly boolean[], brushHex: string | null): void {
-    this.palette.mark(marked);
-    this.showBrush(brushHex);
+  /** Označí vybranou barvu a nástroj; štětec ukáže ve vybrané barvě. */
+  mark(selection: PanelSelection): void {
+    this.palette.mark(selection.markedColors);
+    this.showTools(selection);
   }
 
-  /** Ťuknutí na štětec, který už je vybraný: štětec se jen zhoupne. */
-  wobbleBrush(): void {
-    const graphics = this.brushSlot;
-    if (graphics === null) {
+  /** Ťuknutí na nástroj, který už je vybraný: nástroj se zhoupne kolem středu svého místa. */
+  wobbleTool(index: number): void {
+    const graphics = this.toolButtons[index];
+    if (graphics === undefined) {
       return;
     }
     this.scene.tweens.killTweensOf(graphics);
@@ -126,8 +133,8 @@ export class ToolPanelView {
   }
 
   destroy(): void {
-    if (this.brushSlot !== null) {
-      this.scene.tweens.killTweensOf(this.brushSlot);
+    for (const button of this.toolButtons) {
+      this.scene.tweens.killTweensOf(button);
     }
     if (this.container !== null) {
       this.scene.tweens.killTweensOf(this.container);
@@ -137,7 +144,7 @@ export class ToolPanelView {
     this.backdrop?.destroy();
     this.container = null;
     this.backdrop = null;
-    this.brushSlot = null;
+    this.toolButtons = [];
   }
 
   /** Okamžitě bez animace (po otočení obrazovky). */
@@ -159,15 +166,23 @@ export class ToolPanelView {
       : { x: 0, y: areaHeight - panel.top + shadow };
   }
 
-  private showBrush(brushHex: string | null): void {
-    const slot = this.placement?.layout.toolSlots[0];
-    const graphics = this.brushSlot;
-    if (slot === undefined || graphics === null || this.placement === null) {
+  /** Překreslí tlačítka nástrojů: označený má silný okraj, štětec je ve vybrané barvě. */
+  private showTools(selection: PanelSelection): void {
+    const placement = this.placement;
+    if (placement === null) {
       return;
     }
-    graphics.clear();
-    drawSelectedSlot(graphics, slot, this.placement.cssScale);
-    drawBrush(graphics, 0, 0, slot.width * 0.62, brushHex);
+    this.toolButtons.forEach((graphics, index) => {
+      const slot = placement.layout.toolSlots[index];
+      const tool = PANEL_TOOLS[index];
+      if (slot === undefined || tool === undefined) {
+        return;
+      }
+      graphics.clear();
+      drawToolButton(graphics, slot, placement.cssScale, selection.markedTools[index] === true);
+      const size = Math.min(slot.width, slot.height) * TOOL_ICON_SHARE;
+      drawToolIcon(graphics, tool, 0, 0, size, selection.brushHex);
+    });
   }
 
   /** Karta panelu se stínem a čárou mezi oddíly. */
@@ -222,20 +237,26 @@ function shadowReachOf(cssScale: number): number {
   return (style.shadowLayers * style.shadowSpreadCss + style.shadowOffsetCss) / cssScale;
 }
 
-/** Vybraný nástroj se středem v počátku: tlačítko A3 se silným modrým okrajem jako vybraná barva. */
-function drawSelectedSlot(
+/**
+ * Tlačítko nástroje se středem v počátku ve vzhledu A3 jako tlačítko barvy;
+ * vybraný nástroj má silný modrý okraj.
+ */
+function drawToolButton(
   graphics: Phaser.GameObjects.Graphics,
   slot: LayoutRect,
   cssScale: number,
+  isMarked: boolean,
 ): void {
-  const borderWidth = COLOR_BUTTON_STYLE.selectedBorderWidthCss / cssScale;
-  const radius = Math.min(slot.width, slot.height) * COLOR_BUTTON_STYLE.cornerRadiusShare;
+  const style = COLOR_BUTTON_STYLE;
+  const borderWidth = (isMarked ? style.selectedBorderWidthCss : style.borderWidthCss) / cssScale;
+  const borderColor = isMarked ? style.selectedBorderColor : style.borderColor;
+  const radius = Math.min(slot.width, slot.height) * style.cornerRadiusShare;
   const inset = borderWidth / 2;
   const left = -slot.width / 2;
   const top = -slot.height / 2;
-  graphics.fillStyle(colorNumber(COLOR_BUTTON_STYLE.background), 1);
+  graphics.fillStyle(colorNumber(style.background), 1);
   graphics.fillRoundedRect(left, top, slot.width, slot.height, radius);
-  graphics.lineStyle(borderWidth, colorNumber(COLOR_BUTTON_STYLE.selectedBorderColor), 1);
+  graphics.lineStyle(borderWidth, colorNumber(borderColor), 1);
   graphics.strokeRoundedRect(
     left + inset,
     top + inset,

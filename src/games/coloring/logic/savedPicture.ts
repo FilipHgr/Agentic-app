@@ -17,7 +17,12 @@
  * Zpět (#89) vrací tahy z historie v paměti (`strokeHistory.ts`), vrácený
  * stav se uloží stejně jako po tahu. Panel nástrojů (#96) se otevírá
  * úchytem a zavře se i tahem po obrázku; při prvním otevření hry v profilu
- * začíná otevřený (`toolPanel.ts`). Čistý TypeScript bez Phaseru.
+ * začíná otevřený (`toolPanel.ts`).
+ *
+ * Vybraný nástroj (štětec nebo guma, #90) je jen v paměti: po otevření hry
+ * je vždy štětec, výběr barvy přepne zpátky na štětec. Ťuknutí na nástroj,
+ * barvu, úchyt nebo Zpět druhým prstem během tahu se nepočítá (AC3).
+ * Čistý TypeScript bez Phaseru.
  */
 
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
@@ -30,8 +35,16 @@ import type { PaletteState } from './palette';
 import { decodeColorLayer, encodeColorLayer } from './colorLayerCode';
 import type { RegionMap } from './regionMap';
 import { createUndoHistory } from './strokeHistory';
-import { PANEL_CLOSE_TONES, PANEL_OPEN_TONES, rememberOpened, wasOpenedBefore } from './toolPanel';
-import type { HandleView } from './toolPanel';
+import {
+  INITIAL_TOOL,
+  PANEL_CLOSE_TONES,
+  PANEL_OPEN_TONES,
+  TOOL_PICK_TONES,
+  rememberOpened,
+  toolAtSlot,
+  wasOpenedBefore,
+} from './toolPanel';
+import type { HandleView, ToolId } from './toolPanel';
 
 /** Nejdelší záznam jedné omalovánky ve znacích (AC6). */
 export const PICTURE_RECORD_LIMIT = 50_000;
@@ -81,8 +94,8 @@ export type UndoResult =
 
 export interface SavedColoring {
   /**
-   * Prst se dotkl obrázku; maluje barvou vybranou v paletě a otevřený
-   * panel nástrojů zavře (#96 AC4). Vrátí, co se zabarvilo.
+   * Prst se dotkl obrázku; štětec maluje barvou vybranou v paletě, guma
+   * gumuje (#90). Otevřený panel nástrojů zavře (#96 AC4). Vrátí, co se změnilo.
    */
   pointerDown(pointer: PointerSample): ChangedArea | null;
   /** Prst se posunul. Vrátí, co se zabarvilo. */
@@ -93,7 +106,10 @@ export interface SavedColoring {
   interrupt(): void;
   /** Odchod domečkem, schování nebo zavření stránky: ukončí tah a uloží obrázek. */
   suspend(): void;
-  /** Ťuknutí na barvu: vybere ji, hned uloží a vrátí tón k zahrání. */
+  /**
+   * Ťuknutí na barvu: vybere ji i štětec (#90 AC4), hned uloží a vrátí tón
+   * k zahrání. Během tahu se nepočítá (druhý prst) a vrátí `[]`.
+   */
   tapColor(index: number): readonly Tone[];
   /**
    * Ťuknutí na Zpět (#89): vrátí poslední tah (nejvýš 20 zpět) a hned
@@ -109,8 +125,16 @@ export interface SavedColoring {
    * Během tahu se nepočítá (druhý prst) a vrátí `[]`.
    */
   tapHandle(): readonly Tone[];
-  /** Co ukazuje úchyt: vybraný nástroj ve vybrané barvě (#96 AC5). */
+  /** Co ukazuje úchyt: vybraný nástroj ve vybrané barvě, guma bez barvy (#96 AC5, #90). */
   handleView(): HandleView;
+  /** Vybraný nástroj (#90). */
+  selectedTool(): ToolId;
+  /**
+   * Ťuknutí na místo `index` nástrojů v panelu (#90 AC1): vybere nástroj
+   * a vrátí tón, i když už vybraný byl. Prázdné místo a ťuknutí během tahu
+   * nic nezmění a vrátí `[]`.
+   */
+  tapTool(index: number): readonly Tone[];
   /** Index barvy v pixelu; `null` bez barvy, na obrysu a mimo plochu. */
   colorAt(x: number, y: number): number | null;
 }
@@ -295,6 +319,8 @@ export function openColoring(options: {
   let panelOpen = !wasOpenedBefore(storage);
   /** Je v úložišti záznam, že profil hru už otevřel? */
   let openingRemembered = !panelOpen;
+  /** Vybraný nástroj; nepamatuje se, po otevření je vždy štětec (#90 AC1). */
+  let tool: ToolId = INITIAL_TOOL;
 
   /** Zapíše první otevření spolu s prvním ukládáním (#92 AC1: samotné otevření nic nezapíše). */
   const rememberOpening = (): void => {
@@ -343,7 +369,7 @@ export function openColoring(options: {
       if (strokePointer === null) {
         strokePointer = pointer.id;
       }
-      return noteChange(coloring.pointerDown(pointer, palette.selected));
+      return noteChange(coloring.pointerDown(pointer, palette.selected, tool));
     },
 
     pointerMove(pointer) {
@@ -362,6 +388,13 @@ export function openColoring(options: {
     suspend: endStroke,
 
     tapColor(index) {
+      if (strokePointer !== null) {
+        return [];
+      }
+      if (isPaletteIndex(index)) {
+        // Barva patří štětci: po gumě se maluje hned vybranou barvou (#90 AC4).
+        tool = 'brush';
+      }
       const { state, tones } = tapColor(palette, index);
       if (state.selected !== palette.selected) {
         unsaved = true;
@@ -397,7 +430,18 @@ export function openColoring(options: {
       return panelOpen ? PANEL_OPEN_TONES : PANEL_CLOSE_TONES;
     },
 
-    handleView: () => ({ tool: 'brush', color: palette.selected }),
+    handleView: () => ({ tool, color: tool === 'eraser' ? null : palette.selected }),
+
+    selectedTool: () => tool,
+
+    tapTool(index) {
+      const tapped = toolAtSlot(index);
+      if (strokePointer !== null || tapped === null) {
+        return [];
+      }
+      tool = tapped;
+      return TOOL_PICK_TONES;
+    },
 
     colorAt: (x, y) => coloring.colorAt(x, y),
   };
