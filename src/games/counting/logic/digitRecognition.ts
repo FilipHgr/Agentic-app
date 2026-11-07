@@ -100,10 +100,52 @@ function decodeTemplate(encoded: string): number[] {
 }
 
 /**
+ * Podoba, ve které dítě číslici napsalo: normálně, opačným směrem (odspodu,
+ * od konce tahu) nebo zrcadlově zleva doprava (#85). Zrcadlový a zároveň
+ * obrácený zápis je zrcadlový. Smyčka nuly nebo devítky psaná na druhou
+ * stranu je pořád normální zápis.
+ */
+export type WritingForm = 'normal' | 'reversed' | 'mirrored';
+
+/** Rozpoznaná číslice a podoba zápisu, ve které se poznala. */
+export interface RecognizedDigit {
+  readonly digit: number;
+  readonly form: WritingForm;
+}
+
+/**
+ * Vzdálenost zrcadlového zápisu od vzorů se násobí tímto číslem. Normální
+ * podoba tak má přednost (#85, AC3): zrcadlení vyhraje, jen když je
+ * podobnost výrazně lepší, a normálně napsaná 2 se nezmění v 5.
+ */
+const MIRRORED_DISTANCE_FACTOR = 1.5;
+
+/**
+ * Obrácená nebo zrcadlová podoba se bere, jen když je nejbližší vzor
+ * blíž než tohle (u zrcadlení po vynásobení `MIRRORED_DISTANCE_FACTOR`),
+ * tedy přísněji než `MAX_TEMPLATE_DISTANCE`. Jinak by se
+ * číslice, které hra v normální podobě nezná, začaly plést: čtyřka se
+ * zavřeným vrškem napsaná od konce vypadá jako devítka
+ * (tests/games/counting/notNineRecognition.test.ts).
+ */
+const MAX_OTHER_FORM_DISTANCE = 3000;
+
+/**
  * Pozná napsanou číslici 0–9. Vrátí `null`, když zápis není číslice
  * (tečka, čárka, čmáranice, prázdný zápis). Vstup nemění.
  */
 export function recognizeDigit(strokes: readonly Stroke[], area: WritingAreaSize): number | null {
+  return recognizeDigitWithForm(strokes, area)?.digit ?? null;
+}
+
+/**
+ * Pozná napsanou číslici i podobu, ve které ji dítě napsalo (normálně,
+ * odspodu nebo zrcadlově). Vrátí `null`, když zápis není číslice. Vstup nemění.
+ */
+export function recognizeDigitWithForm(
+  strokes: readonly Stroke[],
+  area: WritingAreaSize,
+): RecognizedDigit | null {
   const points = usablePoints(strokes);
   if (points.length === 0) {
     return null;
@@ -120,18 +162,89 @@ export function recognizeDigit(strokes: readonly Stroke[], area: WritingAreaSize
   }
 
   if (bounds.width < bounds.height * ONE_WIDTH_SHARE) {
-    return 1;
+    return { digit: 1, form: 'normal' };
   }
 
-  // Smyčku na začátku zápisu (devítka, nula) jde začít psát kdekoli.
-  // Zkusí se proto i jiné začátky smyčky a vyhraje nejpodobnější podoba.
-  const variants = loopStartVariants(resample(points, LOOP_SEARCH_POINTS), size).map((variant) =>
-    nearestTemplates(normalize(resample(variant, SAMPLE_POINTS), bounds)),
+  // Vyhraje podoba, jejíž nejbližší vzor je nejpodobnější. Při shodě
+  // vyhraje dřívější, proto je normální podoba první.
+  const best = writtenForms(points, bounds)
+    .map((written) => nearestInForm(written, bounds, size))
+    .filter((candidate) => candidate.form === 'normal' || isConvincing(candidate.nearest))
+    .reduce((winner, candidate) =>
+      closestDistance(candidate.nearest) < closestDistance(winner.nearest) ? candidate : winner,
+    );
+  const digit = digitByVote(best.nearest);
+  return digit === null ? null : { digit, form: best.form };
+}
+
+interface FormPoints {
+  readonly form: WritingForm;
+  readonly points: readonly StrokePoint[];
+  /** Kolikrát se vzdálenost od vzorů zvětší (přednost normální podoby). */
+  readonly distanceFactor: number;
+}
+
+/**
+ * Zápis v podobách, které se zkoušejí: tak, jak ho dítě napsalo, obrácený
+ * (dítě psalo od konce) a zrcadlený zleva doprava v rámečku zápisu, také
+ * obrácený. Obrácení a zrcadlení vrátí zápis do podoby, jak se číslice píše.
+ */
+function writtenForms(points: readonly StrokePoint[], bounds: Bounds): FormPoints[] {
+  const reversed = [...points].reverse();
+  return [
+    { form: 'normal', points, distanceFactor: 1 },
+    { form: 'reversed', points: reversed, distanceFactor: 1 },
+    {
+      form: 'mirrored',
+      points: mirrored(points, bounds),
+      distanceFactor: MIRRORED_DISTANCE_FACTOR,
+    },
+    {
+      form: 'mirrored',
+      points: mirrored(reversed, bounds),
+      distanceFactor: MIRRORED_DISTANCE_FACTOR,
+    },
+  ];
+}
+
+/** Zápis zrcadlený zleva doprava uvnitř svého rámečku. */
+function mirrored(points: readonly StrokePoint[], bounds: Bounds): StrokePoint[] {
+  const axis = 2 * bounds.left + bounds.width;
+  return points.map((point) => ({ x: axis - point.x, y: point.y }));
+}
+
+interface FormNeighbours {
+  readonly form: WritingForm;
+  readonly nearest: Neighbour[];
+}
+
+/**
+ * Nejpodobnější vzory pro jednu podobu zápisu. Smyčku na začátku zápisu
+ * (devítka, nula) jde začít psát kdekoli, zkusí se proto i jiné začátky
+ * smyčky a vyhraje nejpodobnější z nich.
+ */
+function nearestInForm(written: FormPoints, bounds: Bounds, size: number): FormNeighbours {
+  const variants = loopStartVariants(resample(written.points, LOOP_SEARCH_POINTS), size).map(
+    (variant) =>
+      nearestTemplates(normalize(resample(variant, SAMPLE_POINTS), bounds)).map((neighbour) => ({
+        digit: neighbour.digit,
+        distance: neighbour.distance * written.distanceFactor,
+      })),
   );
-  const best = variants.reduce((winner, candidate) =>
-    (candidate[0]?.distance ?? Infinity) < (winner[0]?.distance ?? Infinity) ? candidate : winner,
+  const nearest = variants.reduce((winner, candidate) =>
+    closestDistance(candidate) < closestDistance(winner) ? candidate : winner,
   );
-  return digitByVote(best);
+  return { form: written.form, nearest };
+}
+
+/** Obrácená nebo zrcadlová podoba je dost podobná vzoru, aby se vzala. */
+function isConvincing(nearest: readonly Neighbour[]): boolean {
+  return closestDistance(nearest) <= MAX_OTHER_FORM_DISTANCE;
+}
+
+/** Vzdálenost nejbližšího vzoru; bez vzorů nekonečno. */
+function closestDistance(nearest: readonly Neighbour[]): number {
+  return nearest[0]?.distance ?? Infinity;
 }
 
 /**
@@ -312,10 +425,14 @@ function evenlySpaced(values: readonly number[]): number[] {
   return resample(points, SAMPLE_POINTS).flatMap((point) => [point.x, point.y]);
 }
 
-/** Součet čtverců rozdílů dvou zápisů. */
-function distance(a: readonly number[], b: readonly number[]): number {
+/**
+ * Součet čtverců rozdílů dvou zápisů. Jakmile součet dosáhne `limit`,
+ * počítání skončí (vzor už mezi nejbližší nepatří), takže výsledek je pak
+ * aspoň `limit`. Zrychlí to rozpoznávání, které zkouší víc podob zápisu.
+ */
+function distance(a: readonly number[], b: readonly number[], limit = Infinity): number {
   let sum = 0;
-  for (let index = 0; index < a.length; index += 1) {
+  for (let index = 0; index < a.length && sum < limit; index += 1) {
     const difference = (a[index] ?? 0) - (b[index] ?? 0);
     sum += difference * difference;
   }
@@ -331,11 +448,9 @@ interface Neighbour {
 function nearestTemplates(sample: readonly number[]): Neighbour[] {
   const nearest: Neighbour[] = [];
   for (const template of templates()) {
-    const templateDistance = distance(sample, template.values);
-    if (
-      nearest.length < NEIGHBOURS ||
-      templateDistance < (nearest[NEIGHBOURS - 1]?.distance ?? 0)
-    ) {
+    const limit = nearest.length < NEIGHBOURS ? Infinity : (nearest[NEIGHBOURS - 1]?.distance ?? 0);
+    const templateDistance = distance(sample, template.values, limit);
+    if (templateDistance < limit) {
       nearest.push({ digit: template.digit, distance: templateDistance });
       nearest.sort((a, b) => a.distance - b.distance);
       nearest.length = Math.min(nearest.length, NEIGHBOURS);
