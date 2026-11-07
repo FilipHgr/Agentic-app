@@ -21,8 +21,9 @@ import type { ColoringPage } from '../logic/coloringSession';
 import { PALETTE, initialPalette, markedColors, tapColor } from '../logic/palette';
 import type { PaletteState } from '../logic/palette';
 import { buildRegionMap, outlineFromImage } from '../logic/regionMap';
-import { UNDO_WOBBLE_TONES, openColoring } from '../logic/savedPicture';
-import type { SavedColoring, UndoResult } from '../logic/savedPicture';
+import { noRecentColors } from '../logic/recentColors';
+import { RECENT_COLOR_WOBBLE_TONES, UNDO_WOBBLE_TONES, openColoring } from '../logic/savedPicture';
+import type { RecentColorTap, SavedColoring, UndoResult } from '../logic/savedPicture';
 import { PICTURE_STYLE } from '../logic/theme';
 import {
   INITIAL_LINE_SIZE,
@@ -35,6 +36,7 @@ import {
 import type { HandleView, LineSize, ToolId } from '../logic/toolPanel';
 import { HandleButtonView } from './HandleButtonView';
 import { PaintLayer } from './PaintLayer';
+import { RecentColorsView } from './RecentColorsView';
 import { PICTURE, drawPictureOutline, snapshotOf } from './pictureCanvas';
 import { ToolPanelView } from './ToolPanelView';
 import type { PanelSelection } from './ToolPanelView';
@@ -75,7 +77,8 @@ const NO_PAGE: ColoringPage = {
  * panelu, který otevře a zavře úchyt v pruhu ovládání. Kam dotyk patří
  * (úchyt, Zpět, panel, obrázek), rozhoduje `touchTargetAt`; malovat se
  * smí jen u dotyku na obrázku. Stav panelu, vybraný nástroj (štětec nebo
- * guma, #90) i velikost čáry (#91) drží `savedPicture.ts`.
+ * guma, #90) i velikost čáry (#91) drží `savedPicture.ts`. Vedle úchytu
+ * jsou dvě nedávné barvy (#99), jejich pořadí řídí také `savedPicture.ts`.
  */
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -95,6 +98,7 @@ export class ColoringScene extends Phaser.Scene {
   private readonly panelView = new ToolPanelView(this);
   private readonly handleView = new HandleButtonView(this);
   private readonly undoView = new UndoButtonView(this);
+  private readonly recentView = new RecentColorsView(this);
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu (#67 AC6).
   private readonly sounds = createTonePlayer(sharedToneContext);
   /** Přerušení tahu systémem (hovor, gesto systému) hlásí prohlížeč jako zrušený dotyk. */
@@ -195,6 +199,8 @@ export class ColoringScene extends Phaser.Scene {
     this.handleView.place(this.layout, this.gameArea.scale, STRIP_DEPTH);
     this.showHandle(open);
     this.undoView.place(this.layout.undoButton, this.gameArea.scale, STRIP_DEPTH);
+    this.recentView.place(this.layout.recentColors, this.gameArea.scale, STRIP_DEPTH);
+    this.showRecentColors();
   }
 
   /** Bílá plocha s rámečkem, vrstva barev a obrys přesně na místo omalovánky. */
@@ -274,10 +280,16 @@ export class ColoringScene extends Phaser.Scene {
     this.showHandle(open);
   }
 
-  /** Vybraná barva, nástroj a velikost v panelu i v úchytu. */
+  /** Vybraná barva, nástroj a velikost v panelu i v úchytu, nedávné barvy v pruhu. */
   private showSelection(): void {
     this.panelView.mark(this.panelSelection());
     this.showHandle(this.isPanelOpen());
+    this.showRecentColors();
+  }
+
+  /** Nedávné barvy v pruhu; dokud se obrázek připravuje, jsou místa prázdná. */
+  private showRecentColors(): void {
+    this.recentView.show(this.coloring?.recentColors() ?? noRecentColors());
   }
 
   /** Ťuknutí na úchyt: panel se otevře nebo zavře s tónem; během tahu nic (#96 AC2). */
@@ -342,6 +354,33 @@ export class ColoringScene extends Phaser.Scene {
       this.palette = this.coloring.palette();
     }
     this.showSelection();
+  }
+
+  /**
+   * Ťuknutí na nedávnou barvu (#99 AC1): vybere ji s tónem a panel nechá,
+   * jak byl. Prázdné místo se jen zhoupne s tichým tónem, druhý prst během
+   * tahu nic nedělá. Dokud se obrázek připravuje, jsou místa prázdná.
+   */
+  private onRecentColorTapped(index: number): void {
+    const result: RecentColorTap = this.coloring?.tapRecentColor(index) ?? {
+      kind: 'wobble',
+      tones: RECENT_COLOR_WOBBLE_TONES,
+    };
+    switch (result.kind) {
+      case 'picked':
+        if (this.coloring !== null) {
+          this.palette = this.coloring.palette();
+        }
+        this.sounds.play(result.tones);
+        this.showSelection();
+        return;
+      case 'wobble':
+        this.recentView.wobble(index);
+        this.sounds.play(result.tones);
+        return;
+      case 'ignored':
+        return;
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -419,6 +458,8 @@ export class ColoringScene extends Phaser.Scene {
         this.onSizeToggleTapped();
         return;
       case 'recentColor':
+        this.onRecentColorTapped(target.index);
+        return;
       case 'panel':
       case 'none':
         // Prázdné místo, pozadí panelu nebo místo vedle: nic se nestane a nemaluje se.

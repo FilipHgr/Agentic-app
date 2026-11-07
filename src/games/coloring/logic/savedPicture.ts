@@ -29,6 +29,10 @@
  * profilu v samostatném záznamu vedle obrázku (`toolPanel.ts`), záznam
  * obrázku p1 a p2 zůstává beze změny. Změna velikosti obrázek nemění
  * a do Zpět se nepočítá.
+ *
+ * Dvě nedávné barvy v pruhu (#99) se mění každým výběrem barvy (v pruhu
+ * i v panelu) podle `recentColors.ts`, ukládají se hned po výběru do
+ * samostatného záznamu vedle obrázku a Zpět je nemění.
  * Čistý TypeScript bez Phaseru.
  */
 
@@ -42,6 +46,8 @@ import type { PaletteState } from './palette';
 import { CURRENT_LAYER_CODE, decodeColorLayer, encodeColorLayer } from './colorLayerCode';
 import type { LayerCodeVersion } from './colorLayerCode';
 import type { RegionMap } from './regionMap';
+import { loadRecentColors, recentAfterPick, storeRecentColors } from './recentColors';
+import type { RecentColors } from './recentColors';
 import { createUndoHistory } from './strokeHistory';
 import {
   INITIAL_TOOL,
@@ -114,6 +120,18 @@ export type UndoResult =
   /** Ťuknutí uprostřed tahu: nic se nestane, tah pokračuje. */
   | { readonly kind: 'ignored' };
 
+/** Tichý tón, když se prázdné místo nedávné barvy jen zhoupne (#99 AC3), stejný jako u Zpět. */
+export const RECENT_COLOR_WOBBLE_TONES: readonly Tone[] = UNDO_WOBBLE_TONES;
+
+/** Co udělalo ťuknutí na místo nedávné barvy v pruhu (#99). */
+export type RecentColorTap =
+  /** Barva se vybrala: scéna překreslí výběr a zahraje tón. */
+  | { readonly kind: 'picked'; readonly tones: readonly Tone[] }
+  /** Prázdné místo: jen se zhoupne s tichým tónem a nic nevybere. */
+  | { readonly kind: 'wobble'; readonly tones: readonly Tone[] }
+  /** Ťuknutí druhým prstem během tahu: nic se nestane, tah pokračuje. */
+  | { readonly kind: 'ignored' };
+
 export interface SavedColoring {
   /**
    * Prst se dotkl obrázku; štětec maluje barvou vybranou v paletě, guma
@@ -134,6 +152,17 @@ export interface SavedColoring {
    * k zahrání. Během tahu se nepočítá (druhý prst) a vrátí `[]`.
    */
   tapColor(index: number): readonly Tone[];
+  /**
+   * Dvě místa nedávných barev v pořadí pruhu (#99): index barvy palety,
+   * `null` u prázdného místa.
+   */
+  recentColors(): RecentColors;
+  /**
+   * Ťuknutí na místo `index` nedávných barev (#99 AC1): vybere barvu
+   * stejně jako `tapColor`, prázdné místo se jen zhoupne. Panel zůstane,
+   * jak byl.
+   */
+  tapRecentColor(index: number): RecentColorTap;
   /**
    * Ťuknutí na Zpět (#89): vrátí poslední tah (nejvýš 20 zpět) a hned
    * uloží. Historie je jen v paměti do odchodu z hry; `suspend` ji nemaže.
@@ -360,6 +389,8 @@ export function openColoring(options: {
   let paintingTool: ToolId = INITIAL_TOOL;
   /** Velikost čáry pro všechny nástroje, pamatuje se podle profilu (#91 AC5). */
   let lineSize: LineSize = loadLineSize(storage);
+  /** Dvě nedávné barvy v pruhu, pamatují se podle profilu (#99 AC5). */
+  let recentColors: RecentColors = loadRecentColors(storage, picture.id, palette.selected);
 
   /** Zapíše první otevření spolu s prvním ukládáním (#92 AC1: samotné otevření nic nezapíše). */
   const rememberOpening = (): void => {
@@ -402,6 +433,28 @@ export function openColoring(options: {
     finishStroke();
   };
 
+  /**
+   * Vybere barvu `index` (z panelu i z pruhu): po gumě a duze přepne
+   * nástroj, posune nedávné barvy a hned uloží. Neplatný index nic nezmění.
+   */
+  const pickColor = (index: number): readonly Tone[] => {
+    if (isPaletteIndex(index)) {
+      // Barva patří malovacímu nástroji: po gumě se maluje hned vybranou barvou (#90 AC4),
+      // u duhy štětcem (#97 AC4).
+      tool = toolForColor(paintingTool);
+      paintingTool = tool;
+    }
+    const { state, tones } = tapColor(palette, index);
+    if (state.selected !== palette.selected) {
+      unsaved = true;
+      recentColors = recentAfterPick(recentColors, palette.selected, state.selected);
+      storeRecentColors(storage, picture.id, recentColors);
+    }
+    palette = state;
+    save();
+    return tones;
+  };
+
   return {
     pointerDown(pointer) {
       panelOpen = false;
@@ -431,19 +484,20 @@ export function openColoring(options: {
       if (strokePointer !== null) {
         return [];
       }
-      if (isPaletteIndex(index)) {
-        // Barva patří malovacímu nástroji: po gumě se maluje hned vybranou barvou (#90 AC4),
-        // u duhy štětcem (#97 AC4).
-        tool = toolForColor(paintingTool);
-        paintingTool = tool;
+      return pickColor(index);
+    },
+
+    recentColors: () => recentColors,
+
+    tapRecentColor(index) {
+      if (strokePointer !== null) {
+        return { kind: 'ignored' };
       }
-      const { state, tones } = tapColor(palette, index);
-      if (state.selected !== palette.selected) {
-        unsaved = true;
+      const color = Number.isInteger(index) ? (recentColors[index] ?? null) : null;
+      if (color === null) {
+        return { kind: 'wobble', tones: RECENT_COLOR_WOBBLE_TONES };
       }
-      palette = state;
-      save();
-      return tones;
+      return { kind: 'picked', tones: pickColor(color) };
     },
 
     tapUndo() {
