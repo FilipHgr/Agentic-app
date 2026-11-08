@@ -13,7 +13,7 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * pravidla rozložení z #96 (64 px, 8 px, nic se nepřekrývá, vejde se)
  * běží beze změny v `toolPanelLayoutRules.test.ts`; tady jsou jen
  * pravidla o místě spreje. Každé pravidlo projde v cyklu všechna okna
- * z `coloringLayoutScenes.ts` (zavřený i otevřený panel).
+ * z `coloringLayoutScenes.ts` (zavřený panel a oba kroky panelu z #105).
  *
  * Navržené rozhraní: `PANEL_TOOLS` v `src/games/coloring/logic/toolPanel.ts`
  * obsahuje `'spray'`, nástroj `PANEL_TOOLS[i]` leží na místě
@@ -46,9 +46,9 @@ describe('#104 AC1: sprej je na vyhrazeném místě v panelu', () => {
     }
   });
 
-  it('ťuknutí na sprej v otevřeném panelu jde na jeho nástroj ve všech oknech', () => {
+  it('ťuknutí na sprej v kroku nástrojů jde na jeho nástroj ve všech oknech', () => {
     expect(SPRAY_SLOT, 'sprej je v panelu').toBeGreaterThanOrEqual(0);
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: sprej`;
       const slot = testCase.layout.toolSlots[SPRAY_SLOT];
       expect(slot, name).toBeDefined();
@@ -56,16 +56,16 @@ describe('#104 AC1: sprej je na vyhrazeném místě v panelu', () => {
         continue;
       }
       const { x, y } = center(slot);
-      expect(touchTargetAt(testCase.layout, true, x, y), name).toEqual({
+      expect(touchTargetAt(testCase.layout, 'tools', x, y), name).toEqual({
         kind: 'tool',
         index: SPRAY_SLOT,
       });
     }
   });
 
-  it('sprej má v otevřeném panelu aspoň 64 × 64 px a leží celé v panelu na obrazovce', () => {
+  it('sprej má v kroku nástrojů aspoň 64 × 64 px a leží celé v panelu na obrazovce', () => {
     expect(SPRAY_SLOT, 'sprej je v panelu').toBeGreaterThanOrEqual(0);
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: sprej`;
       const box = testCase.tools[SPRAY_SLOT];
       expect(box, name).toBeDefined();
@@ -79,9 +79,9 @@ describe('#104 AC1: sprej je na vyhrazeném místě v panelu', () => {
     }
   });
 
-  it('sprej nepřekrývá jiné nástroje, barvy, přepínač velikosti ani ovládání v pruhu', () => {
+  it('sprej nepřekrývá jiné nástroje, přepínač velikosti ani ovládání v pruhu', () => {
     expect(SPRAY_SLOT, 'sprej je v panelu').toBeGreaterThanOrEqual(0);
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: sprej`;
       const box = testCase.tools[SPRAY_SLOT];
       if (box === undefined) {
@@ -104,22 +104,19 @@ describe('#104 AC1: sprej je na vyhrazeném místě v panelu', () => {
           );
         }
       });
-      testCase.colors.forEach((color, colorIndex) => {
-        expect(overlaps(box, color), `${name}: překryv s barvou ${colorIndex + 1}`).toBe(false);
-      });
     }
   });
 
-  it('se zavřeným panelem ťuknutí na místo spreje nevybere nástroj', () => {
+  it('se zavřeným panelem ani v kroku barev ťuknutí na místo spreje nevybere nástroj', () => {
     expect(SPRAY_SLOT, 'sprej je v panelu').toBeGreaterThanOrEqual(0);
-    for (const testCase of cases().filter((each) => each.panel === 'closed')) {
+    for (const testCase of cases().filter((each) => each.panel !== 'tools')) {
       const slot = testCase.layout.toolSlots[SPRAY_SLOT];
       if (slot === undefined) {
         continue;
       }
       const { x, y } = center(slot);
       expect(
-        touchTargetAt(testCase.layout, false, x, y).kind,
+        touchTargetAt(testCase.layout, testCase.panel, x, y).kind,
         `${testCase.scene.label}: sprej`,
       ).not.toBe('tool');
     }

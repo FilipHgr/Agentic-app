@@ -8,10 +8,15 @@
  * ovládání: domeček, úchyt panelu, Zpět a místo pro 2 nedávné barvy.
  * Na šířku je pruh vlevo a panel vyjíždí zleva (L-A), na výšku je pruh
  * dole, úchyt uprostřed, Zpět vpravo, nedávné barvy vlevo a panel vyjíždí
- * zdola (P-A). Domeček na výšku zůstává vlevo nahoře. Každé okno se zkouší
- * se zavřeným i otevřeným panelem. Otevřený panel má plný plánovaný obsah:
- * 12 barev, 10 nástrojů a přepínač velikosti (23 ploch); leží přes obrázek,
- * proto se s ním smí překrývat (a jeho tlačítka s pozadím panelu).
+ * zdola (P-A). Domeček na výšku zůstává vlevo nahoře.
+ *
+ * Od #105 je panel ve dvou krocích se stejným rozměrem panelu: krok
+ * nástrojů (přepínač velikosti v hlavičce a 10 nástrojů v těle) a krok
+ * barev (vybraný nástroj v hlavičce na místě přepínače a 12 barev v těle),
+ * každý nejvýš 13 ploch. Každé okno se zkouší se zavřeným panelem a v obou
+ * krocích. Otevřený panel leží přes obrázek, proto se s ním smí překrývat
+ * (a plochy kroku s pozadím panelu). Plochy druhého kroku na obrazovce
+ * nejsou, proto se s plochami zobrazeného kroku nesrovnávají.
  *
  * Kolečko nastavení v Omalovánkách není (#88, otázka 2), jeho roh se
  * nevyhrazuje. Domeček je prvek stránky (u iPadu leží zčásti mimo herní
@@ -33,6 +38,16 @@
  *   (barvy `PALETTE` na prvních místech, ostatní zatím prázdné),
  * - `toolSlots: readonly LayoutRect[]` 10 míst pro nástroje,
  * - `sizeToggle: LayoutRect` přepínač velikosti.
+ *
+ * Navržené rozšíření (#105):
+ * - `paletteColors` a `toolSlots` jsou tělo kroku barev a kroku nástrojů
+ *   (na stejném místě panelu, každý krok ukazuje jen svoje),
+ * - `colorStepTool: LayoutRect` vybraný nástroj v hlavičce kroku barev,
+ *   stejný obdélník jako `sizeToggle` v hlavičce kroku nástrojů,
+ * - `panelDivider: LayoutRect` čára mezi hlavičkou a tělem (v obou krocích),
+ * - `touchTargetAt(layout, panel: PanelView, x, y)` s
+ *   `PanelView = 'closed' | 'tools' | 'colors'` (`toolPanel.ts`) a novým
+ *   cílem `{ kind: 'backToTools' }` pro vybraný nástroj v kroku barev.
  */
 
 import {
@@ -40,6 +55,7 @@ import {
   layoutColoring,
 } from '../../../src/games/coloring/logic/coloringLayout';
 import type { ColoringLayout, LayoutRect } from '../../../src/games/coloring/logic/coloringLayout';
+import type { PanelView } from '../../../src/games/coloring/logic/toolPanel';
 import { homeButtonFor } from '../../../src/shared/logic/homeButton';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import type { GameArea } from '../../../src/shared/logic/viewportLayout';
@@ -67,14 +83,22 @@ export const COLORING_WINDOWS: readonly TestWindow[] = [
   ...HOME_SCREEN_WINDOWS,
 ];
 
-export type PanelState = 'closed' | 'open';
+/** Zavřený panel, krok nástrojů, nebo krok barev (#105). */
+export type PanelState = PanelView;
 
-export const PANEL_STATES: readonly PanelState[] = ['closed', 'open'];
+export const PANEL_STATES: readonly PanelState[] = ['closed', 'tools', 'colors'];
 
-/** Plánovaný obsah panelu (#96 AC3): 12 barev, 10 nástrojů a přepínač velikosti. */
+/** Je panel v případu otevřený (v kterémkoli kroku)? */
+export function isOpen(testCase: { readonly panel: PanelState }): boolean {
+  return testCase.panel !== 'closed';
+}
+
+/** Obsah panelu (#96 AC3): 12 barev, 10 nástrojů a přepínač velikosti. */
 export const PLANNED_COLORS = 12;
 export const PLANNED_TOOLS = 10;
-export const PLANNED_PANEL_ITEMS = PLANNED_COLORS + PLANNED_TOOLS + 1;
+
+/** Krok panelu má nejvýš tolik ploch (#105, schválené obrázky). */
+export const MAX_STEP_PLACES = 13;
 
 /** Místa pro nedávné barvy v pruhu (#96 AC1). */
 export const RECENT_COLOR_PLACES = 2;
@@ -85,6 +109,7 @@ export const HANDLE_NAME = 'úchyt panelu';
 export const UNDO_NAME = 'Zpět';
 export const PANEL_NAME = 'panel nástrojů';
 export const SIZE_TOGGLE_NAME = 'přepínač velikosti';
+export const COLOR_STEP_TOOL_NAME = 'vybraný nástroj';
 
 export function colorName(index: number): string {
   return `barva ${index + 1}`;
@@ -140,7 +165,7 @@ function surroundingOf(inner: Box, margin: number): Box {
 }
 
 /** Prvky otevřeného panelu, které leží přes obrázek. */
-const PANEL_PART = /^(panel nástrojů|barva \d+|nástroj \d+|přepínač velikosti)$/;
+const PANEL_PART = /^(panel nástrojů|barva \d+|nástroj \d+|přepínač velikosti|vybraný nástroj)$/;
 
 function isPanelPart(item: LayoutItem): boolean {
   return PANEL_PART.test(item.name);
@@ -164,6 +189,7 @@ function panelOverObjects(first: LayoutItem, second: LayoutItem): boolean {
 export interface ColoringCase {
   readonly window: TestWindow;
   readonly area: GameArea;
+  /** Zavřený panel, krok nástrojů, nebo krok barev. */
   readonly panel: PanelState;
   /** Na šířku (pruh vlevo, L-A), nebo na výšku (pruh dole, P-A)? */
   readonly landscape: boolean;
@@ -182,8 +208,16 @@ export interface ColoringCase {
   readonly panelBox: Box;
   /** Místa pro barvy v panelu v CSS px okna. */
   readonly colors: readonly Box[];
+  /** Místa pro nástroje v kroku nástrojů v CSS px okna. */
   readonly tools: readonly Box[];
+  /** Přepínač velikosti v hlavičce kroku nástrojů. */
   readonly sizeToggle: Box;
+  /** Vybraný nástroj v hlavičce kroku barev (#105). */
+  readonly colorStepTool: Box;
+  /** Čára mezi hlavičkou a tělem panelu (#105). */
+  readonly divider: Box;
+  /** Ťukací plochy zobrazeného kroku (hlavička první), u zavřeného panelu žádné. */
+  readonly stepPlaces: readonly Box[];
   readonly scene: LayoutScene;
 }
 
@@ -196,19 +230,42 @@ function stripItems(home: Box, handle: Box, undo: Box, recentColors: readonly Bo
   ];
 }
 
-function panelItems(
-  panelBox: Box,
-  colors: readonly Box[],
-  tools: readonly Box[],
-  sizeToggle: Box,
-): LayoutItem[] {
+/** Krok nástrojů: přepínač velikosti a 10 nástrojů, žádné barvy (#105 AC1). */
+function toolStepItems(sizeToggle: Box, tools: readonly Box[]): LayoutItem[] {
   return [
-    { name: PANEL_NAME, box: panelBox },
-    ...colors.map((box, index) => ({ name: colorName(index), box, tappable: true })),
-    ...tools.map((box, index) => ({ name: toolName(index), box, tappable: true })),
     { name: SIZE_TOGGLE_NAME, box: sizeToggle, tappable: true },
+    ...tools.map((box, index) => ({ name: toolName(index), box, tappable: true })),
   ];
 }
+
+/** Krok barev: vybraný nástroj a 12 barev (#105 AC2). */
+function colorStepItems(colorStepTool: Box, colors: readonly Box[]): LayoutItem[] {
+  return [
+    { name: COLOR_STEP_TOOL_NAME, box: colorStepTool, tappable: true },
+    ...colors.map((box, index) => ({ name: colorName(index), box, tappable: true })),
+  ];
+}
+
+function panelItems(
+  panel: PanelState,
+  panelBox: Box,
+  places: { sizeToggle: Box; tools: readonly Box[]; colorStepTool: Box; colors: readonly Box[] },
+): LayoutItem[] {
+  if (panel === 'closed') {
+    return [];
+  }
+  const step =
+    panel === 'tools'
+      ? toolStepItems(places.sizeToggle, places.tools)
+      : colorStepItems(places.colorStepTool, places.colors);
+  return [{ name: PANEL_NAME, box: panelBox }, ...step];
+}
+
+const PANEL_LABELS: Readonly<Record<PanelState, string>> = {
+  closed: 'panel zavřený',
+  tools: 'krok nástrojů',
+  colors: 'krok barev',
+};
 
 /** Omalovánky v okně `window` s panelem `panel` jako obrazovka pro pravidla. */
 export function coloringCase(window: TestWindow, panel: PanelState = 'closed'): ColoringCase {
@@ -224,12 +281,19 @@ export function coloringCase(window: TestWindow, panel: PanelState = 'closed'): 
   const colors = layout.paletteColors.map(css);
   const tools = layout.toolSlots.map(css);
   const sizeToggle = css(layout.sizeToggle);
+  // Před implementací #105 pole chybí; obrazovka se pak složí bez něj
+  // a testy #105 selžou na vlastních kontrolách, ne tady.
+  const colorStepTool = css(layout.colorStepTool ?? layout.sizeToggle);
+  const divider = css(layout.panelDivider);
+  const panelPlaces = { sizeToggle, tools, colorStepTool, colors };
   const items: LayoutItem[] = [
     { name: PICTURE_NAME, box: picture },
     ...stripItems(home, handle, undo, recentColors),
-    ...(panel === 'open' ? panelItems(panelBox, colors, tools, sizeToggle) : []),
+    ...panelItems(panel, panelBox, panelPlaces),
   ];
-  const panelLabel = panel === 'open' ? 'panel otevřený' : 'panel zavřený';
+  const stepPlaces = items
+    .filter((item) => item.tappable === true && isPanelPart(item))
+    .map((item) => item.box);
   return {
     window,
     area,
@@ -246,8 +310,11 @@ export function coloringCase(window: TestWindow, panel: PanelState = 'closed'): 
     colors,
     tools,
     sizeToggle,
+    colorStepTool,
+    divider,
+    stepPlaces,
     scene: {
-      label: `${window.name}, Omalovánky, ${panelLabel}`,
+      label: `${window.name}, Omalovánky, ${PANEL_LABELS[panel]}`,
       free: visibleAreaOf(window, area),
       items,
       mayOverlap: panelOverObjects,
@@ -255,7 +322,7 @@ export function coloringCase(window: TestWindow, panel: PanelState = 'closed'): 
   };
 }
 
-/** Každé okno se zavřeným i otevřeným panelem. */
+/** Každé okno se zavřeným panelem a v obou krocích panelu. */
 export function coloringCases(
   windows: readonly TestWindow[] = COLORING_WINDOWS,
   panels: readonly PanelState[] = PANEL_STATES,

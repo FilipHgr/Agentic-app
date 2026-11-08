@@ -14,12 +14,12 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * (`tests/shared/layoutRules.ts`) na obrazovce Omalovánek. Každé pravidlo
  * má jeden test, který v cyklu projde všechna okna (iPad na šířku, telefon
  * na šířku i na výšku, hranice, úzký iPad a spuštění z plochy), od #96
- * vždy se zavřeným i otevřeným panelem. Obrazovku skládá
+ * vždy se zavřeným panelem a od #105 v obou krocích panelu. Obrazovku skládá
  * `coloringLayoutScenes.ts`.
  *
  * Dřívější test „žádná barva neleží na ploše omalovánky“ nahrazuje od #96
  * test, že ťuknutí na barvu v otevřeném panelu vybere barvu a nemaluje
- * (panel leží přes obrázek, #96 AC4).
+ * (panel leží přes obrázek, #96 AC4), od #105 v kroku barev.
  */
 
 /** Kratší strana plochy omalovánky aspoň 240 CSS px (AC1). */
@@ -37,16 +37,16 @@ function cases(): ColoringCase[] {
 }
 
 describe('#88 AC1, AC6: obrazovka Omalovánek dodrží společná pravidla rozložení', () => {
-  it('zkouší se iPad na šířku, telefon na šířku i na výšku a okna z plochy, oba stavy panelu', () => {
+  it('zkouší se iPad na šířku, telefon na šířku i na výšku a okna z plochy, zavřený panel i oba kroky', () => {
     const modes = new Set(cases().map((testCase) => testCase.area.mode));
     expect([...modes].sort()).toEqual(['phoneLandscape', 'phonePortrait', 'tablet']);
     for (const window of HOME_SCREEN_WINDOWS) {
       expect(COLORING_WINDOWS, window.name).toContain(window);
     }
     const panels = new Set(cases().map((testCase) => testCase.panel));
-    expect([...panels].sort()).toEqual(['closed', 'open']);
+    expect([...panels].sort()).toEqual(['closed', 'colors', 'tools']);
     const labels = cases().map((testCase) => testCase.scene.label);
-    expect(new Set(labels).size, 'každé okno a stav panelu je jiný případ').toBe(labels.length);
+    expect(new Set(labels).size, 'každé okno a krok panelu je jiný případ').toBe(labels.length);
   });
 
   for (const [ruleName, rule] of Object.entries(LAYOUT_RULES)) {
@@ -84,7 +84,7 @@ describe('#88 AC4, #96 AC3: v panelu je každá barva palety', () => {
     }
   });
 
-  it('ťuknutí na barvu v otevřeném panelu vybere tu barvu a nic nenamaluje', () => {
+  it('ťuknutí na barvu v kroku barev vybere tu barvu a nic nenamaluje', () => {
     for (const testCase of cases()) {
       const { layout } = testCase;
       PALETTE.forEach((_, index) => {
@@ -94,7 +94,7 @@ describe('#88 AC4, #96 AC3: v panelu je každá barva palety', () => {
         }
         const target = touchTargetAt(
           layout,
-          true,
+          'colors',
           slot.left + slot.width / 2,
           slot.top + slot.height / 2,
         );

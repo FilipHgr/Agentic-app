@@ -286,8 +286,9 @@ describe('#99 AC3: začátek a okrajové případy', () => {
   });
 
   it('ťuknutí na prázdné místo nezmění nástroj ani panel', () => {
-    const game = withPanel(fresh(), true);
+    const game = fresh();
     choose(game, 'eraser');
+    withPanel(game, true);
 
     game.tapRecentColor(0);
 

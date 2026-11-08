@@ -13,11 +13,11 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * 64 × 64 px) a AC6 (pravidla rozložení v cyklu z #96 platí s nedávnými
  * barvami ve všech oknech a otevřený panel je nepřekryje). Každé pravidlo
  * je jeden test, který v cyklu projde všechna okna Omalovánek se zavřeným
- * i otevřeným panelem; obrazovku skládá `coloringLayoutScenes.ts`, místa
+ * panelem i v obou krocích panelu (#105); obrazovku skládá `coloringLayoutScenes.ts`, místa
  * nedávných barev jsou v ní jako ťukací plochy (`nedávná barva 1`, `2`).
  *
  * Kam patří dotyk, rozhoduje `touchTargetAt` (#96): na místě nedávné
- * barvy je `{ kind: 'recentColor', index }` v obou stavech panelu, nikdy
+ * barvy je `{ kind: 'recentColor', index }` ve všech stavech panelu, nikdy
  * obrázek ani panel. Rozhraní rozložení se nemění.
  */
 
@@ -109,13 +109,12 @@ describe('#99 AC1: v pruhu jsou dvě místa pro nedávné barvy, aspoň 64 × 64
     }
   });
 
-  it('ťuknutí kamkoli na místo nedávné barvy jde na tu nedávnou barvu se zavřeným i otevřeným panelem', () => {
+  it('ťuknutí kamkoli na místo nedávné barvy jde na tu nedávnou barvu se zavřeným panelem i v obou krocích', () => {
     for (const testCase of cases()) {
-      const panelOpen = testCase.panel === 'open';
       testCase.layout.recentColors.forEach((recent, index) => {
         for (const point of gridIn(recent, 8)) {
           expect(
-            touchTargetAt(testCase.layout, panelOpen, point.x, point.y),
+            touchTargetAt(testCase.layout, testCase.panel, point.x, point.y),
             `${testCase.scene.label}: nedávná barva ${index + 1} v ${Math.round(point.x)}, ${Math.round(point.y)}`,
           ).toEqual({ kind: 'recentColor', index });
         }
@@ -126,7 +125,7 @@ describe('#99 AC1: v pruhu jsou dvě místa pro nedávné barvy, aspoň 64 × 64
 
 describe('#99 AC6: pravidla rozložení z #96 platí s nedávnými barvami', () => {
   for (const [ruleName, rule] of Object.entries(LAYOUT_RULES)) {
-    it(`${ruleName} s nedávnými barvami ve všech oknech a obou stavech panelu`, () => {
+    it(`${ruleName} s nedávnými barvami ve všech oknech, se zavřeným panelem i v obou krocích`, () => {
       for (const testCase of cases()) {
         const recentItems = testCase.scene.items.filter((item) =>
           item.name.startsWith('nedávná barva'),
@@ -139,8 +138,8 @@ describe('#99 AC6: pravidla rozložení z #96 platí s nedávnými barvami', () 
     });
   }
 
-  it('otevřený panel nepřekryje žádné místo nedávné barvy', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+  it('otevřený panel v obou krocích nepřekryje žádné místo nedávné barvy', () => {
+    for (const testCase of cases().filter((each) => each.panel !== 'closed')) {
       testCase.recentColors.forEach((recent, index) => {
         expect(
           overlaps(testCase.panelBox, recent),
@@ -150,9 +149,10 @@ describe('#99 AC6: pravidla rozložení z #96 platí s nedávnými barvami', () 
     }
   });
 
-  it('žádné tlačítko otevřeného panelu nepřekryje místo nedávné barvy', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
-      const slots = [...testCase.colors, ...testCase.tools, testCase.sizeToggle];
+  it('žádné tlačítko kroku nástrojů ani kroku barev nepřekryje místo nedávné barvy', () => {
+    for (const testCase of cases().filter((each) => each.panel !== 'closed')) {
+      const slots = testCase.stepPlaces;
+      expect(slots.length, `${testCase.scene.label}: plochy kroku`).toBeGreaterThan(0);
       testCase.recentColors.forEach((recent, index) => {
         slots.forEach((slot, slotIndex) => {
           expect(

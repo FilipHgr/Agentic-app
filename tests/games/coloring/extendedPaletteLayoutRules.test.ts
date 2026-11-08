@@ -32,7 +32,7 @@ function cases(): ColoringCase[] {
 }
 
 function openCases(): ColoringCase[] {
-  return cases().filter((testCase) => testCase.panel === 'open');
+  return cases().filter((testCase) => testCase.panel === 'colors');
 }
 
 describe('#100 AC6: pravidla rozložení platí s 12 barvami ve všech oknech', () => {
@@ -61,14 +61,14 @@ describe('#100 AC6: pravidla rozložení platí s 12 barvami ve všech oknech', 
     }
   });
 
-  it('ťuknutí na každé z 12 míst v otevřeném panelu vybere barvu na tom místě a nic nenamaluje', () => {
+  it('ťuknutí na každé z 12 míst v kroku barev vybere barvu na tom místě a nic nenamaluje', () => {
     for (const testCase of openCases()) {
       const { layout } = testCase;
       expect(layout.paletteColors.length, testCase.scene.label).toBe(COLOR_COUNT);
       layout.paletteColors.forEach((slot, index) => {
         const target = touchTargetAt(
           layout,
-          true,
+          'colors',
           slot.left + slot.width / 2,
           slot.top + slot.height / 2,
         );

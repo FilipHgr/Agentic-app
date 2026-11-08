@@ -15,7 +15,7 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * z #96 (64 px, 8 px, nic se nepřekrývá, vejde se) běží beze změny
  * v `toolPanelLayoutRules.test.ts`; tady jsou jen pravidla o místech fixu
  * a pastelky. Každé pravidlo projde v cyklu všechna okna
- * z `coloringLayoutScenes.ts` (zavřený i otevřený panel).
+ * z `coloringLayoutScenes.ts` (zavřený panel a oba kroky panelu z #105).
  *
  * Navržené rozhraní: `PANEL_TOOLS` v `src/games/coloring/logic/toolPanel.ts`
  * obsahuje `'marker'` a `'crayon'`, nástroj `PANEL_TOOLS[i]` leží na místě
@@ -71,8 +71,8 @@ describe('#93 AC1: fix a pastelka jsou na vyhrazených místech v panelu', () =>
     }
   });
 
-  it('ťuknutí na fix nebo pastelku v otevřeném panelu jde na jejich nástroj ve všech oknech', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+  it('ťuknutí na fix nebo pastelku v kroku nástrojů jde na jejich nástroj ve všech oknech', () => {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       for (const { name, index } of newToolPlaces(testCase)) {
         const slot = testCase.layout.toolSlots[index];
         expect(slot, name).toBeDefined();
@@ -80,13 +80,16 @@ describe('#93 AC1: fix a pastelka jsou na vyhrazených místech v panelu', () =>
           continue;
         }
         const { x, y } = center(slot);
-        expect(touchTargetAt(testCase.layout, true, x, y), name).toEqual({ kind: 'tool', index });
+        expect(touchTargetAt(testCase.layout, 'tools', x, y), name).toEqual({
+          kind: 'tool',
+          index,
+        });
       }
     }
   });
 
-  it('fix a pastelka mají v otevřeném panelu aspoň 64 × 64 px a leží celé v panelu', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+  it('fix a pastelka mají v kroku nástrojů aspoň 64 × 64 px a leží celé v panelu', () => {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       for (const { name, index } of newToolPlaces(testCase)) {
         const box = testCase.tools[index];
         expect(box, name).toBeDefined();
@@ -101,8 +104,8 @@ describe('#93 AC1: fix a pastelka jsou na vyhrazených místech v panelu', () =>
     }
   });
 
-  it('fix a pastelka nepřekrývají jiné nástroje, barvy, přepínač velikosti ani ovládání v pruhu', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+  it('fix a pastelka nepřekrývají jiné nástroje, přepínač velikosti ani ovládání v pruhu', () => {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const strip = [
         testCase.home,
         testCase.handle,
@@ -125,22 +128,19 @@ describe('#93 AC1: fix a pastelka jsou na vyhrazených místech v panelu', () =>
             );
           }
         });
-        testCase.colors.forEach((color, colorIndex) => {
-          expect(overlaps(box, color), `${name}: překryv s barvou ${colorIndex + 1}`).toBe(false);
-        });
       }
     }
   });
 
-  it('se zavřeným panelem ťuknutí na místo fixu nebo pastelky nevybere nástroj', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'closed')) {
+  it('se zavřeným panelem ani v kroku barev ťuknutí na místo fixu nebo pastelky nevybere nástroj', () => {
+    for (const testCase of cases().filter((each) => each.panel !== 'tools')) {
       for (const { name, index } of newToolPlaces(testCase)) {
         const slot = testCase.layout.toolSlots[index];
         if (slot === undefined) {
           continue;
         }
         const { x, y } = center(slot);
-        expect(touchTargetAt(testCase.layout, false, x, y).kind, name).not.toBe('tool');
+        expect(touchTargetAt(testCase.layout, testCase.panel, x, y).kind, name).not.toBe('tool');
       }
     }
   });

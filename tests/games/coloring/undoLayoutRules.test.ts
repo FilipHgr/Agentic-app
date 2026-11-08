@@ -37,7 +37,7 @@ function cases(): UndoCase[] {
 
 describe('#89 AC7, #96 AC3: obrazovka se Zpět dodrží společná pravidla rozložení', () => {
   for (const [ruleName, rule] of Object.entries(LAYOUT_RULES)) {
-    it(`${ruleName} ve všech oknech i s tlačítkem Zpět, se zavřeným i otevřeným panelem`, () => {
+    it(`${ruleName} ve všech oknech i s tlačítkem Zpět, se zavřeným panelem i v obou krocích`, () => {
       for (const testCase of cases()) {
         expect(rule(testCase.scene), testCase.scene.label).toEqual([]);
       }

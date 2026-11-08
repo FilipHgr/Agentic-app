@@ -68,6 +68,28 @@ export function toolForColor(paintingTool: ToolId): ToolId {
   return usesSelectedColor(paintingTool) ? paintingTool : INITIAL_TOOL;
 }
 
+/**
+ * Krok panelu (#105): zavřený, krok nástrojů (přepínač velikosti a 10
+ * nástrojů), nebo krok barev (vybraný nástroj a 12 barev).
+ */
+export type PanelView = 'closed' | 'tools' | 'colors';
+
+/**
+ * Má nástroj krok barev (#105 AC2)? Jen nástroje, které malují vybranou
+ * barvou; guma a duha ho nemají a ťuknutí na ně panel zavře (AC4).
+ */
+export function hasColorStep(tool: ToolId): boolean {
+  return usesSelectedColor(tool);
+}
+
+/**
+ * Krátký tón při návratu z kroku barev k nástrojům (#105 AC4), dozní za
+ * 0,1 s. Zní níž než výběr nástroje, aby se návrat od výběru odlišil.
+ */
+export const BACK_TO_TOOLS_TONES: readonly Tone[] = [
+  { frequencyHz: 587.33, startSeconds: 0, durationSeconds: 0.1, volume: 0.13 },
+];
+
 /** Krátký tón při ťuknutí na nástroj (#90 AC1), dozní za 0,12 s. */
 export const TOOL_PICK_TONES: readonly Tone[] = [
   { frequencyHz: 698.46, startSeconds: 0, durationSeconds: 0.12, volume: 0.15 },

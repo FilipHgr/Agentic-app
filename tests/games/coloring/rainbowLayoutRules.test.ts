@@ -13,7 +13,7 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * pravidla rozložení z #96 (64 px, 8 px, nic se nepřekrývá, vejde se)
  * běží beze změny v `toolPanelLayoutRules.test.ts`; tady jsou jen
  * pravidla o místě duhy. Každé pravidlo projde v cyklu všechna okna
- * z `coloringLayoutScenes.ts` (zavřený i otevřený panel).
+ * z `coloringLayoutScenes.ts` (zavřený panel a oba kroky panelu z #105).
  *
  * Navržené rozhraní: `PANEL_TOOLS` v `src/games/coloring/logic/toolPanel.ts`
  * obsahuje `'rainbow'`, nástroj `PANEL_TOOLS[i]` leží na místě
@@ -45,8 +45,8 @@ describe('#97 AC1: duhový štětec je na vyhrazeném místě v panelu', () => {
     }
   });
 
-  it('ťuknutí na duhu v otevřeném panelu jde na její nástroj ve všech oknech', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+  it('ťuknutí na duhu v kroku nástrojů jde na její nástroj ve všech oknech', () => {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: duha`;
       const slot = testCase.layout.toolSlots[RAINBOW_SLOT];
       expect(slot, name).toBeDefined();
@@ -54,15 +54,15 @@ describe('#97 AC1: duhový štětec je na vyhrazeném místě v panelu', () => {
         continue;
       }
       const { x, y } = center(slot);
-      expect(touchTargetAt(testCase.layout, true, x, y), name).toEqual({
+      expect(touchTargetAt(testCase.layout, 'tools', x, y), name).toEqual({
         kind: 'tool',
         index: RAINBOW_SLOT,
       });
     }
   });
 
-  it('duha má v otevřeném panelu aspoň 64 × 64 px a leží celá v panelu na obrazovce', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+  it('duha má v kroku nástrojů aspoň 64 × 64 px a leží celá v panelu na obrazovce', () => {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: duha`;
       const box = testCase.tools[RAINBOW_SLOT];
       expect(box, name).toBeDefined();
@@ -76,8 +76,8 @@ describe('#97 AC1: duhový štětec je na vyhrazeném místě v panelu', () => {
     }
   });
 
-  it('duha nepřekrývá jiné nástroje, barvy, přepínač velikosti ani ovládání v pruhu', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+  it('duha nepřekrývá jiné nástroje, přepínač velikosti ani ovládání v pruhu', () => {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: duha`;
       const box = testCase.tools[RAINBOW_SLOT];
       if (box === undefined) {
@@ -100,21 +100,18 @@ describe('#97 AC1: duhový štětec je na vyhrazeném místě v panelu', () => {
           );
         }
       });
-      testCase.colors.forEach((color, colorIndex) => {
-        expect(overlaps(box, color), `${name}: překryv s barvou ${colorIndex + 1}`).toBe(false);
-      });
     }
   });
 
-  it('se zavřeným panelem ťuknutí na místo duhy nevybere nástroj', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'closed')) {
+  it('se zavřeným panelem ani v kroku barev ťuknutí na místo duhy nevybere nástroj', () => {
+    for (const testCase of cases().filter((each) => each.panel !== 'tools')) {
       const slot = testCase.layout.toolSlots[RAINBOW_SLOT];
       if (slot === undefined) {
         continue;
       }
       const { x, y } = center(slot);
       expect(
-        touchTargetAt(testCase.layout, false, x, y).kind,
+        touchTargetAt(testCase.layout, testCase.panel, x, y).kind,
         `${testCase.scene.label}: duha`,
       ).not.toBe('tool');
     }

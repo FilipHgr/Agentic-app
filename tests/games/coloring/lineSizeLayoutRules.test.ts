@@ -95,21 +95,22 @@ function sizeCases(): Array<{ testCase: ColoringCase; size: LineSize; name: stri
 }
 
 describe('#91 AC1: přepínač velikosti je v panelu na vyhrazeném místě', () => {
-  it('ťuknutí na přepínač v otevřeném panelu jde na přepínač ve všech oknech', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+  it('ťuknutí na přepínač v kroku nástrojů jde na přepínač ve všech oknech', () => {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const { x, y } = centerOf(testCase.layout.sizeToggle);
-      expect(touchTargetAt(testCase.layout, true, x, y), testCase.scene.label).toEqual({
+      expect(touchTargetAt(testCase.layout, 'tools', x, y), testCase.scene.label).toEqual({
         kind: 'sizeToggle',
       });
     }
   });
 
-  it('se zavřeným panelem ťuknutí na místo přepínače velikost nepřepne', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'closed')) {
+  it('se zavřeným panelem ani v kroku barev ťuknutí na místo přepínače velikost nepřepne', () => {
+    for (const testCase of cases().filter((each) => each.panel !== 'tools')) {
       const { x, y } = centerOf(testCase.layout.sizeToggle);
-      expect(touchTargetAt(testCase.layout, false, x, y).kind, testCase.scene.label).not.toBe(
-        'sizeToggle',
-      );
+      expect(
+        touchTargetAt(testCase.layout, testCase.panel, x, y).kind,
+        testCase.scene.label,
+      ).not.toBe('sizeToggle');
     }
   });
 

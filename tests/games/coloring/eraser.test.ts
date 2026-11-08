@@ -328,7 +328,9 @@ describe('#90 AC1: volba nástroje v panelu', () => {
   it('úchyt ukazuje gumu bez barvy i se zavřeným panelem', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
     chooseEraser(game);
-    game.tapHandle();
+    if (game.panelOpen()) {
+      game.tapHandle();
+    }
     expect(game.panelOpen()).toBe(false);
     expect(game.handleView()).toMatchObject({ tool: 'eraser', color: null });
   });

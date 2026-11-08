@@ -20,9 +20,15 @@ import {
 
 /**
  * Testy k #96 AC2 (úchyt otevře a zavře panel, první otevření podle
- * profilu), AC3 (výběr barvy a Zpět panel nezmění), AC4 (tah při
- * otevřeném panelu) a AC5 (úchyt ukazuje výběr). Rozložení a to, kam
- * dotyk patří (panel, nebo obrázek), jsou v `toolPanelLayoutRules.test.ts`.
+ * profilu), AC3 (Zpět panel nezmění), AC4 (tah při otevřeném panelu)
+ * a AC5 (úchyt ukazuje výběr). Rozložení a to, kam dotyk patří (panel,
+ * nebo obrázek), jsou v `toolPanelLayoutRules.test.ts`.
+ *
+ * Od #105 je panel ve dvou krocích a výběr barvy ho zavře. Test „výběr
+ * barvy v otevřeném panelu barvu vybere a panel zůstane otevřený“ (#96
+ * AC3) nahrazují testy #105 AC3 v `panelSteps.test.ts`; testy, které
+ * dřív po výběru barvy počítaly s otevřeným panelem, ho teď otevřou
+ * úchytem.
  *
  * Jedno „otevření hry“ je `openColoring(…)` nad úložištěm hry aktivního
  * profilu, jedno „obnovení stránky“ je nové `openProfiles(storage)` nad
@@ -202,18 +208,7 @@ describe('#96 AC2: úchyt otevře a zavře panel', () => {
   });
 });
 
-describe('#96 AC3: výběr barvy a Zpět panel nezmění', () => {
-  it('výběr barvy v otevřeném panelu barvu vybere a panel zůstane otevřený', () => {
-    const game = openOn(new RecordingStorage(), twoHalves());
-    expect(game.panelOpen()).toBe(true);
-
-    const tones = game.tapColor(BLUE);
-
-    expect(game.palette().selected).toBe(BLUE);
-    expect(tones.length).toBeGreaterThan(0);
-    expect(game.panelOpen()).toBe(true);
-  });
-
+describe('#96 AC3: Zpět panel nezmění', () => {
   it('Zpět při otevřeném panelu vrátí tah a panel zůstane otevřený', () => {
     const regions = twoHalves();
     const game = openOn(new RecordingStorage(), regions);
@@ -278,6 +273,9 @@ describe('#96 AC4: tah při otevřeném panelu', () => {
     const regions = twoHalves();
     const game = openOn(storage, regions);
     game.tapColor(BLACK);
+    if (!game.panelOpen()) {
+      game.tapHandle();
+    }
     expect(game.panelOpen()).toBe(true);
 
     game.suspend();
@@ -299,7 +297,9 @@ describe('#96 AC5: úchyt ukazuje vybraný nástroj ve vybrané barvě', () => {
       game.tapColor(color);
       expect(game.handleView(), `barva ${color}`).toMatchObject({ tool: 'brush', color });
     }
-    game.tapHandle();
+    if (game.panelOpen()) {
+      game.tapHandle();
+    }
     expect(game.panelOpen()).toBe(false);
     expect(game.handleView()).toMatchObject({ tool: 'brush', color: BLUE });
   });

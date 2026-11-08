@@ -13,7 +13,7 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * pravidla rozložení z #96 (64 px, 8 px, nic se nepřekrývá, vejde se)
  * běží beze změny v `toolPanelLayoutRules.test.ts`; tady jsou jen
  * pravidla o místě razítkového fixu. Každé pravidlo projde v cyklu všechna
- * okna z `coloringLayoutScenes.ts` (zavřený i otevřený panel).
+ * okna z `coloringLayoutScenes.ts` (zavřený panel a oba kroky panelu z #105).
  *
  * Navržené rozhraní: `PANEL_TOOLS` v `src/games/coloring/logic/toolPanel.ts`
  * obsahuje `'stamp'`, nástroj `PANEL_TOOLS[i]` leží na místě
@@ -45,9 +45,9 @@ describe('#98 AC1: razítkový fix je na vyhrazeném místě v panelu', () => {
     }
   });
 
-  it('ťuknutí na razítkový fix v otevřeném panelu jde na jeho nástroj ve všech oknech', () => {
+  it('ťuknutí na razítkový fix v kroku nástrojů jde na jeho nástroj ve všech oknech', () => {
     expect(STAMP_SLOT, 'razítkový fix je v panelu').toBeGreaterThanOrEqual(0);
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: razítkový fix`;
       const slot = testCase.layout.toolSlots[STAMP_SLOT];
       expect(slot, name).toBeDefined();
@@ -55,16 +55,16 @@ describe('#98 AC1: razítkový fix je na vyhrazeném místě v panelu', () => {
         continue;
       }
       const { x, y } = center(slot);
-      expect(touchTargetAt(testCase.layout, true, x, y), name).toEqual({
+      expect(touchTargetAt(testCase.layout, 'tools', x, y), name).toEqual({
         kind: 'tool',
         index: STAMP_SLOT,
       });
     }
   });
 
-  it('razítkový fix má v otevřeném panelu aspoň 64 × 64 px a leží celý v panelu na obrazovce', () => {
+  it('razítkový fix má v kroku nástrojů aspoň 64 × 64 px a leží celý v panelu na obrazovce', () => {
     expect(STAMP_SLOT, 'razítkový fix je v panelu').toBeGreaterThanOrEqual(0);
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: razítkový fix`;
       const box = testCase.tools[STAMP_SLOT];
       expect(box, name).toBeDefined();
@@ -78,9 +78,9 @@ describe('#98 AC1: razítkový fix je na vyhrazeném místě v panelu', () => {
     }
   });
 
-  it('razítkový fix nepřekrývá jiné nástroje, barvy, přepínač velikosti ani ovládání v pruhu', () => {
+  it('razítkový fix nepřekrývá jiné nástroje, přepínač velikosti ani ovládání v pruhu', () => {
     expect(STAMP_SLOT, 'razítkový fix je v panelu').toBeGreaterThanOrEqual(0);
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: razítkový fix`;
       const box = testCase.tools[STAMP_SLOT];
       if (box === undefined) {
@@ -103,22 +103,19 @@ describe('#98 AC1: razítkový fix je na vyhrazeném místě v panelu', () => {
           );
         }
       });
-      testCase.colors.forEach((color, colorIndex) => {
-        expect(overlaps(box, color), `${name}: překryv s barvou ${colorIndex + 1}`).toBe(false);
-      });
     }
   });
 
-  it('se zavřeným panelem ťuknutí na místo razítkového fixu nevybere nástroj', () => {
+  it('se zavřeným panelem ani v kroku barev ťuknutí na místo razítkového fixu nevybere nástroj', () => {
     expect(STAMP_SLOT, 'razítkový fix je v panelu').toBeGreaterThanOrEqual(0);
-    for (const testCase of cases().filter((each) => each.panel === 'closed')) {
+    for (const testCase of cases().filter((each) => each.panel !== 'tools')) {
       const slot = testCase.layout.toolSlots[STAMP_SLOT];
       if (slot === undefined) {
         continue;
       }
       const { x, y } = center(slot);
       expect(
-        touchTargetAt(testCase.layout, false, x, y).kind,
+        touchTargetAt(testCase.layout, testCase.panel, x, y).kind,
         `${testCase.scene.label}: razítkový fix`,
       ).not.toBe('tool');
     }

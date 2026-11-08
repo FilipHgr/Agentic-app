@@ -64,6 +64,8 @@ export const TOOL_PANEL_STYLE = {
   shadowAlpha: 0.035,
   /** Vysunutí a zasunutí trvá nejvýš 0,3 s (#96 AC7). */
   slideMs: 220,
+  /** Prolnutí kroku nástrojů a kroku barev trvá nejvýš 0,2 s (#105 AC7). */
+  stepFadeMs: 160,
 } as const;
 
 /** Prázdné místo pro nehotovou položku: jen slabý obrys bez výplně, nevypadá jako tlačítko. */

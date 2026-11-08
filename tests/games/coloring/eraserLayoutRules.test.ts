@@ -11,7 +11,7 @@ import type { ColoringCase } from './coloringLayoutScenes';
 /**
  * Testy k #90 AC5 v upraveném znění (komentář k issue): štětec a guma jsou
  * na vyhrazených místech v panelu z #96 a pravidla rozložení z #96 dál
- * platí ve všech oknech se zavřeným i otevřeným panelem. Ta pravidla
+ * platí ve všech oknech se zavřeným panelem i v obou krocích (#105). Ta pravidla
  * (64 px, 8 px, nic se nepřekrývá, vejde se, obrázek a pruh) běží beze
  * změny v `toolPanelLayoutRules.test.ts`, `coloringLayoutRules.test.ts`
  * a `undoLayoutRules.test.ts`; tady jsou jen pravidla o místech nástrojů.
@@ -53,8 +53,8 @@ describe('#90 AC5: štětec a guma jsou na vyhrazených místech v panelu', () =
     }
   });
 
-  it('ťuknutí na štětec nebo gumu v otevřeném panelu jde na jejich nástroj ve všech oknech', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+  it('ťuknutí na štětec nebo gumu v kroku nástrojů jde na jejich nástroj ve všech oknech', () => {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       for (const { name, index } of toolPlaces(testCase)) {
         const slot = testCase.layout.toolSlots[index];
         expect(slot, name).toBeDefined();
@@ -62,13 +62,16 @@ describe('#90 AC5: štětec a guma jsou na vyhrazených místech v panelu', () =
           continue;
         }
         const { x, y } = center(slot);
-        expect(touchTargetAt(testCase.layout, true, x, y), name).toEqual({ kind: 'tool', index });
+        expect(touchTargetAt(testCase.layout, 'tools', x, y), name).toEqual({
+          kind: 'tool',
+          index,
+        });
       }
     }
   });
 
-  it('štětec a guma mají v otevřeném panelu aspoň 64 × 64 px a leží celé v panelu', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+  it('štětec a guma mají v kroku nástrojů aspoň 64 × 64 px a leží celé v panelu', () => {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       for (const { name, index } of toolPlaces(testCase)) {
         const box = testCase.tools[index];
         expect(box, name).toBeDefined();
@@ -84,7 +87,7 @@ describe('#90 AC5: štětec a guma jsou na vyhrazených místech v panelu', () =
   });
 
   it('štětec a guma nepřekrývají domeček, úchyt, Zpět ani nedávné barvy', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'open')) {
+    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const strip = [testCase.home, testCase.handle, testCase.undo, ...testCase.recentColors];
       for (const { name, index } of toolPlaces(testCase)) {
         const box = testCase.tools[index];
@@ -98,15 +101,15 @@ describe('#90 AC5: štětec a guma jsou na vyhrazených místech v panelu', () =
     }
   });
 
-  it('se zavřeným panelem ťuknutí na místo štětce nebo gumy nevybere nástroj', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'closed')) {
+  it('se zavřeným panelem ani v kroku barev ťuknutí na místo štětce nebo gumy nevybere nástroj', () => {
+    for (const testCase of cases().filter((each) => each.panel !== 'tools')) {
       for (const { name, index } of toolPlaces(testCase)) {
         const slot = testCase.layout.toolSlots[index];
         if (slot === undefined) {
           continue;
         }
         const { x, y } = center(slot);
-        expect(touchTargetAt(testCase.layout, false, x, y).kind, name).not.toBe('tool');
+        expect(touchTargetAt(testCase.layout, testCase.panel, x, y).kind, name).not.toBe('tool');
       }
     }
   });

@@ -32,9 +32,8 @@ import {
   PANEL_CLOSE_TONES,
   PANEL_OPEN_TONES,
   markedTools,
-  toolAtSlot,
 } from '../logic/toolPanel';
-import type { HandleView, LineSize, ToolId } from '../logic/toolPanel';
+import type { HandleView, LineSize, PanelView, ToolId } from '../logic/toolPanel';
 import { GlitterShineView } from './GlitterShineView';
 import { HandleButtonView } from './HandleButtonView';
 import { PaintLayer } from './PaintLayer';
@@ -82,13 +81,19 @@ const NO_PAGE: ColoringPage = {
  * smí jen u dotyku na obrázku. Stav panelu, vybraný nástroj (štětec nebo
  * guma, #90) i velikost čáry (#91) drží `savedPicture.ts`. Vedle úchytu
  * jsou dvě nedávné barvy (#99), jejich pořadí řídí také `savedPicture.ts`.
+ *
+ * Od #105 je panel ve dvou krocích (nástroje, pak barva), krok drží také
+ * `savedPicture.ts`. Ťuknutí se vyhodnotí hned při dotyku (`POINTER_DOWN`)
+ * podle kroku, který byl vidět; zvednutí prstu už nic nevybírá, takže
+ * nově ukázaný krok tentýž dotyk nedostane a jedno ťuknutí udělá jen
+ * jednu věc.
  */
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
   private layout: ColoringLayout = layoutColoring(this.gameArea);
   private palette: PaletteState = initialPalette();
-  /** Panel, dokud se obrázek připravuje (pak ho drží `coloring`). */
-  private panelOpenBeforeReady = false;
+  /** Krok panelu, dokud se obrázek připravuje (pak ho drží `coloring`). */
+  private panelViewBeforeReady: PanelView = 'closed';
   /**
    * Malování s ukládáním podle profilu (#92); vznikne, až se vykreslí obrys
    * a spočítá mapa oblastí.
@@ -195,7 +200,7 @@ export class ColoringScene extends Phaser.Scene {
         colorNumber(PICTURE_STYLE.frameColor),
       );
     this.placePicture();
-    const open = this.isPanelOpen();
+    const view = this.currentPanelView();
     this.panelView.place(
       {
         layout: this.layout,
@@ -205,10 +210,10 @@ export class ColoringScene extends Phaser.Scene {
         depth: PANEL_DEPTH,
       },
       this.panelSelection(),
-      open,
+      view,
     );
     this.handleView.place(this.layout, this.gameArea.scale, STRIP_DEPTH);
-    this.showHandle(open);
+    this.showHandle(view !== 'closed');
     this.undoView.place(this.layout.undoButton, this.gameArea.scale, STRIP_DEPTH);
     this.recentView.place(this.layout.recentColors, this.gameArea.scale, STRIP_DEPTH);
     this.showRecentColors();
@@ -244,8 +249,12 @@ export class ColoringScene extends Phaser.Scene {
   // Panel nástrojů a úchyt
   // -------------------------------------------------------------------------
 
+  private currentPanelView(): PanelView {
+    return this.coloring?.panelView() ?? this.panelViewBeforeReady;
+  }
+
   private isPanelOpen(): boolean {
-    return this.coloring?.panelOpen() ?? this.panelOpenBeforeReady;
+    return this.currentPanelView() !== 'closed';
   }
 
   /** Vybraný nástroj; dokud se obrázek připravuje, je to štětec. */
@@ -268,6 +277,7 @@ export class ColoringScene extends Phaser.Scene {
       markedTools: markedTools(this.selectedTool()),
       paintHex: hexOf(this.palette.selected),
       lineSize: this.lineSize(),
+      selectedTool: this.selectedTool(),
     };
   }
 
@@ -284,11 +294,13 @@ export class ColoringScene extends Phaser.Scene {
     this.handleView.show(view, view.color === null ? null : hexOf(view.color), open);
   }
 
-  /** Panel a šipka úchytu podle stavu v logice; panel se vysune nebo zasune animací. */
+  /**
+   * Panel a šipka úchytu podle kroku v logice: panel se vysune nebo
+   * zasune animací, v otevřeném panelu se kroky prolnou (#105).
+   */
   private showPanel(): void {
-    const open = this.isPanelOpen();
-    this.panelView.setOpen(open);
-    this.showHandle(open);
+    this.panelView.setView(this.currentPanelView());
+    this.showHandle(this.isPanelOpen());
   }
 
   /** Vybraná barva, nástroj a velikost v panelu i v úchytu, nedávné barvy v pruhu. */
@@ -303,11 +315,15 @@ export class ColoringScene extends Phaser.Scene {
     this.recentView.show(this.coloring?.recentColors() ?? noRecentColors());
   }
 
-  /** Ťuknutí na úchyt: panel se otevře nebo zavře s tónem; během tahu nic (#96 AC2). */
+  /**
+   * Ťuknutí na úchyt: panel se otevře na kroku nástrojů nebo zavře s tónem;
+   * během tahu nic (#96 AC2, #105 AC1).
+   */
   private onHandleTapped(): void {
     if (this.coloring === null) {
-      this.panelOpenBeforeReady = !this.panelOpenBeforeReady;
-      this.sounds.play(this.panelOpenBeforeReady ? PANEL_OPEN_TONES : PANEL_CLOSE_TONES);
+      const opening = this.panelViewBeforeReady === 'closed';
+      this.panelViewBeforeReady = opening ? 'tools' : 'closed';
+      this.sounds.play(opening ? PANEL_OPEN_TONES : PANEL_CLOSE_TONES);
     } else {
       this.sounds.play(this.coloring.tapHandle());
     }
@@ -315,24 +331,36 @@ export class ColoringScene extends Phaser.Scene {
   }
 
   /**
-   * Ťuknutí na nástroj (#90 AC1): vybere ho s tónem, už vybraný nástroj se
-   * navíc zhoupne. Prázdná místa a druhý prst během tahu nic nedělají;
-   * dokud se obrázek připravuje, zůstává štětec.
+   * Ťuknutí na nástroj (#90 AC1): vybere ho s tónem, i když už vybraný
+   * byl. Nástroj s barvou přepne panel na krok barev, guma a duha panel
+   * zavřou (#105 AC2, AC4). Prázdná místa a druhý prst během tahu nic
+   * nedělají; dokud se obrázek připravuje, zůstává štětec.
    */
   private onToolTapped(index: number): void {
     if (this.coloring === null) {
       return;
     }
-    const wasSelected = toolAtSlot(index) === this.coloring.selectedTool();
     const tones = this.coloring.tapTool(index);
     if (tones.length === 0) {
       return;
     }
     this.sounds.play(tones);
-    if (wasSelected) {
-      this.panelView.wobbleTool(index);
-    }
     this.showSelection();
+    this.showPanel();
+  }
+
+  /**
+   * Ťuknutí na vybraný nástroj v hlavičce kroku barev (#105 AC4): panel se
+   * s tónem vrátí na krok nástrojů, výběr se nezmění. Druhý prst během tahu
+   * nic nedělá.
+   */
+  private onBackToToolsTapped(): void {
+    const tones = this.coloring?.tapBackToTools() ?? [];
+    if (tones.length === 0) {
+      return;
+    }
+    this.sounds.play(tones);
+    this.showPanel();
   }
 
   /**
@@ -354,17 +382,20 @@ export class ColoringScene extends Phaser.Scene {
   // Paleta
   // -------------------------------------------------------------------------
 
+  /** Ťuknutí na barvu v kroku barev: vybere ji s tónem a panel zavře (#105 AC3). */
   private onColorTapped(index: number): void {
     if (this.coloring === null) {
       // Obrázek se ještě připravuje: barva se jen vybere, uloží se až s obrázkem.
       const { state, tones } = tapColor(this.palette, index);
       this.palette = state;
+      this.panelViewBeforeReady = 'closed';
       this.sounds.play(tones);
     } else {
       this.sounds.play(this.coloring.tapColor(index));
       this.palette = this.coloring.palette();
     }
     this.showSelection();
+    this.showPanel();
   }
 
   /**
@@ -453,7 +484,12 @@ export class ColoringScene extends Phaser.Scene {
 
   /** Kam dotyk patří, rozhodne `touchTargetAt` (#96 AC4); malovat se smí jen na obrázku. */
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
-    const target = touchTargetAt(this.layout, this.isPanelOpen(), pointer.worldX, pointer.worldY);
+    const target = touchTargetAt(
+      this.layout,
+      this.currentPanelView(),
+      pointer.worldX,
+      pointer.worldY,
+    );
     switch (target.kind) {
       case 'picture':
         this.paintFrom(pointer);
@@ -473,6 +509,9 @@ export class ColoringScene extends Phaser.Scene {
       case 'sizeToggle':
         this.onSizeToggleTapped();
         return;
+      case 'backToTools':
+        this.onBackToToolsTapped();
+        return;
       case 'recentColor':
         this.onRecentColorTapped(target.index);
         return;
@@ -486,7 +525,7 @@ export class ColoringScene extends Phaser.Scene {
   /** Tah začatý na obrázku maluje a otevřený panel zavře (#96 AC4). */
   private paintFrom(pointer: Phaser.Input.Pointer): void {
     if (this.coloring === null) {
-      this.panelOpenBeforeReady = false;
+      this.panelViewBeforeReady = 'closed';
     } else {
       const sample = this.sampleOf(pointer);
       this.paintLayer?.paint(this.coloring.pointerDown(sample), this.coloring);

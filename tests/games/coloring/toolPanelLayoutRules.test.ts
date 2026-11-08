@@ -12,13 +12,7 @@ import {
   widthOf,
 } from '../../shared/viewportFixtures';
 import type { Box } from '../../shared/viewportFixtures';
-import {
-  PLANNED_COLORS,
-  PLANNED_PANEL_ITEMS,
-  PLANNED_TOOLS,
-  RECENT_COLOR_PLACES,
-  coloringCases,
-} from './coloringLayoutScenes';
+import { RECENT_COLOR_PLACES, coloringCases, isOpen } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
 
 /**
@@ -28,15 +22,22 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * Rozložení L-A (pruh vlevo, panel vyjíždí zleva) a P-A (pruh dole, úchyt
  * uprostřed, Zpět vpravo, nedávné barvy vlevo, panel vyjíždí zdola) podle
  * schválení vlastníka v komentáři k issue. Každý test projde v cyklu
- * všechna okna se zavřeným i otevřeným panelem; obrazovku skládá
+ * všechna okna se zavřeným panelem i v obou krocích panelu (#105);
+ * obrazovku skládá
  * `coloringLayoutScenes.ts`. Společná pravidla (64 px, 8 px, nic se
  * nepřekrývá, vejde se) běží v `coloringLayoutRules.test.ts`
  * a `undoLayoutRules.test.ts` na stejných obrazovkách.
  *
  * Kde je dotyk, rozhoduje navržená čistá funkce
- * `touchTargetAt(layout, panelOpen, x, y): TouchTarget` v herních
- * jednotkách (`coloringLayout.ts`). Scéna předá tah do malování jen
+ * `touchTargetAt(layout, panel, x, y): TouchTarget` v herních
+ * jednotkách (`coloringLayout.ts`), od #105 s krokem panelu
+ * (`'closed' | 'tools' | 'colors'`). Scéna předá tah do malování jen
  * u `{ kind: 'picture' }`.
+ *
+ * Testy plného panelu s 23 plochami (#96 AC3: „panel má místo pro 12 barev,
+ * 10 nástrojů a přepínač velikosti, celkem 23 ploch“ a „všech 23 ploch
+ * panelu má aspoň 64 × 64 px a leží celé v panelu“) nahrazují od #105
+ * testy obou kroků v `panelStepsLayoutRules.test.ts`.
  */
 
 /** Plocha je od dvou protilehlých hranic volného prostoru nejvýš 8 px (AC1). */
@@ -64,8 +65,9 @@ function cases(): ColoringCase[] {
   return cached;
 }
 
+/** Otevřený panel v kroku nástrojů i v kroku barev. */
 function openCases(): ColoringCase[] {
-  return cases().filter((testCase) => testCase.panel === 'open');
+  return cases().filter(isOpen);
 }
 
 /** Ťukací plochy pruhu (na šířku i s domečkem, na výšku je domeček nahoře). */
@@ -141,10 +143,12 @@ function containsPoint(rect: LayoutRect, point: { x: number; y: number }): boole
   );
 }
 
-/** Všechna tlačítka panelu v herních jednotkách. */
+/** Tlačítka zobrazeného kroku panelu v herních jednotkách. */
 function panelSlots(testCase: ColoringCase): LayoutRect[] {
   const { layout } = testCase;
-  return [...layout.paletteColors, ...layout.toolSlots, layout.sizeToggle];
+  return testCase.panel === 'tools'
+    ? [layout.sizeToggle, ...layout.toolSlots]
+    : [layout.colorStepTool, ...layout.paletteColors];
 }
 
 /** Body v mezerách mezi tlačítky panelu: kousek vpravo a pod každým tlačítkem. */
@@ -226,7 +230,9 @@ describe('#96 AC1: obrázek je přes celou obrazovku, vedle něj jen úzký pruh
 
   it('na iPadu na šířku 1180 × 820 a 1180 × 760 má obrázek kratší stranu aspoň 700 px', () => {
     const ipadCases = cases().filter((testCase) => IPAD_WINDOWS.includes(testCase.window));
-    expect(ipadCases.length, 'obě okna iPadu v obou stavech panelu').toBe(IPAD_WINDOWS.length * 2);
+    expect(ipadCases.length, 'obě okna iPadu, zavřený panel a oba kroky').toBe(
+      IPAD_WINDOWS.length * 3,
+    );
     for (const testCase of ipadCases) {
       const shorter = Math.min(widthOf(testCase.picture), heightOf(testCase.picture));
       expect(shorter, `${testCase.scene.label}: kratší strana obrázku`).toBeGreaterThanOrEqual(
@@ -253,13 +259,12 @@ describe('#96 AC2: úchyt jde trefit prstem a leží mimo obrázek', () => {
     }
   });
 
-  it('ťuknutí na úchyt jde na úchyt se zavřeným i otevřeným panelem', () => {
+  it('ťuknutí na úchyt jde na úchyt se zavřeným panelem i v obou krocích', () => {
     for (const testCase of cases()) {
       const { x, y } = center(testCase.layout.handle);
-      expect(
-        touchTargetAt(testCase.layout, testCase.panel === 'open', x, y),
-        testCase.scene.label,
-      ).toEqual({ kind: 'handle' });
+      expect(touchTargetAt(testCase.layout, testCase.panel, x, y), testCase.scene.label).toEqual({
+        kind: 'handle',
+      });
     }
   });
 
@@ -294,42 +299,14 @@ describe('#96 AC2: úchyt jde trefit prstem a leží mimo obrázek', () => {
   });
 });
 
-describe('#96 AC3, AC6: otevřený panel má místo pro celý plánovaný obsah a vejde se', () => {
-  it('panel má místo pro 12 barev, 10 nástrojů a přepínač velikosti, celkem 23 ploch', () => {
-    for (const testCase of cases()) {
-      const { label } = testCase.scene;
-      expect(testCase.colors.length, `${label}: barvy`).toBe(PLANNED_COLORS);
-      expect(testCase.tools.length, `${label}: nástroje`).toBe(PLANNED_TOOLS);
-      expect(testCase.colors.length + testCase.tools.length + 1, label).toBe(PLANNED_PANEL_ITEMS);
-      expect(PLANNED_PANEL_ITEMS).toBe(23);
-    }
-  });
-
-  it('všech 23 ploch panelu má aspoň 64 × 64 px a leží celé v panelu', () => {
-    for (const testCase of openCases()) {
-      const { label } = testCase.scene;
-      const slots = [...testCase.colors, ...testCase.tools, testCase.sizeToggle];
-      slots.forEach((slot, index) => {
-        expect(widthOf(slot), `${label}: šířka plochy ${index + 1}`).toBeGreaterThanOrEqual(
-          MIN_TAP_SIDE,
-        );
-        expect(heightOf(slot), `${label}: výška plochy ${index + 1}`).toBeGreaterThanOrEqual(
-          MIN_TAP_SIDE,
-        );
-        expect(isInside(slot, testCase.panelBox), `${label}: plocha ${index + 1} v panelu`).toBe(
-          true,
-        );
-      });
-    }
-  });
-
-  it('otevřený panel se celý vejde do viditelné plochy', () => {
+describe('#96 AC3, AC6: otevřený panel se v obou krocích vejde vedle pruhu', () => {
+  it('otevřený panel se v obou krocích celý vejde do viditelné plochy', () => {
     for (const testCase of openCases()) {
       expect(isInside(testCase.panelBox, testCase.visible), testCase.scene.label).toBe(true);
     }
   });
 
-  it('otevřený panel nepřekryje domeček, úchyt, Zpět ani nedávné barvy', () => {
+  it('otevřený panel v obou krocích nepřekryje domeček, úchyt, Zpět ani nedávné barvy', () => {
     for (const testCase of openCases()) {
       const { label } = testCase.scene;
       const strip: Array<[string, Box]> = [
@@ -361,7 +338,7 @@ describe('#96 AC3, AC6: otevřený panel má místo pro celý plánovaný obsah 
 });
 
 describe('#96 AC4: dotyk na panelu nemaluje, domeček funguje i s otevřeným panelem', () => {
-  it('dotyk kdekoli na otevřeném panelu, i v mezeře mezi tlačítky, nemaluje do obrázku', () => {
+  it('dotyk kdekoli na otevřeném panelu v obou krocích, i v mezeře mezi tlačítky, nemaluje do obrázku', () => {
     for (const testCase of openCases()) {
       const { layout } = testCase;
       const points = [...gridIn(layout.panel, 24), ...gapPointsIn(testCase)];
@@ -370,7 +347,7 @@ describe('#96 AC4: dotyk na panelu nemaluje, domeček funguje i s otevřeným pa
         `${testCase.scene.label}: body v mezerách`,
       ).toBeGreaterThan(0);
       for (const point of points) {
-        const target = touchTargetAt(layout, true, point.x, point.y);
+        const target = touchTargetAt(layout, testCase.panel, point.x, point.y);
         expect(
           target.kind,
           `${testCase.scene.label}: dotyk na panelu v ${Math.round(point.x)}, ${Math.round(point.y)}`,
@@ -387,7 +364,10 @@ describe('#96 AC4: dotyk na panelu nemaluje, domeček funguje i s otevřeným pa
       );
       expect(visiblePicture.length, `${testCase.scene.label}: obrázek je vidět`).toBeGreaterThan(0);
       for (const point of visiblePicture) {
-        expect(touchTargetAt(layout, true, point.x, point.y), testCase.scene.label).toEqual({
+        expect(
+          touchTargetAt(layout, testCase.panel, point.x, point.y),
+          testCase.scene.label,
+        ).toEqual({
           kind: 'picture',
         });
       }
@@ -422,7 +402,7 @@ describe('#96 AC6: zavřený panel nemá na obrázku žádnou ťukací plochu', 
     for (const testCase of cases().filter((each) => each.panel === 'closed')) {
       const { layout } = testCase;
       for (const point of gridIn(layout.picture, 24)) {
-        expect(touchTargetAt(layout, false, point.x, point.y), testCase.scene.label).toEqual({
+        expect(touchTargetAt(layout, 'closed', point.x, point.y), testCase.scene.label).toEqual({
           kind: 'picture',
         });
       }

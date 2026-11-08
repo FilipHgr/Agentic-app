@@ -17,7 +17,9 @@
  * Zpět (#89) vrací tahy z historie v paměti (`strokeHistory.ts`), vrácený
  * stav se uloží stejně jako po tahu. Panel nástrojů (#96) se otevírá
  * úchytem a zavře se i tahem po obrázku; při prvním otevření hry v profilu
- * začíná otevřený (`toolPanel.ts`).
+ * začíná otevřený (`toolPanel.ts`). Od #105 je ve dvou krocích: úchyt ho
+ * otevře vždy na nástrojích, nástroj s barvou přepne na krok barev, výběr
+ * barvy, guma a duha panel zavřou. Krok se neukládá.
  *
  * Vybraný nástroj (štětec, guma, fix, pastelka, duha, razítkový, puntíkový
  * nebo proužkový fix, třpytky, sprej, #90, #93, #97, #98, #101–#104) je jen v paměti: po otevření hry je vždy štětec, výběr barvy po gumě
@@ -55,6 +57,7 @@ import { loadRecentColors, recentAfterPick, storeRecentColors } from './recentCo
 import type { RecentColors } from './recentColors';
 import { createUndoHistory } from './strokeHistory';
 import {
+  BACK_TO_TOOLS_TONES,
   INITIAL_TOOL,
   PANEL_CLOSE_TONES,
   PANEL_OPEN_TONES,
@@ -68,9 +71,10 @@ import {
   toolAtSlot,
   toolForColor,
   usesSelectedColor,
+  hasColorStep,
   wasOpenedBefore,
 } from './toolPanel';
-import type { HandleView, LineSize, ToolId } from './toolPanel';
+import type { HandleView, LineSize, PanelView, ToolId } from './toolPanel';
 
 /** Nejdelší záznam jedné omalovánky ve znacích (AC6). */
 export const PICTURE_RECORD_LIMIT = 50_000;
@@ -155,7 +159,8 @@ export interface SavedColoring {
   /**
    * Ťuknutí na barvu: vybere ji a po gumě i naposledy vybraný malovací
    * nástroj (#90 AC4, #93 AC5), u duhy štětec (#97 AC4), hned uloží a vrátí tón
-   * k zahrání. Během tahu se nepočítá (druhý prst) a vrátí `[]`.
+   * k zahrání. Panel zavře (#105 AC3), i když už barva vybraná byla.
+   * Během tahu se nepočítá (druhý prst) a vrátí `[]`.
    */
   tapColor(index: number): readonly Tone[];
   /**
@@ -176,13 +181,22 @@ export interface SavedColoring {
   tapUndo(): UndoResult;
   /** Stav palety (vybraná barva). */
   palette(): PaletteState;
-  /** Je panel nástrojů otevřený (#96)? */
+  /** Krok panelu: zavřený, krok nástrojů, nebo krok barev (#105). */
+  panelView(): PanelView;
+  /** Je panel nástrojů otevřený (#96), v kterémkoli kroku? */
   panelOpen(): boolean;
   /**
-   * Ťuknutí na úchyt (#96 AC2): panel otevře, nebo zavře a vrátí tón.
+   * Ťuknutí na úchyt (#96 AC2): zavřený panel otevře vždy na kroku
+   * nástrojů (#105 AC1), otevřený v kterémkoli kroku zavře, a vrátí tón.
    * Během tahu se nepočítá (druhý prst) a vrátí `[]`.
    */
   tapHandle(): readonly Tone[];
+  /**
+   * Ťuknutí na vybraný nástroj na prvním místě kroku barev (#105 AC4):
+   * vrátí panel na krok nástrojů s tónem; nástroj, barva ani velikost se
+   * nezmění. Mimo krok barev a během tahu nic nezmění a vrátí `[]`.
+   */
+  tapBackToTools(): readonly Tone[];
   /**
    * Co ukazuje úchyt: vybraný nástroj ve vybrané barvě, guma a duha bez
    * barvy, a vybraná velikost (#96 AC5, #90, #91, #97).
@@ -199,8 +213,9 @@ export interface SavedColoring {
   selectedTool(): ToolId;
   /**
    * Ťuknutí na místo `index` nástrojů v panelu (#90 AC1): vybere nástroj
-   * a vrátí tón, i když už vybraný byl. Prázdné místo a ťuknutí během tahu
-   * nic nezmění a vrátí `[]`.
+   * a vrátí tón, i když už vybraný byl. Nástroj s barvou přepne panel na
+   * krok barev, guma a duha panel zavřou (#105 AC2, AC4). Prázdné místo
+   * a ťuknutí během tahu nic nezmění a vrátí `[]`.
    */
   tapTool(index: number): readonly Tone[];
   /** Index barvy v pixelu; `null` bez barvy, na obrysu a mimo plochu. */
@@ -387,10 +402,13 @@ export function openColoring(options: {
   let unsaved = false;
   /** Vratné tahy od otevření omalovánky (#89); nové otevření začne bez historie. */
   const history = createUndoHistory();
-  /** Panel nástrojů: otevřený jen při úplně prvním otevření hry v profilu (#96 AC2). */
-  let panelOpen = !wasOpenedBefore(storage);
   /** Je v úložišti záznam, že profil hru už otevřel? */
-  let openingRemembered = !panelOpen;
+  let openingRemembered = wasOpenedBefore(storage);
+  /**
+   * Krok panelu: otevřený na nástrojích jen při úplně prvním otevření hry
+   * v profilu (#96 AC2, #105 AC1), jinak zavřený.
+   */
+  let panelView: PanelView = openingRemembered ? 'closed' : 'tools';
   /** Vybraný nástroj; nepamatuje se, po otevření je vždy štětec (#90 AC1). */
   let tool: ToolId = INITIAL_TOOL;
   /** Naposledy vybraný malovací nástroj, na který přepne barva po gumě (#93 AC5). */
@@ -465,7 +483,7 @@ export function openColoring(options: {
 
   return {
     pointerDown(pointer) {
-      panelOpen = false;
+      panelView = 'closed';
       if (strokePointer === null) {
         strokePointer = pointer.id;
       }
@@ -492,6 +510,7 @@ export function openColoring(options: {
       if (strokePointer !== null) {
         return [];
       }
+      panelView = 'closed';
       return pickColor(index);
     },
 
@@ -524,14 +543,28 @@ export function openColoring(options: {
 
     palette: () => palette,
 
-    panelOpen: () => panelOpen,
+    panelView: () => panelView,
+
+    panelOpen: () => panelView !== 'closed',
 
     tapHandle() {
       if (strokePointer !== null) {
         return [];
       }
-      panelOpen = !panelOpen;
-      return panelOpen ? PANEL_OPEN_TONES : PANEL_CLOSE_TONES;
+      if (panelView === 'closed') {
+        panelView = 'tools';
+        return PANEL_OPEN_TONES;
+      }
+      panelView = 'closed';
+      return PANEL_CLOSE_TONES;
+    },
+
+    tapBackToTools() {
+      if (strokePointer !== null || panelView !== 'colors') {
+        return [];
+      }
+      panelView = 'tools';
+      return BACK_TO_TOOLS_TONES;
     },
 
     handleView: () => ({
@@ -563,6 +596,7 @@ export function openColoring(options: {
       if (paintsWithColor(tapped)) {
         paintingTool = tapped;
       }
+      panelView = hasColorStep(tapped) ? 'colors' : 'closed';
       return TOOL_PICK_TONES;
     },
 

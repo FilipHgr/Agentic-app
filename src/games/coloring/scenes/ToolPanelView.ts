@@ -1,13 +1,17 @@
 /**
  * Vysouvací panel nástrojů (#96) se zástupným vzhledem A3: bílá karta se
- * stínem, v ní oddíl barev a oddíl nástrojů s přepínačem velikosti.
- * Místa pro nehotové položky jsou prázdná, na prvních místech nástrojů
- * jsou štětec, guma, fix, pastelka, duha, razítkový, puntíkový a proužkový
- * fix, třpytky a sprej (`PANEL_TOOLS`, #90, #93, #97, #98, #101–#104), vybraný má
- * silný modrý okraj. Přepínač velikosti (#91) je tlačítko s tmavou tečkou
- * vybrané velikosti (`sizeToggleDot`). Panel vyjíždí zleva (na šířku)
- * nebo zdola (na výšku) do 0,3 s a zajíždí pod pruh ovládání; obrázek se přitom nehne, posouvá se jen
- * panel. Dotyky sem nechodí, rozhoduje o nich scéna přes `touchTargetAt`.
+ * stínem. Od #105 je ve dvou krocích se stejným rozměrem karty: hlavička,
+ * čára a tělo. Krok nástrojů má v hlavičce přepínač velikosti (#91,
+ * tlačítko s tmavou tečkou vybrané velikosti, `sizeToggleDot`) a v těle
+ * štětec, gumu, fix, pastelku, duhu, razítkový, puntíkový a proužkový
+ * fix, třpytky a sprej (`PANEL_TOOLS`, #90, #93, #97, #98, #101–#104).
+ * Krok barev má v hlavičce vybraný nástroj ve vybrané barvě a v těle 12
+ * barev. Vybraný nástroj i barva mají silný modrý okraj. Kroky se
+ * vystřídají prolnutím do 0,2 s, karta se přitom nehne.
+ *
+ * Panel vyjíždí zleva (na šířku) nebo zdola (na výšku) do 0,3 s a zajíždí
+ * pod pruh ovládání; obrázek se přitom nehne, posouvá se jen panel.
+ * Dotyky sem nechodí, rozhoduje o nich scéna přes `touchTargetAt`.
  */
 
 import Phaser from 'phaser';
@@ -17,8 +21,7 @@ import { sizeToggleDot } from '../logic/coloringLayout';
 import type { ColoringLayout, LayoutRect } from '../logic/coloringLayout';
 import { COLOR_BUTTON_STYLE, SIZE_DOT_STYLE, TOOL_PANEL_STYLE } from '../logic/theme';
 import { PANEL_TOOLS } from '../logic/toolPanel';
-import type { LineSize } from '../logic/toolPanel';
-import { drawEmptySlot } from './emptySlot';
+import type { LineSize, PanelView, ToolId } from '../logic/toolPanel';
 import { PaletteView } from './PaletteView';
 import { drawToolIcon } from './toolIcon';
 
@@ -34,14 +37,19 @@ export interface PanelPlacement {
 
 /**
  * Co je v panelu označené: barva, nástroj, barva malovacích nástrojů
- * (`null` bez barvy) a velikost čáry v přepínači.
+ * (`null` bez barvy), velikost čáry v přepínači a vybraný nástroj
+ * v hlavičce kroku barev.
  */
 export interface PanelSelection {
   readonly markedColors: readonly boolean[];
   readonly markedTools: readonly boolean[];
   readonly paintHex: string | null;
   readonly lineSize: LineSize;
+  readonly selectedTool: ToolId;
 }
+
+/** Otevřený krok panelu. */
+type PanelStep = Exclude<PanelView, 'closed'>;
 
 /** Symbol nástroje zabere tento díl strany místa. */
 const TOOL_ICON_SHARE = 0.62;
@@ -53,51 +61,48 @@ export class ToolPanelView {
   private container: Phaser.GameObjects.Container | null = null;
   /** Pozadí pruhu ovládání: panel pod něj zajíždí. */
   private backdrop: Phaser.GameObjects.Rectangle | null = null;
+  /** Obsah kroku nástrojů (přepínač a nástroje) a kroku barev (vybraný nástroj a barvy). */
+  private toolStep: Phaser.GameObjects.Container | null = null;
+  private colorStep: Phaser.GameObjects.Container | null = null;
   /** Tlačítka nástrojů v pořadí `PANEL_TOOLS`, každé s počátkem ve středu svého místa. */
   private toolButtons: Phaser.GameObjects.Graphics[] = [];
   /** Přepínač velikosti s počátkem ve středu svého místa. */
   private sizeToggle: Phaser.GameObjects.Graphics | null = null;
+  /** Vybraný nástroj v hlavičce kroku barev, počátek ve středu místa. */
+  private colorStepTool: Phaser.GameObjects.Graphics | null = null;
   private readonly palette: PaletteView;
   private placement: PanelPlacement | null = null;
   private open = false;
+  private step: PanelStep = 'tools';
 
   constructor(private readonly scene: Phaser.Scene) {
     this.palette = new PaletteView(scene);
   }
 
-  /** Postaví panel podle rozložení (po startu a po otočení), hned v daném stavu. */
-  place(placement: PanelPlacement, selection: PanelSelection, open: boolean): void {
+  /** Postaví panel podle rozložení (po startu a po otočení), hned v daném kroku. */
+  place(placement: PanelPlacement, selection: PanelSelection, view: PanelView): void {
     this.destroy();
     this.placement = placement;
-    this.open = open;
     const { layout, cssScale, depth } = placement;
     const container = this.scene.add.container(0, 0).setDepth(depth);
     container.add(this.drawCard(layout, cssScale));
-    this.palette.place(layout.paletteColors, selection.markedColors, cssScale, container);
-    layout.toolSlots.forEach((slot, index) => {
-      // Střed místa je počátek, aby se nástroj při zhoupnutí točil kolem středu.
-      const graphics = this.scene.add.graphics({
-        x: slot.left + slot.width / 2,
-        y: slot.top + slot.height / 2,
-      });
-      container.add(graphics);
-      if (index < PANEL_TOOLS.length) {
-        this.toolButtons.push(graphics);
-      } else {
-        drawEmptySlot(graphics, slot, cssScale, -slot.width / 2, -slot.height / 2);
-      }
-    });
-    const toggle = this.scene.add.graphics({
-      x: layout.sizeToggle.left + layout.sizeToggle.width / 2,
-      y: layout.sizeToggle.top + layout.sizeToggle.height / 2,
-    });
-    container.add(toggle);
-    this.sizeToggle = toggle;
+    const toolStep = this.scene.add.container(0, 0);
+    const colorStep = this.scene.add.container(0, 0);
+    container.add([toolStep, colorStep]);
+    this.toolButtons = layout.toolSlots
+      .slice(0, PANEL_TOOLS.length)
+      .map((slot) => this.addCentered(slot, toolStep));
+    this.sizeToggle = this.addCentered(layout.sizeToggle, toolStep);
+    this.colorStepTool = this.addCentered(layout.colorStepTool, colorStep);
+    this.palette.place(layout.paletteColors, selection.markedColors, cssScale, colorStep);
     this.container = container;
-    this.showTools(selection);
-    this.showSize(selection.lineSize);
+    this.toolStep = toolStep;
+    this.colorStep = colorStep;
+    this.mark(selection);
     this.backdrop = this.drawBackdrop(placement);
-    this.jumpTo(open);
+    this.open = view !== 'closed';
+    this.showStep(view === 'colors' ? 'colors' : 'tools', false);
+    this.jumpTo(this.open);
   }
 
   /** Označí vybranou barvu, nástroj a velikost; malovací nástroje ukáže ve vybrané barvě. */
@@ -105,11 +110,20 @@ export class ToolPanelView {
     this.palette.mark(selection.markedColors);
     this.showTools(selection);
     this.showSize(selection.lineSize);
+    this.showColorStepTool(selection);
   }
 
-  /** Ťuknutí na nástroj, který už je vybraný: nástroj se zhoupne kolem středu svého místa. */
-  wobbleTool(index: number): void {
-    this.wobble(this.toolButtons[index]);
+  /**
+   * Přepne panel na krok `view`: zavřený panel se vysune, otevřený zasune
+   * a v otevřeném se kroky prolnou. Zavřený panel se otevře rovnou na
+   * novém kroku bez prolnutí, panel se přitom vysouvá.
+   */
+  setView(view: PanelView): void {
+    const open = view !== 'closed';
+    if (open) {
+      this.showStep(view, this.open);
+    }
+    this.setOpen(open);
   }
 
   /** Ťuknutí na přepínač velikosti: přepínač se krátce zhoupne (#91 AC1). */
@@ -134,8 +148,51 @@ export class ToolPanelView {
     });
   }
 
+  /** Grafika se středem místa `slot` jako počátkem (aby se točila kolem středu). */
+  private addCentered(
+    slot: LayoutRect,
+    parent: Phaser.GameObjects.Container,
+  ): Phaser.GameObjects.Graphics {
+    const graphics = this.scene.add.graphics({
+      x: slot.left + slot.width / 2,
+      y: slot.top + slot.height / 2,
+    });
+    parent.add(graphics);
+    return graphics;
+  }
+
+  /**
+   * Ukáže krok `step`: s `animate` se kroky prolnou (do 0,2 s, #105 AC7),
+   * jinak se vymění hned. Prolíná se jen průhlednost, nic se neposouvá.
+   */
+  private showStep(step: PanelStep, animate: boolean): void {
+    const shown = step === 'tools' ? this.toolStep : this.colorStep;
+    const hidden = step === 'tools' ? this.colorStep : this.toolStep;
+    if (shown === null || hidden === null) {
+      return;
+    }
+    const changed = step !== this.step;
+    this.step = step;
+    this.scene.tweens.killTweensOf([shown, hidden]);
+    if (!animate || !changed) {
+      shown.setAlpha(1).setVisible(true);
+      hidden.setAlpha(0).setVisible(false);
+      return;
+    }
+    shown.setVisible(true);
+    const duration = TOOL_PANEL_STYLE.stepFadeMs;
+    this.scene.tweens.add({ targets: shown, alpha: 1, duration, ease: 'Sine.easeOut' });
+    this.scene.tweens.add({
+      targets: hidden,
+      alpha: 0,
+      duration,
+      ease: 'Sine.easeIn',
+      onComplete: () => hidden.setVisible(false),
+    });
+  }
+
   /** Vysune, nebo zasune panel animací (nejvýš 0,3 s). */
-  setOpen(open: boolean): void {
+  private setOpen(open: boolean): void {
     const container = this.container;
     if (container === null || open === this.open) {
       return;
@@ -155,21 +212,22 @@ export class ToolPanelView {
   }
 
   destroy(): void {
-    for (const button of [...this.toolButtons, this.sizeToggle]) {
-      if (button !== null) {
-        this.scene.tweens.killTweensOf(button);
+    const animated = [this.sizeToggle, this.toolStep, this.colorStep, this.container];
+    for (const target of animated) {
+      if (target !== null) {
+        this.scene.tweens.killTweensOf(target);
       }
     }
-    if (this.container !== null) {
-      this.scene.tweens.killTweensOf(this.container);
-      this.container.destroy();
-    }
     this.palette.destroy();
+    this.container?.destroy();
     this.backdrop?.destroy();
     this.container = null;
     this.backdrop = null;
+    this.toolStep = null;
+    this.colorStep = null;
     this.toolButtons = [];
     this.sizeToggle = null;
+    this.colorStepTool = null;
   }
 
   /** Okamžitě bez animace (po otočení obrazovky). */
@@ -203,10 +261,28 @@ export class ToolPanelView {
       if (slot === undefined || tool === undefined) {
         return;
       }
-      graphics.clear();
-      drawToolButton(graphics, slot, placement.cssScale, selection.markedTools[index] === true);
-      const size = Math.min(slot.width, slot.height) * TOOL_ICON_SHARE;
-      drawToolIcon(graphics, tool, 0, 0, size, selection.paintHex);
+      drawToolSlot(graphics, slot, placement.cssScale, {
+        tool,
+        isMarked: selection.markedTools[index] === true,
+        paintHex: selection.paintHex,
+      });
+    });
+  }
+
+  /**
+   * Překreslí vybraný nástroj v hlavičce kroku barev: ve vybrané barvě
+   * a označený stejně jako v kroku nástrojů (#105 AC2, AC7).
+   */
+  private showColorStepTool(selection: PanelSelection): void {
+    const graphics = this.colorStepTool;
+    const placement = this.placement;
+    if (graphics === null || placement === null) {
+      return;
+    }
+    drawToolSlot(graphics, placement.layout.colorStepTool, placement.cssScale, {
+      tool: selection.selectedTool,
+      isMarked: true,
+      paintHex: selection.paintHex,
     });
   }
 
@@ -229,7 +305,7 @@ export class ToolPanelView {
     graphics.fillCircle(dot.centerX, dot.centerY, dot.diameter / 2);
   }
 
-  /** Karta panelu se stínem a čárou mezi oddíly. */
+  /** Karta panelu se stínem a čárou mezi hlavičkou a tělem. */
   private drawCard(layout: ColoringLayout, cssScale: number): Phaser.GameObjects.Graphics {
     const style = TOOL_PANEL_STYLE;
     const { panel, panelDivider } = layout;
@@ -279,6 +355,19 @@ export class ToolPanelView {
 function shadowReachOf(cssScale: number): number {
   const style = TOOL_PANEL_STYLE;
   return (style.shadowLayers * style.shadowSpreadCss + style.shadowOffsetCss) / cssScale;
+}
+
+/** Tlačítko s ikonou nástroje `tool` se středem v počátku (překreslí grafiku celou). */
+function drawToolSlot(
+  graphics: Phaser.GameObjects.Graphics,
+  slot: LayoutRect,
+  cssScale: number,
+  look: { readonly tool: ToolId; readonly isMarked: boolean; readonly paintHex: string | null },
+): void {
+  graphics.clear();
+  drawToolButton(graphics, slot, cssScale, look.isMarked);
+  const size = Math.min(slot.width, slot.height) * TOOL_ICON_SHARE;
+  drawToolIcon(graphics, look.tool, 0, 0, size, look.paintHex);
 }
 
 /**

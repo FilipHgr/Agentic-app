@@ -10,17 +10,20 @@
  *   a Zpět vpravo, domeček zůstává vlevo nahoře. Panel vyjíždí zdola hned
  *   nad pruhem.
  *
- * Panel má místo pro celý plánovaný obsah: 12 barev, 10 nástrojů
- * a přepínač velikosti (23 ploch), barvy a nástroje jsou dva oddíly. Jedno
- * rozložení platí pro otevřený i zavřený panel, obrázek se tedy nikdy
- * neposune. Kam patří dotyk, rozhoduje `touchTargetAt`.
+ * Panel je od #105 ve dvou krocích se stejným rozměrem: hlavička
+ * (v kroku nástrojů přepínač velikosti, v kroku barev vybraný nástroj na
+ * stejném místě), čára a tělo (10 nástrojů, nebo 12 barev na stejných
+ * místech). Na iPadu a na výšku je hlavička řada nahoře, na telefonu na
+ * šířku sloupec vlevo (schválené obrázky k #105). Jedno rozložení platí
+ * pro zavřený panel i oba kroky, obrázek se tedy nikdy neposune. Kam
+ * patří dotyk, rozhoduje `touchTargetAt` podle kroku panelu.
  * Čistý TypeScript bez Phaseru.
  */
 
 import { homeButtonInFreeArea } from '../../../shared/logic/homeButton';
 import type { GameArea, GameAreaFit } from '../../../shared/logic/viewportLayout';
 import { PALETTE } from './palette';
-import type { LineSize } from './toolPanel';
+import type { LineSize, PanelView } from './toolPanel';
 
 /** Omalovánky chtějí herní plochu přes celou volnou plochu okna i na iPadu (#96). */
 export const COLORING_GAME_AREA_FIT: GameAreaFit = 'fullWindow';
@@ -44,13 +47,15 @@ export interface ColoringLayout {
   readonly recentColors: readonly LayoutRect[];
   /** Pozadí otevřeného panelu. */
   readonly panel: LayoutRect;
-  /** 12 míst pro barvy v panelu, barvy `PALETTE` na prvních místech. */
+  /** 12 míst pro barvy v těle kroku barev, barvy `PALETTE` na prvních místech. */
   readonly paletteColors: readonly LayoutRect[];
-  /** 10 míst pro nástroje, štětec na prvním. */
+  /** 10 míst pro nástroje v těle kroku nástrojů, štětec na prvním. */
   readonly toolSlots: readonly LayoutRect[];
-  /** Přepínač velikosti čáry (#91). */
+  /** Přepínač velikosti čáry (#91) v hlavičce kroku nástrojů. */
   readonly sizeToggle: LayoutRect;
-  /** Tenká čára mezi oddílem barev a nástrojů. */
+  /** Vybraný nástroj v hlavičce kroku barev (#105), stejné místo jako `sizeToggle`. */
+  readonly colorStepTool: LayoutRect;
+  /** Tenká čára mezi hlavičkou a tělem panelu (#105). */
   readonly panelDivider: LayoutRect;
   /** Odkud panel vyjíždí: zleva (na šířku), nebo zdola (na výšku). */
   readonly panelSlidesFrom: 'left' | 'bottom';
@@ -72,6 +77,8 @@ export type TouchTarget =
   | { readonly kind: 'color'; readonly index: number }
   | { readonly kind: 'tool'; readonly index: number }
   | { readonly kind: 'sizeToggle' }
+  /** Vybraný nástroj v kroku barev: návrat ke kroku nástrojů (#105 AC4). */
+  | { readonly kind: 'backToTools' }
   /** Pozadí panelu nebo prázdné místo v něm: nic se nestane, nemaluje se. */
   | { readonly kind: 'panel' }
   | { readonly kind: 'none' };
@@ -79,7 +86,7 @@ export type TouchTarget =
 /** Poměr stran obrázku a vrstvy barev (1024 × 768). */
 export const PICTURE_ASPECT = 4 / 3;
 
-/** Plánovaný obsah panelu (#96 AC3). */
+/** Obsah panelu (#96 AC3): barvy v kroku barev, nástroje v kroku nástrojů (#105). */
 export const PANEL_COLOR_PLACES = 12;
 export const PANEL_TOOL_PLACES = 10;
 const RECENT_COLOR_PLACES = 2;
@@ -99,15 +106,22 @@ const MIN_EDGE_CSS = 4;
 /** Okraj uvnitř panelu kolem tlačítek v CSS px (na nízkém telefonu méně). */
 const PANEL_PADDING_CSS = 12;
 
-/** Mezera mezi oddílem barev a nástrojů v CSS px, uprostřed je čára. */
+/** Mezera mezi hlavičkou a tělem panelu v CSS px, uprostřed je čára. */
 const SECTION_GAP_CSS = 16;
 
-/** Tloušťka čáry mezi oddíly v CSS px. */
+/** Tloušťka čáry mezi hlavičkou a tělem v CSS px. */
 const DIVIDER_CSS = 2;
 
-/** Sloupce oddílu v panelu: na šířku 3 (L-A), na výšku 4 (P-A). */
-const LANDSCAPE_SECTION_COLUMNS = 3;
-const PORTRAIT_SECTION_COLUMNS = 4;
+/** Míst v těle kroku: tolik, kolik má větší z kroků (barvy). */
+const BODY_PLACES = Math.max(PANEL_COLOR_PLACES, PANEL_TOOL_PLACES);
+
+/**
+ * Sloupce těla panelu (#105): na iPadu na šířku 3, na výšku 4, na
+ * telefonu na šířku 4 (3 řady, aby se panel vešel do nízkého okna).
+ */
+const LANDSCAPE_BODY_COLUMNS = 3;
+const PORTRAIT_BODY_COLUMNS = 4;
+const PHONE_LANDSCAPE_BODY_COLUMNS = 4;
 
 /** Ve výpočtu se pracuje v CSS px od levého horního rohu herní plochy. */
 interface Box {
@@ -158,8 +172,8 @@ function lineLength(count: number, side: number): number {
 // Panel
 // ---------------------------------------------------------------------------
 
-/** Oddíl panelu: `count` míst po řádcích v `columns` sloupcích. */
-function sectionSlots(
+/** `count` míst po řádcích v `columns` sloupcích od levého horního rohu `left`, `top`. */
+function gridSlots(
   left: number,
   top: number,
   count: number,
@@ -175,28 +189,28 @@ function sectionSlots(
   );
 }
 
-function sectionHeight(count: number, columns: number, side: number): number {
-  return lineLength(Math.ceil(count / columns), side);
-}
-
-/** Oddíly pod sebou (iPad, výška), nebo vedle sebe (nízké okno na šířku). */
-type SectionArrangement = 'stacked' | 'sideBySide';
+/** Hlavička je řada nad tělem (iPad, na výšku), nebo sloupec vlevo od těla (telefon na šířku). */
+type HeaderPlacement = 'row' | 'column';
 
 interface PanelGrid {
   readonly columns: number;
-  readonly arrangement: SectionArrangement;
+  readonly header: HeaderPlacement;
   readonly side: number;
 }
 
-/** Velikost mřížky panelu bez okraje. */
+/** Velikost těla: `BODY_PLACES` míst v `columns` sloupcích. */
+function bodySizeOf(grid: PanelGrid): { width: number; height: number } {
+  const rows = Math.ceil(BODY_PLACES / grid.columns);
+  return { width: lineLength(grid.columns, grid.side), height: lineLength(rows, grid.side) };
+}
+
+/** Velikost hlavičky, čáry a těla dohromady, bez okraje panelu. */
 function gridSizeOf(grid: PanelGrid): { width: number; height: number } {
-  const { columns, side } = grid;
-  const sectionWidth = lineLength(columns, side);
-  const colorsHeight = sectionHeight(PANEL_COLOR_PLACES, columns, side);
-  const toolsHeight = sectionHeight(PANEL_TOOL_PLACES + 1, columns, side);
-  return grid.arrangement === 'stacked'
-    ? { width: sectionWidth, height: colorsHeight + SECTION_GAP_CSS + toolsHeight }
-    : { width: 2 * sectionWidth + SECTION_GAP_CSS, height: Math.max(colorsHeight, toolsHeight) };
+  const body = bodySizeOf(grid);
+  const headerDepth = grid.side + SECTION_GAP_CSS;
+  return grid.header === 'row'
+    ? { width: body.width, height: headerDepth + body.height }
+    : { width: headerDepth + body.width, height: body.height };
 }
 
 interface PanelPlaces {
@@ -204,32 +218,35 @@ interface PanelPlaces {
   readonly paletteColors: LayoutRect[];
   readonly toolSlots: LayoutRect[];
   readonly sizeToggle: LayoutRect;
+  readonly colorStepTool: LayoutRect;
   readonly panelDivider: LayoutRect;
 }
 
-/** Panel s mřížkou `grid` a okrajem `padding`, levý horní roh `left`, `top`. */
+/**
+ * Panel s mřížkou `grid` a okrajem `padding`, levý horní roh `left`, `top`.
+ * Hlavička je v levém horním rohu, tělo pod ní (řada), nebo vedle ní
+ * (sloupec), čára uprostřed mezery mezi nimi.
+ */
 function panelAt(left: number, top: number, grid: PanelGrid, padding: number): PanelPlaces {
   const { columns, side } = grid;
   const size = gridSizeOf(grid);
+  const body = bodySizeOf(grid);
   const innerLeft = left + padding;
   const innerTop = top + padding;
-  const sectionWidth = lineLength(columns, side);
-  const colorsHeight = sectionHeight(PANEL_COLOR_PLACES, columns, side);
-  const stacked = grid.arrangement === 'stacked';
-  const toolsLeft = stacked ? innerLeft : innerLeft + sectionWidth + SECTION_GAP_CSS;
-  const toolsTop = stacked ? innerTop + colorsHeight + SECTION_GAP_CSS : innerTop;
-  // Přepínač velikosti je hned za nástroji na posledním místě oddílu nástrojů.
-  const tools = sectionSlots(toolsLeft, toolsTop, PANEL_TOOL_PLACES + 1, columns, side);
-  const sizeToggle = tools.pop() ?? square(toolsLeft, toolsTop, side);
-  const dividerOffset = (SECTION_GAP_CSS - DIVIDER_CSS) / 2;
-  const panelDivider = stacked
-    ? rect(innerLeft, innerTop + colorsHeight + dividerOffset, sectionWidth, DIVIDER_CSS)
-    : rect(innerLeft + sectionWidth + dividerOffset, innerTop, DIVIDER_CSS, size.height);
+  const headerRow = grid.header === 'row';
+  const bodyLeft = headerRow ? innerLeft : innerLeft + side + SECTION_GAP_CSS;
+  const bodyTop = headerRow ? innerTop + side + SECTION_GAP_CSS : innerTop;
+  const dividerOffset = side + (SECTION_GAP_CSS - DIVIDER_CSS) / 2;
+  const panelDivider = headerRow
+    ? rect(innerLeft, innerTop + dividerOffset, body.width, DIVIDER_CSS)
+    : rect(innerLeft + dividerOffset, innerTop, DIVIDER_CSS, body.height);
+  const header = square(innerLeft, innerTop, side);
   return {
     panel: rect(left, top, size.width + 2 * padding, size.height + 2 * padding),
-    paletteColors: sectionSlots(innerLeft, innerTop, PANEL_COLOR_PLACES, columns, side),
-    toolSlots: tools,
-    sizeToggle,
+    paletteColors: gridSlots(bodyLeft, bodyTop, PANEL_COLOR_PLACES, columns, side),
+    toolSlots: gridSlots(bodyLeft, bodyTop, PANEL_TOOL_PLACES, columns, side),
+    sizeToggle: header,
+    colorStepTool: header,
     panelDivider,
   };
 }
@@ -276,23 +293,27 @@ function landscapeStrip(home: LayoutRect, height: number): Strip {
   };
 }
 
-/** Panel vedle pruhu: oddíly pod sebou, když se vejdou do výšky, jinak vedle sebe. */
-function landscapePanel(left: number, height: number, side: number): PanelPlaces {
+/**
+ * Panel vedle pruhu na středu výšky: na telefonu na šířku hlavička vlevo
+ * a tělo 4 × 3, jinde hlavička nahoře a tělo 3 × 4.
+ */
+function landscapePanel(left: number, height: number, side: number, phone: boolean): PanelPlaces {
   const space = height - 2 * MIN_EDGE_CSS;
-  const stacked: PanelGrid = {
-    columns: LANDSCAPE_SECTION_COLUMNS,
-    arrangement: 'stacked',
-    side,
-  };
-  const stackedFits = gridSizeOf(stacked).height + 2 * PANEL_PADDING_CSS <= space;
-  const grid: PanelGrid = stackedFits ? stacked : { ...stacked, arrangement: 'sideBySide' };
+  const grid: PanelGrid = phone
+    ? { columns: PHONE_LANDSCAPE_BODY_COLUMNS, header: 'column', side }
+    : { columns: LANDSCAPE_BODY_COLUMNS, header: 'row', side };
   const gridHeight = gridSizeOf(grid).height;
   const padding = paddingFor(space, gridHeight);
   const panelHeight = gridHeight + 2 * padding;
   return panelAt(left, (height - panelHeight) / 2, grid, padding);
 }
 
-function landscapeLayout(width: number, height: number, home: LayoutRect): CssLayout {
+function landscapeLayout(
+  width: number,
+  height: number,
+  home: LayoutRect,
+  phone: boolean,
+): CssLayout {
   const strip = landscapeStrip(home, height);
   const stripRight = Math.max(
     ...[home, strip.handle, strip.undoButton, ...strip.recentColors].map(rightOf),
@@ -307,7 +328,7 @@ function landscapeLayout(width: number, height: number, home: LayoutRect): CssLa
   return {
     picture,
     ...strip,
-    ...landscapePanel(besideStrip, height, home.width),
+    ...landscapePanel(besideStrip, height, home.width, phone),
     panelSlidesFrom: 'left',
   };
 }
@@ -333,11 +354,11 @@ function portraitStrip(width: number, height: number, home: LayoutRect): Strip {
   };
 }
 
-/** Panel nad pruhem, na středu šířky, pod domečkem a 8 px kolem něj. */
+/** Panel nad pruhem, na středu šířky, pod domečkem a 8 px kolem něj; hlavička nahoře. */
 function portraitPanel(width: number, bottom: number, home: LayoutRect): PanelPlaces {
   const grid: PanelGrid = {
-    columns: PORTRAIT_SECTION_COLUMNS,
-    arrangement: 'stacked',
+    columns: PORTRAIT_BODY_COLUMNS,
+    header: 'row',
     side: home.width,
   };
   const size = gridSizeOf(grid);
@@ -395,6 +416,7 @@ function layoutInUnits(css: CssLayout, unitsPerCss: number): ColoringLayout {
     paletteColors: css.paletteColors.map(units),
     toolSlots: css.toolSlots.map(units),
     sizeToggle: units(css.sizeToggle),
+    colorStepTool: units(css.colorStepTool),
     panelDivider: units(css.panelDivider),
     panelSlidesFrom: css.panelSlidesFrom,
   };
@@ -409,7 +431,7 @@ export function layoutColoring(area: GameArea): ColoringLayout {
   const height = area.height * cssPerUnit;
   const css =
     width >= height
-      ? landscapeLayout(width, height, homeCss)
+      ? landscapeLayout(width, height, homeCss, area.mode === 'phoneLandscape')
       : portraitLayout(width, height, homeCss);
   return layoutInUnits(css, 1 / cssPerUnit);
 }
@@ -427,12 +449,8 @@ function indexContaining(places: readonly LayoutRect[], x: number, y: number): n
   return places.findIndex((place) => contains(place, x, y));
 }
 
-/** Dotyk na otevřeném panelu: tlačítko, nebo jen panel (nikdy obrázek pod ním). */
-function panelTarget(layout: ColoringLayout, x: number, y: number): TouchTarget {
-  const color = indexContaining(layout.paletteColors, x, y);
-  if (color >= 0) {
-    return color < PALETTE.length ? { kind: 'color', index: color } : { kind: 'panel' };
-  }
+/** Dotyk v kroku nástrojů: nástroj, přepínač velikosti, nebo jen panel. */
+function toolStepTarget(layout: ColoringLayout, x: number, y: number): TouchTarget {
   const tool = indexContaining(layout.toolSlots, x, y);
   if (tool >= 0) {
     return { kind: 'tool', index: tool };
@@ -440,13 +458,23 @@ function panelTarget(layout: ColoringLayout, x: number, y: number): TouchTarget 
   return contains(layout.sizeToggle, x, y) ? { kind: 'sizeToggle' } : { kind: 'panel' };
 }
 
+/** Dotyk v kroku barev: barva, vybraný nástroj (návrat), nebo jen panel. */
+function colorStepTarget(layout: ColoringLayout, x: number, y: number): TouchTarget {
+  const color = indexContaining(layout.paletteColors, x, y);
+  if (color >= 0) {
+    return color < PALETTE.length ? { kind: 'color', index: color } : { kind: 'panel' };
+  }
+  return contains(layout.colorStepTool, x, y) ? { kind: 'backToTools' } : { kind: 'panel' };
+}
+
 /**
  * Kam patří dotyk v bodě `x`, `y` (herní jednotky): pruh ovládání,
- * otevřený panel (i v mezeře mezi tlačítky), obrázek, nebo nic.
+ * otevřený panel v kroku `panel` (i v mezeře mezi tlačítky), obrázek,
+ * nebo nic. Každý krok nabízí jen svoje plochy (#105).
  */
 export function touchTargetAt(
   layout: ColoringLayout,
-  panelOpen: boolean,
+  panel: PanelView,
   x: number,
   y: number,
 ): TouchTarget {
@@ -460,8 +488,8 @@ export function touchTargetAt(
   if (recent >= 0) {
     return { kind: 'recentColor', index: recent };
   }
-  if (panelOpen && contains(layout.panel, x, y)) {
-    return panelTarget(layout, x, y);
+  if (panel !== 'closed' && contains(layout.panel, x, y)) {
+    return panel === 'tools' ? toolStepTarget(layout, x, y) : colorStepTarget(layout, x, y);
   }
   return contains(layout.picture, x, y) ? { kind: 'picture' } : { kind: 'none' };
 }
