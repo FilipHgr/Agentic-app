@@ -222,3 +222,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-08 Panel ve dvou krocích podle obrázků schválen (#105). Ikony
   stylu B (#106) se vlastníkovi nelíbí: převzít osvědčené řešení z jiných
   kreslicích aplikací pro děti, nový návrh ukázat na obrázcích.
+- 2026-11-08 Ikony nástrojů ve stylu D „skutečné nástroje šikmo“ (podle
+  dětských kreslicích aplikací), vybraná barva na hrotu, fixy se liší
+  hrotem (#106).
+- 2026-11-08 Tužka u profilu (#107) vpravo od kolečka. 6 profilů na iPadu
+  a telefonu na šířku ve 2 řadách po 3, na menších telefonech se kolečka
+  zmenší. Kroužek podržení u „Smazat“ je bílý (#108).
