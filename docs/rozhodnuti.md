@@ -139,7 +139,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   profilu (návrh P: velká barevná kolečka a +). (výběr při startu nahrazen)
 - 2026-11-05 Z hry do menu se dítě vrátí domečkem vlevo nahoře podržením
   1 s, ťuknutí domeček jen zhoupne.
-- 2026-11-05 Profil zakládá rodič: formulář se otevře podržením „+“ 1 s,
+- 2026-11-05 (nahrazeno) Profil zakládá rodič: formulář se otevře podržením „+“ 1 s,
   přezdívka se píše systémovou klávesnicí jen v tomto poli. Výjimka
   z „žádná klávesnice“ v CLAUDE.md. (klávesnice nahrazena)
 - 2026-11-05 Výběr profilu (P) se při startu ukáže jen při dvou a více
@@ -213,3 +213,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   a domečku. V hlavním menu tlačítka reagují hned (oprava jako nový úkol).
 - 2026-11-08 Ikony nástrojů v Omalovánkách jsou nesrozumitelné a složité.
   Musí být na první pohled jasné, co je to za nástroj (nový úkol s obrázky).
+- 2026-11-08 Schváleno podle doporučení: #106 ikony ve stylu B „Stopa
+  nástroje“, #105 panel ve dvou krocích. Pořadí #106, #105.
+- 2026-11-08 Výběr profilu bez podržení: úprava profilu tužkou, „+“
+  a kolečko profilu reagují ťuknutím. Smazání profilu zůstane za podržením
+  1 s u „Smazat“ v potvrzení (výjimka z kroužku jen ve hře). Tím je
+  nahrazeno „Profil zakládá rodič“ z 2026-11-05.
