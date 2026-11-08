@@ -562,3 +562,109 @@ export function sizeToggleDot(toggle: LayoutRect, size: LineSize): LayoutCircle 
     diameter: dotDiameter(size, sideOf(toggle) * TOGGLE_LARGE_DOT_SHARE),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Ikony nástrojů a šipka úchytu (#106)
+// ---------------------------------------------------------------------------
+
+/** Ikona nástroje zabere tento díl strany místa v panelu. */
+const TOOL_SLOT_ICON_SHARE = 0.62;
+
+/**
+ * Posun čtverce ikony doleva jako díl jeho strany: ikony leží ve svém
+ * čtverci víc vpravo (v úchytu je vlevo šipka otevřeného panelu), v místě
+ * panelu jsou po posunu opticky uprostřed.
+ */
+const TOOL_SLOT_ICON_SHIFT_SHARE = 0.14;
+
+/** Šipka úchytu: délka ramene a tloušťka čáry jako díl strany úchytu. */
+const HANDLE_ARROW_ARM_SHARE = 0.11;
+const HANDLE_ARROW_LINE_SHARE = 0.055;
+
+/** Vrchol šipky na šířku jako díl šířky úchytu: u otevřeného panelu vlevo, u zavřeného vpravo. */
+const HANDLE_ARROW_OPEN_X_SHARE = 0.12;
+const HANDLE_ARROW_CLOSED_X_SHARE = 0.88;
+
+/** Vrchol šipky na výšku jako díl výšky úchytu (dole uprostřed). */
+const HANDLE_ARROW_Y_SHARE = 0.87;
+
+/**
+ * Čtverec ikony nástroje v místě panelu i v hlavičce kroku barev (#105,
+ * #106): strana je díl kratší strany místa, ikona je opticky uprostřed.
+ */
+export function toolSlotIcon(slot: LayoutRect): LayoutRect {
+  const side = sideOf(slot) * TOOL_SLOT_ICON_SHARE;
+  return {
+    left: slot.left + slot.width / 2 - side / 2 - side * TOOL_SLOT_ICON_SHIFT_SHARE,
+    top: slot.top + slot.height / 2 - side / 2,
+    width: side,
+    height: side,
+  };
+}
+
+/** Šipka úchytu: vrchol, délka ramene a tloušťka čáry v herních jednotkách. */
+export interface HandleArrowShape {
+  readonly tipX: number;
+  readonly tipY: number;
+  /** Kam míří vrchol: doprava, doleva, nahoru, nebo dolů. */
+  readonly points: 'right' | 'left' | 'up' | 'down';
+  readonly arm: number;
+  readonly lineWidth: number;
+}
+
+/**
+ * Šipka, kam se panel po ťuknutí na úchyt pohne: na šířku vpravo „›“
+ * (vysunout) nebo vlevo „‹“ (zasunout), na výšku dole „˄“ nebo „˅“.
+ */
+export function handleArrowShape(
+  handle: LayoutRect,
+  slidesFrom: ColoringLayout['panelSlidesFrom'],
+  panelOpen: boolean,
+): HandleArrowShape {
+  const side = sideOf(handle);
+  const arm = side * HANDLE_ARROW_ARM_SHARE;
+  const lineWidth = side * HANDLE_ARROW_LINE_SHARE;
+  if (slidesFrom === 'left') {
+    const xShare = panelOpen ? HANDLE_ARROW_OPEN_X_SHARE : HANDLE_ARROW_CLOSED_X_SHARE;
+    return {
+      tipX: handle.left + handle.width * xShare,
+      tipY: handle.top + handle.height / 2,
+      points: panelOpen ? 'left' : 'right',
+      arm,
+      lineWidth,
+    };
+  }
+  return {
+    tipX: handle.left + handle.width / 2,
+    tipY: handle.top + handle.height * HANDLE_ARROW_Y_SHARE,
+    points: panelOpen ? 'down' : 'up',
+    arm,
+    lineWidth,
+  };
+}
+
+/** Obdélník, do kterého se šipka úchytu vejde i s tloušťkou čáry. */
+export function handleArrow(
+  handle: LayoutRect,
+  slidesFrom: ColoringLayout['panelSlidesFrom'],
+  panelOpen: boolean,
+): LayoutRect {
+  const { tipX, tipY, points, arm, lineWidth } = handleArrowShape(handle, slidesFrom, panelOpen);
+  const half = lineWidth / 2;
+  if (points === 'left' || points === 'right') {
+    const left = points === 'left' ? tipX : tipX - arm;
+    return {
+      left: left - half,
+      top: tipY - arm - half,
+      width: arm + lineWidth,
+      height: 2 * arm + lineWidth,
+    };
+  }
+  const top = points === 'up' ? tipY : tipY - arm;
+  return {
+    left: tipX - arm - half,
+    top: top - half,
+    width: 2 * arm + lineWidth,
+    height: arm + lineWidth,
+  };
+}

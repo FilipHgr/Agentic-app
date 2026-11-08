@@ -89,61 +89,34 @@ export const SIZE_DOT_STYLE = {
   color: TEXT,
 } as const;
 
-/** Štětec: modrá rukojeť, šedomodrá objímka a špička v barvě. */
-export const BRUSH_STYLE = {
-  handleColor: BLUE,
-  ferruleColor: '#6E9FD6',
-  /** Štětec bez barvy má špičku šedou. */
+/**
+ * Ikony nástrojů (#106, styl D „skutečné nástroje šikmo“): předměty
+ * s tmavým obrysem 3 CSS px, vybraná barva je na části, která maluje.
+ * Materiály (dřevo, kov, bílé tělo fixu, modrý obal gumy) jsou stejné
+ * v každé barvě. Bez vybrané barvy maluje část šedě.
+ */
+export const TOOL_ICON_STYLE = {
+  outlineColor: TEXT,
+  outlineCss: 3,
+  /** Bílé tělo fixů, hlavička spreje, pryž gumy a odlesky. */
+  white: WHITE,
+  /** Dřevěná násada štětce. */
+  wood: '#F2C27A',
+  /** Ořezané dřevo pastelky. */
+  woodCut: '#F7DDB0',
+  /** Kovová objímka štětce. */
+  metal: '#C7C7CC',
+  /** Obal gumy. */
+  eraserSleeve: BLUE,
+  /** Část, která maluje, když není vybraná barva. */
   noColor: '#C7C7CC',
+  /** Světlá ploška pastelky: díl bílé přimíchaný do barvy. */
+  crayonFacetWhiteShare: 0.4,
 } as const;
 
-/** Guma (#90): šikmý kvádr bez barvy, modrý obal jako rukojeť štětce a šedá pryž. */
-export const ERASER_STYLE = {
-  sleeveColor: BRUSH_STYLE.handleColor,
-  rubberColor: BRUSH_STYLE.noColor,
-  /** Jemná čára pod gumou, aby bylo vidět, že něco stírá. */
-  trailColor: '#D2D2D7',
-} as const;
-
-/** Fix (#93): modré tělo, šedomodrý límec, víčko a čtvercový hrot v barvě. */
-export const MARKER_STYLE = {
-  bodyColor: BRUSH_STYLE.handleColor,
-  collarColor: BRUSH_STYLE.ferruleColor,
-  noColor: BRUSH_STYLE.noColor,
-} as const;
-
-/** Pastelka (#93): tlusté tělo a špičatý hrot v barvě, na obalu modré proužky. */
-export const CRAYON_STYLE = {
-  stripeColor: BRUSH_STYLE.handleColor,
-  noColor: BRUSH_STYLE.noColor,
-} as const;
-
-/** Razítkový fix (#98): hvězdičky v barvě, bez barvy šedé jako špička štětce. */
-export const STAMP_STYLE = {
-  noColor: BRUSH_STYLE.noColor,
-} as const;
-
-/** Puntíkový fix (#101): puntíky v barvě, bez barvy šedé jako špička štětce. */
-export const DOTS_STYLE = {
-  noColor: BRUSH_STYLE.noColor,
-} as const;
-
-/** Proužkový fix (#102): proužky v barvě, bez barvy šedé jako špička štětce. */
-export const STRIPES_STYLE = {
-  noColor: BRUSH_STYLE.noColor,
-} as const;
-
-/** Třpytky (#103): jiskry v barvě, bez barvy šedé jako špička štětce, lesk během tahu bílý. */
+/** Lesk třpytek během tahu (#103): bílé jiskry s jemným šedým okrajem. */
 export const GLITTER_STYLE = {
-  noColor: BRUSH_STYLE.noColor,
-  shineColor: '#FFFFFF',
+  shineColor: WHITE,
   /** Jemný okraj bílého lesku, aby byl vidět i na bílé ploše. */
-  shineOutline: BRUSH_STYLE.noColor,
-} as const;
-
-/** Sprej (#104): modrá plechovka jako rukojeť štětce, obláček teček v barvě, bez barvy šedý. */
-export const SPRAY_STYLE = {
-  canColor: BRUSH_STYLE.handleColor,
-  nozzleColor: BRUSH_STYLE.ferruleColor,
-  noColor: BRUSH_STYLE.noColor,
+  shineOutline: '#C7C7CC',
 } as const;

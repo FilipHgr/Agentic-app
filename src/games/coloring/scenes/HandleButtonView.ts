@@ -1,17 +1,19 @@
 /**
  * Úchyt panelu nástrojů (#96 AC2, AC5) se zástupným vzhledem A3: tlačítko
- * s modrým okrajem, uvnitř vybraný nástroj ve vybrané barvě (guma bez
- * barvy, #90), v pravém dolním rohu tmavá tečka vybrané velikosti čáry
- * (#91) a malá šipka, kam se panel po ťuknutí pohne. Kam se kreslí ikona
- * a tečka, určuje `handleFace`. Ťuknutí pozná scéna přes `touchTargetAt`.
+ * s modrým okrajem, uvnitř ikona vybraného nástroje ve vybrané barvě
+ * (guma bez barvy, duha v barvách duhy, #90, #97, ikony #106), v pravém dolním rohu
+ * tmavá tečka vybrané velikosti čáry (#91) a malá šipka, kam se panel po
+ * ťuknutí pohne. Kam se kreslí ikona, tečka a šipka, určují `handleFace`
+ * a `handleArrowShape`. Ťuknutí pozná scéna přes `touchTargetAt`.
  */
 
 import Phaser from 'phaser';
 
 import { colorNumber } from '../../../shared/logic/theme';
-import { handleFace } from '../logic/coloringLayout';
+import { handleArrowShape, handleFace } from '../logic/coloringLayout';
 import type { ColoringLayout, LayoutRect } from '../logic/coloringLayout';
 import { HANDLE_STYLE, SIZE_DOT_STYLE } from '../logic/theme';
+import { handleIconShapes } from '../logic/toolIcons';
 import type { HandleView } from '../logic/toolPanel';
 import { drawToolIcon } from './toolIcon';
 
@@ -35,10 +37,10 @@ export class HandleButtonView {
   }
 
   /**
-   * Překreslí úchyt: nástroj a velikost z `view`, nástroj v barvě
-   * `colorHex` a šipka podle stavu panelu.
+   * Překreslí úchyt hned (#106 AC6): ikona nástroje ve vybrané barvě
+   * a velikost z `view`, šipka podle stavu panelu.
    */
-  show(view: HandleView, colorHex: string | null, panelOpen: boolean): void {
+  show(view: HandleView, panelOpen: boolean): void {
     const graphics = this.graphics;
     const rect = this.rect;
     if (graphics === null || rect === null) {
@@ -62,14 +64,12 @@ export class HandleButtonView {
     );
     // `handleFace` počítá v herních jednotkách; grafika má počátek v levém horním rohu úchytu.
     const { icon, sizeDot } = handleFace({ ...rect, left: 0, top: 0 }, view.size);
-    drawToolIcon(
-      graphics,
-      view.tool,
-      icon.left + icon.width / 2,
-      icon.top + icon.height / 2,
-      Math.min(icon.width, icon.height),
-      colorHex,
-    );
+    const iconSideCss = Math.min(icon.width, icon.height) * this.cssScale;
+    drawToolIcon(graphics, handleIconShapes(view, iconSideCss), {
+      left: icon.left,
+      top: icon.top,
+      cssScale: this.cssScale,
+    });
     graphics.fillStyle(colorNumber(SIZE_DOT_STYLE.color), 1);
     graphics.fillCircle(sizeDot.centerX, sizeDot.centerY, sizeDot.diameter / 2);
     this.drawArrow(graphics, rect, panelOpen);
@@ -85,22 +85,16 @@ export class HandleButtonView {
    * „‹“ (zasunout), na výšku dole „˄“ nebo „˅“.
    */
   private drawArrow(graphics: Phaser.GameObjects.Graphics, rect: LayoutRect, open: boolean): void {
-    const side = Math.min(rect.width, rect.height);
-    // Šipka je vysoká asi pětinu strany úchytu (2 × `size`).
-    const size = side * 0.11;
-    graphics.lineStyle(side * 0.055, colorNumber(HANDLE_STYLE.arrowColor), 1);
-    if (this.slidesFrom === 'left') {
-      const x = open ? rect.width * 0.12 : rect.width * 0.88;
-      const y = rect.height / 2;
-      const direction = open ? 1 : -1;
-      graphics.lineBetween(x + direction * size, y - size, x, y);
-      graphics.lineBetween(x, y, x + direction * size, y + size);
-      return;
-    }
-    const x = rect.width / 2;
-    const y = rect.height * 0.87;
-    const direction = open ? -1 : 1;
-    graphics.lineBetween(x - size, y + direction * size, x, y);
-    graphics.lineBetween(x, y, x + size, y + direction * size);
+    // Grafika má počátek v levém horním rohu úchytu.
+    const arrow = handleArrowShape({ ...rect, left: 0, top: 0 }, this.slidesFrom, open);
+    const { tipX, tipY, arm } = arrow;
+    // Konce obou ramen: vrchol míří ke směru šipky, ramena od něj odstupují o `arm`.
+    const back = { right: -arm, left: arm, up: arm, down: -arm }[arrow.points];
+    const across = arrow.points === 'left' || arrow.points === 'right';
+    const first = across ? { x: tipX + back, y: tipY - arm } : { x: tipX - arm, y: tipY + back };
+    const second = across ? { x: tipX + back, y: tipY + arm } : { x: tipX + arm, y: tipY + back };
+    graphics.lineStyle(arrow.lineWidth, colorNumber(HANDLE_STYLE.arrowColor), 1);
+    graphics.lineBetween(first.x, first.y, tipX, tipY);
+    graphics.lineBetween(tipX, tipY, second.x, second.y);
   }
 }

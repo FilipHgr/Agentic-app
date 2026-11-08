@@ -1,61 +1,107 @@
 /**
- * Symbol nástroje (#90, #93, #97, #98, #101–#104) pro úchyt i panel: štětec, fix,
- * pastelka, razítkový, puntíkový a proužkový fix, třpytky a sprej ve vybrané barvě, guma vždy bez barvy a duha vždy v barvách duhy.
+ * Kreslení ikony nástroje (#106) do úchytu, místa v panelu i hlavičky
+ * kroku barev. Tvary ikony dává logika (`toolIconShapes`) v CSS px,
+ * tady se jen přepočtou na herní jednotky a nakreslí: tvar s obrysem se
+ * nejdřív obtáhne tmavou čarou 2 × `outline` a pak vyplní.
  */
 
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 
-import type { ToolId } from '../logic/toolPanel';
-import { drawBrush } from './brushIcon';
-import { drawCrayon } from './crayonIcon';
-import { drawDots } from './dotsIcon';
-import { drawEraser } from './eraserIcon';
-import { drawGlitter } from './glitterIcon';
-import { drawMarker } from './markerIcon';
-import { drawRainbow } from './rainbowIcon';
-import { drawSpray } from './sprayIcon';
-import { drawStamp } from './stampIcon';
-import { drawStripes } from './stripesIcon';
+import { colorNumber } from '../../../shared/logic/theme';
+import { TOOL_ICON_STYLE } from '../logic/theme';
+import { starPoints } from '../logic/toolIcons';
+import type { IconPoint, IconShape } from '../logic/toolIcons';
 
-/** Nástroj `tool` se středem `x`, `y` velikosti `size`; `colorHex` gumu ani duhu nemění. */
+/** Kde ikona leží: levý horní roh jejího čtverce v herních jednotkách a CSS px na jednotku. */
+export interface IconPlacement {
+  readonly left: number;
+  readonly top: number;
+  readonly cssScale: number;
+}
+
+/** Nakreslí tvary ikony v pořadí, pozdější přes dřívější. */
 export function drawToolIcon(
   graphics: Phaser.GameObjects.Graphics,
-  tool: ToolId,
-  x: number,
-  y: number,
-  size: number,
-  colorHex: string | null,
+  shapes: readonly IconShape[],
+  placement: IconPlacement,
 ): void {
-  switch (tool) {
-    case 'brush':
-      drawBrush(graphics, x, y, size, colorHex);
+  const toUnits = (p: IconPoint): IconPoint => ({
+    x: placement.left + p.x / placement.cssScale,
+    y: placement.top + p.y / placement.cssScale,
+  });
+  for (const shape of shapes) {
+    drawShape(graphics, shape, toUnits, placement.cssScale);
+  }
+}
+
+function drawShape(
+  graphics: Phaser.GameObjects.Graphics,
+  shape: IconShape,
+  toUnits: (p: IconPoint) => IconPoint,
+  cssScale: number,
+): void {
+  const outline = (shape.outline ?? 0) / cssScale;
+  switch (shape.kind) {
+    case 'circle': {
+      const center = toUnits(shape);
+      const radius = shape.radius / cssScale;
+      if (outline > 0) {
+        fillWith(graphics, TOOL_ICON_STYLE.outlineColor);
+        graphics.fillCircle(center.x, center.y, radius + outline);
+      }
+      fillWith(graphics, shape.color);
+      graphics.fillCircle(center.x, center.y, radius);
       return;
-    case 'eraser':
-      drawEraser(graphics, x, y, size);
+    }
+    case 'polygon':
+      drawPolygon(graphics, shape.points.map(toUnits), shape.color, outline);
       return;
-    case 'marker':
-      drawMarker(graphics, x, y, size, colorHex);
+    case 'star':
+      drawPolygon(graphics, starPoints(shape).map(toUnits), shape.color, outline);
       return;
-    case 'crayon':
-      drawCrayon(graphics, x, y, size, colorHex);
-      return;
-    case 'rainbow':
-      drawRainbow(graphics, x, y, size);
-      return;
-    case 'stamp':
-      drawStamp(graphics, x, y, size, colorHex);
-      return;
-    case 'dots':
-      drawDots(graphics, x, y, size, colorHex);
-      return;
-    case 'stripes':
-      drawStripes(graphics, x, y, size, colorHex);
-      return;
-    case 'glitter':
-      drawGlitter(graphics, x, y, size, colorHex);
-      return;
-    case 'spray':
-      drawSpray(graphics, x, y, size, colorHex);
+    case 'line':
+      drawRoundLine(graphics, shape.points.map(toUnits), shape.width / cssScale, shape.color);
       return;
   }
+}
+
+/** Mnohoúhelník: obrys jako čára 2 × `outline` se zaoblenými rohy, pak výplň. */
+function drawPolygon(
+  graphics: Phaser.GameObjects.Graphics,
+  points: readonly IconPoint[],
+  color: string,
+  outline: number,
+): void {
+  if (outline > 0) {
+    graphics.lineStyle(2 * outline, colorNumber(TOOL_ICON_STYLE.outlineColor), 1);
+    graphics.strokePoints([...points], true);
+    // Čára v Phaseru nemá zaoblené spoje, rohy obrysu doplní kolečka.
+    fillWith(graphics, TOOL_ICON_STYLE.outlineColor);
+    for (const corner of points) {
+      graphics.fillCircle(corner.x, corner.y, outline);
+    }
+  }
+  fillWith(graphics, color);
+  graphics.fillPoints([...points], true);
+}
+
+/** Lomená čára se zaoblenými konci a spoji (odlesk). */
+function drawRoundLine(
+  graphics: Phaser.GameObjects.Graphics,
+  points: readonly IconPoint[],
+  width: number,
+  color: string,
+): void {
+  graphics.lineStyle(width, colorNumber(color), 1);
+  if (points.length > 1) {
+    graphics.strokePoints([...points], false);
+  }
+  fillWith(graphics, color);
+  for (const joint of points) {
+    graphics.fillCircle(joint.x, joint.y, width / 2);
+  }
+}
+
+function fillWith(graphics: Phaser.GameObjects.Graphics, color: string): void {
+  graphics.fillStyle(colorNumber(color), 1);
 }

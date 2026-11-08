@@ -17,9 +17,10 @@
 import Phaser from 'phaser';
 
 import { PAGE_BACKGROUND, colorNumber } from '../../../shared/logic/theme';
-import { sizeToggleDot } from '../logic/coloringLayout';
+import { sizeToggleDot, toolSlotIcon } from '../logic/coloringLayout';
 import type { ColoringLayout, LayoutRect } from '../logic/coloringLayout';
 import { COLOR_BUTTON_STYLE, SIZE_DOT_STYLE, TOOL_PANEL_STYLE } from '../logic/theme';
+import { toolIconShapes } from '../logic/toolIcons';
 import { PANEL_TOOLS } from '../logic/toolPanel';
 import type { LineSize, PanelView, ToolId } from '../logic/toolPanel';
 import { PaletteView } from './PaletteView';
@@ -50,9 +51,6 @@ export interface PanelSelection {
 
 /** Otevřený krok panelu. */
 type PanelStep = Exclude<PanelView, 'closed'>;
-
-/** Symbol nástroje zabere tento díl strany místa. */
-const TOOL_ICON_SHARE = 0.62;
 
 /** Zhoupnutí jako u Zpět a dlaždic v menu: na jednu stranu, na druhou a zpět. */
 const WOBBLE = { angle: 8, durationMs: 90 };
@@ -366,8 +364,14 @@ function drawToolSlot(
 ): void {
   graphics.clear();
   drawToolButton(graphics, slot, cssScale, look.isMarked);
-  const size = Math.min(slot.width, slot.height) * TOOL_ICON_SHARE;
-  drawToolIcon(graphics, look.tool, 0, 0, size, look.paintHex);
+  // Grafika má počátek ve středu místa, ikona leží ve čtverci z rozložení.
+  const icon = toolSlotIcon({ ...slot, left: -slot.width / 2, top: -slot.height / 2 });
+  const sideCss = Math.min(icon.width, icon.height) * cssScale;
+  drawToolIcon(graphics, toolIconShapes(look.tool, look.paintHex, sideCss), {
+    left: icon.left,
+    top: icon.top,
+    cssScale,
+  });
 }
 
 /**

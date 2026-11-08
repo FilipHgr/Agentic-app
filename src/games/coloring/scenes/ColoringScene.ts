@@ -291,7 +291,7 @@ export class ColoringScene extends Phaser.Scene {
       color: this.palette.selected,
       size: INITIAL_LINE_SIZE,
     };
-    this.handleView.show(view, view.color === null ? null : hexOf(view.color), open);
+    this.handleView.show(view, open);
   }
 
   /**

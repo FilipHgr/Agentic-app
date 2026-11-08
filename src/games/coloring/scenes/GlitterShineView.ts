@@ -14,7 +14,7 @@ import type { LayoutRect } from '../logic/coloringLayout';
 import { createGlitterShine } from '../logic/glitterShine';
 import type { GlitterShine } from '../logic/glitterShine';
 import { GLITTER_STYLE } from '../logic/theme';
-import { drawSparkle } from './glitterIcon';
+import { starPoints } from '../logic/toolIcons';
 
 /** Délka cípu největší jiskry lesku jako díl W tahu. */
 const SPARK_REACH_SHARE = 0.6;
@@ -24,6 +24,9 @@ const OUTLINE_CSS = 1.5;
 
 /** Neprůhlednost okraje jiskry při plném lesku. */
 const OUTLINE_ALPHA = 0.9;
+
+/** Hloubka zářezů mezi cípy jiskry jako díl délky cípu. */
+const NOTCH_SHARE = 0.3;
 
 /** Kam se vrstva barev kreslí: obdélník obrázku a rozměr vrstvy v pixelech. */
 export interface ShinePlacement {
@@ -101,7 +104,17 @@ export class GlitterShineView {
         OUTLINE_ALPHA * spark.opacity,
       );
       graphics.fillStyle(colorNumber(GLITTER_STYLE.shineColor), spark.opacity);
-      drawSparkle(graphics, x, y, reach, true);
+      // Čtyřcípá jiskra ✦ s cípy nahoru, doprava, dolů a doleva.
+      const points = starPoints({
+        x,
+        y,
+        tips: 4,
+        outerRadius: reach,
+        innerRadius: reach * NOTCH_SHARE,
+        rotation: 0,
+      });
+      graphics.fillPoints(points, true);
+      graphics.strokePoints(points, true);
     }
   }
 
