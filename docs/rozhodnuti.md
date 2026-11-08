@@ -206,3 +206,8 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   L-A (pruh vlevo) a na výšku P-A (úchyt dole uprostřed), paleta 12 barev
   varianta A (navíc růžová, tělová, šedá, světle modrá). Pořadí #96, #90,
   #93, #91, #97, #98, #99, #100, #101, #102, #103, #104.
+- 2026-11-08 Omalovánky: panel nejdřív ukáže jen nástroje, barvy až po
+  ťuknutí na nástroj. Každý nástroj má vlastní sadu barev, i vícebarevné,
+  tříštivé a duhové. Navrhne se jako nové úkoly.
+- 2026-11-08 Kroužek podržení 1 s je jen ve hře u kolečka nastavení
+  a domečku. V hlavním menu tlačítka reagují hned (oprava jako nový úkol).
