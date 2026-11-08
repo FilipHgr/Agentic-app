@@ -138,3 +138,10 @@ export const GLITTER_STYLE = {
   /** Jemný okraj bílého lesku, aby byl vidět i na bílé ploše. */
   shineOutline: BRUSH_STYLE.noColor,
 } as const;
+
+/** Sprej (#104): modrá plechovka jako rukojeť štětce, obláček teček v barvě, bez barvy šedý. */
+export const SPRAY_STYLE = {
+  canColor: BRUSH_STYLE.handleColor,
+  nozzleColor: BRUSH_STYLE.ferruleColor,
+  noColor: BRUSH_STYLE.noColor,
+} as const;

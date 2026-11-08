@@ -52,6 +52,14 @@
  * na velikosti, tahu ani náhodě; lesk během tahu je jen animace scény
  * (`glitterShine.ts`) a do obrázku se nezapíše.
  *
+ * Sprej (#104) nekreslí razítky: každý úsek dráhy zabarví v pásu do
+ * vzdálenosti W od úseku jen pixely drobných teček ze vzoru pevného vůči
+ * obrázku (`sprayDots.ts`). Hustota klesá se vzdáleností středu pixelu od
+ * úseku a pixel tečky se zabarví, když hustota přesáhne práh tečky. Pixel,
+ * na který dosáhne víc úseků, tak rozhoduje podle bližšího z nich, takže
+ * rychlý, pomalý i opakovaný tah dá stejné pixely a překryv tahů nemá
+ * hustotu součtu. Velikost mění jen šířku pásu, tečky zůstávají stejné.
+ *
  * Maluje jen první prst: další dotyky (druhý prst, dlaň, tužka) během tahu
  * nic nenamalují a po zvednutí prvního prstu tah skončí (AC5). Každé místo
  * má jen jednu barvu z palety, bez míchání a průhlednosti.
@@ -63,6 +71,7 @@
 import { isGrainGap } from './crayonGrain';
 import { sparkleMask } from './glitterSparkles';
 import { RAINBOW_COLORS } from './palette';
+import { RANK_SCALE, sprayRanks } from './sprayDots';
 import { OUTLINE_REGION, regionAt } from './regionMap';
 import type { RegionMap } from './regionMap';
 import { createStrokeJournal } from './strokeHistory';
@@ -123,6 +132,19 @@ const STRIPE_WIDTH_SHARE = 1 / 3;
 
 /** Stopa třpytek je široká 1,5 W (#103 AC2). */
 const GLITTER_WIDTH_FACTOR = 1.5;
+
+/** Polovina pásu spreje je W (#104 AC2): pás je široký 2 W. */
+const SPRAY_HALF_FACTOR = 1;
+
+/**
+ * Díl zabarvených pixelů přímo na čáře spreje (#104 AC2). Hustota ve
+ * vzdálenosti d od čáry je `SPRAY_PEAK_SHARE` × (1 − (d / W)²)^1,5: do
+ * W/2 vychází u tahu zabarveno asi 65 %, od W/2 do W asi 20 %, ve W nic.
+ * Ke kraji pásu hustota klesá plynule, aby tečky nebyly useknuté v jedné
+ * čáře. Vzorek teček pak zabere 75 % obrázku a záznam vzorku přes V
+ * (#104 AC5) má asi 44 tisíc znaků.
+ */
+const SPRAY_PEAK_SHARE = 0.75;
 
 /** Krok v pixelech, po kterém se hledá oblast, do které prst vjel z obrysu. */
 const REGION_SEARCH_STEP = 1;
@@ -201,10 +223,10 @@ type StrokeTarget =
   | { readonly kind: 'region'; readonly region: number };
 
 /**
- * Jak tah klade barvu: souvislými razítky, duhou (#97), nebo hvězdičkami
- * po dráze (#98).
+ * Jak tah klade barvu: souvislými razítky, duhou (#97), hvězdičkami po
+ * dráze (#98), nebo tečkami spreje (#104).
  */
-type StrokeTrail = 'stamps' | 'rainbow' | 'stars';
+type StrokeTrail = 'stamps' | 'rainbow' | 'stars' | 'spray';
 
 /**
  * Které pixely razítka tah barví: všechny, jen mimo mezery zrna pastelky
@@ -409,7 +431,14 @@ export function createColoring(
     return sparkles[y * regions.width + x] === 1;
   };
 
-  /** Stopa nástroje `tool` při šířce W `width`: šířka, tvar razítka a vzor (#90, #93, #101–#103). */
+  /**
+   * Pořadí pixelů ve vzoru teček spreje podle W stř, pevné vůči obrázku
+   * (#104). Spočítá se až při prvním tahu sprejem, jiné nástroje ho
+   * nepotřebují.
+   */
+  let sprayDotRanks: Uint16Array | null = null;
+
+  /** Stopa nástroje `tool` při šířce W `width`: šířka, tvar razítka a vzor (#90, #93, #101–#104). */
   const inkOf = (tool: ToolId, colorIndex: number, width: number): StrokeInk => {
     const brushRadius = width / 2;
     switch (tool) {
@@ -476,6 +505,14 @@ export function createColoring(
           shape: 'round',
           pattern: 'glitter',
           trail: 'stamps',
+        };
+      case 'spray':
+        return {
+          colorIndex,
+          radius: width * SPRAY_HALF_FACTOR,
+          shape: 'round',
+          pattern: 'solid',
+          trail: 'spray',
         };
       case 'stamp':
         return {
@@ -628,6 +665,73 @@ export function createColoring(
   };
 
   /**
+   * Úsek dráhy spreje `from`–`to` (#104 AC2): pixel oblasti `region` do
+   * vzdálenosti `reach` (W) od úseku se zabarví barvou `colorIndex`, když
+   * je jeho pořadí ve vzoru teček menší než hustota v jeho vzdálenosti.
+   * Pixely mezi tečkami zůstanou, jak byly.
+   */
+  const paintSpraySegment = (
+    from: Point,
+    to: Point,
+    region: number,
+    colorIndex: number,
+    reach: number,
+  ): ChangedArea | null => {
+    sprayDotRanks ??= sprayRanks(
+      regions.width,
+      regions.height,
+      brushWidthFor(regions.width, 'medium'),
+    );
+    const ranks = sprayDotRanks;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const segmentSquared = dx * dx + dy * dy;
+    const left = Math.max(0, Math.floor(Math.min(from.x, to.x) - reach));
+    const right = Math.min(regions.width - 1, Math.ceil(Math.max(from.x, to.x) + reach));
+    const top = Math.max(0, Math.floor(Math.min(from.y, to.y) - reach));
+    const bottom = Math.min(regions.height - 1, Math.ceil(Math.max(from.y, to.y) + reach));
+    const peakRank = SPRAY_PEAK_SHARE * RANK_SCALE;
+    let paintedAny = false;
+    for (let y = top; y <= bottom; y += 1) {
+      for (let x = left; x <= right; x += 1) {
+        const index = y * regions.width + x;
+        const rank = ranks[index] ?? RANK_SCALE;
+        // Pixel s pořadím nad nejvyšší hustotou se nezabarví nikdy, vzdálenost netřeba.
+        if (rank >= peakRank || regions.regionIds[index] !== region) {
+          continue;
+        }
+        const centerX = x + 0.5;
+        const centerY = y + 0.5;
+        const projected =
+          segmentSquared === 0
+            ? 0
+            : ((centerX - from.x) * dx + (centerY - from.y) * dy) / segmentSquared;
+        const share = Math.max(0, Math.min(1, projected));
+        const distance = Math.hypot(
+          centerX - (from.x + share * dx),
+          centerY - (from.y + share * dy),
+        );
+        if (distance >= reach) {
+          continue;
+        }
+        const closeness = distance / reach;
+        const falloff = 1 - closeness * closeness;
+        const density = peakRank * falloff * Math.sqrt(falloff);
+        if (rank >= density) {
+          continue;
+        }
+        const previous = colors[index] ?? NO_COLOR;
+        if (previous !== colorIndex) {
+          journal.note(index, previous);
+          colors[index] = colorIndex;
+        }
+        paintedAny = true;
+      }
+    }
+    return paintedAny ? { left, top, right: right + 1, bottom: bottom + 1 } : null;
+  };
+
+  /**
    * Hvězdičky na úseku dráhy `from`–`to`, který začíná po `startLength`
    * pixelech dráhy (#98 AC2): každá, jejíž délka dráhy na úsek padne. Když
    * tah zatím nemá oblast (`region` je `null`), hvězdičky se jen odpočítají.
@@ -665,6 +769,8 @@ export function createColoring(
         return paintRainbowSegment(from, to, startLength, region, current.ink.radius);
       case 'stars':
         return paintStarSegment(current, from, to, startLength, region);
+      case 'spray':
+        return paintSpraySegment(from, to, region, current.ink.colorIndex, current.ink.radius);
       case 'stamps':
         return paintSegment(from, to, region, current.ink);
     }
@@ -715,6 +821,8 @@ export function createColoring(
           return paintRainbowSegment(point, point, 0, target.region, ink.radius);
         case 'stars':
           return stamp(starCenter(point.x, point.y), target.region, ink);
+        case 'spray':
+          return paintSpraySegment(point, point, target.region, ink.colorIndex, ink.radius);
         case 'stamps':
           return stamp(point, target.region, ink);
       }

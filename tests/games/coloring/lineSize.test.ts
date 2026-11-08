@@ -268,8 +268,9 @@ describe('#91 AC3: velikost platí pro všechny nástroje naráz', () => {
     // Proužkový fix (#102) barví jen proužky, šířku jeho stopy hlídá
     // `stripesStrokes.test.ts` (#102 AC5). Třpytky (#103) barví jen
     // drobné jiskry, šířku jejich stopy hlídá `glitterStrokes.test.ts`
-    // (#103 AC5).
-    const patterned: readonly string[] = ['stamp', 'dots', 'stripes', 'glitter'];
+    // (#103 AC5). Sprej (#104) barví jen tečky, šířku jeho pásu hlídá
+    // `sprayStrokes.test.ts` (#104 AC5).
+    const patterned: readonly string[] = ['stamp', 'dots', 'stripes', 'glitter', 'spray'];
     const continuous = PANEL_TOOLS.filter((each) => !patterned.includes(each));
     for (const tool of continuous) {
       for (const size of SIZES) {

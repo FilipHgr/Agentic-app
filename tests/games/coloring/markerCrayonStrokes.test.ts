@@ -67,6 +67,7 @@ const NAMES: Record<ToolId, string> = {
   dots: 'puntíkový fix',
   stripes: 'proužkový fix',
   glitter: 'třpytky',
+  spray: 'sprej',
 };
 
 /** Vodorovný tah přes prázdnou oblast A. */

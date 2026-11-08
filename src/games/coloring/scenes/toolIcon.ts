@@ -1,6 +1,6 @@
 /**
- * Symbol nástroje (#90, #93, #97, #98, #101–#103) pro úchyt i panel: štětec, fix,
- * pastelka, razítkový, puntíkový a proužkový fix a třpytky ve vybrané barvě, guma vždy bez barvy a duha vždy v barvách duhy.
+ * Symbol nástroje (#90, #93, #97, #98, #101–#104) pro úchyt i panel: štětec, fix,
+ * pastelka, razítkový, puntíkový a proužkový fix, třpytky a sprej ve vybrané barvě, guma vždy bez barvy a duha vždy v barvách duhy.
  */
 
 import Phaser from 'phaser';
@@ -13,6 +13,7 @@ import { drawEraser } from './eraserIcon';
 import { drawGlitter } from './glitterIcon';
 import { drawMarker } from './markerIcon';
 import { drawRainbow } from './rainbowIcon';
+import { drawSpray } from './sprayIcon';
 import { drawStamp } from './stampIcon';
 import { drawStripes } from './stripesIcon';
 
@@ -52,6 +53,9 @@ export function drawToolIcon(
       return;
     case 'glitter':
       drawGlitter(graphics, x, y, size, colorHex);
+      return;
+    case 'spray':
+      drawSpray(graphics, x, y, size, colorHex);
       return;
   }
 }

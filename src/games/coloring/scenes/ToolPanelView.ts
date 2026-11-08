@@ -3,7 +3,7 @@
  * stínem, v ní oddíl barev a oddíl nástrojů s přepínačem velikosti.
  * Místa pro nehotové položky jsou prázdná, na prvních místech nástrojů
  * jsou štětec, guma, fix, pastelka, duha, razítkový, puntíkový a proužkový
- * fix a třpytky (`PANEL_TOOLS`, #90, #93, #97, #98, #101–#103), vybraný má
+ * fix, třpytky a sprej (`PANEL_TOOLS`, #90, #93, #97, #98, #101–#104), vybraný má
  * silný modrý okraj. Přepínač velikosti (#91) je tlačítko s tmavou tečkou
  * vybrané velikosti (`sizeToggleDot`). Panel vyjíždí zleva (na šířku)
  * nebo zdola (na výšku) do 0,3 s a zajíždí pod pruh ovládání; obrázek se přitom nehne, posouvá se jen

@@ -81,6 +81,7 @@ const TOOL_NAMES: Readonly<Record<ToolId, string>> = {
   dots: 'puntíkový fix',
   stripes: 'proužkový fix',
   glitter: 'třpytky',
+  spray: 'sprej',
 };
 
 /** Šikmý tah v levé oblasti zkušebního obrázku `twoHalves()`. */
