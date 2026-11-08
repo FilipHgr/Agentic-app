@@ -46,6 +46,12 @@
  * ani na tahu, takže proužky různých tahů na sebe navazují a opakovaný tah
  * mezery nezaplní. Pixel je proužek, když v proužku leží jeho střed.
  *
+ * Třpytky (#103) mají kulatou stopu širokou 1,5 W, ale barví jen pixely
+ * drobných čtyřcípých jisker ze vzoru pevného vůči obrázku
+ * (`glitterSparkles.ts`), ostatní pixely nechají, jak byly. Jiskry nezávisí
+ * na velikosti, tahu ani náhodě; lesk během tahu je jen animace scény
+ * (`glitterShine.ts`) a do obrázku se nezapíše.
+ *
  * Maluje jen první prst: další dotyky (druhý prst, dlaň, tužka) během tahu
  * nic nenamalují a po zvednutí prvního prstu tah skončí (AC5). Každé místo
  * má jen jednu barvu z palety, bez míchání a průhlednosti.
@@ -55,6 +61,7 @@
  */
 
 import { isGrainGap } from './crayonGrain';
+import { sparkleMask } from './glitterSparkles';
 import { RAINBOW_COLORS } from './palette';
 import { OUTLINE_REGION, regionAt } from './regionMap';
 import type { RegionMap } from './regionMap';
@@ -113,6 +120,9 @@ const DOT_SPACING_SHARE = 1 / 2;
 
 /** Proužek i mezera proužkového fixu jsou kolmo široké 1/3 W stř (#102, otevřená otázka 2). */
 const STRIPE_WIDTH_SHARE = 1 / 3;
+
+/** Stopa třpytek je široká 1,5 W (#103 AC2). */
+const GLITTER_WIDTH_FACTOR = 1.5;
 
 /** Krok v pixelech, po kterém se hledá oblast, do které prst vjel z obrysu. */
 const REGION_SEARCH_STEP = 1;
@@ -198,10 +208,10 @@ type StrokeTrail = 'stamps' | 'rainbow' | 'stars';
 
 /**
  * Které pixely razítka tah barví: všechny, jen mimo mezery zrna pastelky
- * (#93), jen puntíky mřížky puntíkového fixu (#101), nebo jen šikmé
- * proužky proužkového fixu (#102).
+ * (#93), jen puntíky mřížky puntíkového fixu (#101), jen šikmé
+ * proužky proužkového fixu (#102), nebo jen jiskry třpytek (#103).
  */
-type StrokePattern = 'solid' | 'grain' | 'dots' | 'stripes';
+type StrokePattern = 'solid' | 'grain' | 'dots' | 'stripes' | 'glitter';
 
 /**
  * Čím tah barví: index barvy (u gumy `NO_COLOR`, u duhy se nepoužije),
@@ -389,7 +399,17 @@ export function createColoring(
     return Math.floor(across / stripeWidth) % 2 === 0;
   };
 
-  /** Stopa nástroje `tool` při šířce W `width`: šířka, tvar razítka a vzor (#90, #93, #101, #102). */
+  /**
+   * Pixely jisker třpytek podle W stř, pevné vůči obrázku (#103). Spočítají
+   * se až při prvním tahu třpytkami, jiné nástroje je nepotřebují.
+   */
+  let sparkles: Uint8Array | null = null;
+  const isSparklePixel = (x: number, y: number): boolean => {
+    sparkles ??= sparkleMask(regions.width, regions.height, brushWidthFor(regions.width, 'medium'));
+    return sparkles[y * regions.width + x] === 1;
+  };
+
+  /** Stopa nástroje `tool` při šířce W `width`: šířka, tvar razítka a vzor (#90, #93, #101–#103). */
   const inkOf = (tool: ToolId, colorIndex: number, width: number): StrokeInk => {
     const brushRadius = width / 2;
     switch (tool) {
@@ -449,6 +469,14 @@ export function createColoring(
           pattern: 'stripes',
           trail: 'stamps',
         };
+      case 'glitter':
+        return {
+          colorIndex,
+          radius: brushRadius * GLITTER_WIDTH_FACTOR,
+          shape: 'round',
+          pattern: 'glitter',
+          trail: 'stamps',
+        };
       case 'stamp':
         return {
           colorIndex,
@@ -460,7 +488,7 @@ export function createColoring(
     }
   };
 
-  /** Barví vzor `pattern` pixel (x, y)? Mezery zrna, mezi puntíky a mezi proužky ne. */
+  /** Barví vzor `pattern` pixel (x, y)? Mezery zrna, mezi puntíky, proužky a jiskrami ne. */
   const isInPattern = (x: number, y: number, pattern: StrokePattern): boolean => {
     switch (pattern) {
       case 'solid':
@@ -471,6 +499,8 @@ export function createColoring(
         return isDotPixel(x, y);
       case 'stripes':
         return isStripePixel(x, y);
+      case 'glitter':
+        return isSparklePixel(x, y);
     }
   };
 

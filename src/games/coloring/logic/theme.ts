@@ -130,3 +130,11 @@ export const DOTS_STYLE = {
 export const STRIPES_STYLE = {
   noColor: BRUSH_STYLE.noColor,
 } as const;
+
+/** Třpytky (#103): jiskry v barvě, bez barvy šedé jako špička štětce, lesk během tahu bílý. */
+export const GLITTER_STYLE = {
+  noColor: BRUSH_STYLE.noColor,
+  shineColor: '#FFFFFF',
+  /** Jemný okraj bílého lesku, aby byl vidět i na bílé ploše. */
+  shineOutline: BRUSH_STYLE.noColor,
+} as const;

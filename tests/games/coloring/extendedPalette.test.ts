@@ -80,6 +80,7 @@ const TOOL_NAMES: Readonly<Record<ToolId, string>> = {
   stamp: 'razítkový fix',
   dots: 'puntíkový fix',
   stripes: 'proužkový fix',
+  glitter: 'třpytky',
 };
 
 /** Šikmý tah v levé oblasti zkušebního obrázku `twoHalves()`. */

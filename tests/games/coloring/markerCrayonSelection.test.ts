@@ -51,6 +51,7 @@ const NAMES: Record<ToolId, string> = {
   stamp: 'razítkový fix',
   dots: 'puntíkový fix',
   stripes: 'proužkový fix',
+  glitter: 'třpytky',
 };
 
 describe('#93 AC1: fix a pastelka se vybírají v panelu jako štětec a guma', () => {

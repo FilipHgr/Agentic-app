@@ -33,6 +33,7 @@ const NAMES: Record<ToolId, string> = {
   stamp: 'razítkový fix',
   dots: 'puntíkový fix',
   stripes: 'proužkový fix',
+  glitter: 'třpytky',
 };
 
 let cached: ColoringCase[] | undefined;

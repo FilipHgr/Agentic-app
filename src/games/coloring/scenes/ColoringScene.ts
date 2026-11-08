@@ -13,6 +13,7 @@ import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { colorNumber } from '../../../shared/logic/theme';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
+import { brushWidthFor } from '../logic/coloring';
 import type { PointerSample } from '../logic/coloring';
 import { COLORING_GAME_AREA_FIT, layoutColoring, touchTargetAt } from '../logic/coloringLayout';
 import type { ColoringLayout } from '../logic/coloringLayout';
@@ -34,6 +35,7 @@ import {
   toolAtSlot,
 } from '../logic/toolPanel';
 import type { HandleView, LineSize, ToolId } from '../logic/toolPanel';
+import { GlitterShineView } from './GlitterShineView';
 import { HandleButtonView } from './HandleButtonView';
 import { PaintLayer } from './PaintLayer';
 import { RecentColorsView } from './RecentColorsView';
@@ -46,7 +48,8 @@ import { UndoButtonView } from './UndoButtonView';
 const PICTURE_PIXEL_WIDTH = TABLET_GAME_WIDTH;
 const PICTURE_PIXEL_HEIGHT = TABLET_GAME_HEIGHT;
 
-/** Hloubky: obrázek dole, nad ním panel, pozadí pruhu a nahoře pruh ovládání. */
+/** Hloubky: obrázek dole, nad ním lesk třpytek, panel, pozadí pruhu a nahoře pruh ovládání. */
+const SHINE_DEPTH = 3;
 const PANEL_DEPTH = 10;
 const STRIP_DEPTH = 20;
 
@@ -99,6 +102,8 @@ export class ColoringScene extends Phaser.Scene {
   private readonly handleView = new HandleButtonView(this);
   private readonly undoView = new UndoButtonView(this);
   private readonly recentView = new RecentColorsView(this);
+  /** Lesk během tahu třpytkami (#103 AC3), do obrázku se nezapíše. */
+  private readonly shineView = new GlitterShineView(this, SHINE_DEPTH);
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu (#67 AC6).
   private readonly sounds = createTonePlayer(sharedToneContext);
   /** Přerušení tahu systémem (hovor, gesto systému) hlásí prohlížeč jako zrušený dotyk. */
@@ -131,6 +136,12 @@ export class ColoringScene extends Phaser.Scene {
 
   override update(): void {
     this.paintLayer?.flush();
+    this.shineView.draw({
+      picture: this.layout.picture,
+      layerWidth: PICTURE_PIXEL_WIDTH,
+      layerHeight: PICTURE_PIXEL_HEIGHT,
+      cssScale: this.gameArea.scale,
+    });
   }
 
   /** Stránka s domečkem z registru; bez ní hra běží bez domečku. */
@@ -249,7 +260,7 @@ export class ColoringScene extends Phaser.Scene {
 
   /**
    * Co je v panelu označené; štětec, fix, pastelka, razítkový, puntíkový
-   * a proužkový fix jsou vždy ve vybrané barvě, duha v duhových.
+   * a proužkový fix a třpytky jsou vždy ve vybrané barvě, duha v duhových.
    */
   private panelSelection(): PanelSelection {
     return {
@@ -427,10 +438,15 @@ export class ColoringScene extends Phaser.Scene {
     );
     this.input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) => {
       if (this.coloring !== null) {
-        this.paintLayer?.paint(this.coloring.pointerMove(this.sampleOf(pointer)), this.coloring);
+        const sample = this.sampleOf(pointer);
+        this.paintLayer?.paint(this.coloring.pointerMove(sample), this.coloring);
+        this.shineView.move(sample.id, sample);
       }
     });
-    const onUp = (pointer: Phaser.Input.Pointer): void => this.coloring?.pointerUp(pointer.id);
+    const onUp = (pointer: Phaser.Input.Pointer): void => {
+      this.coloring?.pointerUp(pointer.id);
+      this.shineView.end(pointer.id);
+    };
     this.input.on(Phaser.Input.Events.POINTER_UP, onUp);
     this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, onUp);
   }
@@ -472,9 +488,23 @@ export class ColoringScene extends Phaser.Scene {
     if (this.coloring === null) {
       this.panelOpenBeforeReady = false;
     } else {
-      this.paintLayer?.paint(this.coloring.pointerDown(this.sampleOf(pointer)), this.coloring);
+      const sample = this.sampleOf(pointer);
+      this.paintLayer?.paint(this.coloring.pointerDown(sample), this.coloring);
+      this.startShine(sample);
     }
     this.showPanel();
+  }
+
+  /**
+   * Tah třpytkami se během malování leskne (#103 AC3). Lesk kreslí jen
+   * první prst, stejně jako malování.
+   */
+  private startShine(sample: PointerSample): void {
+    if (this.selectedTool() !== 'glitter') {
+      return;
+    }
+    const brushWidth = brushWidthFor(PICTURE_PIXEL_WIDTH, this.lineSize());
+    this.shineView.start(sample.id, brushWidth, sample);
   }
 
   /** Dotyk v pixelech vrstvy barev; bod mimo omalovánku je mimo plochu. */
@@ -490,6 +520,7 @@ export class ColoringScene extends Phaser.Scene {
 
   private interruptStroke(): void {
     this.coloring?.interrupt();
+    this.shineView.end();
   }
 
   /**
@@ -520,6 +551,7 @@ export class ColoringScene extends Phaser.Scene {
 
   /** Odchod z hry: tah skončí tam, kam došel, obrázek se uloží (#92) a zvuky ztichnou. */
   private stop(): void {
+    this.shineView.end();
     this.coloring?.suspend();
     this.sounds.stopAll();
   }
