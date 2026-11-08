@@ -243,3 +243,8 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   doporučení.
 - 2026-11-08 Barvu nástroje v kroku nástrojů panelu ukazuje stejné barevné
   kolečko vpravo dole u ikony jako v úchytu (#110).
+- 2026-11-08 Vlastník: „Udělej tvoje doporučení“. #95 (rozbalovací výběr
+  kategorií na telefonu na výšku) schválen podle doporučení, obrázky D1–D5
+  ukázat. Navrhnout úkoly: větší mezera mezi kolečkem profilu a tužkou,
+  kolečko barvy nepřekrývá okraj vybraného nástroje a duhu, vlastní sady
+  barev nástrojů a vícebarevné barvy.
