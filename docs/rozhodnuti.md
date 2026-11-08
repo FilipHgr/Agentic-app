@@ -219,3 +219,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   a kolečko profilu reagují ťuknutím. Smazání profilu zůstane za podržením
   1 s u „Smazat“ v potvrzení (výjimka z kroužku jen ve hře). Tím je
   nahrazeno „Profil zakládá rodič“ z 2026-11-05.
+- 2026-11-08 Panel ve dvou krocích podle obrázků schválen (#105). Ikony
+  stylu B (#106) se vlastníkovi nelíbí: převzít osvědčené řešení z jiných
+  kreslicích aplikací pro děti, nový návrh ukázat na obrázcích.
