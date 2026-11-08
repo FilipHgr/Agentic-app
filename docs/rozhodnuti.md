@@ -231,3 +231,8 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-08 Hranice testů ikon pro styl D (#106): ikony se stejným tělem
   (fixy, štětec a duhový štětec) se liší aspoň o 10 % včetně barvy, ostatní
   o 25 %. Ikona má kromě obrysu nejvýš 3 barvy a 10 částí.
+- 2026-11-08 Ikony stylu D se vlastníkovi pořád nelíbí. Ikony nekreslit
+  vlastní, převzít hotovou sadu (s licencí, uloženou v repozitáři) a vybrat
+  ji podle obrázků (#106).
+- 2026-11-08 Každý nástroj v Omalovánkách si pamatuje vlastní naposledy
+  zvolenou barvu (nový úkol).
