@@ -228,3 +228,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-08 Tužka u profilu (#107) vpravo od kolečka. 6 profilů na iPadu
   a telefonu na šířku ve 2 řadách po 3, na menších telefonech se kolečka
   zmenší. Kroužek podržení u „Smazat“ je bílý (#108).
+- 2026-11-08 Hranice testů ikon pro styl D (#106): ikony se stejným tělem
+  (fixy, štětec a duhový štětec) se liší aspoň o 10 % včetně barvy, ostatní
+  o 25 %. Ikona má kromě obrysu nejvýš 3 barvy a 10 částí.
