@@ -248,3 +248,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   ukázat. Navrhnout úkoly: větší mezera mezi kolečkem profilu a tužkou,
   kolečko barvy nepřekrývá okraj vybraného nástroje a duhu, vlastní sady
   barev nástrojů a vícebarevné barvy.
+- 2026-11-08 Přepínač tloušťky čáry (#91) vlastník vůbec nepoznal. Udělat
+  ho jinak, aby bylo na první pohled jasné, že jde o tloušťku (nový úkol
+  s obrázky).
