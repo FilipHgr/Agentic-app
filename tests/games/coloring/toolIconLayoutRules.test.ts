@@ -1,76 +1,59 @@
 import { describe, expect, it } from 'vitest';
 
-import { handleArrow, handleFace } from '../../../src/games/coloring/logic/coloringLayout';
-import type { IconShape } from '../../../src/games/coloring/logic/toolIcons';
-import type { ToolId } from '../../../src/games/coloring/logic/toolPanel';
+import { handleArrow } from '../../../src/games/coloring/logic/coloringLayout';
+import { HANDLE_STYLE } from '../../../src/games/coloring/logic/theme';
 import { toCss } from '../../shared/viewportFixtures';
 import type { Box } from '../../shared/viewportFixtures';
 import { boxOfRect, coloringCases, isOpen } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
 import { SIZES, SIZE_NAMES } from './lineSizeHelpers';
 import {
-  ICON_COLORS,
+  MIN_DOT_CSS,
   MIN_MARGIN_SHARE,
   TOOLS,
   TOOL_NAMES,
-  cellCenter,
+  colorDotCss,
   colorStepIconBox,
   handleIconBox,
-  iconBounds,
-  iconOf,
   limited,
-  maskOf,
-  rasterize,
-  scaledShapes,
   sideOfBox,
   slotIconBox,
-  visibleColors,
 } from './toolIconHelpers';
+import type { DotCss } from './toolIconHelpers';
 
 /**
- * Testy rozložení k #106 (srozumitelné ikony nástrojů, schválený styl D
- * „skutečné nástroje šikmo“): AC1 stejná ikona v panelu i v úchytu, AC2
- * ikona se vejde a nepřekrývá šipku ani tečku velikosti. Každé pravidlo
- * projde v cyklu všechna okna z `coloringLayoutScenes.ts` (iPad, telefon
- * na šířku i na výšku, okna z plochy, zavřený panel i oba kroky #105),
- * všech 10 nástrojů a 12 barev palety i „bez barvy“; popis případu je
- * v `expect`. Tvary a barvy ikon jsou v `toolIconShapes.test.ts`, úchyt
- * po ťuknutí v `toolIconHandle.test.ts`.
+ * Testy rozložení k #106 v novém znění po připomínce vlastníka: AC2 ikona
+ * se vejde do místa v panelu i do úchytu s odstupem a nepřekrývá šipku
+ * ani kolečko barvy, které nahrazuje tečku velikosti (#91), a kolečko
+ * barvy je v rohu úchytu, nejméně 12 px a roste s velikostí čáry. Každé
+ * pravidlo projde v cyklu všechna okna z `coloringLayoutScenes.ts` (iPad,
+ * telefon na šířku i na výšku, okna z plochy, zavřený panel i oba kroky
+ * #105) a všechny tři velikosti čáry; popis případu je v `expect`.
  *
- * Navržené rozhraní:
- * - `src/games/coloring/logic/toolIcons.ts`:
- *   `toolIconShapes(tool: ToolId, colorHex: string | null, side: number): readonly IconShape[]`
- *   tvary ikony pro čtverec o straně `side` CSS px (popis tvarů
- *   v `toolIconHelpers.ts`). Úchyt, místa v panelu i vybraný nástroj
- *   v hlavičce kroku barev volají stejnou funkci, jen s jinou stranou;
- *   scéna tvary přepočte na herní jednotky a nakreslí.
- * - `src/games/coloring/logic/coloringLayout.ts` (herní jednotky):
- *   - `toolSlotIcon(slot: LayoutRect): LayoutRect` čtverec ikony v místě
- *     nástroje v panelu i v hlavičce kroku barev (dnes `TOOL_ICON_SHARE`
- *     ve scéně `ToolPanelView`),
- *   - `handleArrow(handle: LayoutRect, slidesFrom: 'left' | 'bottom', panelOpen: boolean): LayoutRect`
- *     obdélník, do kterého se vejde šipka úchytu i s tloušťkou čáry (dnes
- *     počítá scéna v `HandleButtonView.drawArrow`),
- *   - ikonu v úchytu dál určuje `handleFace(handle, size).icon`.
+ * Ikona je hotové SVG Noto (plocha 128 × 128), které scéna kreslí do
+ * celého svého čtverce. Měří se proto čtverec ikony, ne její pixely:
+ * dřívější měření na nakreslených tvarech stylu D se tím nahrazuje.
  *
- * Výklad AC1 „liší se nejvýš o 1 px“ podle doporučení story-revieweru:
- * ikona z panelu se přepočítá na velikost ikony v úchytu (tvary i obrys
- * se zmenší) a obě se nakreslí na mřížku 1 vzorek = 1 CSS px. Každý
- * neprůhledný pixel jedné ikony má neprůhledný pixel druhé ve vzdálenosti
- * nejvýš 1 px (i šikmo) a obě mají stejné barvy.
+ * Navržené rozhraní (`src/games/coloring/logic/coloringLayout.ts`, herní
+ * jednotky):
+ * - čtverec ikony dál určují `toolSlotIcon(slot)` (panel i hlavička kroku
+ *   barev) a `handleFace(handle, size).icon` (úchyt),
+ * - `handleColorDot(handle: LayoutRect, size: LineSize): LayoutCircle`
+ *   barevná výplň kolečka v úchytu (`diameter` je průměr výplně, bílý lem
+ *   a šedá linka z `HANDLE_COLOR_DOT_STYLE` se kreslí vně). Průměr se
+ *   počítá jako díl strany úchytu; úchyt má aspoň 64 CSS px, takže díl
+ *   aspoň 12/64 dá aspoň 12 CSS px v každém okně.
+ * - `handleArrow(handle, slidesFrom, panelOpen)` obdélník šipky (beze změny).
  */
 
 /** Rezerva na zaokrouhlení v CSS px. */
 const TOLERANCE = 0.01;
 
-/** AC1: rozdíl tvaru po přepočtu nejvýš 1 px. */
-const MAX_SHAPE_DIFFERENCE_PX = 1;
+/** Kolik bodů na obvodu kolečka se kontroluje proti zaobleným rohům úchytu. */
+const PERIMETER_POINTS = 72;
 
-/** Vzorků na CSS px při hledání překryvu se šipkou a tečkou (AC2). */
-const OVERLAP_SAMPLES = 2;
-
-/** Okraj mřížky kolem čtverce ikony jako díl strany: tvary D smí čtverec přesahovat. */
-const PAD_SHARE = 0.3;
+/** Kolečko je „v rohu“: střed leží ve vnější třetině úchytu vodorovně i svisle. */
+const CORNER_SHARE = 1 / 3;
 
 let cached: ColoringCase[] | undefined;
 
@@ -87,17 +70,6 @@ function label(testCase: ColoringCase, rest: string): string {
   return `${testCase.scene.label}, ${rest}`;
 }
 
-/** Obdélník ikony posunutý na místo `box` (tvary jsou od jeho rohu). */
-function placedBounds(shapes: readonly IconShape[], box: Box): Box {
-  const bounds = iconBounds(shapes);
-  return {
-    left: box.left + bounds.left,
-    right: box.left + bounds.right,
-    top: box.top + bounds.top,
-    bottom: box.top + bounds.bottom,
-  };
-}
-
 /** Nejmenší odstup `inner` od okraje `outer` (záporný, když přesahuje). */
 function marginInside(inner: Box, outer: Box): number {
   return Math.min(
@@ -108,268 +80,205 @@ function marginInside(inner: Box, outer: Box): number {
   );
 }
 
-/** Problém s odstupem ikony od okraje místa, nebo `null`. */
-function marginProblem(shapes: readonly IconShape[], iconBox: Box, place: Box): string | null {
-  if (shapes.length === 0) {
-    return 'ikona nemá žádný tvar';
+/** Problém s odstupem čtverce ikony od okraje místa, nebo `null`. */
+function marginProblem(icon: Box, place: Box): string | null {
+  if (sideOfBox(icon) <= 0) {
+    return 'ikona nemá žádnou velikost';
   }
   const needed = MIN_MARGIN_SHARE * sideOfBox(place);
-  const margin = marginInside(placedBounds(shapes, iconBox), place);
+  const margin = marginInside(icon, place);
   return margin + TOLERANCE >= needed
     ? null
     : `odstup od okraje ${margin.toFixed(2)} px, potřeba ${needed.toFixed(2)} px`;
 }
 
-/** Problémy s odstupem ikon všech nástrojů a barev v místě `place`. */
-function placeProblems(
-  testCase: ColoringCase,
-  placeName: string,
-  tools: readonly ToolId[],
-  iconBox: Box,
-  place: Box,
-): string[] {
-  const problems: string[] = [];
-  for (const tool of tools) {
-    for (const color of ICON_COLORS) {
-      const problem = marginProblem(iconOf(tool, color.hex, sideOfBox(iconBox)), iconBox, place);
-      if (problem !== null) {
-        problems.push(
-          label(testCase, `${placeName}, ${TOOL_NAMES[tool]}, ${color.name}: ${problem}`),
-        );
-      }
-    }
-  }
-  return problems;
+/** Překrývají se dva obdélníky (dotyk na hraně se nepočítá)? */
+function boxesOverlap(first: Box, second: Box): boolean {
+  return (
+    first.left < second.right - TOLERANCE &&
+    second.left < first.right - TOLERANCE &&
+    first.top < second.bottom - TOLERANCE &&
+    second.top < first.bottom - TOLERANCE
+  );
 }
 
-const pointsCache = new Map<string, ReadonlyArray<{ x: number; y: number }>>();
-
-/** Středy neprůhledných vzorků ikony v úchytu v CSS px od rohu jejího čtverce. */
-function opaquePoints(
-  tool: ToolId,
-  hex: string | null,
-  side: number,
-): ReadonlyArray<{ x: number; y: number }> {
-  const key = `${tool}|${String(hex)}|${side}`;
-  let points = pointsCache.get(key);
-  if (points === undefined) {
-    const raster = rasterize(iconOf(tool, hex, side), side, OVERLAP_SAMPLES, side * PAD_SHARE);
-    const found: Array<{ x: number; y: number }> = [];
-    maskOf(raster).forEach((opaque, index) => {
-      if (opaque === 1) {
-        found.push(cellCenter(raster, index));
-      }
-    });
-    points = found;
-    pointsCache.set(key, points);
-  }
-  return points;
+/** Překrývá se celé kolečko (i s lemem a linkou) s obdélníkem? */
+function dotOverlapsBox(dot: DotCss, box: Box): boolean {
+  const nearestX = Math.max(box.left, Math.min(dot.x, box.right));
+  const nearestY = Math.max(box.top, Math.min(dot.y, box.bottom));
+  return Math.hypot(dot.x - nearestX, dot.y - nearestY) < dot.outerRadius - TOLERANCE;
 }
 
-/** Obdélník `box` v CSS px od rohu čtverce ikony `icon`. */
-function relativeTo(box: Box, icon: Box): Box {
-  return {
-    left: box.left - icon.left,
-    right: box.right - icon.left,
-    top: box.top - icon.top,
-    bottom: box.bottom - icon.top,
+/** Obdélník šipky úchytu v CSS px. */
+function arrowBox(testCase: ColoringCase): Box {
+  return toCss(
+    boxOfRect(
+      handleArrow(testCase.layout.handle, testCase.layout.panelSlidesFrom, isOpen(testCase)),
+    ),
+    testCase.area,
+  );
+}
+
+/** Leží bod uvnitř úchytu se zaoblenými rohy, uvnitř jeho modrého okraje? */
+function insideHandleBorder(testCase: ColoringCase, x: number, y: number): boolean {
+  const { handle } = testCase;
+  const border = HANDLE_STYLE.borderWidthCss;
+  const radius = Math.max(0, sideOfBox(handle) * HANDLE_STYLE.cornerRadiusShare - border);
+  const inner = {
+    left: handle.left + border + radius,
+    right: handle.right - border - radius,
+    top: handle.top + border + radius,
+    bottom: handle.bottom - border - radius,
   };
+  const nearestX = Math.max(inner.left, Math.min(x, inner.right));
+  const nearestY = Math.max(inner.top, Math.min(y, inner.bottom));
+  return Math.hypot(x - nearestX, y - nearestY) <= radius + TOLERANCE;
 }
-
-/** Klíč stejné geometrie úchytu, aby se stejné úchyty v různých oknech neměřily znovu. */
-function geometryKey(side: number, target: Box): string {
-  return [side, target.left, target.right, target.top, target.bottom]
-    .map((value) => value.toFixed(3))
-    .join('|');
-}
-
-/** Počet neprůhledných pixelů `first`, které nemají do 1 px (i šikmo) neprůhledný pixel `second`. */
-function strayPixels(first: Uint8Array, second: Uint8Array, size: number): number {
-  let stray = 0;
-  for (let index = 0; index < size * size; index += 1) {
-    if (first[index] !== 1) {
-      continue;
-    }
-    const column = index % size;
-    const row = Math.floor(index / size);
-    let found = false;
-    for (let dy = -MAX_SHAPE_DIFFERENCE_PX; dy <= MAX_SHAPE_DIFFERENCE_PX && !found; dy += 1) {
-      for (let dx = -MAX_SHAPE_DIFFERENCE_PX; dx <= MAX_SHAPE_DIFFERENCE_PX && !found; dx += 1) {
-        const x = column + dx;
-        const y = row + dy;
-        found = x >= 0 && y >= 0 && x < size && y < size && second[y * size + x] === 1;
-      }
-    }
-    if (!found) {
-      stray += 1;
-    }
-  }
-  return stray;
-}
-
-describe('#106 AC1: ikona v panelu je stejná jako v úchytu, jen jinak velká', () => {
-  it('ikona z panelu přepočtená na velikost úchytu se od ikony v úchytu liší nejvýš o 1 px a má stejné barvy', () => {
-    const problems: string[] = [];
-    const checked = new Set<string>();
-    for (const testCase of casesIn('tools')) {
-      const handleSide = sideOfBox(handleIconBox(testCase));
-      const pad = handleSide * PAD_SHARE;
-      TOOLS.forEach((tool, index) => {
-        const slotSide = sideOfBox(slotIconBox(testCase, index));
-        const key = `${tool}|${handleSide}|${slotSide}`;
-        if (checked.has(key)) {
-          return;
-        }
-        checked.add(key);
-        for (const color of ICON_COLORS) {
-          const inHandle = rasterize(iconOf(tool, color.hex, handleSide), handleSide, 1, pad);
-          const fromPanel = rasterize(
-            scaledShapes(iconOf(tool, color.hex, slotSide), handleSide / slotSide),
-            handleSide,
-            1,
-            pad,
-          );
-          const name = label(testCase, `${TOOL_NAMES[tool]}, ${color.name}`);
-          const handleMask = maskOf(inHandle);
-          const panelMask = maskOf(fromPanel);
-          const onlyInHandle = strayPixels(handleMask, panelMask, inHandle.size);
-          const onlyInPanel = strayPixels(panelMask, handleMask, inHandle.size);
-          if (onlyInHandle > 0 || onlyInPanel > 0) {
-            problems.push(
-              `${name}: ${onlyInHandle} px úchytu a ${onlyInPanel} px panelu dál než 1 px od druhé ikony`,
-            );
-          }
-          const handleColors = visibleColors(inHandle).sort();
-          const panelColors = visibleColors(fromPanel).sort();
-          if (handleColors.join() !== panelColors.join()) {
-            problems.push(
-              `${name}: barvy v úchytu ${handleColors.join(' ')}, v panelu ${panelColors.join(' ')}`,
-            );
-          }
-        }
-      });
-    }
-    expect(limited(problems)).toEqual([]);
-  });
-});
 
 describe('#106 AC2: ikona se vejde do místa v panelu i do úchytu', () => {
   it('ikona nástroje je celá v místě v panelu s odstupem aspoň 10 % strany místa', () => {
     const problems = casesIn('tools').flatMap((testCase) =>
-      TOOLS.flatMap((tool, index) =>
-        placeProblems(
-          testCase,
-          `místo ${index + 1}`,
-          [tool],
-          slotIconBox(testCase, index),
-          testCase.tools[index] as Box,
-        ),
-      ),
+      TOOLS.flatMap((tool, index) => {
+        const problem = marginProblem(slotIconBox(testCase, index), testCase.tools[index] as Box);
+        return problem === null
+          ? []
+          : [label(testCase, `místo ${index + 1}, ${TOOL_NAMES[tool]}: ${problem}`)];
+      }),
     );
     expect(limited(problems)).toEqual([]);
   });
 
   it('vybraný nástroj v hlavičce kroku barev je celý ve svém místě s odstupem aspoň 10 % strany', () => {
-    const problems = casesIn('colors').flatMap((testCase) =>
-      placeProblems(
-        testCase,
-        'vybraný nástroj',
-        TOOLS,
-        colorStepIconBox(testCase),
-        testCase.colorStepTool,
-      ),
-    );
+    const problems = casesIn('colors').flatMap((testCase) => {
+      const problem = marginProblem(colorStepIconBox(testCase), testCase.colorStepTool);
+      return problem === null ? [] : [label(testCase, `vybraný nástroj: ${problem}`)];
+    });
     expect(limited(problems)).toEqual([]);
   });
 
-  it('ikona nástroje je celá v úchytu s odstupem aspoň 10 % strany úchytu', () => {
+  it('ikona nástroje je celá v úchytu s odstupem aspoň 10 % strany úchytu v každé velikosti čáry', () => {
     const problems = cases().flatMap((testCase) =>
-      placeProblems(testCase, 'úchyt', TOOLS, handleIconBox(testCase), testCase.handle),
+      SIZES.flatMap((size) => {
+        const problem = marginProblem(handleIconBox(testCase, size), testCase.handle);
+        return problem === null ? [] : [label(testCase, `úchyt, ${SIZE_NAMES[size]}: ${problem}`)];
+      }),
     );
     expect(limited(problems)).toEqual([]);
   });
 
   it('ikona v úchytu nepřekrývá šipku panelu, ať je panel otevřený, nebo zavřený', () => {
+    const problems = cases().flatMap((testCase) =>
+      SIZES.flatMap((size) =>
+        boxesOverlap(handleIconBox(testCase, size), arrowBox(testCase))
+          ? [label(testCase, `${SIZE_NAMES[size]}: ikona na šipce`)]
+          : [],
+      ),
+    );
+    expect(limited(problems)).toEqual([]);
+  });
+
+  it('ikona v úchytu nepřekrývá kolečko barvy v žádné velikosti čáry', () => {
+    const problems = cases().flatMap((testCase) =>
+      SIZES.flatMap((size) =>
+        dotOverlapsBox(colorDotCss(testCase, size), handleIconBox(testCase, size))
+          ? [label(testCase, `${SIZE_NAMES[size]}: kolečko barvy na ikoně`)]
+          : [],
+      ),
+    );
+    expect(limited(problems)).toEqual([]);
+  });
+});
+
+describe('#106 vybraná barva: kolečko barvy v rohu úchytu', () => {
+  it('kolečko barvy leží i s lemem celé v úchytu uvnitř modrého okraje a zaoblených rohů', () => {
     const problems: string[] = [];
-    const checked = new Set<string>();
     for (const testCase of cases()) {
-      const iconBox = handleIconBox(testCase);
-      const side = sideOfBox(iconBox);
-      const arrow = relativeTo(
-        toCss(
-          boxOfRect(
-            handleArrow(testCase.layout.handle, testCase.layout.panelSlidesFrom, isOpen(testCase)),
-          ),
-          testCase.area,
-        ),
-        iconBox,
-      );
-      const key = geometryKey(side, arrow);
-      if (checked.has(key)) {
-        continue;
-      }
-      checked.add(key);
-      for (const tool of TOOLS) {
-        for (const color of ICON_COLORS) {
-          const hits = opaquePoints(tool, color.hex, side).filter(
-            (point) =>
-              point.x > arrow.left &&
-              point.x < arrow.right &&
-              point.y > arrow.top &&
-              point.y < arrow.bottom,
-          );
-          if (hits.length > 0) {
-            problems.push(
-              label(
-                testCase,
-                `${TOOL_NAMES[tool]}, ${color.name}: ${hits.length} vzorků ikony na šipce`,
-              ),
-            );
+      for (const size of SIZES) {
+        const dot = colorDotCss(testCase, size);
+        let outside = 0;
+        for (let step = 0; step < PERIMETER_POINTS; step += 1) {
+          const angle = (2 * Math.PI * step) / PERIMETER_POINTS;
+          const x = dot.x + dot.outerRadius * Math.cos(angle);
+          const y = dot.y + dot.outerRadius * Math.sin(angle);
+          if (!insideHandleBorder(testCase, x, y)) {
+            outside += 1;
           }
+        }
+        if (outside > 0) {
+          problems.push(
+            label(testCase, `${SIZE_NAMES[size]}: ${outside} bodů obvodu kolečka mimo úchyt`),
+          );
         }
       }
     }
     expect(limited(problems)).toEqual([]);
   });
 
-  it('ikona v úchytu nepřekrývá tečku velikosti čáry v žádné velikosti', () => {
+  it('kolečko barvy je v rohu úchytu', () => {
     const problems: string[] = [];
-    const checked = new Set<string>();
-    for (const testCase of casesIn('closed')) {
-      const iconBox = handleIconBox(testCase);
-      const side = sideOfBox(iconBox);
+    for (const testCase of cases()) {
+      const { handle } = testCase;
+      const width = handle.right - handle.left;
+      const height = handle.bottom - handle.top;
       for (const size of SIZES) {
-        const dot = handleFace(testCase.layout.handle, size).sizeDot;
-        const radius = (dot.diameter * testCase.area.scale) / 2;
-        const center = relativeTo(
-          toCss(
-            { left: dot.centerX, right: dot.centerX, top: dot.centerY, bottom: dot.centerY },
-            testCase.area,
-          ),
-          iconBox,
-        );
-        const key = `${geometryKey(side, center)}|${radius.toFixed(3)}`;
-        if (checked.has(key)) {
-          continue;
-        }
-        checked.add(key);
-        for (const tool of TOOLS) {
-          for (const color of ICON_COLORS) {
-            const hits = opaquePoints(tool, color.hex, side).filter(
-              (point) => Math.hypot(point.x - center.left, point.y - center.top) < radius,
-            );
-            if (hits.length > 0) {
-              problems.push(
-                label(
-                  testCase,
-                  `${SIZE_NAMES[size]} tečka, ${TOOL_NAMES[tool]}, ${color.name}: ${hits.length} vzorků ikony na tečce`,
-                ),
-              );
-            }
-          }
+        const dot = colorDotCss(testCase, size);
+        const fromLeft = (dot.x - handle.left) / width;
+        const fromTop = (dot.y - handle.top) / height;
+        const nearSide = fromLeft <= CORNER_SHARE || fromLeft >= 1 - CORNER_SHARE;
+        const nearTopOrBottom = fromTop <= CORNER_SHARE || fromTop >= 1 - CORNER_SHARE;
+        if (!(nearSide && nearTopOrBottom)) {
+          problems.push(
+            label(
+              testCase,
+              `${SIZE_NAMES[size]}: střed kolečka na ${(fromLeft * 100).toFixed(0)} % šířky ` +
+                `a ${(fromTop * 100).toFixed(0)} % výšky úchytu`,
+            ),
+          );
         }
       }
     }
+    expect(limited(problems)).toEqual([]);
+  });
+
+  it('kolečko barvy nepřekrývá šipku panelu, ať je panel otevřený, nebo zavřený', () => {
+    const problems = cases().flatMap((testCase) =>
+      SIZES.flatMap((size) =>
+        dotOverlapsBox(colorDotCss(testCase, size), arrowBox(testCase))
+          ? [label(testCase, `${SIZE_NAMES[size]}: kolečko barvy na šipce`)]
+          : [],
+      ),
+    );
+    expect(limited(problems)).toEqual([]);
+  });
+
+  it('barva v kolečku má průměr aspoň 12 px i u nejtenčí čáry', () => {
+    const problems = cases().flatMap((testCase) =>
+      SIZES.flatMap((size) => {
+        const { fillDiameter } = colorDotCss(testCase, size);
+        return fillDiameter + TOLERANCE >= MIN_DOT_CSS
+          ? []
+          : [label(testCase, `${SIZE_NAMES[size]}: průměr ${fillDiameter.toFixed(2)} px`)];
+      }),
+    );
+    expect(limited(problems)).toEqual([]);
+  });
+
+  it('kolečko barvy je s tlustší čárou větší (malá < střední < velká)', () => {
+    const problems = cases().flatMap((testCase) => {
+      const diameters = SIZES.map((size) => colorDotCss(testCase, size).fillDiameter);
+      return diameters.slice(1).flatMap((diameter, index) => {
+        const smaller = diameters[index] ?? 0;
+        return diameter > smaller + TOLERANCE
+          ? []
+          : [
+              label(
+                testCase,
+                `${SIZE_NAMES[SIZES[index + 1] ?? 'large']} ${diameter.toFixed(2)} px ` +
+                  `není větší než ${SIZE_NAMES[SIZES[index] ?? 'small']} ${smaller.toFixed(2)} px`,
+              ),
+            ];
+      });
+    });
     expect(limited(problems)).toEqual([]);
   });
 });

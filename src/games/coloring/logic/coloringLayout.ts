@@ -501,22 +501,35 @@ export function touchTargetAt(
 /** Průměry tečky velikosti v poměru 1 : 2 : 3 (#91 AC1). */
 const SIZE_DOT_STEPS: Readonly<Record<LineSize, number>> = { small: 1, medium: 2, large: 3 };
 
-/** Velká tečka v úchytu má průměr tento díl strany úchytu (nejvýš čtvrtina, #91 AC1). */
-const HANDLE_LARGE_DOT_SHARE = 0.24;
+/**
+ * Kolečko barvy v úchytu (#106): průměr barevné výplně jako díl strany
+ * úchytu podle velikosti čáry. Úchyt má aspoň 64 CSS px, malé kolečko má
+ * tak aspoň 12 CSS px, velké i s bílým lemem a šedou linkou (2 + 1 CSS px
+ * na každé straně) nejvýš 0,32 strany jako v maketě `sada-1.png`.
+ */
+const HANDLE_COLOR_DOT_SHARES: Readonly<Record<LineSize, number>> = {
+  small: 12 / 64,
+  medium: 12.8 / 64,
+  large: 13.6 / 64,
+};
 
 /**
- * Střed tečky v úchytu jako díl strany od levého horního rohu: v pravém
- * dolním rohu, uvnitř zaobleného okraje a mimo šipku panelu, která je
- * na šířku vpravo uprostřed výšky a na výšku dole uprostřed šířky.
+ * Střed kolečka barvy jako díl strany od levého horního rohu úchytu:
+ * v pravém dolním rohu uvnitř modrého okraje a zaobleného rohu a mimo
+ * šipku panelu (na šířku vpravo uprostřed výšky, na výšku dole uprostřed
+ * šířky).
  */
-const HANDLE_DOT_CENTER_SHARE = 0.8;
+const HANDLE_COLOR_DOT_CENTER_SHARE = 0.792;
 
 /**
- * Ikona nástroje v úchytu: čtverec tohoto dílu strany se středem kousek
- * vlevo nahoru od středu úchytu, aby se nepřekrývala s tečkou ani šipkou.
+ * Ikona nástroje v úchytu: čtverec tohoto dílu strany vodorovně uprostřed
+ * a posunutý nahoru, aby se vešel mezi šipky obou orientací (vlevo
+ * a vpravo uprostřed výšky na šířku, dole uprostřed na výšku) a nepřekrýval
+ * kolečko barvy.
  */
-const HANDLE_ICON_SHARE = 0.56;
-const HANDLE_ICON_CENTER_SHARE = 0.43;
+const HANDLE_ICON_SHARE = 0.48;
+const HANDLE_ICON_CENTER_X_SHARE = 0.5;
+const HANDLE_ICON_CENTER_Y_SHARE = 0.35;
 
 /** Velká tečka v přepínači má průměr tento díl strany přepínače. */
 const TOGGLE_LARGE_DOT_SHARE = 0.6;
@@ -531,27 +544,36 @@ function dotDiameter(size: LineSize, largeDiameter: number): number {
 }
 
 /**
- * Kam úchyt kreslí ikonu vybraného nástroje a tmavou tečku vybrané
- * velikosti (#91 AC1): ikona uprostřed, tečka v pravém dolním rohu.
+ * Kam úchyt kreslí ikonu vybraného nástroje a kolečko barvy (#91 AC1,
+ * #106): ikona nahoře uprostřed, kolečko vpravo dole (`handleColorDot`).
+ * Velikost čáry mění jen kolečko, ikona zůstává stejná.
  */
 export function handleFace(
   handle: LayoutRect,
   size: LineSize,
-): { readonly icon: LayoutRect; readonly sizeDot: LayoutCircle } {
-  const side = sideOf(handle);
-  const iconSide = side * HANDLE_ICON_SHARE;
+): { readonly icon: LayoutRect; readonly colorDot: LayoutCircle } {
+  const iconSide = sideOf(handle) * HANDLE_ICON_SHARE;
   const icon = {
-    left: handle.left + handle.width * HANDLE_ICON_CENTER_SHARE - iconSide / 2,
-    top: handle.top + handle.height * HANDLE_ICON_CENTER_SHARE - iconSide / 2,
+    left: handle.left + handle.width * HANDLE_ICON_CENTER_X_SHARE - iconSide / 2,
+    top: handle.top + handle.height * HANDLE_ICON_CENTER_Y_SHARE - iconSide / 2,
     width: iconSide,
     height: iconSide,
   };
-  const sizeDot = {
-    centerX: handle.left + handle.width - side * (1 - HANDLE_DOT_CENTER_SHARE),
-    centerY: handle.top + handle.height - side * (1 - HANDLE_DOT_CENTER_SHARE),
-    diameter: dotDiameter(size, side * HANDLE_LARGE_DOT_SHARE),
+  return { icon, colorDot: handleColorDot(handle, size) };
+}
+
+/**
+ * Barevná výplň kolečka barvy v pravém dolním rohu úchytu (#106): s tlustší
+ * čárou větší. `diameter` je průměr výplně, bílý lem a šedá linka
+ * z `HANDLE_COLOR_DOT_STYLE` se kreslí vně.
+ */
+export function handleColorDot(handle: LayoutRect, size: LineSize): LayoutCircle {
+  const side = sideOf(handle);
+  return {
+    centerX: handle.left + handle.width - side * (1 - HANDLE_COLOR_DOT_CENTER_SHARE),
+    centerY: handle.top + handle.height - side * (1 - HANDLE_COLOR_DOT_CENTER_SHARE),
+    diameter: side * HANDLE_COLOR_DOT_SHARES[size],
   };
-  return { icon, sizeDot };
 }
 
 /** Tmavá tečka vybrané velikosti uprostřed přepínače (#91 AC1), poměr 1 : 2 : 3. */
@@ -570,13 +592,6 @@ export function sizeToggleDot(toggle: LayoutRect, size: LineSize): LayoutCircle 
 /** Ikona nástroje zabere tento díl strany místa v panelu. */
 const TOOL_SLOT_ICON_SHARE = 0.62;
 
-/**
- * Posun čtverce ikony doleva jako díl jeho strany: ikony leží ve svém
- * čtverci víc vpravo (v úchytu je vlevo šipka otevřeného panelu), v místě
- * panelu jsou po posunu opticky uprostřed.
- */
-const TOOL_SLOT_ICON_SHIFT_SHARE = 0.14;
-
 /** Šipka úchytu: délka ramene a tloušťka čáry jako díl strany úchytu. */
 const HANDLE_ARROW_ARM_SHARE = 0.11;
 const HANDLE_ARROW_LINE_SHARE = 0.055;
@@ -590,12 +605,12 @@ const HANDLE_ARROW_Y_SHARE = 0.87;
 
 /**
  * Čtverec ikony nástroje v místě panelu i v hlavičce kroku barev (#105,
- * #106): strana je díl kratší strany místa, ikona je opticky uprostřed.
+ * #106): strana je díl kratší strany místa, ikona je uprostřed.
  */
 export function toolSlotIcon(slot: LayoutRect): LayoutRect {
   const side = sideOf(slot) * TOOL_SLOT_ICON_SHARE;
   return {
-    left: slot.left + slot.width / 2 - side / 2 - side * TOOL_SLOT_ICON_SHIFT_SHARE,
+    left: slot.left + slot.width / 2 - side / 2,
     top: slot.top + slot.height / 2 - side / 2,
     width: side,
     height: side,

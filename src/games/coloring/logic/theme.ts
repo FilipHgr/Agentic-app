@@ -84,34 +84,24 @@ export const HANDLE_STYLE = {
   arrowColor: BLUE,
 } as const;
 
-/** Tečka velikosti čáry (#91) v úchytu i v přepínači: tmavá jako obrys. */
+/** Tečka velikosti čáry (#91) v přepínači: tmavá jako text. */
 export const SIZE_DOT_STYLE = {
   color: TEXT,
 } as const;
 
 /**
- * Ikony nástrojů (#106, styl D „skutečné nástroje šikmo“): předměty
- * s tmavým obrysem 3 CSS px, vybraná barva je na části, která maluje.
- * Materiály (dřevo, kov, bílé tělo fixu, modrý obal gumy) jsou stejné
- * v každé barvě. Bez vybrané barvy maluje část šedě.
+ * Kolečko barvy v úchytu (#106): vybraná barva s bílým lemem a šedou
+ * linkou vně výplně (v CSS px), aby bylo vidět i ve žluté a bílé. Linka má
+ * kontrast aspoň 3 : 1 vůči pozadí úchytu i bílému lemu. Guma má kolečko
+ * bílé s čárkovanou linkou (délka čárky v CSS px).
  */
-export const TOOL_ICON_STYLE = {
-  outlineColor: TEXT,
-  outlineCss: 3,
-  /** Bílé tělo fixů, hlavička spreje, pryž gumy a odlesky. */
-  white: WHITE,
-  /** Dřevěná násada štětce. */
-  wood: '#F2C27A',
-  /** Ořezané dřevo pastelky. */
-  woodCut: '#F7DDB0',
-  /** Kovová objímka štětce. */
-  metal: '#C7C7CC',
-  /** Obal gumy. */
-  eraserSleeve: BLUE,
-  /** Část, která maluje, když není vybraná barva. */
-  noColor: '#C7C7CC',
-  /** Světlá ploška pastelky: díl bílé přimíchaný do barvy. */
-  crayonFacetWhiteShare: 0.4,
+export const HANDLE_COLOR_DOT_STYLE = {
+  rimColor: WHITE,
+  rimCss: 2,
+  lineColor: '#767676',
+  lineCss: 1,
+  eraserFill: WHITE,
+  eraserDashCss: 3,
 } as const;
 
 /** Lesk třpytek během tahu (#103): bílé jiskry s jemným šedým okrajem. */

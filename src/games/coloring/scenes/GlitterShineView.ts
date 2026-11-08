@@ -11,10 +11,9 @@ import type Phaser from 'phaser';
 
 import { colorNumber } from '../../../shared/logic/theme';
 import type { LayoutRect } from '../logic/coloringLayout';
-import { createGlitterShine } from '../logic/glitterShine';
+import { createGlitterShine, starPoints } from '../logic/glitterShine';
 import type { GlitterShine } from '../logic/glitterShine';
 import { GLITTER_STYLE } from '../logic/theme';
-import { starPoints } from '../logic/toolIcons';
 
 /** Délka cípu největší jiskry lesku jako díl W tahu. */
 const SPARK_REACH_SHARE = 0.6;

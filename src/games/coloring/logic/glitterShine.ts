@@ -141,3 +141,30 @@ export function createGlitterShine({ random, brushWidth }: GlitterShineOptions):
     },
   };
 }
+
+/** Bod tvaru jiskry v pixelech. */
+export interface SparkPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** Hvězdicový tvar jiskry: střed, počet cípů, poloměry a natočení prvního cípu. */
+export interface SparkShape {
+  readonly x: number;
+  readonly y: number;
+  readonly tips: number;
+  readonly outerRadius: number;
+  readonly innerRadius: number;
+  /** Natočení prvního cípu v radiánech od směru nahoru po směru hodinových ručiček. */
+  readonly rotation: number;
+}
+
+/** Vrcholy jiskry: střídavě vnější a vnitřní poloměr, první cíp natočený o `rotation`. */
+export function starPoints(star: SparkShape): SparkPoint[] {
+  const count = 2 * star.tips;
+  return Array.from({ length: count }, (_, index) => {
+    const angle = star.rotation + (index * Math.PI) / star.tips;
+    const radius = index % 2 === 0 ? star.outerRadius : star.innerRadius;
+    return { x: star.x + radius * Math.sin(angle), y: star.y - radius * Math.cos(angle) };
+  });
+}

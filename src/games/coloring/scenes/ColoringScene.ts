@@ -19,7 +19,7 @@ import { COLORING_GAME_AREA_FIT, layoutColoring, touchTargetAt } from '../logic/
 import type { ColoringLayout } from '../logic/coloringLayout';
 import { startColoringSession } from '../logic/coloringSession';
 import type { ColoringPage } from '../logic/coloringSession';
-import { PALETTE, initialPalette, markedColors, tapColor } from '../logic/palette';
+import { initialPalette, markedColors, tapColor } from '../logic/palette';
 import type { PaletteState } from '../logic/palette';
 import { buildRegionMap, outlineFromImage } from '../logic/regionMap';
 import { noRecentColors } from '../logic/recentColors';
@@ -39,6 +39,7 @@ import { HandleButtonView } from './HandleButtonView';
 import { PaintLayer } from './PaintLayer';
 import { RecentColorsView } from './RecentColorsView';
 import { PICTURE, drawPictureOutline, snapshotOf } from './pictureCanvas';
+import { preloadToolIcons } from './toolIconTextures';
 import { ToolPanelView } from './ToolPanelView';
 import type { PanelSelection } from './ToolPanelView';
 import { UndoButtonView } from './UndoButtonView';
@@ -124,6 +125,11 @@ export class ColoringScene extends Phaser.Scene {
 
   constructor() {
     super('coloring');
+  }
+
+  /** Ikony nástrojů (#106) jsou SVG přibalená ke hře, načtou se před startem scény. */
+  preload(): void {
+    preloadToolIcons(this);
   }
 
   create(): void {
@@ -275,7 +281,6 @@ export class ColoringScene extends Phaser.Scene {
     return {
       markedColors: markedColors(this.palette),
       markedTools: markedTools(this.selectedTool()),
-      paintHex: hexOf(this.palette.selected),
       lineSize: this.lineSize(),
       selectedTool: this.selectedTool(),
     };
@@ -594,11 +599,6 @@ export class ColoringScene extends Phaser.Scene {
     this.coloring?.suspend();
     this.sounds.stopAll();
   }
-}
-
-/** Odstín barvy palety `index`, nebo `null` mimo paletu. */
-function hexOf(index: number): string | null {
-  return PALETTE[index]?.hex ?? null;
 }
 
 /** Je hodnota z registru herní plocha? */
