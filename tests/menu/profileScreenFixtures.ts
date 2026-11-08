@@ -127,3 +127,20 @@ export function clearNickname(screens: ProfileScreens): void {
     screens.tapBackspace();
   }
 }
+
+/**
+ * Rodič ťukne na tužku u profilu `id` (#107): prst se tužky dotkne a na
+ * ní se zvedne.
+ */
+export function tapPencil(screens: ProfileScreens, id: string, pointerId = 1): void {
+  const pencil = screens.pencilButton(id);
+  pencil.press(pointerId);
+  pencil.release(pointerId);
+}
+
+/** Dítě ťukne na kolečko profilu `id`: prst se dotkne a hned zvedne. */
+export function tapProfileCircle(screens: ProfileScreens, id: string, pointerId = 1): void {
+  const button = screens.profileButton(id);
+  button.press(pointerId);
+  button.release(pointerId);
+}

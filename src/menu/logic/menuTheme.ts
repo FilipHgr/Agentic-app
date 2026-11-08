@@ -78,6 +78,10 @@ export const PROFILE_SCREEN_STYLE = {
   /** Mezera mezi zvolenou barvou a jejím kroužkem. */
   swatchGap: WHITE,
   swatchCheck: WHITE,
+  /** Tužka u profilu (#107): světle modré kolečko s okrajem a modrá tužka. */
+  pencilBackground: '#E5F0FF',
+  pencilBorder: '#B8D6FF',
+  pencilSymbol: BLUE,
   /** Koš v úpravě profilu (#73, obrázek 6): světle červené kolečko, červený koš. */
   trashBackground: '#FFE5E7',
   trashSymbol: '#D70015',

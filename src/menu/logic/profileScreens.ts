@@ -12,6 +12,8 @@
  * - Úprava profilu (#73): podržení kolečka profilu 1 s otevře stejný
  *   formulář předvyplněný přezdívkou a barvou, ťuknutí profil dál jen
  *   vybere. ✓ úpravu uloží a vrátí výběr; profil se tím nevybere.
+ * - Tužka u profilu (#107): ťuknutí (bez podržení) otevře úpravu profilu
+ *   stejně jako podržení kolečka; profil se tím nevybere.
  * - Smazání (#73): koš je jen ve 2. kroku úpravy a jen při dvou a více
  *   profilech. Koš otevře potvrzení, „Zpět“ vrátí rozepsanou úpravu,
  *   „Smazat“ profil smaže. Při dvou a více zbývajících profilech se ukáže
@@ -31,6 +33,9 @@ import type { ProfileStore } from '../../shared/storage/profileStorage';
 import { MAX_NICKNAME_LENGTH, letterFromKey, lettersOf } from './letterGrid';
 import type { LetterLayer } from './letterGrid';
 import { PROFILE_WITHOUT_NICKNAME_SYMBOL } from './menu';
+import type { MenuSoundName } from './menuSounds';
+import { createTapButton } from './tapButton';
+import type { TapButton } from './tapButton';
 
 /** Nejvíc profilů v zařízení; s nimi se „+“ neukáže. */
 export const MAX_PROFILES = 6;
@@ -70,6 +75,7 @@ export type ProfileFormMode = 'new' | 'edit';
 /** Ťuknutí, které se povedlo a dostane zmáčknutí. */
 export type ProfileTapTarget =
   | 'profile'
+  | 'pencil'
   | 'switch'
   | 'backspace'
   | 'back'
@@ -98,6 +104,29 @@ export type ProfileFeedback =
   | { readonly kind: 'addHolding'; readonly holding: boolean }
   | { readonly kind: 'profileHolding'; readonly id: string; readonly holding: boolean }
   | { readonly kind: 'shake'; readonly target: 'field' };
+
+/**
+ * Který zvuk menu (`MENU_SOUNDS`) scéna k odezvě zahraje, `null` bez zvuku.
+ * Písmena, přepnutí vrstvy, ⌫ a barvy znějí tiše, aby psaní nebylo hlučné;
+ * ostatní ťuknutí (i tužka a kolečko profilu) stejně jako tlačítka menu.
+ */
+export function profileFeedbackSound(event: ProfileFeedback): MenuSoundName | null {
+  switch (event.kind) {
+    case 'press':
+      return 'select';
+    case 'tap':
+      return event.target === 'switch' || event.target === 'backspace' || event.target === 'color'
+        ? 'select'
+        : 'press';
+    case 'wobble':
+      return 'wobble';
+    case 'shake':
+      return 'shake';
+    case 'addHolding':
+    case 'profileHolding':
+      return null;
+  }
+}
 
 /** Kolečko na výběru profilu. */
 export interface ProfilePickerItem {
@@ -134,6 +163,8 @@ export interface ProfileScreens {
   tapProfile(id: string): void;
   /** Kolečko profilu `id`: ťuknutí vybere, podržení 1 s otevře úpravu (#73). */
   profileButton(id: string): HoldButton;
+  /** Tužka u profilu `id` (#107): ťuknutí otevře úpravu profilu. */
+  pencilButton(id: string): TapButton;
   /** „+“: ťuknutí zhoupne, podržení 1 s otevře formulář. */
   readonly addButton: HoldButton;
 
@@ -312,6 +343,25 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
     return button;
   }
 
+  /** Tužky u profilů podle označení (#107); vzniknou při prvním dotazu. */
+  const pencilButtons = new Map<string, TapButton>();
+
+  function pencilButton(id: string): TapButton {
+    const existing = pencilButtons.get(id);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const button = createTapButton({
+      isEnabled: () => screen === 'picker' && findProfile(id) !== undefined,
+      onTap: () => {
+        openEdit(id);
+        emit({ kind: 'tap', target: 'pencil' });
+      },
+    });
+    pencilButtons.set(id, button);
+    return button;
+  }
+
   /** Uloží formulář: nový profil, nebo úpravu. */
   function saveDraft(): void {
     const nickname = nicknameText();
@@ -328,6 +378,7 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
     // Tlačítko smazaného profilu už nikdo nepoužije.
     profileButtons.get(deletedId)?.dispose();
     profileButtons.delete(deletedId);
+    pencilButtons.delete(deletedId);
     draft = emptyDraft();
     if (store.profiles().length >= 2) {
       screen = 'picker';
@@ -378,6 +429,7 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
 
     tapProfile,
     profileButton,
+    pencilButton,
     addButton,
     formMode,
 

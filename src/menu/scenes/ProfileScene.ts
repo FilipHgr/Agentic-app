@@ -32,7 +32,11 @@ import type {
   NicknameStepLayout,
   ProfilePickerLayout,
 } from '../logic/profileLayout';
-import { ADD_PROFILE_HOLD_MS, EDIT_PROFILE_HOLD_MS } from '../logic/profileScreens';
+import {
+  ADD_PROFILE_HOLD_MS,
+  EDIT_PROFILE_HOLD_MS,
+  profileFeedbackSound,
+} from '../logic/profileScreens';
 import type { ProfileFeedback, ProfileScreens } from '../logic/profileScreens';
 import {
   LANGUAGE_PANEL_SHADOW,
@@ -68,6 +72,9 @@ const FIELD_TEXT_INSET = 14;
 const CARET_WIDTH = 3;
 /** Kroužek kolem zvolené barvy: bílá mezera a tmavý okraj. */
 const SWATCH_RING = { gap: 3, width: 3 };
+/** Tužka u profilu (#107): okraj 2 px a symbol 30 px v kolečku 64 px. */
+const PENCIL_BORDER = 2;
+const PENCIL_ICON_SIZE = 30;
 
 export interface ProfileSceneHost {
   readonly screens: ProfileScreens;
@@ -87,10 +94,23 @@ interface Tappable {
   readonly homeX: number;
 }
 
-/** Ťukací plocha v CSS px okna: ťuknutí, nebo podržení („+“ a kolečka profilů). */
+/** Tlačítko z logiky, kterému scéna předává dotyky prstu (podržení nebo tužka). */
+interface PointerButton {
+  press(pointerId: number): void;
+  release(pointerId: number): void;
+  leave(pointerId: number): void;
+  cancel(pointerId: number): void;
+}
+
+/**
+ * Ťukací plocha v CSS px okna: ťuknutí, podržení („+“ a kolečka profilů)
+ * nebo tlačítko z logiky bez podržení (tužka, #107).
+ */
 interface Region {
   readonly box: MenuBox;
-  /** Tlačítko s podržením; bez něj se plocha jen ťuká. */
+  /** Tlačítko z logiky; bez něj se plocha jen ťuká a akce je `onTap`. */
+  readonly button: PointerButton | undefined;
+  /** Tlačítko s podržením se zmenší, jen dokud se plní kroužek. */
   readonly hold: HoldButton | undefined;
   readonly item: Tappable | undefined;
   /** Patří k tlačítku nebo nabídce jazyků (fungují i s otevřenou nabídkou). */
@@ -330,7 +350,7 @@ export class ProfileScene extends Phaser.Scene {
     if (region === null) {
       return;
     }
-    region.hold?.press(id);
+    region.button?.press(id);
     this.setHeld(region.item, region.hold === undefined || region.hold.isHolding());
   }
 
@@ -339,7 +359,7 @@ export class ProfileScene extends Phaser.Scene {
     if (region === undefined || region === null || contains(region.box, x, y)) {
       return;
     }
-    region.hold?.leave(id);
+    region.button?.leave(id);
     this.setHeld(region.item, false);
   }
 
@@ -350,11 +370,14 @@ export class ProfileScene extends Phaser.Scene {
       return;
     }
     this.setHeld(region.item, false);
-    if (region.hold !== undefined) {
+    if (region.button !== undefined) {
       if (canceled) {
-        region.hold.cancel(id);
+        region.button.cancel(id);
+      } else if (!contains(region.box, x, y)) {
+        // Prst sjel pryč, i když se pohyb nezachytil: ťuknutí se nepočítá.
+        region.button.leave(id);
       } else {
-        region.hold.release(id);
+        region.button.release(id);
       }
       return;
     }
@@ -438,12 +461,13 @@ export class ProfileScene extends Phaser.Scene {
     box: MenuBox,
     item: Tappable | undefined,
     onTap: () => void,
-    options: { hold?: HoldButton; language?: boolean } = {},
+    options: { hold?: HoldButton; button?: PointerButton; language?: boolean } = {},
   ): void {
     this.regions.push({
       box,
       item,
       onTap,
+      button: options.button ?? options.hold,
       hold: options.hold,
       language: options.language ?? false,
     });
@@ -505,6 +529,8 @@ export class ProfileScene extends Phaser.Scene {
       // Ťuknutí profil vybere, podržení 1 s otevře úpravu (#73).
       this.addHoldRing(profile.id, item, slot.circle, EDIT_PROFILE_HOLD_MS, true);
       this.region(slot.circle, item, () => undefined, { hold: screens.profileButton(profile.id) });
+      // Tužka vpravo od kolečka otevře úpravu ťuknutím (#107).
+      this.drawPencil(slot.pencil, profile.id);
       if (profile.nickname !== null) {
         this.drawNicknameLines(slot.nickname, profile.nickname, layout);
       }
@@ -562,6 +588,54 @@ export class ProfileScene extends Phaser.Scene {
     const at = split ?? Math.ceil(letters.length / 2);
     make(letters.slice(0, at).join(''), 0);
     make(letters.slice(at).join(''), 1);
+  }
+
+  /** Tužka (#107): světle modré kolečko s okrajem a modrou tužkou šikmo. */
+  private drawPencil(box: MenuBox, id: string): void {
+    const item = this.tappable(box);
+    const radius = ((box.right - box.left) / 2) * UNIT;
+    const background = this.add.graphics();
+    background
+      .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.pencilBorder), 1)
+      .fillCircle(0, 0, radius)
+      .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.pencilBackground), 1)
+      .fillCircle(0, 0, radius - PENCIL_BORDER * UNIT);
+    item.container.add([background, this.pencilIcon(PENCIL_ICON_SIZE * UNIT)]);
+    this.region(box, item, () => undefined, { button: this.host.screens.pencilButton(id) });
+  }
+
+  /** Tužka jako čáry (tělo s hrotem a čárka u gumy) v ploše `size` × `size`. */
+  private pencilIcon(size: number): Phaser.GameObjects.Graphics {
+    // Souřadnice z obrázku tuzka-*.png v mřížce 24 × 24 se středem v počátku.
+    const unit = size / 24;
+    const at = (value: number): number => (value - 12) * unit;
+    const icon = this.add.graphics();
+    icon.lineStyle(2.2 * unit, colorNumber(PROFILE_SCREEN_STYLE.pencilSymbol), 1);
+    icon.beginPath();
+    icon.moveTo(at(15.5), at(4.5));
+    icon.lineTo(at(19.5), at(8.5));
+    icon.lineTo(at(8.5), at(19.5));
+    icon.lineTo(at(3.5), at(20.5));
+    icon.lineTo(at(4.5), at(15.5));
+    icon.closePath();
+    icon.moveTo(at(13), at(7));
+    icon.lineTo(at(17), at(11));
+    icon.strokePath();
+    // Zaoblené rohy jako v obrázku: v každém rohu malé kolečko tloušťky čáry.
+    icon.fillStyle(colorNumber(PROFILE_SCREEN_STYLE.pencilSymbol), 1);
+    const corners: ReadonlyArray<readonly [number, number]> = [
+      [15.5, 4.5],
+      [19.5, 8.5],
+      [8.5, 19.5],
+      [3.5, 20.5],
+      [4.5, 15.5],
+      [13, 7],
+      [17, 11],
+    ];
+    for (const [x, y] of corners) {
+      icon.fillCircle(at(x), at(y), 1.1 * unit);
+    }
+    return icon;
   }
 
   private drawAddButton(box: MenuBox, fontSize: number): void {
@@ -1148,28 +1222,11 @@ export class ProfileScene extends Phaser.Scene {
     }
   }
 
-  /** Zvuk odezvy; písmena a přepnutí tiše, aby psaní nebylo hlučné. */
+  /** Zvuk odezvy podle logiky (`profileFeedbackSound`). */
   private playSoundOf(event: ProfileFeedback): void {
-    switch (event.kind) {
-      case 'press':
-        this.playSound(MENU_SOUNDS.select);
-        break;
-      case 'tap':
-        this.playSound(
-          event.target === 'switch' || event.target === 'backspace' || event.target === 'color'
-            ? MENU_SOUNDS.select
-            : MENU_SOUNDS.press,
-        );
-        break;
-      case 'wobble':
-        this.playSound(MENU_SOUNDS.wobble);
-        break;
-      case 'shake':
-        this.playSound(MENU_SOUNDS.shake);
-        break;
-      case 'addHolding':
-      case 'profileHolding':
-        break;
+    const sound = profileFeedbackSound(event);
+    if (sound !== null) {
+      this.playSound(MENU_SOUNDS[sound]);
     }
   }
 
@@ -1216,6 +1273,7 @@ export class ProfileScene extends Phaser.Scene {
       case 'next':
       case 'save':
       case 'profile':
+      case 'pencil':
         // Obrazovka se hned změní, zmáčknutí by nebylo vidět; zvuk už zazněl.
         break;
     }

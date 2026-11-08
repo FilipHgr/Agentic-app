@@ -3,11 +3,13 @@
  * v CSS px okna, i s výřezem a lištou domů. Čistý TypeScript bez Phaseru.
  *
  * Výběr profilu: kolečka v pořadí založení, pod každým přezdívka 16 px
- * nejvýš na dva řádky, za nimi „+“. Vpravo nahoře plné tlačítko jazyka
- * a pod ním nabídka jazyků jako v menu (#70). Na iPadu kolečka 140 px
- * v řadě (co se nevejde, jde do další řady), na telefonu 110 px: na šířku
- * jedna řada, na výšku jeden sloupec, a když se kolečka do jednoho
- * sloupce nevejdou, dva sloupce.
+ * nejvýš na dva řádky, vpravo od něj tužka 64 px (#107), za nimi „+“ bez
+ * tužky. Vpravo nahoře plné tlačítko jazyka a pod ním nabídka jazyků jako
+ * v menu (#70). Na iPadu kolečka 140 px v řadách co nejvyrovnanějších
+ * (6 koleček ve 2 řadách po 3), na telefonu 110 px: na šířku stejně jako
+ * na iPadu, na výšku jeden sloupec, a když se kolečka do jednoho sloupce
+ * nevejdou, dva sloupce. Na menších telefonech se nejdřív zúží mezery
+ * (až na 8 px) a pak zmenší kolečka (nejvýš na 92 px), nikde se neposouvá.
  *
  * Formulář (obrázky „5 · Mřížka písmen“ a „6 · Formulář, 2. krok“):
  * - telefon na výšku: nahoře nadpis a „1 / 2“, pole, mřížka 5 sloupců,
@@ -49,6 +51,8 @@ export interface ProfilePickerSlot {
   readonly circle: MenuBox;
   /** Plocha přezdívky pod kolečkem (dva řádky). */
   readonly nickname: MenuBox;
+  /** Tužka vpravo od kolečka (#107): otevře úpravu profilu. */
+  readonly pencil: MenuBox;
 }
 
 export interface ProfilePickerLayout {
@@ -73,10 +77,12 @@ export interface ProfilePickerContent {
 }
 
 interface PickerMetrics {
+  /** Největší kolečko; na menších oknech se zmenší až na `minCircle`. */
   readonly circle: number;
-  /** Vodorovná mezera mezi kolečky. */
+  readonly minCircle: number;
+  /** Vodorovná mezera mezi tužkou a dalším kolečkem; při nedostatku místa až 8 px. */
   readonly columnGap: number;
-  /** Svislá mezera mezi spodkem přezdívky a dalším kolečkem. */
+  /** Svislá mezera mezi spodkem přezdívky a dalším kolečkem; při nedostatku místa až 8 px. */
   readonly rowGap: number;
   readonly languageSize: number;
   readonly languageInset: number;
@@ -89,6 +95,7 @@ const TABLET_LANGUAGE_FONT_SIZE = 24;
 /** iPad podle obrázku P: kolečka 140 px, tlačítko jazyka 76 px jako kolečko nastavení. */
 const TABLET_PICKER: PickerMetrics = {
   circle: 140,
+  minCircle: 140,
   columnGap: 56,
   rowGap: 32,
   languageSize: 76,
@@ -96,20 +103,24 @@ const TABLET_PICKER: PickerMetrics = {
   languageFontSize: TABLET_LANGUAGE_FONT_SIZE,
 };
 
-/** Telefon na šířku (obrázek 4): 6 koleček 110 px s mezerou 8 px v jedné řadě. */
+/**
+ * Telefon na šířku (obrázek tuzka-telefon-sirka.png, #107): kolečka 110 px,
+ * 6 koleček ve 2 řadách po 3; v nejmenším okně se kolečka zmenší až na 92 px.
+ */
 const PHONE_LANDSCAPE_PICKER: PickerMetrics = {
   circle: 110,
-  columnGap: 8,
-  rowGap: 24,
+  minCircle: 92,
+  columnGap: 16,
+  rowGap: 16,
   languageSize: BUTTON_SIZE,
   languageInset: 8,
   languageFontSize: 20,
 };
 
-/** Telefon na výšku (obrázek 4): kolečka 110 px, dva sloupce. */
+/** Telefon na výšku (obrázek tuzka-telefon-vyska.png, #107): jeden nebo dva sloupce. */
 const PHONE_PORTRAIT_PICKER: PickerMetrics = {
   ...PHONE_LANDSCAPE_PICKER,
-  columnGap: 60,
+  rowGap: 24,
 };
 
 /** Přezdívka pod kolečkem: 16 px, nejvýš dva řádky po 20 px, 4 px pod kolečkem. */
@@ -117,6 +128,13 @@ const NICKNAME_FONT_SIZE = 16;
 const NICKNAME_MAX_LINES = 2;
 const NICKNAME_LINE_HEIGHT = 20;
 const NICKNAME_GAP = 4;
+/** Přezdívka přesahuje kolečko z každé strany o 4 px (aby se i u 92 px vešlo 6 písmen W). */
+const NICKNAME_OVERHANG = 4;
+
+/** Tužka (#107): kulaté tlačítko 64 px vpravo od kolečka, 8 px od něj i od okraje plochy. */
+const PENCIL_SIZE = BUTTON_SIZE;
+const PENCIL_GAP = MIN_GAP;
+const PENCIL_EDGE = MIN_GAP;
 
 function pickerMetricsFor(mode: LayoutMode): PickerMetrics {
   switch (mode) {
@@ -147,14 +165,41 @@ function heightOf(box: MenuBox): number {
   return box.bottom - box.top;
 }
 
-/**
- * Kolik koleček (s přezdívkou a mezerami) se vejde pod sebe do výšky
- * `height`. Kolečka jsou uprostřed okna, takže pod nimi má zůstat stejně
- * místa jako nad nimi pro tlačítko jazyka: `height` je výška bez obou.
- */
-function rowsThatFit(height: number, metrics: PickerMetrics): number {
-  const itemHeight = metrics.circle + NICKNAME_GAP + NICKNAME_MAX_LINES * NICKNAME_LINE_HEIGHT;
-  return Math.max(1, Math.floor((height + metrics.rowGap) / (itemHeight + metrics.rowGap)));
+/** Jedno kolečko s přezdívkou pod ním a tužkou vpravo. */
+interface PickerItemSize {
+  readonly circle: number;
+  /** Od levého okraje kolečka po pravý okraj tužky. */
+  readonly width: number;
+  /** Od horního okraje kolečka po spodek přezdívky. */
+  readonly height: number;
+}
+
+function itemSizeFor(circle: number): PickerItemSize {
+  return {
+    circle,
+    width: circle + PENCIL_GAP + PENCIL_SIZE,
+    height: circle + NICKNAME_GAP + NICKNAME_MAX_LINES * NICKNAME_LINE_HEIGHT,
+  };
+}
+
+/** Mřížka koleček: sloupce, řady, mezery a levý horní roh prvního kolečka. */
+interface PickerGrid {
+  readonly item: PickerItemSize;
+  readonly columns: number;
+  readonly rows: number;
+  readonly columnGap: number;
+  readonly rowGap: number;
+  readonly left: number;
+  readonly top: number;
+}
+
+/** Mezera mezi `count` prvky, aby se vešly do `space`: nejvýš `preferred`, `null` pod 8 px. */
+function gapThatFits(space: number, count: number, size: number, preferred: number): number | null {
+  if (count <= 1) {
+    return 0;
+  }
+  const gap = Math.min(preferred, (space - count * size) / (count - 1));
+  return gap >= MIN_GAP ? gap : null;
 }
 
 /**
@@ -164,18 +209,113 @@ function rowsThatFit(height: number, metrics: PickerMetrics): number {
 function pickerColumns(
   mode: LayoutMode,
   items: number,
-  area: { readonly width: number; readonly height: number },
+  space: { readonly width: number; readonly height: number },
+  item: PickerItemSize,
   metrics: PickerMetrics,
 ): number {
-  const pitch = metrics.circle + metrics.columnGap;
   if (mode === 'phonePortrait') {
-    return items <= rowsThatFit(area.height, metrics) ? 1 : 2;
+    const rows = Math.floor((space.height + metrics.rowGap) / (item.height + metrics.rowGap));
+    return items <= Math.max(1, rows) ? 1 : 2;
   }
-  const width = area.width;
-  // Přezdívka je o 8 px užší než rozestup koleček, proto + MIN_GAP.
-  const maxColumns = Math.max(1, Math.floor((width + MIN_GAP) / pitch));
-  const rows = Math.ceil(items / maxColumns);
+  const maxColumns = Math.floor(
+    (space.width + metrics.columnGap) / (item.width + metrics.columnGap),
+  );
+  const rows = Math.ceil(items / Math.max(1, maxColumns));
   return Math.max(1, Math.ceil(items / rows));
+}
+
+/**
+ * Mřížka s kolečky `circle` v `columns` sloupcích, nebo `null`, když se do
+ * volné plochy nevejde. Kolečka jsou uprostřed okna, vždy níž než horní
+ * okraj tlačítka jazyka; když by tužka sahala k tlačítku jazyka, jsou pod ním.
+ */
+function pickerGridFor(
+  items: number,
+  columns: number,
+  circle: number,
+  free: MenuBox,
+  languageSlot: MenuBox,
+  metrics: PickerMetrics,
+): PickerGrid | null {
+  const item = itemSizeFor(circle);
+  const width = widthOf(free) - 2 * PENCIL_EDGE;
+  const bottom = free.bottom - EDGE;
+  const rows = Math.ceil(items / columns);
+  const columnGap = gapThatFits(width, columns, item.width, metrics.columnGap);
+  if (columnGap === null) {
+    return null;
+  }
+  const blockWidth = columns * item.width + (columns - 1) * columnGap;
+  const left = free.left + (widthOf(free) - blockWidth) / 2;
+  const reachesLanguage = left + blockWidth > languageSlot.left - MIN_GAP;
+  const highest = reachesLanguage ? languageSlot.bottom + MIN_GAP : languageSlot.top + EDGE;
+  const rowGap = gapThatFits(bottom - highest, rows, item.height, metrics.rowGap);
+  if (rowGap === null) {
+    return null;
+  }
+  const blockHeight = rows * item.height + (rows - 1) * rowGap;
+  const top = Math.max(highest, free.top + (heightOf(free) - blockHeight) / 2);
+  if (top + blockHeight > bottom) {
+    return null;
+  }
+  return { item, columns, rows, columnGap, rowGap, left, top };
+}
+
+/**
+ * Počet sloupců podle největších koleček, pak největší kolečka, se kterými
+ * se všechno vejde; nevejde-li se nic, nejmenší kolečka od horního okraje.
+ */
+function largestPickerGrid(
+  mode: LayoutMode,
+  items: number,
+  free: MenuBox,
+  languageSlot: MenuBox,
+  metrics: PickerMetrics,
+): PickerGrid {
+  // Na výšku zůstane pod kolečky stejně místa jako nad nimi pro tlačítko jazyka.
+  const reservedAbove = languageSlot.bottom + MIN_GAP - free.top;
+  const columns = pickerColumns(
+    mode,
+    items,
+    { width: widthOf(free) - 2 * PENCIL_EDGE, height: heightOf(free) - 2 * reservedAbove },
+    itemSizeFor(metrics.circle),
+    metrics,
+  );
+  for (let circle = metrics.circle; circle >= metrics.minCircle; circle -= 1) {
+    const grid = pickerGridFor(items, columns, circle, free, languageSlot, metrics);
+    if (grid !== null) {
+      return grid;
+    }
+  }
+  // Nevejde se ani tak (okno mimo zkušební okna): nejmenší kolečka pod tlačítkem jazyka.
+  return {
+    item: itemSizeFor(metrics.minCircle),
+    columns,
+    rows: Math.ceil(items / columns),
+    columnGap: MIN_GAP,
+    rowGap: MIN_GAP,
+    left: free.left + PENCIL_EDGE,
+    top: languageSlot.bottom + MIN_GAP,
+  };
+}
+
+function pickerSlotAt(grid: PickerGrid, index: number): ProfilePickerSlot {
+  const column = index % grid.columns;
+  const row = Math.floor(index / grid.columns);
+  const size = grid.item.circle;
+  const left = grid.left + column * (grid.item.width + grid.columnGap);
+  const top = grid.top + row * (grid.item.height + grid.rowGap);
+  const circle = boxAt(left, top, size, size);
+  return {
+    circle,
+    nickname: boxAt(
+      left - NICKNAME_OVERHANG,
+      circle.bottom + NICKNAME_GAP,
+      size + 2 * NICKNAME_OVERHANG,
+      NICKNAME_MAX_LINES * NICKNAME_LINE_HEIGHT,
+    ),
+    pencil: boxAt(circle.right + PENCIL_GAP, top, PENCIL_SIZE, PENCIL_SIZE),
+  };
 }
 
 export function profilePickerLayoutFor(
@@ -185,7 +325,6 @@ export function profilePickerLayoutFor(
   const mode = chooseLayoutMode(viewport);
   const metrics = pickerMetricsFor(mode);
   const free = freeAreaOf(viewport);
-  const usable = insetBox(free, EDGE);
 
   const languageSlot = boxAt(
     free.right - metrics.languageInset - metrics.languageSize,
@@ -195,49 +334,8 @@ export function profilePickerLayoutFor(
   );
 
   const items = content.profileCount + (content.showAdd ? 1 : 0);
-  const pitch = metrics.circle + metrics.columnGap;
-  // Nad kolečky je místo pro tlačítko jazyka, stejné místo zůstane pod nimi.
-  const reservedAbove = languageSlot.bottom + MIN_GAP - free.top;
-  const columns = pickerColumns(
-    mode,
-    items,
-    { width: widthOf(usable), height: heightOf(free) - 2 * reservedAbove },
-    metrics,
-  );
-  const rows = Math.max(1, Math.ceil(items / columns));
-  const nicknameHeight = NICKNAME_MAX_LINES * NICKNAME_LINE_HEIGHT;
-  const itemHeight = metrics.circle + NICKNAME_GAP + nicknameHeight;
-  const rowPitch = itemHeight + metrics.rowGap;
-  const nicknameWidth = pitch - MIN_GAP;
-
-  const blockWidth = columns * pitch - MIN_GAP;
-  const blockHeight = rows * rowPitch - metrics.rowGap;
-  const blockLeft = free.left + (widthOf(free) - blockWidth) / 2;
-  // Kolečka uprostřed okna, ale vždy pod tlačítkem jazyka.
-  const blockTop = Math.max(
-    languageSlot.bottom + MIN_GAP,
-    free.top + (heightOf(free) - blockHeight) / 2,
-  );
-
-  const slots: ProfilePickerSlot[] = Array.from({ length: items }, (_, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    const nicknameLeft = blockLeft + column * pitch;
-    const top = blockTop + row * rowPitch;
-    const circle = boxAt(
-      nicknameLeft + (nicknameWidth - metrics.circle) / 2,
-      top,
-      metrics.circle,
-      metrics.circle,
-    );
-    const nickname = boxAt(
-      nicknameLeft,
-      circle.bottom + NICKNAME_GAP,
-      nicknameWidth,
-      nicknameHeight,
-    );
-    return { circle, nickname };
-  });
+  const grid = largestPickerGrid(mode, Math.max(1, items), free, languageSlot, metrics);
+  const slots = Array.from({ length: items }, (_, index) => pickerSlotAt(grid, index));
 
   const profiles = slots.slice(0, content.profileCount);
   const addSlot = content.showAdd ? slots[content.profileCount] : undefined;
@@ -245,7 +343,7 @@ export function profilePickerLayoutFor(
     mode,
     profiles,
     add: addSlot?.circle ?? null,
-    symbolFontSize: metrics.circle / 2,
+    symbolFontSize: grid.item.circle / 2,
     nicknameFontSize: NICKNAME_FONT_SIZE,
     nicknameMaxLines: NICKNAME_MAX_LINES,
     nicknameLineHeight: NICKNAME_LINE_HEIGHT,

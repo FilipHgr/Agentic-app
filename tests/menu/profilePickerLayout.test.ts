@@ -48,6 +48,8 @@ import {
 const ROUNDING = 1e-6;
 const TABLET_CIRCLE = 140;
 const PHONE_CIRCLE = 110;
+/** Nejmenší kolečko na telefonu podle obrázků k #107 (744 × 296). */
+const SMALLEST_PHONE_CIRCLE = 92;
 
 /**
  * Kolik různých kombinací (okno × počet profilů) pravidlo na výběru
@@ -106,10 +108,18 @@ describe('#72 AC1: výběr profilu podle obrázku P ve všech zkušebních oknec
     }
   });
 
-  it(`kolečka mají na telefonu ${PHONE_CIRCLE} px, na iPadu ${TABLET_CIRCLE} px a „+“ je stejně velké`, () => {
+  // #107: na menších telefonech se kolečka zmenší, nejvíc na 92 px (schválené obrázky).
+  it(`kolečka mají na telefonu nejvýš ${PHONE_CIRCLE} px (aspoň ${SMALLEST_PHONE_CIRCLE} px), na iPadu ${TABLET_CIRCLE} px a „+“ je stejně velké`, () => {
     eachCase((label, layout, window) => {
-      const size = isPhone(window) ? PHONE_CIRCLE : TABLET_CIRCLE;
-      for (const circle of circlesOf(layout)) {
+      const circles = circlesOf(layout);
+      const size = widthOf(circles[0] ?? { left: 0, right: 0, top: 0, bottom: 0 });
+      if (isPhone(window)) {
+        expect(size, label).toBeLessThanOrEqual(PHONE_CIRCLE + ROUNDING);
+        expect(size, label).toBeGreaterThanOrEqual(SMALLEST_PHONE_CIRCLE - ROUNDING);
+      } else {
+        expect(size, label).toBeCloseTo(TABLET_CIRCLE, 5);
+      }
+      for (const circle of circles) {
         expect(widthOf(circle), label).toBeCloseTo(size, 5);
         expect(heightOf(circle), label).toBeCloseTo(size, 5);
       }
@@ -149,7 +159,8 @@ describe('#72 AC1: výběr profilu podle obrázku P ve všech zkušebních oknec
 });
 
 describe('#72 AC1: rozložení koleček na telefonu podle obrázku', () => {
-  it('na šířku je 6 profilů i 5 profilů s „+“ v 1 řadě, na výšku ve 2 sloupcích s „+“ na konci', () => {
+  // #107: s tužkami jsou na telefonu na šířku 2 řady po 3 (schválený obrázek tuzka-telefon-sirka.png).
+  it('na šířku je 6 profilů i 5 profilů s „+“ ve 2 řadách po 3, na výšku ve 2 sloupcích s „+“ na konci', () => {
     for (const window of MENU_WINDOWS) {
       const mode = chooseLayoutMode(viewportOf(window));
       for (const { count, add } of PICKER_CASES.slice(0, 2)) {
@@ -157,7 +168,8 @@ describe('#72 AC1: rozložení koleček na telefonu podle obrázku', () => {
         const circles = circlesOf(layout);
         const label = `${window.name}, ${count} profilů${add ? ' a „+“' : ''}`;
         if (mode === 'phoneLandscape') {
-          expect(new Set(circles.map((circle) => Math.round(circle.top))).size, label).toBe(1);
+          expect(new Set(circles.map((circle) => Math.round(circle.top))).size, label).toBe(2);
+          expect(new Set(circles.map((circle) => Math.round(circle.left))).size, label).toBe(3);
         }
         if (mode === 'phonePortrait') {
           expect(new Set(circles.map((circle) => Math.round(circle.left))).size, label).toBe(2);
