@@ -24,6 +24,7 @@ import {
   clearNickname,
   deviceWithProfiles,
   holdAdd,
+  holdConfirmDelete,
   holdProfile,
   pickerNicknames,
   testProfileScreens,
@@ -55,7 +56,8 @@ import type { TestProfileScreens } from './profileScreenFixtures';
  *   `deleteConfirmProfile()` vrátí kolečko profilu
  *   (`ProfilePickerItem`, mimo potvrzení `null`),
  * - `tapCancelDelete()` („Zpět“) vrátí do 2. kroku s rozepsanou změnou,
- * - `tapConfirmDelete()` („Smazat“) smaže přes `ProfileStore.deleteProfile`;
+ * - „Smazat“ smaže přes `ProfileStore.deleteProfile` (od #108 podržením
+ *   `confirmDeleteButton` 1 s, viz `deleteProfileHold.test.ts`);
  *   aktivní je první zbývající profil; při dvou a více zbývajících se
  *   ukáže výběr (`'picker'`), jinak se obrazovky zavřou (`'closed'`)
  *   a zavolá se `onProfileChosen` (stránka ukáže menu).
@@ -90,11 +92,11 @@ function openColorStep(test: TestProfileScreens, index: number): void {
   test.screens.tapNext();
 }
 
-/** Smaže profil na pořadí `index`: podržet, →, koš, „Smazat“. */
+/** Smaže profil na pořadí `index`: podržet, →, koš, podržet „Smazat“ 1 s (#108). */
 function deleteProfileAt(test: TestProfileScreens, index: number): void {
   openColorStep(test, index);
   test.screens.tapDelete();
-  test.screens.tapConfirmDelete();
+  holdConfirmDelete(test.screens);
 }
 
 describe('#73 AC1: podržení kolečka profilu 1 s otevře úpravu', () => {
@@ -451,7 +453,7 @@ describe('#73 AC2: koš je jen v úpravě a ne u posledního profilu', () => {
 
     expect(test.screens.canDeleteProfile()).toBe(false);
     test.screens.tapDelete();
-    test.screens.tapConfirmDelete();
+    holdConfirmDelete(test.screens);
 
     expect(test.screens.screen()).toBe('color');
     expect(test.store.profiles()).toHaveLength(1);
@@ -611,15 +613,15 @@ describe('#73 AC3: smazání se nepovede napůl', () => {
 });
 
 describe('#73 AC4: okrajové případy', () => {
-  it('rychlé dvojí potvrzení smaže jen jeden profil', () => {
+  it('podržení „Smazat“ těsně po smazání už nesmaže další profil', () => {
     const test = testProfileScreens(
       deviceWithProfiles([{ nickname: 'EMA' }, { nickname: 'TOM' }, { nickname: 'ANA' }]),
     );
     openColorStep(test, 1);
     test.screens.tapDelete();
 
-    test.screens.tapConfirmDelete();
-    test.screens.tapConfirmDelete();
+    holdConfirmDelete(test.screens);
+    holdConfirmDelete(test.screens);
 
     expect(pickerNicknames(test.screens)).toEqual([null, 'TOM', 'ANA']);
     expect(openProfiles(test.storage).profiles()).toHaveLength(3);

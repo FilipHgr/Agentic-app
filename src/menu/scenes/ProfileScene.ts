@@ -34,6 +34,7 @@ import type {
 } from '../logic/profileLayout';
 import {
   ADD_PROFILE_HOLD_MS,
+  DELETE_PROFILE_HOLD_MS,
   EDIT_PROFILE_HOLD_MS,
   profileFeedbackSound,
 } from '../logic/profileScreens';
@@ -62,7 +63,10 @@ const PRESS = { scale: 0.92, durationMs: 70 };
 const HELD_SCALE = 0.95;
 const SHAKE = { distance: 8, durationMs: 50, repeat: 3 };
 const WOBBLE = { angle: 8, durationMs: 90 };
-/** Kroužek podržení „+“ a kolečka profilu: uvnitř kolečka jako u kolečka nastavení. */
+/**
+ * Kroužek podržení „+“, kolečka profilu a „Smazat“ (#108): uvnitř okraje
+ * tlačítka jako u kolečka nastavení.
+ */
 const HOLD_RING = { inset: 7, width: 6 };
 /** Kroužek začíná nahoře. */
 const HOLD_RING_START = -Math.PI / 2;
@@ -134,17 +138,29 @@ interface ForwardParts {
   enabled: boolean;
 }
 
-/** Kroužek, který se plní během podržení (kolem „+“ nebo kolečka profilu). */
+/**
+ * Tvar kroužku podržení v CSS px se středem v počátku: kruh uvnitř kolečka,
+ * nebo pilulka po obvodu tlačítka „Smazat“ (#108).
+ */
+type HoldRingShape =
+  | { readonly kind: 'circle'; readonly radius: number }
+  | { readonly kind: 'pill'; readonly halfWidth: number; readonly halfHeight: number };
+
+/** Kroužek, který se plní během podržení (kolem „+“, kolečka profilu nebo „Smazat“). */
 interface HoldRing {
   readonly graphics: Phaser.GameObjects.Graphics;
-  readonly radius: number;
+  readonly shape: HoldRingShape;
   readonly holdMs: number;
-  /** Bílý kroužek s tmavým okrajem (kolečko profilu), jinak modrý („+“). */
+  /** Bílý kroužek s tmavým okrajem (kolečko profilu, „Smazat“), jinak modrý („+“). */
   readonly onColor: boolean;
 }
 
-/** Klíč kroužku „+“ mezi kroužky koleček profilů (ty mají klíč podle označení). */
+/**
+ * Klíče kroužků „+“ a „Smazat“ mezi kroužky koleček profilů (ty mají klíč
+ * podle označení, jen malá písmena, číslice a pomlčka).
+ */
 const ADD_RING_KEY = '+';
+const DELETE_RING_KEY = 'confirmDelete';
 
 /** Prst, který se dotkl plochy (nebo zavřel nabídku jazyků a už nic nedělá). */
 interface HeldPointer {
@@ -205,6 +221,7 @@ export class ProfileScene extends Phaser.Scene {
   private holding: { readonly key: string; readonly startedAt: number } | null = null;
   private selectedSwatch: Tappable | undefined;
   private trashItem: Tappable | undefined;
+  private confirmDeleteItem: Tappable | undefined;
 
   private keyboardListening = false;
   private readonly onKeyDown = (event: KeyboardEvent): void => this.handleKey(event);
@@ -414,6 +431,7 @@ export class ProfileScene extends Phaser.Scene {
     this.holdRings = new Map();
     this.selectedSwatch = undefined;
     this.trashItem = undefined;
+    this.confirmDeleteItem = undefined;
     this.drawnState = state;
 
     const viewport = readViewport();
@@ -655,10 +673,30 @@ export class ProfileScene extends Phaser.Scene {
     holdMs: number,
     onColor: boolean,
   ): void {
+    const radius = (box.right - box.left) / 2 - HOLD_RING.inset;
+    this.addRingGraphics(key, item, { kind: 'circle', radius }, holdMs, onColor);
+  }
+
+  /** Prázdný bílý kroužek podržení po obvodu pilulky (#108). */
+  private addPillHoldRing(key: string, item: Tappable, box: MenuBox, holdMs: number): void {
+    const shape: HoldRingShape = {
+      kind: 'pill',
+      halfWidth: (box.right - box.left) / 2 - HOLD_RING.inset,
+      halfHeight: (box.bottom - box.top) / 2 - HOLD_RING.inset,
+    };
+    this.addRingGraphics(key, item, shape, holdMs, true);
+  }
+
+  private addRingGraphics(
+    key: string,
+    item: Tappable,
+    shape: HoldRingShape,
+    holdMs: number,
+    onColor: boolean,
+  ): void {
     const graphics = this.add.graphics();
     item.container.add(graphics);
-    const radius = (box.right - box.left) / 2 - HOLD_RING.inset;
-    this.holdRings.set(key, { graphics, radius, holdMs, onColor });
+    this.holdRings.set(key, { graphics, shape, holdMs, onColor });
   }
 
   /** Kroužek drženého kolečka se během podržení plní (jako u kolečka nastavení). */
@@ -673,35 +711,83 @@ export class ProfileScene extends Phaser.Scene {
       }
       const elapsed = performance.now() - this.holding.startedAt;
       const progress = Math.min(1, elapsed / ring.holdMs);
-      const end = HOLD_RING_START + progress * 2 * Math.PI;
       if (ring.onColor) {
         // Tmavý okraj pod bílým kroužkem, aby byl vidět i na světlé barvě.
-        this.strokeArc(
+        this.strokeRing(
           ring,
           HOLD_RING.width + 2 * HOLD_RING_OUTLINE,
           PROFILE_SCREEN_STYLE.profileHoldRingOutline,
           PROFILE_SCREEN_STYLE.profileHoldRingOutlineAlpha,
-          end,
+          progress,
         );
-        this.strokeArc(ring, HOLD_RING.width, PROFILE_SCREEN_STYLE.profileHoldRing, 1, end);
+        this.strokeRing(ring, HOLD_RING.width, PROFILE_SCREEN_STYLE.profileHoldRing, 1, progress);
       } else {
-        this.strokeArc(ring, HOLD_RING.width, PROFILE_SCREEN_STYLE.holdRing, 1, end);
+        this.strokeRing(ring, HOLD_RING.width, PROFILE_SCREEN_STYLE.holdRing, 1, progress);
       }
     }
   }
 
-  /** Oblouk kroužku podržení od horního bodu po úhel `end`. */
-  private strokeArc(
+  /** Kroužek podržení od horního bodu po směru hodinových ručiček do `progress` (0 až 1). */
+  private strokeRing(
     ring: HoldRing,
     width: number,
     color: string,
     alpha: number,
-    end: number,
+    progress: number,
   ): void {
-    ring.graphics.lineStyle(width * UNIT, colorNumber(color), alpha);
-    ring.graphics.beginPath();
-    ring.graphics.arc(0, 0, ring.radius * UNIT, HOLD_RING_START, end);
-    ring.graphics.strokePath();
+    const graphics = ring.graphics;
+    graphics.lineStyle(width * UNIT, colorNumber(color), alpha);
+    graphics.beginPath();
+    if (ring.shape.kind === 'circle') {
+      const end = HOLD_RING_START + progress * 2 * Math.PI;
+      graphics.arc(0, 0, ring.shape.radius * UNIT, HOLD_RING_START, end);
+    } else {
+      this.tracePill(graphics, ring.shape.halfWidth, ring.shape.halfHeight, progress);
+    }
+    graphics.strokePath();
+  }
+
+  /**
+   * Cesta po obvodu pilulky od horního středu po směru hodinových ručiček:
+   * horní půlka vpravo, pravý půlkruh, spodek, levý půlkruh a horní půlka
+   * vlevo. Každý úsek se nakreslí jen tak daleko, kolik zbývá z `progress`.
+   */
+  private tracePill(
+    graphics: Phaser.GameObjects.Graphics,
+    halfWidth: number,
+    halfHeight: number,
+    progress: number,
+  ): void {
+    const radius = halfHeight * UNIT;
+    const straight = Math.max(0, halfWidth - halfHeight) * UNIT;
+    const top = -radius;
+    const arcLength = Math.PI * radius;
+    let remaining = progress * (4 * straight + 2 * arcLength);
+    const line = (fromX: number, toX: number, y: number): void => {
+      const length = Math.abs(toX - fromX);
+      const part = length === 0 ? 0 : Math.min(1, remaining / length);
+      graphics.lineTo(fromX + (toX - fromX) * part, y);
+      remaining -= length;
+    };
+    const halfCircle = (centerX: number, start: number): void => {
+      const part = Math.min(1, remaining / arcLength);
+      graphics.arc(centerX, 0, radius, start, start + part * Math.PI);
+      remaining -= arcLength;
+    };
+    graphics.moveTo(0, top);
+    line(0, straight, top);
+    if (remaining > 0) {
+      halfCircle(straight, -Math.PI / 2);
+    }
+    if (remaining > 0) {
+      line(straight, -straight, radius);
+    }
+    if (remaining > 0) {
+      halfCircle(-straight, Math.PI / 2);
+    }
+    if (remaining > 0) {
+      line(-straight, 0, top);
+    }
   }
 
   /** Plné tlačítko jazyka „CS“ vpravo nahoře a otevřená nabídka jazyků (#70). */
@@ -1108,7 +1194,7 @@ export class ProfileScene extends Phaser.Scene {
       PROFILE_SCREEN_STYLE.confirmQuestion,
       'bold',
     );
-    this.drawPillButton(
+    this.confirmDeleteItem = this.drawPillButton(
       layout.confirm,
       DELETE_CONFIRM_KEY,
       layout.buttonFontSize,
@@ -1116,7 +1202,8 @@ export class ProfileScene extends Phaser.Scene {
         background: PROFILE_SCREEN_STYLE.confirmDeleteBackground,
         text: PROFILE_SCREEN_STYLE.confirmDeleteText,
       },
-      () => screens.tapConfirmDelete(),
+      // Smaže až podržení 1 s, kolem se plní bílý kroužek (#108).
+      { hold: screens.confirmDeleteButton, ringKey: DELETE_RING_KEY },
     );
     this.drawPillButton(
       layout.cancel,
@@ -1126,7 +1213,7 @@ export class ProfileScene extends Phaser.Scene {
         background: PROFILE_SCREEN_STYLE.cancelDeleteBackground,
         text: PROFILE_SCREEN_STYLE.cancelDeleteText,
       },
-      () => screens.tapCancelDelete(),
+      { onTap: () => screens.tapCancelDelete() },
     );
   }
 
@@ -1144,14 +1231,18 @@ export class ProfileScene extends Phaser.Scene {
     this.fitText(text, box.right - box.left);
   }
 
-  /** Tlačítko jako pilulka s textem jazyka. */
+  /**
+   * Tlačítko jako pilulka s textem jazyka: ťuknutím (`onTap`), nebo
+   * podržením (`hold`) s kroužkem po obvodu pod klíčem `ringKey`.
+   */
   private drawPillButton(
     box: MenuBox,
     textKey: string,
     fontSize: number,
     colors: { readonly background: string; readonly text: string },
-    onTap: () => void,
-  ): void {
+    action:
+      { readonly onTap: () => void } | { readonly hold: HoldButton; readonly ringKey: string },
+  ): Tappable {
     const item = this.tappable(box);
     const width = box.right - box.left;
     const height = box.bottom - box.top;
@@ -1160,7 +1251,13 @@ export class ProfileScene extends Phaser.Scene {
     label.setOrigin(0.5);
     this.fitText(label, width - 16);
     item.container.add([background, label]);
-    this.region(box, item, onTap);
+    if ('hold' in action) {
+      this.addPillHoldRing(action.ringKey, item, box, DELETE_PROFILE_HOLD_MS);
+      this.region(box, item, () => undefined, { hold: action.hold });
+    } else {
+      this.region(box, item, action.onTap);
+    }
+    return item;
   }
 
   private drawSwatch(box: MenuBox, color: ProfileColor, selected: boolean): void {
@@ -1216,6 +1313,9 @@ export class ProfileScene extends Phaser.Scene {
       case 'profileHolding':
         this.setHolding(event.id, event.holding);
         break;
+      case 'deleteHolding':
+        this.setHolding(DELETE_RING_KEY, event.holding);
+        break;
       case 'shake':
         this.shake(this.fieldItem);
         break;
@@ -1240,6 +1340,8 @@ export class ProfileScene extends Phaser.Scene {
         return this.keyItems.backspace;
       case 'delete':
         return this.trashItem;
+      case 'confirmDelete':
+        return this.confirmDeleteItem;
     }
   }
 

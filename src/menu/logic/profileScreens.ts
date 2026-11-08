@@ -18,6 +18,8 @@
  *   profilech. Koš otevře potvrzení, „Zpět“ vrátí rozepsanou úpravu,
  *   „Smazat“ profil smaže. Při dvou a více zbývajících profilech se ukáže
  *   výběr, jinak se obrazovky zavřou a stránka ukáže menu.
+ * - „Smazat“ maže až po podržení 1 s (#108), ťuknutí ho jen zhoupne;
+ *   „Zpět“ reaguje hned ťuknutím.
  *
  * Odezvu (zmáčknutí, zhoupnutí, zatřesení, plnění kroužku) obrazovky hlásí
  * přes `feedback`, scéna ji zahraje. Žádná výjimka z úložiště neunikne,
@@ -45,6 +47,9 @@ export const ADD_PROFILE_HOLD_MS = HOLD_TO_OPEN_SETTINGS_MS;
 
 /** Jak dlouho rodič drží kolečko profilu, aby otevřel úpravu (#73, 1 s). */
 export const EDIT_PROFILE_HOLD_MS = HOLD_TO_OPEN_SETTINGS_MS;
+
+/** Jak dlouho rodič drží „Smazat“ v potvrzení smazání (#108, 1 s). */
+export const DELETE_PROFILE_HOLD_MS = HOLD_TO_OPEN_SETTINGS_MS;
 
 /** Klávesa fyzické klávesnice, která smaže poslední písmeno. */
 const BACKSPACE_KEY = 'Backspace';
@@ -90,18 +95,23 @@ export type ProfileTapTarget =
  * Odezva obrazovek profilů:
  * - `press` písmeno se přidalo (zmáčknutí klávesy a tichý zvuk),
  * - `tap` ťuknutí na tlačítko se povedlo (zmáčknutí a zvuk),
- * - `wobble` „+“ po ťuknutí, ⌫ na prázdném poli nebo koš po smazání,
- *   které se nepovedlo, se jen zhoupne,
+ * - `wobble` „+“ po ťuknutí, ⌫ na prázdném poli, koš po smazání, které
+ *   se nepovedlo, nebo „Smazat“ po ťuknutí (#108) se jen zhoupne,
  * - `addHolding` kroužek kolem „+“ se začal plnit nebo zmizel,
  * - `profileHolding` kroužek kolem kolečka profilu `id` se začal plnit
  *   nebo zmizel (#73),
+ * - `deleteHolding` kroužek po obvodu „Smazat“ se začal plnit nebo zmizel (#108),
  * - `shake` pole s přezdívkou se jemně zatřese (plné, prázdné, stejná přezdívka).
  */
 export type ProfileFeedback =
   | { readonly kind: 'press'; readonly key: string }
   | { readonly kind: 'tap'; readonly target: ProfileTapTarget }
-  | { readonly kind: 'wobble'; readonly target: 'add' | 'backspace' | 'delete' }
+  | {
+      readonly kind: 'wobble';
+      readonly target: 'add' | 'backspace' | 'delete' | 'confirmDelete';
+    }
   | { readonly kind: 'addHolding'; readonly holding: boolean }
+  | { readonly kind: 'deleteHolding'; readonly holding: boolean }
   | { readonly kind: 'profileHolding'; readonly id: string; readonly holding: boolean }
   | { readonly kind: 'shake'; readonly target: 'field' };
 
@@ -124,6 +134,7 @@ export function profileFeedbackSound(event: ProfileFeedback): MenuSoundName | nu
       return 'shake';
     case 'addHolding':
     case 'profileHolding':
+    case 'deleteHolding':
       return null;
   }
 }
@@ -202,8 +213,11 @@ export interface ProfileScreens {
   deleteConfirmProfile(): ProfilePickerItem | null;
   /** „Zpět“ v potvrzení: vrátí 2. krok s rozepsanou úpravou. */
   tapCancelDelete(): void;
-  /** „Smazat“ v potvrzení. */
-  tapConfirmDelete(): void;
+  /**
+   * „Smazat“ v potvrzení (#108): podržení 1 s profil smaže, ťuknutí nebo
+   * kratší podržení jen zhoupne.
+   */
+  readonly confirmDeleteButton: HoldButton;
 }
 
 /** Rozepsaný nový nebo upravovaný profil. */
@@ -416,6 +430,30 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
     onHoldingChange: (holding) => emit({ kind: 'addHolding', holding }),
   });
 
+  /** Smaže upravovaný profil; když se to nepovede, vrátí 2. krok úpravy. */
+  function confirmDelete(): void {
+    const profile = editedProfile();
+    if (screen !== 'confirmDelete' || profile === undefined) {
+      return;
+    }
+    if (!store.deleteProfile(profile.id)) {
+      // Smazání se nepovedlo (úložiště): úprava zůstane, koš se jen zhoupne.
+      screen = 'color';
+      emit({ kind: 'wobble', target: 'delete' });
+      return;
+    }
+    emit({ kind: 'tap', target: 'confirmDelete' });
+    closeAfterDelete(profile.id);
+  }
+
+  const confirmDeleteButton = createHoldButton({
+    holdMs: DELETE_PROFILE_HOLD_MS,
+    isEnabled: () => screen === 'confirmDelete' && editedProfile() !== undefined,
+    onHoldComplete: confirmDelete,
+    onTap: () => emit({ kind: 'wobble', target: 'confirmDelete' }),
+    onHoldingChange: (holding) => emit({ kind: 'deleteHolding', holding }),
+  });
+
   return {
     screen: () => screen,
 
@@ -547,19 +585,6 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
       emit({ kind: 'tap', target: 'cancelDelete' });
     },
 
-    tapConfirmDelete(): void {
-      const profile = editedProfile();
-      if (screen !== 'confirmDelete' || profile === undefined) {
-        return;
-      }
-      if (!store.deleteProfile(profile.id)) {
-        // Smazání se nepovedlo (úložiště): úprava zůstane, koš se jen zhoupne.
-        screen = 'color';
-        emit({ kind: 'wobble', target: 'delete' });
-        return;
-      }
-      emit({ kind: 'tap', target: 'confirmDelete' });
-      closeAfterDelete(profile.id);
-    },
+    confirmDeleteButton,
   };
 }

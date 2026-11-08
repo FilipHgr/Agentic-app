@@ -144,3 +144,20 @@ export function tapProfileCircle(screens: ProfileScreens, id: string, pointerId 
   button.press(pointerId);
   button.release(pointerId);
 }
+
+/** Jak dlouho rodič drží „Smazat“ v potvrzení smazání (#108, 1 s). */
+export const DELETE_PROFILE_HOLD_MS = 1000;
+
+/**
+ * Rodič drží „Smazat“ v potvrzení smazání `ms` milisekund a pustí (#108).
+ * Potřebuje falešné hodiny Vitestu.
+ */
+export function holdConfirmDelete(
+  screens: ProfileScreens,
+  ms = DELETE_PROFILE_HOLD_MS,
+  pointerId = 1,
+): void {
+  screens.confirmDeleteButton.press(pointerId);
+  vi.advanceTimersByTime(ms);
+  screens.confirmDeleteButton.release(pointerId);
+}
