@@ -236,3 +236,8 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   ji podle obrázků (#106).
 - 2026-11-08 Každý nástroj v Omalovánkách si pamatuje vlastní naposledy
   zvolenou barvu (nový úkol).
+- 2026-11-08 Ikony nástrojů z hotové sady Google Noto Emoji (Apache-2.0),
+  vybraná barva jako barevné kolečko v rohu úchytu místo tečky velikosti.
+  Puntíkový fix bubliny, proužkový fix sloupek s pruhy, sprej skvrna (#106).
+- 2026-11-08 #110 (každý nástroj si pamatuje svou barvu) schválen podle
+  doporučení.
