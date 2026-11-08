@@ -23,7 +23,7 @@ function randomIntUpTo(max: number, random: () => number): number {
 }
 
 /** Vybere druh příkladu podle nastavení; při „+ −“ náhodně. */
-function pickOperation(settings: GameSettings, random: () => number): Operation {
+export function pickOperation(settings: GameSettings, random: () => number): Operation {
   switch (settings.operations) {
     case 'plus':
       return 'plus';
@@ -43,7 +43,7 @@ export function isSameProblem(a: Problem, b: Problem): boolean {
  * Jak velká část příkladů smí mít nulu. Příklady s nulou („8 + 0“, „6 − 6“)
  * dítě nic nenaučí, ale úplně zmizet nemají. Cíl je nejvýš 1 z 10.
  */
-const ZERO_SHARE = 0.08;
+export const ZERO_SHARE = 0.08;
 
 /** Příklad s nulou: nula je v zadání nebo ve výsledku. */
 export function hasZero(problem: Problem): boolean {
@@ -51,7 +51,7 @@ export function hasZero(problem: Problem): boolean {
 }
 
 /** Všechny příklady daného druhu do rozsahu `max`. */
-function problemsOf(operation: Operation, max: number): Problem[] {
+export function problemsOf(operation: Operation, max: number): Problem[] {
   const problems: Problem[] = [];
   for (let first = 0; first <= max; first += 1) {
     if (operation === 'plus') {
@@ -67,8 +67,8 @@ function problemsOf(operation: Operation, max: number): Problem[] {
   return problems;
 }
 
-/** Náhodná položka seznamu; seznam nesmí být prázdný. */
-function pickFrom<T>(items: readonly T[], random: () => number): T | undefined {
+/** Náhodná položka seznamu; u prázdného seznamu `undefined`. */
+export function pickFrom<T>(items: readonly T[], random: () => number): T | undefined {
   return items[randomIntUpTo(items.length - 1, random)];
 }
 

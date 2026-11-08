@@ -15,7 +15,7 @@ import { loadMapProgress, saveMapProgress } from '../storage/mapStorage';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { loadSettingsState, saveSettings } from '../storage/settingsStorage';
 import {
-  createAnswerRound,
+  answerRoundFor,
   isHintButtonVisible,
   isHintVisible,
   keepRequestedHint,
@@ -26,6 +26,8 @@ import type { AnswerRound, TapOutcome } from './answerRound';
 import { SOUNDS, soundForOutcome } from './answerSounds';
 import { countDot, countingTone, startDotCounting } from './dotCounting';
 import type { DotCounting } from './dotCounting';
+import { drawProblem, startProblemRotation } from './problemRotation';
+import type { ProblemRotation } from './problemRotation';
 import type { Problem } from './problems';
 import { mapShowMs, stepOnMap } from './progressMap';
 import type { MapMove, MapProgress } from './progressMap';
@@ -185,7 +187,9 @@ export function createCountingSession(options: CountingSessionOptions): Counting
   let moveToShow: MapMove | null = null;
   let shownMove: MapMove | null = null;
   const recognizerLoading = createRecognizerLoading(options.loadRecognizer);
-  let round: AnswerRound = createAnswerRound(settings, random);
+  // Vystřídání příkladů jen pro toto spuštění, nic se neukládá (#94 AC7).
+  let rotation: ProblemRotation = startProblemRotation();
+  let round: AnswerRound = nextRound();
   let counting: DotCounting = startDotCounting(round.problem);
   let roundInput: AnswerInput = recognizerLoading.answerInput(settings);
 
@@ -234,12 +238,21 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     }
   }
 
+  /**
+   * Další příklad z vystřídání (#94). Chyby ani nápověda losování neovlivní,
+   * nový příklad přijde až po vyřešení nebo po potvrzení nastavení.
+   */
+  function nextRound(): AnswerRound {
+    const drawn = drawProblem(rotation, settings, random);
+    rotation = drawn.rotation;
+    return answerRoundFor(drawn.problem, settings);
+  }
+
   function startRound(): void {
     if (left) {
       return;
     }
-    // Nový příklad nesmí být stejný jako ten z minulého kola.
-    round = createAnswerRound(settings, random, round.problem);
+    round = nextRound();
     counting = startDotCounting(round.problem);
     roundInput = recognizerLoading.answerInput(settings);
     notify({ kind: 'roundStarted' });

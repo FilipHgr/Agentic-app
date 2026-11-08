@@ -53,12 +53,12 @@ export function createAnswerRound(
   random: () => number = Math.random,
   previousProblem?: Problem,
 ): AnswerRound {
-  return {
-    problem: createProblem(settings, random, previousProblem),
-    maxNumber: settings.maxNumber,
-    wrongAnswers: 0,
-    solved: false,
-  };
+  return answerRoundFor(createProblem(settings, random, previousProblem), settings);
+}
+
+/** Nové kolo s už vylosovaným příkladem (z vystřídání, #94). */
+export function answerRoundFor(problem: Problem, settings: GameSettings): AnswerRound {
+  return { problem, maxNumber: settings.maxNumber, wrongAnswers: 0, solved: false };
 }
 
 /** Vyhodnotí ťuknutí na číslo z číselníku a vrátí nový stav kola. */

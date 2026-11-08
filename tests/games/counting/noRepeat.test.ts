@@ -186,27 +186,12 @@ describe('AC3: prohozená čísla nebo jiné znaménko jsou jiný příklad', ()
   });
 });
 
-describe('AC4: příklad se smí vrátit ob jeden', () => {
-  it('pořadí „2 + 1“, „3 + 3“, „2 + 1“ je povolené', () => {
-    expect(canComeNext(PLUS_TO_10, plus(2, 1), undefined)).toBe(true);
-    expect(canComeNext(PLUS_TO_10, plus(3, 3), plus(2, 1))).toBe(true);
-    expect(canComeNext(PLUS_TO_10, plus(2, 1), plus(3, 3))).toBe(true);
-  });
-
-  it('při běžné hře se příklad občas vrátí ob jeden', () => {
-    const random = seededRandom();
-    const problems: Problem[] = [];
-    for (let draw = 0; draw < 3000; draw += 1) {
-      problems.push(createProblem({ maxNumber: 5, operations: 'plus' }, random, problems.at(-1)));
-    }
-
-    const returnsAfterOne = problems.some((problem, index) => {
-      const twoBefore = problems[index - 2];
-      return twoBefore !== undefined && isSameProblem(problem, twoBefore);
-    });
-    expect(returnsAfterOne).toBe(true);
-  });
-
+/**
+ * #37 AC4 („příklad se smí vrátit ob jeden“) nahradilo #94 AC1: mezi dvěma
+ * stejnými příklady jsou aspoň 4 jiné (`problemRotation.test.ts`). Zůstává,
+ * že pravidlo žádný příklad trvale nevyřazuje.
+ */
+describe('AC4 (od #94 AC1): žádný příklad se trvale nevyřazuje', () => {
   it('každý příklad z rozsahu se dřív nebo později znovu objeví', () => {
     // Rozsah do 5, jen „+“: 21 různých příkladů. Pravidlo nic trvale nevyřazuje.
     const settings: GameSettings = { maxNumber: 5, operations: 'plus' };
