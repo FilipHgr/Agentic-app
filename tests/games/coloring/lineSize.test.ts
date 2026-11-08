@@ -265,7 +265,12 @@ describe('#91 AC3: velikost platí pro všechny nástroje naráz', () => {
     // `stampStrokes.test.ts` (#98 AC5). Puntíkový fix (#101) barví jen
     // puntíky, takže okraj stopy nemusí mít zabarvený pixel; šířku jeho
     // stopy v každé velikosti hlídá `dotsStrokes.test.ts` (#101 AC5).
-    for (const tool of PANEL_TOOLS.filter((each) => each !== 'stamp' && each !== 'dots')) {
+    // Proužkový fix (#102) barví jen proužky, šířku jeho stopy hlídá
+    // `stripesStrokes.test.ts` (#102 AC5).
+    const continuous = PANEL_TOOLS.filter(
+      (each) => each !== 'stamp' && each !== 'dots' && each !== 'stripes',
+    );
+    for (const tool of continuous) {
       for (const size of SIZES) {
         const game = strokeWith(tool, size);
         const what = `${TOOL_NAMES[tool]}, ${SIZE_NAMES[size]}`;

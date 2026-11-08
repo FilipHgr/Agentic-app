@@ -125,3 +125,8 @@ export const STAMP_STYLE = {
 export const DOTS_STYLE = {
   noColor: BRUSH_STYLE.noColor,
 } as const;
+
+/** Proužkový fix (#102): proužky v barvě, bez barvy šedé jako špička štětce. */
+export const STRIPES_STYLE = {
+  noColor: BRUSH_STYLE.noColor,
+} as const;

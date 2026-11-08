@@ -19,8 +19,8 @@
  * úchytem a zavře se i tahem po obrázku; při prvním otevření hry v profilu
  * začíná otevřený (`toolPanel.ts`).
  *
- * Vybraný nástroj (štětec, guma, fix, pastelka, duha, razítkový nebo
- * puntíkový fix, #90, #93, #97, #98, #101) je jen v paměti: po otevření hry je vždy štětec, výběr barvy po gumě
+ * Vybraný nástroj (štětec, guma, fix, pastelka, duha, razítkový, puntíkový
+ * nebo proužkový fix, #90, #93, #97, #98, #101, #102) je jen v paměti: po otevření hry je vždy štětec, výběr barvy po gumě
  * přepne na naposledy vybraný malovací nástroj. Duha vybranou barvu
  * nepoužívá, výběr barvy u ní (i po gumě) přepne na štětec. Ťuknutí na nástroj, barvu, úchyt,
  * přepínač velikosti nebo Zpět druhým prstem během tahu se nepočítá (AC3).

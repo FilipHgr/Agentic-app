@@ -248,8 +248,8 @@ export class ColoringScene extends Phaser.Scene {
   }
 
   /**
-   * Co je v panelu označené; štětec, fix, pastelka, razítkový a puntíkový
-   * fix jsou vždy ve vybrané barvě, duha v duhových.
+   * Co je v panelu označené; štětec, fix, pastelka, razítkový, puntíkový
+   * a proužkový fix jsou vždy ve vybrané barvě, duha v duhových.
    */
   private panelSelection(): PanelSelection {
     return {

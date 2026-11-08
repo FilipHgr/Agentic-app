@@ -1,0 +1,199 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  PANEL_TOOLS,
+  markedTools,
+  toolForColor,
+  usesSelectedColor,
+} from '../../../src/games/coloring/logic/toolPanel';
+import type { ToolId } from '../../../src/games/coloring/logic/toolPanel';
+import { choose, endOf } from './drawingToolHelpers';
+import { TOOL_NAMES } from './lineSizeHelpers';
+import { RecordingStorage, openOn, startStroke, twoHalves } from './savedPictureHelpers';
+import { STRIPES } from './stripesHelpers';
+import { at } from './strokeHelpers';
+
+/**
+ * Testy k #102 AC1: výběr proužkového fixu v panelu a co ukazuje úchyt.
+ * Místo v rozložení panelu je v `stripesLayoutRules.test.ts`, stopa
+ * ve `stripesStrokes.test.ts`, uložení ve `stripesRecord.test.ts`.
+ *
+ * Ťuknutí na místo nástroje v panelu hlásí scéna jako `game.tapTool(index)`
+ * (`choose` z `drawingToolHelpers.ts`), ťuknutí na barvu jako
+ * `game.tapColor(index)`.
+ *
+ * Navržené rozhraní (`src/games/coloring/logic/toolPanel.ts`):
+ * - `ToolId` dostane `'stripes'` (proužkový fix), `PANEL_TOOLS` ho má na
+ *   vlastním místě (doporučeno za puntíkovým fixem:
+ *   `['brush', 'eraser', 'marker', 'crayon', 'rainbow', 'stamp', 'dots', 'stripes']`),
+ * - `usesSelectedColor('stripes')` je `true`, takže `HandleView` je
+ *   `{ tool: 'stripes', color: vybraná barva, size }` a úchyt podle `tool`
+ *   ukáže proužky v této barvě,
+ * - ťuknutí na barvu nechá proužkový fix vybraný a po gumě ho vrátí, když
+ *   byl posledním malovacím nástrojem (pravidlo z #93 AC5).
+ */
+
+const RED = 0;
+const BLUE = 4;
+const BLACK = 7;
+const PINK = 8;
+const LIGHT_BLUE = 11;
+
+const OTHER_TOOLS = [
+  'brush',
+  'eraser',
+  'marker',
+  'crayon',
+  'rainbow',
+  'stamp',
+  'dots',
+] as const satisfies readonly ToolId[];
+
+function fresh(): ReturnType<typeof openOn> {
+  return openOn(new RecordingStorage(), twoHalves());
+}
+
+describe('#102 AC1: proužkový fix se vybírá v panelu jako ostatní nástroje', () => {
+  it('proužkový fix má v panelu vlastní místo a ostatní nástroje zůstávají na svých', () => {
+    expect(PANEL_TOOLS).toContain(STRIPES);
+    expect(new Set(PANEL_TOOLS).size, 'žádný nástroj dvakrát').toBe(PANEL_TOOLS.length);
+    expect(PANEL_TOOLS.slice(0, OTHER_TOOLS.length), 'dřívější nástroje na svých místech').toEqual(
+      OTHER_TOOLS,
+    );
+  });
+
+  it('ťuknutí na proužkový fix ho hned vybere a zazní tón kratší než 1 s', () => {
+    const game = fresh();
+
+    const tones = choose(game, STRIPES);
+
+    expect(game.selectedTool()).toBe(STRIPES);
+    expect(tones.length, 'nějaký tón zazní').toBeGreaterThan(0);
+    expect(endOf(tones), 'délka tónu v sekundách').toBeLessThan(1);
+  });
+
+  it('z každého nástroje jde přejít na proužkový fix a zpátky, vždy s tónem kratším než 1 s', () => {
+    for (const other of OTHER_TOOLS) {
+      for (const [from, to] of [
+        [other, STRIPES],
+        [STRIPES, other],
+      ] as const) {
+        const game = fresh();
+        choose(game, from);
+
+        const tones = choose(game, to);
+
+        const step = `${TOOL_NAMES[from]} → ${TOOL_NAMES[to]}`;
+        expect(game.selectedTool(), step).toBe(to);
+        expect(tones.length, `${step}: tón`).toBeGreaterThan(0);
+        expect(endOf(tones), `${step}: délka tónu`).toBeLessThan(1);
+      }
+    }
+  });
+
+  it('označený je po každém ťuknutí právě jeden nástroj, ten vybraný', () => {
+    const game = fresh();
+    const taps: ToolId[] = [STRIPES, 'dots', STRIPES, STRIPES, 'eraser', 'stamp', STRIPES, 'brush'];
+    taps.forEach((tool, step) => {
+      choose(game, tool);
+      const label = `ťuknutí ${step + 1} (${TOOL_NAMES[tool]})`;
+      const marked = markedTools(game.selectedTool());
+      expect(game.selectedTool(), label).toBe(tool);
+      expect(marked.length, `${label}: u každého nástroje údaj`).toBe(PANEL_TOOLS.length);
+      expect(marked.filter(Boolean).length, `${label}: označených`).toBe(1);
+      expect(marked[PANEL_TOOLS.indexOf(tool)], `${label}: označený vybraný`).toBe(true);
+    });
+  });
+
+  it('proužkový fix maluje vybranou barvou palety', () => {
+    expect(usesSelectedColor(STRIPES)).toBe(true);
+    expect(toolForColor(STRIPES), 'ťuknutí na barvu nechá proužkový fix').toBe(STRIPES);
+  });
+
+  it('úchyt ukazuje proužky ve vybrané barvě, i se zavřeným panelem a v každé velikosti', () => {
+    const game = fresh();
+    game.tapColor(BLUE);
+    choose(game, STRIPES);
+    expect(game.handleView(), 'po výběru').toMatchObject({ tool: STRIPES, color: BLUE });
+
+    if (game.panelOpen()) {
+      game.tapHandle();
+    }
+    expect(game.panelOpen()).toBe(false);
+    expect(game.handleView(), 'se zavřeným panelem').toMatchObject({
+      tool: STRIPES,
+      color: BLUE,
+    });
+
+    for (let tap = 0; tap < 3; tap += 1) {
+      game.tapSizeToggle();
+      expect(game.handleView(), `po přepnutí velikosti ${tap + 1}`).toMatchObject({
+        tool: STRIPES,
+        color: BLUE,
+        size: game.lineSize(),
+      });
+    }
+  });
+
+  it('po změně barvy ukazuje úchyt proužky v nové barvě a proužkový fix zůstane vybraný', () => {
+    const game = fresh();
+    choose(game, STRIPES);
+
+    for (const color of [BLACK, RED, PINK, LIGHT_BLUE, BLUE]) {
+      const tones = game.tapColor(color);
+
+      expect(game.selectedTool(), `barva ${color}`).toBe(STRIPES);
+      expect(game.handleView(), `barva ${color}`).toMatchObject({ tool: STRIPES, color });
+      expect(tones.length, `barva ${color}: tón`).toBeGreaterThan(0);
+    }
+  });
+
+  it('nedávná barva v pruhu nechá proužkový fix vybraný a úchyt ukáže proužky v ní', () => {
+    const game = fresh();
+    game.tapColor(PINK);
+    game.tapColor(BLUE);
+    choose(game, STRIPES);
+
+    game.tapRecentColor(0);
+
+    expect(game.selectedTool()).toBe(STRIPES);
+    expect(game.palette().selected, 'vybraná nedávná barva').toBe(PINK);
+    expect(game.handleView()).toMatchObject({ tool: STRIPES, color: PINK });
+  });
+
+  it('po gumě vrátí ťuknutí na barvu proužkový fix, když s ním dítě malovalo naposledy', () => {
+    const game = fresh();
+    choose(game, STRIPES);
+    choose(game, 'eraser');
+
+    game.tapColor(BLACK);
+
+    expect(game.selectedTool()).toBe(STRIPES);
+    expect(game.handleView()).toMatchObject({ tool: STRIPES, color: BLACK });
+  });
+
+  it('ťuknutí druhým prstem na proužkový fix během tahu se nepočítá a tah pokračuje', () => {
+    const game = fresh();
+    startStroke(game, [at(20, 40), at(60, 40)]);
+
+    expect(choose(game, STRIPES), 'během tahu žádný tón').toEqual([]);
+    expect(game.selectedTool()).toBe('brush');
+
+    game.pointerMove({ id: 1, x: 140, y: 40, kind: 'touch' });
+    game.pointerUp(1);
+    expect(game.colorAt(130, 40), 'tah pokračoval štětcem v první barvě').toBe(RED);
+  });
+
+  it('po návratu z menu je vybraný štětec, i když dítě odešlo s proužkovým fixem', () => {
+    const storage = new RecordingStorage();
+    const regions = twoHalves();
+    const game = openOn(storage, regions);
+    game.tapColor(BLUE);
+    choose(game, STRIPES);
+    game.suspend();
+
+    const again = openOn(storage, regions);
+    expect(again.selectedTool()).toBe('brush');
+    expect(again.handleView()).toMatchObject({ tool: 'brush', color: BLUE });
+  });
+});

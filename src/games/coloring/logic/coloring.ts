@@ -39,6 +39,13 @@
  * místech a opakovaný tah mezery nezaplní. Pixel je puntík, když jeho
  * střed leží v kruhu puntíku.
  *
+ * Proužkový fix (#102) má také stopu štětce, ale barví jen pixely šikmých
+ * proužků 45° ve směru „/“, mezery nechá, jak byly. Proužek i mezera jsou
+ * kolmo na proužek široké 1/3 W stř, první proužek začíná v levém horním
+ * rohu obrázku. Proužky jsou pevné vůči obrázku a nezávisí na velikosti
+ * ani na tahu, takže proužky různých tahů na sebe navazují a opakovaný tah
+ * mezery nezaplní. Pixel je proužek, když v proužku leží jeho střed.
+ *
  * Maluje jen první prst: další dotyky (druhý prst, dlaň, tužka) během tahu
  * nic nenamalují a po zvednutí prvního prstu tah skončí (AC5). Každé místo
  * má jen jednu barvu z palety, bez míchání a průhlednosti.
@@ -103,6 +110,9 @@ const DOT_DIAMETER_SHARE = 1 / 3;
 
 /** Středy puntíků puntíkového fixu jsou po 1/2 W stř (#101, otevřená otázka 1). */
 const DOT_SPACING_SHARE = 1 / 2;
+
+/** Proužek i mezera proužkového fixu jsou kolmo široké 1/3 W stř (#102, otevřená otázka 2). */
+const STRIPE_WIDTH_SHARE = 1 / 3;
 
 /** Krok v pixelech, po kterém se hledá oblast, do které prst vjel z obrysu. */
 const REGION_SEARCH_STEP = 1;
@@ -188,9 +198,10 @@ type StrokeTrail = 'stamps' | 'rainbow' | 'stars';
 
 /**
  * Které pixely razítka tah barví: všechny, jen mimo mezery zrna pastelky
- * (#93), nebo jen puntíky mřížky puntíkového fixu (#101).
+ * (#93), jen puntíky mřížky puntíkového fixu (#101), nebo jen šikmé
+ * proužky proužkového fixu (#102).
  */
-type StrokePattern = 'solid' | 'grain' | 'dots';
+type StrokePattern = 'solid' | 'grain' | 'dots' | 'stripes';
 
 /**
  * Čím tah barví: index barvy (u gumy `NO_COLOR`, u duhy se nepoužije),
@@ -365,7 +376,20 @@ export function createColoring(
     return dx * dx + dy * dy <= dotRadius * dotRadius;
   };
 
-  /** Stopa nástroje `tool` při šířce W `width`: šířka, tvar razítka a vzor (#90, #93, #101). */
+  /** Šířka proužku (i mezery) proužkového fixu kolmo na proužek, pevná vůči obrázku (#102). */
+  const stripeWidth = STRIPE_WIDTH_SHARE * brushWidthFor(regions.width, 'medium');
+
+  /**
+   * Leží střed pixelu (x, y) v proužku? Proužky „/“ leží podél přímek
+   * x + y = konst., vzdálenost kolmo na ně je (x + y) / √2. Proužky
+   * a mezery se po `stripeWidth` střídají, první od rohu je proužek.
+   */
+  const isStripePixel = (x: number, y: number): boolean => {
+    const across = (x + 0.5 + (y + 0.5)) / Math.SQRT2;
+    return Math.floor(across / stripeWidth) % 2 === 0;
+  };
+
+  /** Stopa nástroje `tool` při šířce W `width`: šířka, tvar razítka a vzor (#90, #93, #101, #102). */
   const inkOf = (tool: ToolId, colorIndex: number, width: number): StrokeInk => {
     const brushRadius = width / 2;
     switch (tool) {
@@ -417,6 +441,14 @@ export function createColoring(
           pattern: 'dots',
           trail: 'stamps',
         };
+      case 'stripes':
+        return {
+          colorIndex,
+          radius: brushRadius,
+          shape: 'round',
+          pattern: 'stripes',
+          trail: 'stamps',
+        };
       case 'stamp':
         return {
           colorIndex,
@@ -428,7 +460,7 @@ export function createColoring(
     }
   };
 
-  /** Barví vzor `pattern` pixel (x, y)? Mezery zrna a mezi puntíky ne. */
+  /** Barví vzor `pattern` pixel (x, y)? Mezery zrna, mezi puntíky a mezi proužky ne. */
   const isInPattern = (x: number, y: number, pattern: StrokePattern): boolean => {
     switch (pattern) {
       case 'solid':
@@ -437,6 +469,8 @@ export function createColoring(
         return !isGrainGap(x, y);
       case 'dots':
         return isDotPixel(x, y);
+      case 'stripes':
+        return isStripePixel(x, y);
     }
   };
 
