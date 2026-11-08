@@ -16,7 +16,12 @@
  *   přesně původní, staré záznamy se tak čtou beze změny.
  * - Zapíšou se jen pixely, kde předpověď nesedí: počet správně
  *   předpovězených pixelů před nimi (Exp-Golomb kód) a skutečná hodnota
- *   jako jedna z 8 zbývajících (3 bity).
+ *   jako jedna ze zbývajících hodnot (u p1 a p2 jedna z 8, tedy 3 bity,
+ *   u p3 jedna z 12, tedy 4 bity).
+ * - Formáty p1 a p2 znají jen 8 barev z #88 a čtou se tak navždy, i když
+ *   paleta od #100 má 12 barev. Formát p3 (#100) má hodnotu pixelu pro
+ *   12 barev a prázdno, jinak je stejný jako p2. Počet barev každé verze
+ *   je pevné číslo, ne délka `PALETTE`, aby se staré záznamy četly stejně.
  * - Bity se skládají po 15 do jednoho znaku z rozsahu U+1000 až U+8FFF
  *   (žádné řídicí znaky ani půlky dvojic UTF-16), takže jde o obyčejný
  *   text pro `localStorage`.
@@ -28,15 +33,17 @@
  */
 
 import { NO_COLOR, emptyColorLayer } from './coloring';
-import { PALETTE } from './palette';
 import { OUTLINE_REGION } from './regionMap';
 import type { RegionMap } from './regionMap';
 
-/** Verze kódování: p1 z #92, p2 s předpovědí o dlaždici zrna výš (#93). */
-export type LayerCodeVersion = 'p1' | 'p2';
+/**
+ * Verze kódování: p1 z #92, p2 s předpovědí o dlaždici zrna výš (#93),
+ * p3 jako p2, ale s 12 barvami (#100).
+ */
+export type LayerCodeVersion = 'p1' | 'p2' | 'p3';
 
 /** Verze, ve které se ukládá. */
-export const CURRENT_LAYER_CODE: LayerCodeVersion = 'p2';
+export const CURRENT_LAYER_CODE: LayerCodeVersion = 'p3';
 
 /**
  * Krok předpovědi „o dlaždici výš“ v řádcích podle verze. U p2 je to pevné
@@ -46,13 +53,28 @@ export const CURRENT_LAYER_CODE: LayerCodeVersion = 'p2';
 export const PREDICTION_STEP: Record<LayerCodeVersion, number> = {
   p1: 1,
   p2: 16,
+  p3: 16,
 };
 
-/** Hodnota pixelu v kódování: 0 až 7 barvy palety, 8 bez barvy. */
-const EMPTY_VALUE = PALETTE.length;
+/**
+ * Kolik barev palety verze zná. Hodnota pixelu v kódování je 0 až
+ * počet − 1 pro barvy a hodnota rovná počtu pro „bez barvy“. Pevná čísla:
+ * záznamy p1 a p2 vznikly s 8 barvami a tak se musí číst i dál.
+ */
+export const LAYER_COLOR_COUNT: Record<LayerCodeVersion, number> = {
+  p1: 8,
+  p2: 8,
+  p3: 12,
+};
 
-/** Kolik bitů nese hodnota pixelu, když se liší od předpovědi (8 možností). */
-const VALUE_BITS = 3;
+/**
+ * Kolik bitů nese hodnota pixelu, když se liší od předpovědi: možností je
+ * tolik, kolik je barev (všechny hodnoty kromě předpovězené), u 8 barev
+ * 3 bity, u 12 barev 4 bity.
+ */
+function valueBitsFor(colorCount: number): number {
+  return Math.ceil(Math.log2(colorCount));
+}
 
 /** Řád Exp-Golomb kódu pro počet správně předpovězených pixelů. */
 const RUN_CODE_ORDER = 3;
@@ -64,9 +86,9 @@ const BITS_PER_CHAR = 15;
 const FIRST_CHAR_CODE = 0x1000;
 const CHAR_VALUE_COUNT = 1 << BITS_PER_CHAR;
 
-/** Hodnota pixelu vrstvy v kódování (barva 0 až 7, jinak bez barvy). */
-function valueOf(layerValue: number): number {
-  return layerValue < PALETTE.length ? layerValue : EMPTY_VALUE;
+/** Hodnota pixelu vrstvy v kódování (barva, kterou verze zná, jinak bez barvy). */
+function valueOf(layerValue: number, colorCount: number): number {
+  return layerValue < colorCount ? layerValue : colorCount;
 }
 
 /** Zápis bitů po 15 do znaků. */
@@ -177,22 +199,26 @@ class Predictor {
   /** Poslední neobrysová hodnota v každém sloupci pro každý zbytek řádku po dělení krokem. */
   private readonly tileAbove: Uint8Array;
   private chosen: Neighbour = 'above';
-  private fromAbove = EMPTY_VALUE;
-  private fromTileAbove = EMPTY_VALUE;
+  private fromAbove: number;
+  private fromTileAbove: number;
 
   constructor(
     private readonly width: number,
     private readonly step: number,
+    /** Hodnota „bez barvy“ ve verzi kódování. */
+    private readonly emptyValue: number,
   ) {
-    this.above = new Uint8Array(width).fill(EMPTY_VALUE);
-    this.tileAbove = new Uint8Array(width * step).fill(EMPTY_VALUE);
+    this.above = new Uint8Array(width).fill(emptyValue);
+    this.tileAbove = new Uint8Array(width * step).fill(emptyValue);
+    this.fromAbove = emptyValue;
+    this.fromTileAbove = emptyValue;
   }
 
   /** Předpověď pro pixel `index` vrstvy. */
   predict(index: number): number {
     const column = index % this.width;
-    this.fromAbove = this.above[column] ?? EMPTY_VALUE;
-    this.fromTileAbove = this.tileAbove[this.tileIndex(index)] ?? EMPTY_VALUE;
+    this.fromAbove = this.above[column] ?? this.emptyValue;
+    this.fromTileAbove = this.tileAbove[this.tileIndex(index)] ?? this.emptyValue;
     return this.chosen === 'above' ? this.fromAbove : this.fromTileAbove;
   }
 
@@ -215,7 +241,7 @@ class Predictor {
   }
 }
 
-/** Hodnota různá od předpovědi jako číslo 0 až 7 (předpověď se vynechá). */
+/** Hodnota různá od předpovědi jako číslo 0 až počet barev − 1 (předpověď se vynechá). */
 function valueCode(value: number, predicted: number): number {
   return value < predicted ? value : value - 1;
 }
@@ -234,7 +260,9 @@ export function encodeColorLayer(
   version: LayerCodeVersion = CURRENT_LAYER_CODE,
 ): string {
   const { width, regionIds } = regions;
-  const predictor = new Predictor(width, PREDICTION_STEP[version]);
+  const colorCount = LAYER_COLOR_COUNT[version];
+  const valueBits = valueBitsFor(colorCount);
+  const predictor = new Predictor(width, PREDICTION_STEP[version], colorCount);
   const writer = new BitWriter();
   let predictedRun = 0;
   for (let index = 0; index < regionIds.length; index += 1) {
@@ -242,14 +270,14 @@ export function encodeColorLayer(
       continue;
     }
     const predicted = predictor.predict(index);
-    const value = valueOf(layer[index] ?? NO_COLOR);
+    const value = valueOf(layer[index] ?? NO_COLOR, colorCount);
     predictor.record(index, value);
     if (value === predicted) {
       predictedRun += 1;
       continue;
     }
     writer.writeRunLength(predictedRun);
-    writer.write(valueCode(value, predicted), VALUE_BITS);
+    writer.write(valueCode(value, predicted), valueBits);
     predictedRun = 0;
   }
   // Konec: zbylé pixely odpovídají předpovědi.
@@ -265,7 +293,9 @@ export function decodeColorLayer(
 ): Uint8Array | null {
   const { width, regionIds } = regions;
   const layer = emptyColorLayer(regions);
-  const predictor = new Predictor(width, PREDICTION_STEP[version]);
+  const colorCount = LAYER_COLOR_COUNT[version];
+  const valueBits = valueBitsFor(colorCount);
+  const predictor = new Predictor(width, PREDICTION_STEP[version], colorCount);
   const reader = new BitReader(text);
   let predictedLeft = reader.readRunLength();
   for (let index = 0; index < regionIds.length; index += 1) {
@@ -280,15 +310,16 @@ export function decodeColorLayer(
     if (predictedLeft > 0) {
       predictedLeft -= 1;
     } else {
-      const code = reader.read(VALUE_BITS);
-      if (code === null) {
+      const code = reader.read(valueBits);
+      // U 12 barev nesou 4 bity i kódy 12 až 15, které žádnou hodnotu nemají.
+      if (code === null || code >= colorCount) {
         return null;
       }
       value = valueFromCode(code, predicted);
       predictedLeft = reader.readRunLength();
     }
     predictor.record(index, value);
-    if (value !== EMPTY_VALUE) {
+    if (value !== colorCount) {
       layer[index] = value;
     }
   }

@@ -19,8 +19,8 @@ export const PURPLE = 5;
 export const BROWN = 6;
 export const BLACK = 7;
 
-/** Kolik barev má paleta (#88 AC4). */
-export const PALETTE_SIZE = 8;
+/** Kolik barev má paleta (#88 AC4, od #100 12 barev). */
+export const PALETTE_SIZE = 12;
 
 /** Míst pro nedávné barvy v pruhu (#99, otázka 1). */
 export const RECENT_PLACES = 2;

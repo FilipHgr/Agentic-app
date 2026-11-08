@@ -64,7 +64,7 @@ const NO_PAGE: ColoringPage = {
 };
 
 /**
- * Omalovánky (#88): jedna testovací omalovánka a paleta 8 barev. Scéna
+ * Omalovánky (#88): jedna testovací omalovánka a paleta 12 barev (#100). Scéna
  * kreslí a předává dotyky; co se zabarví (ořez do oblasti, souvislá čára,
  * první prst) řeší logika `coloring.ts`, výběr barvy `palette.ts`
  * a rozložení `coloringLayout.ts`. Obrys se vykreslí do plátna při startu,

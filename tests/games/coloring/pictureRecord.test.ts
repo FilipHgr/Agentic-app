@@ -182,7 +182,7 @@ function stripePattern(regions: RegionMap): { colorAt(x: number, y: number): num
 }
 
 describe('#92 AC6: uložený záznam jedné omalovánky má nejvýš 50 000 znaků', () => {
-  it('vzor svislých pruhů šířky W přes všech 8 barev se vejde do 50 000 znaků a přečte se beze ztráty', () => {
+  it('vzor svislých pruhů šířky W přes všechny barvy palety se vejde do 50 000 znaků a přečte se beze ztráty', () => {
     for (const { name, regions } of worstCaseOutlines()) {
       const pattern = stripePattern(regions);
       for (const selectedColor of [0, PALETTE.length - 1]) {

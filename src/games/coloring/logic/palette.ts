@@ -1,6 +1,7 @@
 /**
- * Paleta Omalovánek (#88 AC4): 8 barev podle doporučení k otázce 5, na
- * začátku vybraná první, ťuknutí barvu hned vybere a zahraje krátký tón.
+ * Paleta Omalovánek (#88 AC4): 8 barev podle doporučení k otázce 5 a za
+ * nimi 4 barvy z #100 (varianta A: růžová, tělová, šedá, světle modrá,
+ * bílá ne, na bílém pozadí by nebyla vidět). Na začátku vybraná první, ťuknutí barvu hned vybere a zahraje krátký tón.
  * Označená je vždy právě jedna barva. Odstíny jsou zástupné, doladí se
  * se vzhledem. Čistý TypeScript bez Phaseru.
  */
@@ -8,7 +9,18 @@
 import type { Tone } from '../../../shared/audio/tonePlayer';
 
 export type PaletteColorId =
-  'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'brown' | 'black';
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'blue'
+  | 'purple'
+  | 'brown'
+  | 'black'
+  | 'pink'
+  | 'skin'
+  | 'gray'
+  | 'lightBlue';
 
 export interface PaletteColor {
   readonly id: PaletteColorId;
@@ -25,6 +37,13 @@ export const PALETTE: readonly PaletteColor[] = [
   { id: 'purple', hex: '#AF52DE' },
   { id: 'brown', hex: '#A2845E' },
   { id: 'black', hex: '#2C2C2E' },
+  // #100: syté odstíny odlišné od bílého pozadí i od sousedů. Kontrast proti
+  // bílé: růžová 3,0, šedá 3,3, tělová 2,4 a světle modrá 2,3 (tmavší by už
+  // nebyla tělová a světle modrá).
+  { id: 'pink', hex: '#F75A9C' },
+  { id: 'skin', hex: '#DE9670' },
+  { id: 'gray', hex: '#8E8E93' },
+  { id: 'lightBlue', hex: '#44B6EC' },
 ];
 
 /**

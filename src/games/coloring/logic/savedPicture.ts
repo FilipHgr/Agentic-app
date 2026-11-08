@@ -27,7 +27,7 @@
  *
  * Velikost čáry (#91) platí pro všechny nástroje a pamatuje se podle
  * profilu v samostatném záznamu vedle obrázku (`toolPanel.ts`), záznam
- * obrázku p1 a p2 zůstává beze změny. Změna velikosti obrázek nemění
+ * obrázku zůstává beze změny. Změna velikosti obrázek nemění
  * a do Zpět se nepočítá.
  *
  * Dvě nedávné barvy v pruhu (#99) se mění každým výběrem barvy (v pruhu
@@ -43,7 +43,12 @@ import { NO_COLOR, brushWidthFor, createColoring, emptyColorLayer } from './colo
 import type { ChangedArea, PointerSample } from './coloring';
 import { PALETTE, initialPalette, tapColor } from './palette';
 import type { PaletteState } from './palette';
-import { CURRENT_LAYER_CODE, decodeColorLayer, encodeColorLayer } from './colorLayerCode';
+import {
+  CURRENT_LAYER_CODE,
+  LAYER_COLOR_COUNT,
+  decodeColorLayer,
+  encodeColorLayer,
+} from './colorLayerCode';
 import type { LayerCodeVersion } from './colorLayerCode';
 import type { RegionMap } from './regionMap';
 import { loadRecentColors, recentAfterPick, storeRecentColors } from './recentColors';
@@ -72,9 +77,10 @@ export const PICTURE_RECORD_LIMIT = 50_000;
 
 /**
  * Označení formátu záznamu je verze kódování vrstvy barev; při změně
- * kódování se zvýší. Ukládá se v nejnovější, číst jde i starší (p1 z #92).
+ * kódování se zvýší. Ukládá se v nejnovější (p3 s 12 barvami, #100), číst
+ * jde i starší s 8 barvami (p1 z #92, p2 z #93).
  */
-const READABLE_FORMATS: readonly LayerCodeVersion[] = ['p1', 'p2'];
+const READABLE_FORMATS: readonly LayerCodeVersion[] = ['p1', 'p2', 'p3'];
 
 function isReadableFormat(format: string | undefined): format is LayerCodeVersion {
   return READABLE_FORMATS.some((readable) => readable === format);
@@ -284,7 +290,9 @@ function readRecord(
     width === String(regions.width) &&
     height === String(regions.height);
   const selectedColor = Number(selected);
-  if (!matches || !isPaletteIndex(selectedColor) || selected !== String(selectedColor)) {
+  // Vybraná barva musí být barva, kterou verze záznamu zná (p1 a p2 jen 8 barev).
+  const knownColor = isPaletteIndex(selectedColor) && selectedColor < LAYER_COLOR_COUNT[format];
+  if (!matches || !knownColor || selected !== String(selectedColor)) {
     return null;
   }
   const layer = decodeColorLayer(regions, data ?? '', format);

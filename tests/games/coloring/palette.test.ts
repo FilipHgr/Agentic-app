@@ -16,6 +16,7 @@ import type { Tone } from '../../../src/shared/audio/tonePlayer';
  * ťuknutí barvu hned vybere, označená je vždy právě jedna a ozve se tón
  * kratší než 1 s. Že tah přes vybarvené místo ho přebarví, je
  * ve `strokeClipping.test.ts`, rozložení palety v `coloringLayoutRules.test.ts`.
+ * Od #100 jsou za těmito 8 barvami 4 nové (`extendedPalette.test.ts`).
  *
  * Navržené rozhraní (`src/games/coloring/logic/palette.ts`):
  * - `PALETTE: readonly PaletteColor[]`, `PaletteColor { id: PaletteColorId; hex: string }`
@@ -35,9 +36,11 @@ function endOf(tones: readonly Tone[]): number {
 
 const COLOR_INDEXES = PALETTE.map((_, index) => index);
 
-describe('#88 AC4: paleta má 8 barev', () => {
-  it('paleta má 8 barev v pořadí z doporučení', () => {
-    expect(PALETTE.map((color) => color.id)).toEqual([
+describe('#88 AC4: paleta začíná 8 barvami z #88', () => {
+  // Od #100 má paleta 12 barev; původních 8 zůstává na prvních místech
+  // (12 barev a nové barvy hlídá `extendedPalette.test.ts`).
+  it('prvních 8 barev palety je v pořadí z doporučení', () => {
+    expect(PALETTE.slice(0, 8).map((color) => color.id)).toEqual([
       'red',
       'orange',
       'yellow',
@@ -112,7 +115,8 @@ describe('#88 AC4: ťuknutí na barvu ji hned vybere a ozve se krátký tón', (
 
   it.each([
     ['záporný index', -1],
-    ['index za paletou', 8],
+    ['index za paletou', PALETTE.length],
+    ['index za 12 barvami', 12],
     ['desetinný index', 1.5],
     ['nečíselný index', Number.NaN],
   ])('%s barvu nezmění, nezahraje tón a nic neshodí', (_name, index) => {

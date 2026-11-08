@@ -1,7 +1,8 @@
 /**
  * Barvy v panelu nástrojů (#88 AC4, #96 AC3) se zástupným vzhledem A3:
  * světle modrý čtverec s kolečkem barvy, označená barva má silný modrý
- * okraj. Místa bez barvy (12 míst, barev je zatím méně) jsou prázdná.
+ * okraj. Od #100 je v panelu 12 barev a všech 12 míst je obsazených;
+ * místo bez barvy by zůstalo prázdné.
  * Dotyky sem nechodí: kam dotyk patří, rozhoduje scéna přes
  * `touchTargetAt`, co je vybrané, logika palety (`palette.ts`).
  */
