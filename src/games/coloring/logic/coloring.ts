@@ -31,6 +31,14 @@
  * na obrysu klade hvězdičky, až prst vjede do oblasti. Pixel patří
  * hvězdičce, když v ní leží jeho střed.
  *
+ * Puntíkový fix (#101) má stopu štětce (kulatá razítka 1,0 W), ale barví
+ * jen pixely pravidelné čtvercové mřížky kulatých puntíků, mezery nechá,
+ * jak byly. Puntík má průměr 1/3 W stř a středy jsou po 1/2 W stř, první
+ * v levém horním rohu obrázku. Mřížka je pevná vůči obrázku a nezávisí na
+ * velikosti ani na tahu, takže puntíky různých tahů leží na stejných
+ * místech a opakovaný tah mezery nezaplní. Pixel je puntík, když jeho
+ * střed leží v kruhu puntíku.
+ *
  * Maluje jen první prst: další dotyky (druhý prst, dlaň, tužka) během tahu
  * nic nenamalují a po zvednutí prvního prstu tah skončí (AC5). Každé místo
  * má jen jednu barvu z palety, bez míchání a průhlednosti.
@@ -89,6 +97,12 @@ const STAR_CENTER_GRID = 1024;
 
 /** Rezerva při porovnání délky dráhy, aby hvězdička přesně na konci tahu nechyběla. */
 const STAR_LENGTH_TOLERANCE = 1e-6;
+
+/** Puntík puntíkového fixu má průměr 1/3 W stř (#101, otevřená otázka 1). */
+const DOT_DIAMETER_SHARE = 1 / 3;
+
+/** Středy puntíků puntíkového fixu jsou po 1/2 W stř (#101, otevřená otázka 1). */
+const DOT_SPACING_SHARE = 1 / 2;
 
 /** Krok v pixelech, po kterém se hledá oblast, do které prst vjel z obrysu. */
 const REGION_SEARCH_STEP = 1;
@@ -173,15 +187,21 @@ type StrokeTarget =
 type StrokeTrail = 'stamps' | 'rainbow' | 'stars';
 
 /**
+ * Které pixely razítka tah barví: všechny, jen mimo mezery zrna pastelky
+ * (#93), nebo jen puntíky mřížky puntíkového fixu (#101).
+ */
+type StrokePattern = 'solid' | 'grain' | 'dots';
+
+/**
  * Čím tah barví: index barvy (u gumy `NO_COLOR`, u duhy se nepoužije),
  * poloměr razítka (u čtverce polovina strany, u hvězdičky poloměr kruhu),
- * tvar razítka, jestli nechává mezery zrna pastelky a jak klade barvu.
+ * tvar razítka, které pixely razítka barví a jak klade barvu.
  */
 interface StrokeInk {
   readonly colorIndex: number;
   readonly radius: number;
   readonly shape: 'round' | 'square' | 'star';
-  readonly grain: boolean;
+  readonly pattern: StrokePattern;
   readonly trail: StrokeTrail;
 }
 
@@ -332,8 +352,20 @@ export function createColoring(
    * tahu duhou a před každým dalším se vymaže.
    */
   let rainbowNearest: Float32Array | null = null;
+  /** Mřížka puntíků puntíkového fixu podle W stř, pevná vůči obrázku (#101). */
+  const dotSpacing = DOT_SPACING_SHARE * brushWidthFor(regions.width, 'medium');
+  const dotRadius = (DOT_DIAMETER_SHARE * brushWidthFor(regions.width, 'medium')) / 2;
 
-  /** Stopa nástroje `tool` při šířce W `width`: šířka, tvar razítka a zrno (#90, #93). */
+  /** Leží střed pixelu (x, y) v puntíku mřížky? Středy puntíků jsou v násobcích rozestupu. */
+  const isDotPixel = (x: number, y: number): boolean => {
+    const centerX = x + 0.5;
+    const centerY = y + 0.5;
+    const dx = centerX - Math.round(centerX / dotSpacing) * dotSpacing;
+    const dy = centerY - Math.round(centerY / dotSpacing) * dotSpacing;
+    return dx * dx + dy * dy <= dotRadius * dotRadius;
+  };
+
+  /** Stopa nástroje `tool` při šířce W `width`: šířka, tvar razítka a vzor (#90, #93, #101). */
   const inkOf = (tool: ToolId, colorIndex: number, width: number): StrokeInk => {
     const brushRadius = width / 2;
     switch (tool) {
@@ -342,7 +374,7 @@ export function createColoring(
           colorIndex: NO_COLOR,
           radius: brushRadius * ERASER_WIDTH_FACTOR,
           shape: 'round',
-          grain: false,
+          pattern: 'solid',
           trail: 'stamps',
         };
       case 'marker':
@@ -350,7 +382,7 @@ export function createColoring(
           colorIndex,
           radius: brushRadius * MARKER_WIDTH_FACTOR,
           shape: 'square',
-          grain: false,
+          pattern: 'solid',
           trail: 'stamps',
         };
       case 'crayon':
@@ -358,21 +390,53 @@ export function createColoring(
           colorIndex,
           radius: brushRadius * CRAYON_WIDTH_FACTOR,
           shape: 'round',
-          grain: true,
+          pattern: 'grain',
           trail: 'stamps',
         };
       case 'brush':
-        return { colorIndex, radius: brushRadius, shape: 'round', grain: false, trail: 'stamps' };
+        return {
+          colorIndex,
+          radius: brushRadius,
+          shape: 'round',
+          pattern: 'solid',
+          trail: 'stamps',
+        };
       case 'rainbow':
-        return { colorIndex, radius: brushRadius, shape: 'round', grain: false, trail: 'rainbow' };
+        return {
+          colorIndex,
+          radius: brushRadius,
+          shape: 'round',
+          pattern: 'solid',
+          trail: 'rainbow',
+        };
+      case 'dots':
+        return {
+          colorIndex,
+          radius: brushRadius,
+          shape: 'round',
+          pattern: 'dots',
+          trail: 'stamps',
+        };
       case 'stamp':
         return {
           colorIndex,
           radius: (width * STAR_DIAMETER_FACTOR) / 2,
           shape: 'star',
-          grain: false,
+          pattern: 'solid',
           trail: 'stars',
         };
+    }
+  };
+
+  /** Barví vzor `pattern` pixel (x, y)? Mezery zrna a mezi puntíky ne. */
+  const isInPattern = (x: number, y: number, pattern: StrokePattern): boolean => {
+    switch (pattern) {
+      case 'solid':
+        return true;
+      case 'grain':
+        return !isGrainGap(x, y);
+      case 'dots':
+        return isDotPixel(x, y);
     }
   };
 
@@ -380,10 +444,10 @@ export function createColoring(
   const isInStamp = (x: number, y: number, center: Point, ink: StrokeInk): boolean => {
     const dx = x + 0.5 - center.x;
     const dy = y + 0.5 - center.y;
-    return isInShape(dx, dy, ink) && !(ink.grain && isGrainGap(x, y));
+    return isInShape(dx, dy, ink) && isInPattern(x, y, ink.pattern);
   };
 
-  /** Razítko `ink` se středem `center`, jen do pixelů oblasti `region` (mezery zrna nechá). */
+  /** Razítko `ink` se středem `center`, jen do pixelů oblasti `region` (mezery vzoru nechá). */
   const stamp = (center: Point, region: number, ink: StrokeInk): ChangedArea | null => {
     const { colorIndex, radius } = ink;
     const left = Math.max(0, Math.floor(center.x - radius));

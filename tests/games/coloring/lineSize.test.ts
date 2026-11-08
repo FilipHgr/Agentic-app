@@ -262,8 +262,10 @@ describe('#91 AC3: velikost platí pro všechny nástroje naráz', () => {
   it('štětec, fix, pastelka i guma mají v každé velikosti svou šířku v násobcích W', () => {
     // Razítkový fix (#98) nedělá souvislou čáru, ale hvězdičky s ostrými
     // cípy; jeho velikost hvězdiček a rozestup v každé velikosti hlídá
-    // `stampStrokes.test.ts` (#98 AC5).
-    for (const tool of PANEL_TOOLS.filter((each) => each !== 'stamp')) {
+    // `stampStrokes.test.ts` (#98 AC5). Puntíkový fix (#101) barví jen
+    // puntíky, takže okraj stopy nemusí mít zabarvený pixel; šířku jeho
+    // stopy v každé velikosti hlídá `dotsStrokes.test.ts` (#101 AC5).
+    for (const tool of PANEL_TOOLS.filter((each) => each !== 'stamp' && each !== 'dots')) {
       for (const size of SIZES) {
         const game = strokeWith(tool, size);
         const what = `${TOOL_NAMES[tool]}, ${SIZE_NAMES[size]}`;

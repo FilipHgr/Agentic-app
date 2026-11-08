@@ -1,7 +1,7 @@
 /**
  * Panel nástrojů Omalovánek (#96): nástroje na místech panelu (štětec
  * a guma od #90, fix a pastelka od #93, duhový štětec od #97, razítkový
- * fix od #98), velikost čáry a její záznam
+ * fix od #98, puntíkový fix od #101), velikost čáry a její záznam
  * (#91), co ukazuje úchyt, tóny úchytu a záznam o prvním otevření hry
  * v profilu. Při úplně prvním otevření je panel otevřený, aby dítě
  * vidělo, co v něm je, jindy začíná zavřený. Záznam se zapíše při prvním
@@ -17,9 +17,9 @@ import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 
 /**
  * Nástroje Omalovánek: štětec, guma (#90), fix a pastelka (#93), duhový
- * štětec (#97) a razítkový fix (#98).
+ * štětec (#97), razítkový fix (#98) a puntíkový fix (#101).
  */
-export type ToolId = 'brush' | 'eraser' | 'marker' | 'crayon' | 'rainbow' | 'stamp';
+export type ToolId = 'brush' | 'eraser' | 'marker' | 'crayon' | 'rainbow' | 'stamp' | 'dots';
 
 /** Nástroje podle míst v panelu: nástroj `PANEL_TOOLS[i]` je na místě `toolSlots[i]`. */
 export const PANEL_TOOLS: readonly ToolId[] = [
@@ -29,12 +29,13 @@ export const PANEL_TOOLS: readonly ToolId[] = [
   'crayon',
   'rainbow',
   'stamp',
+  'dots',
 ];
 
 /** Nástroj, který je vybraný na začátku a po každém návratu do hry (#90 AC1). */
 export const INITIAL_TOOL: ToolId = 'brush';
 
-/** Maluje nástroj (štětec, fix, pastelka, duha, razítkový fix), nebo gumuje? */
+/** Maluje nástroj (štětec, fix, pastelka, duha, razítkový a puntíkový fix), nebo gumuje? */
 export function paintsWithColor(tool: ToolId): boolean {
   return tool !== 'eraser';
 }

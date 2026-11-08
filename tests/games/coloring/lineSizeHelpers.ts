@@ -35,6 +35,7 @@ export const TOOL_NAMES: Record<ToolId, string> = {
   crayon: 'pastelka',
   rainbow: 'duhový štětec',
   stamp: 'razítkový fix',
+  dots: 'puntíkový fix',
 };
 
 /** W jako díl šířky plochy omalovánky (AC2), schválně ne konstanty z kódu. */
@@ -44,7 +45,7 @@ export const WIDTH_SHARE: Record<LineSize, number> = {
   large: 1 / 15,
 };
 
-/** Šířka stopy nástroje v násobcích W podle jeho úkolu (#88, #90, #93, #97, #98). */
+/** Šířka stopy nástroje v násobcích W podle jeho úkolu (#88, #90, #93, #97, #98, #101). */
 export const TOOL_FACTOR: Record<ToolId, number> = {
   brush: 1,
   eraser: 1.5,
@@ -53,6 +54,8 @@ export const TOOL_FACTOR: Record<ToolId, number> = {
   rainbow: 1,
   // Razítkový fix (#98): hvězdičky vepsané do kruhu průměru 1,5 W.
   stamp: 1.5,
+  // Puntíkový fix (#101): kulatá stopa 1,0 W, barví jen puntíky v ní.
+  dots: 1,
 };
 
 /** Řádek vodorovného tahu a sloupce, ve kterých se měří. */

@@ -120,3 +120,8 @@ export const CRAYON_STYLE = {
 export const STAMP_STYLE = {
   noColor: BRUSH_STYLE.noColor,
 } as const;
+
+/** Puntíkový fix (#101): puntíky v barvě, bez barvy šedé jako špička štětce. */
+export const DOTS_STYLE = {
+  noColor: BRUSH_STYLE.noColor,
+} as const;
