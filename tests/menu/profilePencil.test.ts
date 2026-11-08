@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { profileFeedbackSound } from '../../src/menu/logic/profileScreens';
 import type { ProfileFeedback } from '../../src/menu/logic/profileScreens';
 import {
-  EDIT_PROFILE_HOLD_MS,
+  ONE_SECOND_HOLD_MS,
   deviceWithProfiles,
-  holdProfile,
+  pressProfileFor,
   tapPencil,
   tapProfileCircle,
   testProfileScreens,
@@ -16,7 +16,8 @@ import type { TestProfileScreens } from './profileScreenFixtures';
  * Testy k #107 (tužka u každého profilu otevře jeho úpravu) na obrazovkách
  * profilů: AC1 (ťuknutí na tužku), AC2 (ťuknutí na kolečko dál vybere),
  * AC3 (tužka i u jediného profilu, u „+“ není) a AC5 (podržení kolečka dál
- * otevře úpravu). Rozložení tužky (AC3, AC4) testuje
+ * otevře úpravu; od #109 nahrazeno: úprava jen tužkou, podržení kolečka
+ * profil vybere, viz `profilePickerTap.test.ts`). Rozložení tužky (AC3, AC4) testuje
  * `tests/menu/profilePencilLayout.test.ts`, vzhled (AC6) se kontroluje ručně.
  *
  * Navržené rozhraní (`src/menu/logic/profileScreens.ts`), navíc k #73:
@@ -141,7 +142,7 @@ describe('#107 AC1: ťuknutí na tužku otevře úpravu právě toho profilu', (
     const pencil = test.screens.pencilButton(profileAt(test, 2).id);
 
     pencil.press(1);
-    vi.advanceTimersByTime(EDIT_PROFILE_HOLD_MS + 500);
+    vi.advanceTimersByTime(ONE_SECOND_HOLD_MS + 500);
     expect(test.screens.screen(), 'během držení se ještě nic neotevře').toBe('picker');
     pencil.release(1);
 
@@ -292,14 +293,20 @@ describe('#107 AC3: tužka je u každého profilu, i u jediného', () => {
   });
 });
 
-describe('#107 AC5: podržení kolečka profilu 1 s dál otevře úpravu', () => {
-  it('podržení kolečka TOM 1 s otevře úpravu TOM a profil nevybere', () => {
+describe('#107 AC5 (od #109 nahrazeno): úprava se otevře jen tužkou, ne podržením kolečka', () => {
+  it('podržení kolečka TOM 1 s úpravu neotevře, TOM se vybere a tužka úpravu TOM otevře', () => {
     const test = threeProfiles();
+    const tom = profileAt(test, 2).id;
 
-    holdProfile(test.screens, profileAt(test, 2).id);
+    pressProfileFor(test.screens, tom, ONE_SECOND_HOLD_MS);
 
+    expect(test.screens.formMode(), 'podržení úpravu neotevře').toBeNull();
+    expect(test.store.activeProfile().id).toBe(tom);
+    expect(test.chosen()).toBe(1);
+
+    test.screens.open();
+    tapPencil(test.screens, tom);
     expect(test.screens.formMode()).toBe('edit');
     expect(test.screens.nickname()).toBe('TOM');
-    expect(test.chosen()).toBe(0);
   });
 });

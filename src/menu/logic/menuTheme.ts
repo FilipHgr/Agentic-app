@@ -47,10 +47,9 @@ export const PROFILE_SCREEN_STYLE = {
   nickname: TEXT,
   addBackground: '#C7C7CC',
   addSymbol: WHITE,
-  holdRing: BLUE,
   /**
-   * Kroužek podržení kolečka profilu (#73): bílý s jemným tmavým okrajem,
-   * aby byl vidět na všech barvách palety.
+   * Kroužek podržení „Smazat“ (#108): bílý s jemným tmavým okrajem,
+   * aby byl vidět na barevném tlačítku.
    */
   profileHoldRing: WHITE,
   profileHoldRingOutline: TEXT,

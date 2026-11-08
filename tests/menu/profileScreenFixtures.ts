@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 
 import { letterKeys } from '../../src/menu/logic/letterGrid';
-import { ADD_PROFILE_HOLD_MS, createProfileScreens } from '../../src/menu/logic/profileScreens';
+import { createProfileScreens } from '../../src/menu/logic/profileScreens';
 import type { ProfileFeedback, ProfileScreens } from '../../src/menu/logic/profileScreens';
 import { PROFILE_COLORS } from '../../src/shared/logic/profiles';
 import type { ProfileColor } from '../../src/shared/logic/profiles';
@@ -61,10 +61,26 @@ export function deviceWithProfiles(
   return storage;
 }
 
-/** Rodič podrží „+“ 1 s a pustí. Potřebuje falešné hodiny Vitestu. */
-export function holdAdd(screens: ProfileScreens, pointerId = 1): void {
+/**
+ * Jak dlouho trvá podržení tlačítek ve hře (kolečko nastavení, domeček, 1 s).
+ * Na výběru profilu se od #109 na podržení nečeká, testy jím jen ověřují,
+ * že dlouhý dotyk se počítá jako ťuknutí.
+ */
+export const ONE_SECOND_HOLD_MS = 1000;
+
+/** Dítě ťukne na „+“: prst se dotkne a hned zvedne (#109). */
+export function tapAdd(screens: ProfileScreens, pointerId = 1): void {
   screens.addButton.press(pointerId);
-  vi.advanceTimersByTime(ADD_PROFILE_HOLD_MS);
+  screens.addButton.release(pointerId);
+}
+
+/**
+ * Prst zůstane na „+“ `ms` milisekund a pak se zvedne (#109).
+ * Potřebuje falešné hodiny Vitestu.
+ */
+export function pressAddFor(screens: ProfileScreens, ms: number, pointerId = 1): void {
+  screens.addButton.press(pointerId);
+  vi.advanceTimersByTime(ms);
   screens.addButton.release(pointerId);
 }
 
@@ -85,9 +101,9 @@ export function typeNickname(screens: ProfileScreens, text: string): void {
   }
 }
 
-/** Celý formulář: podržet „+“, naťukat přezdívku, →, případně barva, ✓. */
+/** Celý formulář: ťuknout na „+“, naťukat přezdívku, →, případně barva, ✓. */
 export function addProfile(screens: ProfileScreens, nickname: string, color?: ProfileColor): void {
-  holdAdd(screens);
+  tapAdd(screens);
   typeNickname(screens, nickname);
   screens.tapNext();
   if (color !== undefined) {
@@ -101,17 +117,15 @@ export function pickerNicknames(screens: ProfileScreens): Array<string | null> {
   return screens.pickerItems().map((item) => item.nickname);
 }
 
-/** Jak dlouho rodič drží kolečko profilu, aby otevřel úpravu (#73, 1 s). */
-export const EDIT_PROFILE_HOLD_MS = 1000;
-
 /**
- * Rodič drží kolečko profilu `id` na výběru `ms` milisekund a pustí (#73).
- * Potřebuje falešné hodiny Vitestu.
+ * Prst zůstane na kolečku profilu `id` na výběru `ms` milisekund a pak se
+ * zvedne. Od #109 to profil jen vybere jako ťuknutí, úpravu otevírá jen
+ * tužka (`openEdit`). Potřebuje falešné hodiny Vitestu.
  */
-export function holdProfile(
+export function pressProfileFor(
   screens: ProfileScreens,
   id: string,
-  ms = EDIT_PROFILE_HOLD_MS,
+  ms: number,
   pointerId = 1,
 ): void {
   const button = screens.profileButton(id);
@@ -136,6 +150,11 @@ export function tapPencil(screens: ProfileScreens, id: string, pointerId = 1): v
   const pencil = screens.pencilButton(id);
   pencil.press(pointerId);
   pencil.release(pointerId);
+}
+
+/** Rodič otevře úpravu profilu `id`: od #109 jen ťuknutím na tužku (#107). */
+export function openEdit(screens: ProfileScreens, id: string): void {
+  tapPencil(screens, id);
 }
 
 /** Dítě ťukne na kolečko profilu `id`: prst se dotkne a hned zvedne. */

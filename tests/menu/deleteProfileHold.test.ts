@@ -10,7 +10,7 @@ import {
   clearNickname,
   deviceWithProfiles,
   holdConfirmDelete,
-  holdProfile,
+  openEdit,
   pickerNicknames,
   testProfileScreens,
   typeNickname,
@@ -57,9 +57,9 @@ function profileId(test: TestProfileScreens, index: number): string {
   return test.store.profiles()[index]?.id ?? '';
 }
 
-/** Otevře úpravu profilu na pořadí `index`, přejde do 2. kroku a ťukne na koš. */
+/** Otevře úpravu profilu na pořadí `index` tužkou, přejde do 2. kroku a ťukne na koš. */
 function openConfirm(test: TestProfileScreens, index: number): void {
-  holdProfile(test.screens, profileId(test, index));
+  openEdit(test.screens, profileId(test, index));
   test.screens.tapNext();
   test.screens.tapDelete();
 }
@@ -360,7 +360,7 @@ describe('#108 okrajové případy podržení', () => {
 
   it('mimo potvrzení podržení „Smazat“ nic nesmaže', () => {
     const test = threeProfiles();
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     test.screens.tapNext();
 
     holdConfirmDelete(test.screens);
@@ -374,7 +374,7 @@ describe('#108 AC5: „Zpět“ v potvrzení reaguje hned ťuknutím', () => {
   it('ťuknutí na „Zpět“ vrátí 2. krok s rozepsanou přezdívkou a barvou a nic nesmaže', () => {
     const test = threeProfiles();
     const before = test.storage.snapshot();
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     clearNickname(test.screens);
     typeNickname(test.screens, 'EMIL');
     test.screens.tapNext();

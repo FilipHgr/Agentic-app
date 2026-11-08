@@ -5,15 +5,15 @@
  * - Při startu stránky se výběr ukáže jen při dvou a více profilech
  *   (`startScreenFor`), z menu ho otevře ťuknutí na kolečko profilu vždy.
  * - Ťuknutí na kolečko profil vybere, výběr se zavře a stránka ukáže menu.
- * - „+“ (jen pod limitem `MAX_PROFILES`) ťuknutím jen zhoupne, podržením
- *   1 s otevře formulář. Formulář má dva kroky: přezdívku z mřížky písmen
- *   a barvu. ✓ profil uloží a vrátí výběr; nový profil se sám nevybere.
+ *   Kolečko i „+“ reagují ťuknutím bez podržení (#109), i dlouhý dotyk
+ *   se počítá jako ťuknutí.
+ * - „+“ (jen pod limitem `MAX_PROFILES`) ťuknutím otevře formulář. Formulář
+ *   má dva kroky: přezdívku z mřížky písmen a barvu. ✓ profil uloží a vrátí
+ *   výběr; nový profil se sám nevybere.
  * - Fyzická klávesnice (`keyDown`) má účinek jen v 1. kroku.
- * - Úprava profilu (#73): podržení kolečka profilu 1 s otevře stejný
- *   formulář předvyplněný přezdívkou a barvou, ťuknutí profil dál jen
- *   vybere. ✓ úpravu uloží a vrátí výběr; profil se tím nevybere.
- * - Tužka u profilu (#107): ťuknutí (bez podržení) otevře úpravu profilu
- *   stejně jako podržení kolečka; profil se tím nevybere.
+ * - Úprava profilu (#73): otevře ji jen ťuknutí na tužku u profilu (#107),
+ *   formulář je předvyplněný přezdívkou a barvou. ✓ úpravu uloží a vrátí
+ *   výběr; profil se tím nevybere.
  * - Smazání (#73): koš je jen ve 2. kroku úpravy a jen při dvou a více
  *   profilech. Koš otevře potvrzení, „Zpět“ vrátí rozepsanou úpravu,
  *   „Smazat“ profil smaže. Při dvou a více zbývajících profilech se ukáže
@@ -41,12 +41,6 @@ import type { TapButton } from './tapButton';
 
 /** Nejvíc profilů v zařízení; s nimi se „+“ neukáže. */
 export const MAX_PROFILES = 6;
-
-/** Jak dlouho rodič drží „+“ (stejně jako kolečko nastavení, 1 s). */
-export const ADD_PROFILE_HOLD_MS = HOLD_TO_OPEN_SETTINGS_MS;
-
-/** Jak dlouho rodič drží kolečko profilu, aby otevřel úpravu (#73, 1 s). */
-export const EDIT_PROFILE_HOLD_MS = HOLD_TO_OPEN_SETTINGS_MS;
 
 /** Jak dlouho rodič drží „Smazat“ v potvrzení smazání (#108, 1 s). */
 export const DELETE_PROFILE_HOLD_MS = HOLD_TO_OPEN_SETTINGS_MS;
@@ -80,6 +74,7 @@ export type ProfileFormMode = 'new' | 'edit';
 /** Ťuknutí, které se povedlo a dostane zmáčknutí. */
 export type ProfileTapTarget =
   | 'profile'
+  | 'add'
   | 'pencil'
   | 'switch'
   | 'backspace'
@@ -95,11 +90,8 @@ export type ProfileTapTarget =
  * Odezva obrazovek profilů:
  * - `press` písmeno se přidalo (zmáčknutí klávesy a tichý zvuk),
  * - `tap` ťuknutí na tlačítko se povedlo (zmáčknutí a zvuk),
- * - `wobble` „+“ po ťuknutí, ⌫ na prázdném poli, koš po smazání, které
- *   se nepovedlo, nebo „Smazat“ po ťuknutí (#108) se jen zhoupne,
- * - `addHolding` kroužek kolem „+“ se začal plnit nebo zmizel,
- * - `profileHolding` kroužek kolem kolečka profilu `id` se začal plnit
- *   nebo zmizel (#73),
+ * - `wobble` ⌫ na prázdném poli, koš po smazání, které se nepovedlo,
+ *   nebo „Smazat“ po ťuknutí (#108) se jen zhoupne,
  * - `deleteHolding` kroužek po obvodu „Smazat“ se začal plnit nebo zmizel (#108),
  * - `shake` pole s přezdívkou se jemně zatřese (plné, prázdné, stejná přezdívka).
  */
@@ -108,17 +100,15 @@ export type ProfileFeedback =
   | { readonly kind: 'tap'; readonly target: ProfileTapTarget }
   | {
       readonly kind: 'wobble';
-      readonly target: 'add' | 'backspace' | 'delete' | 'confirmDelete';
+      readonly target: 'backspace' | 'delete' | 'confirmDelete';
     }
-  | { readonly kind: 'addHolding'; readonly holding: boolean }
   | { readonly kind: 'deleteHolding'; readonly holding: boolean }
-  | { readonly kind: 'profileHolding'; readonly id: string; readonly holding: boolean }
   | { readonly kind: 'shake'; readonly target: 'field' };
 
 /**
  * Který zvuk menu (`MENU_SOUNDS`) scéna k odezvě zahraje, `null` bez zvuku.
  * Písmena, přepnutí vrstvy, ⌫ a barvy znějí tiše, aby psaní nebylo hlučné;
- * ostatní ťuknutí (i tužka a kolečko profilu) stejně jako tlačítka menu.
+ * ostatní ťuknutí (i tužka, „+“ a kolečko profilu) stejně jako tlačítka menu.
  */
 export function profileFeedbackSound(event: ProfileFeedback): MenuSoundName | null {
   switch (event.kind) {
@@ -132,8 +122,6 @@ export function profileFeedbackSound(event: ProfileFeedback): MenuSoundName | nu
       return 'wobble';
     case 'shake':
       return 'shake';
-    case 'addHolding':
-    case 'profileHolding':
     case 'deleteHolding':
       return null;
   }
@@ -172,12 +160,12 @@ export interface ProfileScreens {
   /** Je vidět „+“ (pod limitem profilů)? */
   canAddProfile(): boolean;
   tapProfile(id: string): void;
-  /** Kolečko profilu `id`: ťuknutí vybere, podržení 1 s otevře úpravu (#73). */
-  profileButton(id: string): HoldButton;
+  /** Kolečko profilu `id`: ťuknutí profil vybere, i po dlouhém dotyku (#109). */
+  profileButton(id: string): TapButton;
   /** Tužka u profilu `id` (#107): ťuknutí otevře úpravu profilu. */
   pencilButton(id: string): TapButton;
-  /** „+“: ťuknutí zhoupne, podržení 1 s otevře formulář. */
-  readonly addButton: HoldButton;
+  /** „+“: ťuknutí otevře formulář nového profilu (#109). */
+  readonly addButton: TapButton;
 
   /** Nový profil, nebo úprava; mimo formulář `null`. */
   formMode(): ProfileFormMode | null;
@@ -339,19 +327,16 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
   }
 
   /** Tlačítka koleček profilů podle označení; vzniknou při prvním dotazu. */
-  const profileButtons = new Map<string, HoldButton>();
+  const profileButtons = new Map<string, TapButton>();
 
-  function profileButton(id: string): HoldButton {
+  function profileButton(id: string): TapButton {
     const existing = profileButtons.get(id);
     if (existing !== undefined) {
       return existing;
     }
-    const button = createHoldButton({
-      holdMs: EDIT_PROFILE_HOLD_MS,
+    const button = createTapButton({
       isEnabled: () => screen === 'picker' && findProfile(id) !== undefined,
-      onHoldComplete: () => openEdit(id),
       onTap: () => tapProfile(id),
-      onHoldingChange: (holding) => emit({ kind: 'profileHolding', id, holding }),
     });
     profileButtons.set(id, button);
     return button;
@@ -390,7 +375,6 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
   /** Po smazání: výběr při dvou a více profilech, jinak menu. */
   function closeAfterDelete(deletedId: string): void {
     // Tlačítko smazaného profilu už nikdo nepoužije.
-    profileButtons.get(deletedId)?.dispose();
     profileButtons.delete(deletedId);
     pencilButtons.delete(deletedId);
     draft = emptyDraft();
@@ -422,12 +406,12 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
     emit({ kind: 'tap', target: 'backspace' });
   }
 
-  const addButton = createHoldButton({
-    holdMs: ADD_PROFILE_HOLD_MS,
+  const addButton = createTapButton({
     isEnabled: () => screen === 'picker' && canAddProfile(),
-    onHoldComplete: openForm,
-    onTap: () => emit({ kind: 'wobble', target: 'add' }),
-    onHoldingChange: (holding) => emit({ kind: 'addHolding', holding }),
+    onTap: () => {
+      openForm();
+      emit({ kind: 'tap', target: 'add' });
+    },
   });
 
   /** Smaže upravovaný profil; když se to nepovede, vrátí 2. krok úpravy. */

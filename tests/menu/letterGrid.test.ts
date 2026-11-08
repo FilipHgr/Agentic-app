@@ -7,7 +7,7 @@ import {
   letterKeys,
 } from '../../src/menu/logic/letterGrid';
 import { isNickname } from '../../src/shared/logic/profiles';
-import { holdAdd, testProfileScreens, typeNickname } from './profileScreenFixtures';
+import { tapAdd, testProfileScreens, typeNickname } from './profileScreenFixtures';
 import type { TestProfileScreens } from './profileScreenFixtures';
 
 /**
@@ -43,7 +43,7 @@ afterEach(() => {
 /** Výběr profilu s otevřeným 1. krokem formuláře. */
 function nicknameStep(): TestProfileScreens {
   const test = testProfileScreens();
-  holdAdd(test.screens);
+  tapAdd(test.screens);
   return test;
 }
 
@@ -110,7 +110,7 @@ describe('#72 AC3: mřížka má dvě vrstvy', () => {
     screens.tapLayerSwitch();
     screens.tapBack();
 
-    holdAdd(screens);
+    tapAdd(screens);
 
     expect(screens.letterLayer()).toBe('base');
   });

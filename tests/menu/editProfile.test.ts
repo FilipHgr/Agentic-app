@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMenu } from '../../src/menu/logic/menu';
-import { HOLD_TO_OPEN_SETTINGS_MS } from '../../src/shared/logic/settingsGear';
 import { PROFILE_COLORS } from '../../src/shared/logic/profiles';
 import { PROFILE_LIST_KEY, openProfiles } from '../../src/shared/storage/profileStorage';
 import {
@@ -19,14 +18,15 @@ import {
   translatorOf,
 } from './menuFixtures';
 import {
-  EDIT_PROFILE_HOLD_MS,
+  ONE_SECOND_HOLD_MS,
   addProfile,
   clearNickname,
   deviceWithProfiles,
-  holdAdd,
+  tapAdd,
   holdConfirmDelete,
-  holdProfile,
+  openEdit,
   pickerNicknames,
+  tapProfileCircle,
   testProfileScreens,
   typeNickname,
 } from './profileScreenFixtures';
@@ -34,16 +34,16 @@ import type { TestProfileScreens } from './profileScreenFixtures';
 
 /**
  * Testy k #73 (úprava a smazání profilu) na obrazovkách profilů: AC1
- * (podržení kolečka otevře úpravu), AC2 (koš a potvrzení smazání), AC3
+ * (úprava profilu; od #109 ji otevírá jen tužka z #107, podržení kolečka
+ * testuje `profilePickerTap.test.ts`), AC2 (koš a potvrzení smazání), AC3
  * (nepovedené smazání, poškozený seznam) a AC4 (okrajové případy).
  * Úložiště profilů testuje `tests/shared/profileEditStorage.test.ts`,
  * rozložení koše a potvrzení `tests/menu/deleteProfileLayout.test.ts`.
  *
  * Navržené rozhraní (`src/menu/logic/profileScreens.ts`), navíc k #72:
- * - `profileButton(id): HoldButton` pro kolečko na výběru: ťuknutí profil
- *   vybere (jako `tapProfile(id)`), podržení 1 s otevře 1. krok úpravy,
- *   sjetí prstu podržení zruší; plnění kroužku hlásí odezva
- *   `{ kind: 'profileHolding', id, holding }`,
+ * - `profileButton(id)` pro kolečko na výběru: ťuknutí profil vybere
+ *   (jako `tapProfile(id)`), sjetí prstu ťuknutí zruší; od #109 je to
+ *   `TapButton` bez podržení a kroužku (`profilePickerTap.test.ts`),
  * - `formMode(): 'new' | 'edit' | null` (`null` mimo formulář),
  * - úprava používá stejné kroky `'nickname'` a `'color'` jako nový profil,
  *   předvyplněné přezdívkou a barvou profilu; vlastní dosavadní přezdívka
@@ -88,35 +88,22 @@ function profileId(test: TestProfileScreens, index: number): string {
 
 /** Otevře úpravu profilu na pořadí `index` a přejde do 2. kroku. */
 function openColorStep(test: TestProfileScreens, index: number): void {
-  holdProfile(test.screens, profileId(test, index));
+  openEdit(test.screens, profileId(test, index));
   test.screens.tapNext();
 }
 
-/** Smaže profil na pořadí `index`: podržet, →, koš, podržet „Smazat“ 1 s (#108). */
+/** Smaže profil na pořadí `index`: tužka, →, koš, podržet „Smazat“ 1 s (#108). */
 function deleteProfileAt(test: TestProfileScreens, index: number): void {
   openColorStep(test, index);
   test.screens.tapDelete();
   holdConfirmDelete(test.screens);
 }
 
-describe('#73 AC1: podržení kolečka profilu 1 s otevře úpravu', () => {
-  it('podržení se počítá stejně dlouho jako u kolečka nastavení (1 s)', () => {
-    expect(EDIT_PROFILE_HOLD_MS).toBe(HOLD_TO_OPEN_SETTINGS_MS);
-  });
-
-  it('podržení 0,99 s úpravu neotevře', () => {
+describe('#73 AC1: úprava profilu se otevře tužkou (od #109 ne podržením kolečka)', () => {
+  it('tužka otevře 1. krok úpravy s přezdívkou profilu', () => {
     const test = threeProfiles();
 
-    holdProfile(test.screens, profileId(test, 1), 990);
-
-    expect(test.screens.screen()).not.toBe('nickname');
-    expect(test.screens.formMode()).toBeNull();
-  });
-
-  it('podržení 1 s otevře 1. krok úpravy s přezdívkou profilu', () => {
-    const test = threeProfiles();
-
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
 
     expect(test.screens.screen()).toBe('nickname');
     expect(test.screens.formMode()).toBe('edit');
@@ -129,7 +116,7 @@ describe('#73 AC1: podržení kolečka profilu 1 s otevře úpravu', () => {
       deviceWithProfiles([{ nickname: 'EMA', color: PROFILE_COLORS[6] }]),
     );
 
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     test.screens.tapNext();
 
     expect(test.screens.screen()).toBe('color');
@@ -137,24 +124,11 @@ describe('#73 AC1: podržení kolečka profilu 1 s otevře úpravu', () => {
     expect(test.screens.previewSymbol()).toBe('E');
   });
 
-  it('během podržení se kolem kolečka plní kroužek a po puštění zmizí', () => {
-    const test = threeProfiles();
-    const id = profileId(test, 1);
-    const button = test.screens.profileButton(id);
-
-    button.press(1);
-    expect(test.feedback).toContainEqual({ kind: 'profileHolding', id, holding: true });
-    vi.advanceTimersByTime(300);
-    button.release(1);
-
-    expect(test.feedback).toContainEqual({ kind: 'profileHolding', id, holding: false });
-  });
-
   it('ťuknutí na kolečko profil dál jen vybere a stránka ukáže menu', () => {
     const test = threeProfiles();
     const id = profileId(test, 2);
 
-    holdProfile(test.screens, id, 100);
+    tapProfileCircle(test.screens, id);
 
     expect(test.screens.screen()).toBe('closed');
     expect(test.screens.formMode()).toBeNull();
@@ -162,7 +136,7 @@ describe('#73 AC1: podržení kolečka profilu 1 s otevře úpravu', () => {
     expect(test.chosen()).toBe(1);
   });
 
-  it('když prst sjede z kolečka dřív než za 1 s, nic se neotevře ani nevybere', () => {
+  it('když prst sjede z kolečka a zvedne se jinde, nic se neotevře ani nevybere', () => {
     const test = threeProfiles();
     const before = test.store.activeProfile().id;
     const button = test.screens.profileButton(profileId(test, 1));
@@ -170,7 +144,7 @@ describe('#73 AC1: podržení kolečka profilu 1 s otevře úpravu', () => {
     button.press(1);
     vi.advanceTimersByTime(500);
     button.leave(1);
-    vi.advanceTimersByTime(EDIT_PROFILE_HOLD_MS);
+    vi.advanceTimersByTime(ONE_SECOND_HOLD_MS);
     button.release(1);
 
     expect(test.screens.screen()).toBe('picker');
@@ -178,13 +152,13 @@ describe('#73 AC1: podržení kolečka profilu 1 s otevře úpravu', () => {
     expect(test.chosen()).toBe(0);
   });
 
-  it('podržení kolečka úpravu otevře, jen když je vidět výběr profilu', () => {
+  it('tužka úpravu otevře, jen když je vidět výběr profilu', () => {
     const test = threeProfiles();
     const id = profileId(test, 1);
     test.screens.tapProfile(id);
     expect(test.screens.screen()).toBe('closed');
 
-    holdProfile(test.screens, id);
+    openEdit(test.screens, id);
 
     expect(test.screens.screen()).toBe('closed');
   });
@@ -193,7 +167,7 @@ describe('#73 AC1: podržení kolečka profilu 1 s otevře úpravu', () => {
 describe('#73 AC1: přezdívka v úpravě', () => {
   it('vlastní dosavadní přezdívka se nepočítá jako stejná, → je aktivní a jde uložit', () => {
     const test = threeProfiles();
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
 
     expect(test.screens.canGoNext()).toBe(true);
     test.screens.tapNext();
@@ -205,7 +179,7 @@ describe('#73 AC1: přezdívka v úpravě', () => {
 
   it('přezdívku jiného profilu nejde uložit: → je ztlumené a pole se zatřese', () => {
     const test = threeProfiles();
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     clearNickname(test.screens);
     typeNickname(test.screens, 'TOM');
 
@@ -218,7 +192,7 @@ describe('#73 AC1: přezdívka v úpravě', () => {
 
   it('profilu s přezdívkou nejde přezdívku smazat: s prázdným polem je → ztlumené', () => {
     const test = threeProfiles();
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
 
     clearNickname(test.screens);
 
@@ -229,7 +203,7 @@ describe('#73 AC1: přezdívka v úpravě', () => {
   it('profil bez přezdívky z přenosu dat má → aktivní i s prázdným polem', () => {
     const test = threeProfiles();
 
-    holdProfile(test.screens, profileId(test, 0));
+    openEdit(test.screens, profileId(test, 0));
 
     expect(test.screens.nickname()).toBe('');
     expect(test.screens.canGoNext()).toBe(true);
@@ -237,7 +211,7 @@ describe('#73 AC1: přezdívka v úpravě', () => {
 
   it('profil bez přezdívky jde uložit dál bez přezdívky a na výběru má ★', () => {
     const test = threeProfiles();
-    holdProfile(test.screens, profileId(test, 0));
+    openEdit(test.screens, profileId(test, 0));
     test.screens.tapNext();
     test.screens.tapColor(PROFILE_COLORS[4]);
 
@@ -253,7 +227,7 @@ describe('#73 AC1: přezdívka v úpravě', () => {
 
   it('profil bez přezdívky jde uložit s novou přezdívkou', () => {
     const test = threeProfiles();
-    holdProfile(test.screens, profileId(test, 0));
+    openEdit(test.screens, profileId(test, 0));
     typeNickname(test.screens, 'ČENĚK');
     test.screens.tapNext();
 
@@ -264,7 +238,7 @@ describe('#73 AC1: přezdívka v úpravě', () => {
 
   it('pro přezdívku v úpravě platí limit délky a plné pole se zatřese', () => {
     const test = threeProfiles();
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     clearNickname(test.screens);
     typeNickname(test.screens, 'WWWWWWWWWWWW');
 
@@ -278,7 +252,7 @@ describe('#73 AC1: přezdívka v úpravě', () => {
 describe('#73 AC1: ✓ uloží úpravu, zpět nic nezmění', () => {
   it('✓ uloží novou přezdívku a barvu a vrátí výběr s novým písmenem a barvou', () => {
     const test = threeProfiles();
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     clearNickname(test.screens);
     typeNickname(test.screens, 'ŽOFKA');
     test.screens.tapNext();
@@ -304,7 +278,7 @@ describe('#73 AC1: ✓ uloží úpravu, zpět nic nezmění', () => {
     const id = profileId(test, 1);
     test.store.selectProfile(id);
     test.store.gameStorage(GAME).setItem(STARS_KEY, '{"earned":7}');
-    holdProfile(test.screens, id);
+    openEdit(test.screens, id);
     clearNickname(test.screens);
     typeNickname(test.screens, 'EMIL');
     test.screens.tapNext();
@@ -320,7 +294,7 @@ describe('#73 AC1: ✓ uloží úpravu, zpět nic nezmění', () => {
   it('úprava profil nevybere, aktivní zůstane dosavadní profil', () => {
     const test = threeProfiles();
     const before = test.store.activeProfile().id;
-    holdProfile(test.screens, profileId(test, 2));
+    openEdit(test.screens, profileId(test, 2));
     test.screens.tapNext();
     test.screens.tapColor(PROFILE_COLORS[3]);
 
@@ -342,7 +316,7 @@ describe('#73 AC1: ✓ uloží úpravu, zpět nic nezmění', () => {
       feedback: () => undefined,
       profile: () => test.store.activeProfile(),
     });
-    holdProfile(test.screens, id);
+    openEdit(test.screens, id);
     clearNickname(test.screens);
     typeNickname(test.screens, 'ŽOFKA');
     test.screens.tapNext();
@@ -360,7 +334,7 @@ describe('#73 AC1: ✓ uloží úpravu, zpět nic nezmění', () => {
   it('zpět z 1. kroku úpravy zavře formulář a nic nezmění', () => {
     const test = threeProfiles();
     const before = test.storage.snapshot();
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     clearNickname(test.screens);
     typeNickname(test.screens, 'EMIL');
 
@@ -375,7 +349,7 @@ describe('#73 AC1: ✓ uloží úpravu, zpět nic nezmění', () => {
     const test = threeProfiles();
     const original = test.store.profiles()[1];
     const before = test.storage.snapshot();
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     clearNickname(test.screens);
     typeNickname(test.screens, 'EMIL');
     test.screens.tapNext();
@@ -395,7 +369,7 @@ describe('#73 AC1: ✓ uloží úpravu, zpět nic nezmění', () => {
     const test = testProfileScreens(
       deviceWithProfiles(nicknames.map((nickname) => ({ nickname }))),
     );
-    holdProfile(test.screens, profileId(test, 3));
+    openEdit(test.screens, profileId(test, 3));
     test.screens.tapNext();
     test.screens.tapColor(PROFILE_COLORS[0]);
 
@@ -407,11 +381,11 @@ describe('#73 AC1: ✓ uloží úpravu, zpět nic nezmění', () => {
 
   it('po úpravě začne nový profil přes „+“ s prázdným polem', () => {
     const test = threeProfiles();
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     test.screens.tapNext();
     test.screens.tapSave();
 
-    holdAdd(test.screens);
+    tapAdd(test.screens);
 
     expect(test.screens.formMode()).toBe('new');
     expect(test.screens.nickname()).toBe('');
@@ -430,14 +404,14 @@ describe('#73 AC2: koš je jen v úpravě a ne u posledního profilu', () => {
   it('v 1. kroku úpravy koš není', () => {
     const test = threeProfiles();
 
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
 
     expect(test.screens.canDeleteProfile()).toBe(false);
   });
 
   it('u nového profilu koš není', () => {
     const test = threeProfiles();
-    holdAdd(test.screens);
+    tapAdd(test.screens);
     typeNickname(test.screens, 'ANA');
     test.screens.tapNext();
 
@@ -629,7 +603,7 @@ describe('#73 AC4: okrajové případy', () => {
 
   it('rychlé dvojí ťuknutí na ✓ uloží úpravu jednou', () => {
     const test = threeProfiles();
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     clearNickname(test.screens);
     typeNickname(test.screens, 'EMIL');
     test.screens.tapNext();
@@ -649,7 +623,7 @@ describe('#73 AC4: okrajové případy', () => {
     // Stav úpravy nezávisí na okně: rozložení se po otočení jen spočítá
     // znovu ze stavu (`deleteProfileLayout.test.ts`), obrazovky zůstanou.
     const test = threeProfiles();
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     clearNickname(test.screens);
     typeNickname(test.screens, 'EMIL');
     expect({ screen: test.screens.screen(), nickname: test.screens.nickname() }).toEqual({
@@ -682,7 +656,7 @@ describe('#73 AC4: okrajové případy', () => {
   it('když úložiště nejde zapsat, upravený profil platí do zavření stránky a dítě nevidí chybu', () => {
     const test = threeProfiles();
     test.storage.failWrite = () => true;
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     clearNickname(test.screens);
     typeNickname(test.screens, 'EMIL');
     test.screens.tapNext();
@@ -702,7 +676,7 @@ describe('#73 AC4: okrajové případy', () => {
     const test = testProfileScreens(forbiddenStorage());
     addProfile(test.screens, 'TOM');
 
-    holdProfile(test.screens, profileId(test, 1));
+    openEdit(test.screens, profileId(test, 1));
     clearNickname(test.screens);
     typeNickname(test.screens, 'TOMÁŠ');
     test.screens.tapNext();

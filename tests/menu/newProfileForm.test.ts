@@ -1,33 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  ADD_PROFILE_HOLD_MS,
-  MAX_PROFILES,
-  suggestedProfileColor,
-} from '../../src/menu/logic/profileScreens';
-import { HOLD_TO_OPEN_SETTINGS_MS } from '../../src/shared/logic/settingsGear';
+import { MAX_PROFILES, suggestedProfileColor } from '../../src/menu/logic/profileScreens';
 import { PROFILE_COLORS, makeProfile } from '../../src/shared/logic/profiles';
 import { PROFILE_LIST_KEY, openProfiles } from '../../src/shared/storage/profileStorage';
 import { CORRUPT_PROFILE_LISTS, DeviceStorage, forbiddenStorage } from '../shared/profileFixtures';
 import {
   addProfile,
   deviceWithProfiles,
-  holdAdd,
   pickerNicknames,
+  tapAdd,
   testProfileScreens,
   typeNickname,
 } from './profileScreenFixtures';
 
 /**
- * Testy k #72 AC2 (nový profil jen pro rodiče, formulář ve dvou krocích),
+ * Testy k #72 AC2 (formulář nového profilu ve dvou krocích; od #109 ho
+ * otevře ťuknutí na „+“, viz `profilePickerTap.test.ts`),
  * AC4 (přezdívka, bez rozložení) a AC6 (okrajové případy).
  *
  * Navržené rozhraní (`src/menu/logic/profileScreens.ts`), navíc k AC1:
- * - `MAX_PROFILES` (6), `ADD_PROFILE_HOLD_MS` (stejně jako kolečko, 1 s),
+ * - `MAX_PROFILES` (6),
  * - `canAddProfile()`: „+“ je vidět jen pod limitem,
- * - `addButton`: `HoldButton` ze sdílené části; ťuknutí dá odezvu
- *   `{ kind: 'wobble', target: 'add' }`, plnění kroužku
- *   `{ kind: 'addHolding', holding }`, podržení 1 s otevře 1. krok,
+ * - `addButton`: od #109 `TapButton`, ťuknutí otevře 1. krok,
  * - 1. krok `'nickname'`: `nickname()`, `letterLayer()`, `canGoNext()`
  *   (→ ztlumené, když je `false`), `tapNext()`, `tapBack()`,
  * - 2. krok `'color'`: `palette()` (8 barev `{ color, selected }`),
@@ -48,50 +42,14 @@ afterEach(() => {
 
 const FIELD_SHAKE = { kind: 'shake', target: 'field' } as const;
 
-describe('#72 AC2: „+“ otevře formulář jen podržením 1 s', () => {
-  it('podržení se počítá stejně dlouho jako u kolečka nastavení (1 s)', () => {
-    expect(ADD_PROFILE_HOLD_MS).toBe(1000);
-    expect(ADD_PROFILE_HOLD_MS).toBe(HOLD_TO_OPEN_SETTINGS_MS);
-  });
-
-  it('ťuknutí na „+“ ho jen zhoupne a formulář se neotevře', () => {
-    const { screens, feedback } = testProfileScreens();
-
-    screens.addButton.press(1);
-    vi.advanceTimersByTime(200);
-    screens.addButton.release(1);
-
-    expect(feedback).toContainEqual({ kind: 'wobble', target: 'add' });
-    expect(screens.screen()).toBe('picker');
-  });
-
-  it('kratší podržení než 1 s formulář neotevře', () => {
+describe('#72 AC2: „+“ otevře formulář (od #109 ťuknutím)', () => {
+  it('ťuknutí na „+“ otevře 1. krok „Přezdívka“ s prázdným polem a základní vrstvou', () => {
     const { screens } = testProfileScreens();
 
-    screens.addButton.press(1);
-    vi.advanceTimersByTime(ADD_PROFILE_HOLD_MS - 50);
-    screens.addButton.release(1);
-
-    expect(screens.screen()).toBe('picker');
-  });
-
-  it('během podržení se plní kroužek a po puštění zmizí', () => {
-    const { screens, feedback } = testProfileScreens();
-
-    screens.addButton.press(1);
-    expect(feedback).toContainEqual({ kind: 'addHolding', holding: true });
-    vi.advanceTimersByTime(300);
-    screens.addButton.release(1);
-
-    expect(feedback).toContainEqual({ kind: 'addHolding', holding: false });
-  });
-
-  it('podržení 1 s otevře 1. krok „Přezdívka“ s prázdným polem a základní vrstvou', () => {
-    const { screens } = testProfileScreens();
-
-    holdAdd(screens);
+    tapAdd(screens);
 
     expect(screens.screen()).toBe('nickname');
+    expect(screens.formMode()).toBe('new');
     expect(screens.nickname()).toBe('');
     expect(screens.letterLayer()).toBe('base');
   });
@@ -100,7 +58,7 @@ describe('#72 AC2: „+“ otevře formulář jen podržením 1 s', () => {
 describe('#72 AC2: formulář ve dvou krocích, zpět a ✓', () => {
   it('→ s přezdívkou otevře 2. krok „Barva“ s náhledem kolečka a paletou 8 barev', () => {
     const { screens } = testProfileScreens();
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'ČENĚK');
 
     screens.tapNext();
@@ -112,7 +70,7 @@ describe('#72 AC2: formulář ve dvou krocích, zpět a ✓', () => {
 
   it('zpět v 1. kroku zavře formulář bez uložení', () => {
     const { screens, store } = testProfileScreens();
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'EMA');
 
     screens.tapBack();
@@ -124,18 +82,18 @@ describe('#72 AC2: formulář ve dvou krocích, zpět a ✓', () => {
 
   it('po zpět z 1. kroku začne další formulář s prázdným polem', () => {
     const { screens } = testProfileScreens();
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'EMA');
     screens.tapBack();
 
-    holdAdd(screens);
+    tapAdd(screens);
 
     expect(screens.nickname()).toBe('');
   });
 
   it('zpět ve 2. kroku vrátí do 1. kroku a rozepsaná přezdívka zůstane', () => {
     const { screens, store } = testProfileScreens();
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'ŽOFIE');
     screens.tapNext();
 
@@ -182,7 +140,7 @@ describe('#72 AC2: formulář ve dvou krocích, zpět a ✓', () => {
 describe('#72 AC2: předvybraná barva', () => {
   it('předvybraná je první barva, kterou ještě žádný profil nemá', () => {
     const { screens } = testProfileScreens();
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'EMA');
     screens.tapNext();
 
@@ -199,7 +157,7 @@ describe('#72 AC2: předvybraná barva', () => {
       { nickname: 'TOM', color: PROFILE_COLORS[3] },
     ]);
     const { screens } = testProfileScreens(storage);
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'ANA');
     screens.tapNext();
 
@@ -232,7 +190,7 @@ describe('#72 AC2: předvybraná barva', () => {
 
   it('ťuknutí na barvu ji vybere a náhled kolečka ji ukáže', () => {
     const { screens } = testProfileScreens();
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'EMA');
     screens.tapNext();
 
@@ -249,7 +207,7 @@ describe('#72 AC2: předvybraná barva', () => {
 
   it('po zpět do 1. kroku a znovu → zůstane zvolená barva', () => {
     const { screens } = testProfileScreens();
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'EMA');
     screens.tapNext();
     screens.tapColor(PROFILE_COLORS[7]);
@@ -266,7 +224,7 @@ describe('#72 AC2: nejvýš 6 profilů', () => {
     expect(MAX_PROFILES).toBe(6);
   });
 
-  it('s 6 profily se „+“ neukáže a podržení formulář neotevře', () => {
+  it('s 6 profily se „+“ neukáže a ťuknutí na jeho místo formulář neotevře', () => {
     const nicknames = ['EMA', 'TOM', 'ČENĚK', 'ŽOFIE', 'ANA'];
     const { screens } = testProfileScreens(
       deviceWithProfiles(nicknames.map((nickname) => ({ nickname }))),
@@ -274,7 +232,7 @@ describe('#72 AC2: nejvýš 6 profilů', () => {
 
     expect(screens.pickerItems()).toHaveLength(6);
     expect(screens.canAddProfile()).toBe(false);
-    holdAdd(screens);
+    tapAdd(screens);
     expect(screens.screen()).toBe('picker');
   });
 
@@ -295,7 +253,7 @@ describe('#72 AC2: nejvýš 6 profilů', () => {
 describe('#72 AC4: přezdívka', () => {
   it('prázdnou přezdívku nejde uložit: → je ztlumené a ťuknutí na něj zatřese polem', () => {
     const { screens, feedback } = testProfileScreens();
-    holdAdd(screens);
+    tapAdd(screens);
 
     expect(screens.canGoNext()).toBe(false);
     screens.tapNext();
@@ -306,7 +264,7 @@ describe('#72 AC4: přezdívka', () => {
 
   it('po smazání všech písmen je → zase ztlumené', () => {
     const { screens } = testProfileScreens();
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'A');
     expect(screens.canGoNext()).toBe(true);
 
@@ -319,7 +277,7 @@ describe('#72 AC4: přezdívka', () => {
     const { screens, feedback, store } = testProfileScreens(
       deviceWithProfiles([{ nickname: 'EMA' }]),
     );
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'EMA');
 
     expect(screens.canGoNext()).toBe(false);
@@ -332,7 +290,7 @@ describe('#72 AC4: přezdívka', () => {
 
   it('přezdívka, která je jen začátkem jiné, je povolená', () => {
     const { screens } = testProfileScreens(deviceWithProfiles([{ nickname: 'EMA' }]));
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'EM');
 
     expect(screens.canGoNext()).toBe(true);
@@ -358,7 +316,7 @@ describe('#72 AC4: přezdívka', () => {
 describe('#72 AC6: okrajové případy', () => {
   it('rychlé dvojí ťuknutí na ✓ založí jen jeden profil', () => {
     const { screens, store, storage } = testProfileScreens();
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'EMA');
     screens.tapNext();
 
@@ -373,7 +331,7 @@ describe('#72 AC6: okrajové případy', () => {
     // Stav formuláře nezávisí na okně: rozložení se po otočení jen spočítá
     // znovu ze stavu (testy rozložení), obrazovky profilů zůstanou stejné.
     const { screens } = testProfileScreens();
-    holdAdd(screens);
+    tapAdd(screens);
     typeNickname(screens, 'ČEN');
     screens.tapLayerSwitch();
     const nicknameStep = {
