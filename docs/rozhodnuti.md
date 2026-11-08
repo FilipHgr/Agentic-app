@@ -211,3 +211,5 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   tříštivé a duhové. Navrhne se jako nové úkoly.
 - 2026-11-08 Kroužek podržení 1 s je jen ve hře u kolečka nastavení
   a domečku. V hlavním menu tlačítka reagují hned (oprava jako nový úkol).
+- 2026-11-08 Ikony nástrojů v Omalovánkách jsou nesrozumitelné a složité.
+  Musí být na první pohled jasné, co je to za nástroj (nový úkol s obrázky).
