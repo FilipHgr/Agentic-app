@@ -241,3 +241,5 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   Puntíkový fix bubliny, proužkový fix sloupek s pruhy, sprej skvrna (#106).
 - 2026-11-08 #110 (každý nástroj si pamatuje svou barvu) schválen podle
   doporučení.
+- 2026-11-08 Barvu nástroje v kroku nástrojů panelu ukazuje stejné barevné
+  kolečko vpravo dole u ikony jako v úchytu (#110).
