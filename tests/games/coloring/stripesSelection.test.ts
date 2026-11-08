@@ -112,8 +112,8 @@ describe('#102 AC1: proužkový fix se vybírá v panelu jako ostatní nástroje
 
   it('úchyt ukazuje proužky ve vybrané barvě, i se zavřeným panelem a v každé velikosti', () => {
     const game = fresh();
-    game.tapColor(BLUE);
     choose(game, STRIPES);
+    game.tapColor(BLUE);
     expect(game.handleView(), 'po výběru').toMatchObject({ tool: STRIPES, color: BLUE });
 
     if (game.panelOpen()) {

@@ -117,8 +117,8 @@ describe('#93 AC1: fix a pastelka se vybírají v panelu jako štětec a guma', 
   it('úchyt ukazuje fix i pastelku ve vybrané barvě, i se zavřeným panelem', () => {
     for (const tool of NEW_TOOLS) {
       const game = openOn(new RecordingStorage(), twoHalves());
-      game.tapColor(BLUE);
       choose(game, tool);
+      game.tapColor(BLUE);
       expect(game.handleView(), NAMES[tool]).toMatchObject({ tool, color: BLUE });
 
       game.tapColor(BLACK);
@@ -138,12 +138,16 @@ describe('#93 AC1: fix a pastelka se vybírají v panelu jako štětec a guma', 
     }
   });
 
-  it('volba fixu nebo pastelky nezmění vybranou barvu', () => {
+  // Přepsáno k #110 AC1: dřív „volba fixu nebo pastelky nezmění vybranou
+  // barvu“ (jedna barva pro všechny nástroje). Od #110 má každý nástroj svou
+  // barvu, volba fixu nebo pastelky tedy nezmění barvu štětce.
+  it('volba fixu nebo pastelky nezmění barvu štětce', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
     game.tapColor(BLUE);
     for (const tool of NEW_TOOLS) {
       choose(game, tool);
-      expect(game.palette().selected, NAMES[tool]).toBe(BLUE);
+      choose(game, 'brush');
+      expect(game.handleView(), `po ${NAMES[tool]}`).toMatchObject({ tool: 'brush', color: BLUE });
     }
   });
 

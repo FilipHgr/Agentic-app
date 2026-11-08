@@ -177,7 +177,12 @@ describe('#101 AC5: obrázek s puntíky se uloží a obnoví beze změny', () =>
     expect(
       pixelDifferences(pixelsOf(reopened, regions), pixelsOf(game, regions), regions.width),
     ).toEqual([]);
-    expect(reopened.palette().selected).toBe(BLUE);
+    // Přepsáno k #110 AC5: dřív „vybraná je poslední barva (modrá)“. Od #110
+    // má každý nástroj svou barvu: po návratu je vybraný štětec v růžové
+    // a nástroj si nechal svou modrou.
+    expect(reopened.handleView(), 'štětec').toMatchObject({ tool: 'brush', color: PINK });
+    choose(reopened, DOTS);
+    expect(reopened.handleView(), 'nástroj').toMatchObject({ tool: DOTS, color: BLUE });
   });
 
   it('obrázek s puntíky se obnoví i po obnovení stránky', () => {

@@ -342,7 +342,12 @@ describe('#103 AC5: obrázek s třpytkami se uloží a obnoví beze změny', () 
     expect(
       pixelDifferences(pixelsOf(reopened, regions), pixelsOf(game, regions), regions.width),
     ).toEqual([]);
-    expect(reopened.palette().selected).toBe(BLUE);
+    // Přepsáno k #110 AC5: dřív „vybraná je poslední barva (modrá)“. Od #110
+    // má každý nástroj svou barvu: po návratu je vybraný štětec v růžové
+    // a nástroj si nechal svou modrou.
+    expect(reopened.handleView(), 'štětec').toMatchObject({ tool: 'brush', color: PINK });
+    choose(reopened, GLITTER);
+    expect(reopened.handleView(), 'nástroj').toMatchObject({ tool: GLITTER, color: BLUE });
   });
 
   it('obrázek s třpytkami se obnoví i po obnovení stránky', () => {

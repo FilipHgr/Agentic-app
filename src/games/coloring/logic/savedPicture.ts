@@ -10,7 +10,7 @@
  * součet celého zbytku. Záznam delší než limit se neuloží.
  *
  * Chybějící, poškozený, nečitelný nebo cizí záznam (jiná verze nebo
- * rozměr) dá prázdnou omalovánku a první barvu (AC4). Selhání úložiště
+ * rozměr) dá prázdnou omalovánku (AC4). Selhání úložiště
  * hra nikdy nevyhodí (AC5); co se nepodaří uložit, drží v paměti úložiště
  * profilu (`gameStorage`) do zavření stránky.
  *
@@ -35,6 +35,15 @@
  * Dvě nedávné barvy v pruhu (#99) se mění každým výběrem barvy (v pruhu
  * i v panelu) podle `recentColors.ts`, ukládají se hned po výběru do
  * samostatného záznamu vedle obrázku a Zpět je nemění.
+ *
+ * Každý malovací nástroj má od #110 svou barvu (`toolColors.ts`). Výběr
+ * barvy ji dá jen nástroji, který barvu dostává: vybranému malovacímu
+ * nástroji, po gumě naposledy vybranému, po duze štětci. Barvy nástrojů
+ * se ukládají hned po výběru barvy a s každým uložením obrázku do
+ * samostatného záznamu. Jako vybraná barva se do záznamu obrázku ukládá
+ * naposledy vybraná barva: když záznam barev nástrojů chybí nebo je
+ * poškozený, dostanou ji všechny nástroje (#110 AC6), bez obrázku platí
+ * výchozí barvy.
  * Čistý TypeScript bez Phaseru.
  */
 
@@ -43,7 +52,7 @@ import type { Tone } from '../../../shared/audio/tonePlayer';
 import { HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
 import { NO_COLOR, brushWidthFor, createColoring, emptyColorLayer } from './coloring';
 import type { ChangedArea, PointerSample } from './coloring';
-import { PALETTE, initialPalette, tapColor } from './palette';
+import { PALETTE, tapColor } from './palette';
 import type { PaletteState } from './palette';
 import {
   CURRENT_LAYER_CODE,
@@ -57,6 +66,16 @@ import { loadRecentColors, recentAfterPick, storeRecentColors } from './recentCo
 import type { RecentColors } from './recentColors';
 import { createUndoHistory } from './strokeHistory';
 import {
+  DEFAULT_TOOL_COLORS,
+  allToolsIn,
+  isColorTool,
+  loadToolColors,
+  storeToolColors,
+  toolReceivingColor,
+  withToolColor,
+} from './toolColors';
+import type { ToolColors } from './toolColors';
+import {
   BACK_TO_TOOLS_TONES,
   INITIAL_TOOL,
   PANEL_CLOSE_TONES,
@@ -69,8 +88,6 @@ import {
   rememberOpened,
   storeLineSize,
   toolAtSlot,
-  toolForColor,
-  usesSelectedColor,
   hasColorStep,
   wasOpenedBefore,
 } from './toolPanel';
@@ -144,8 +161,8 @@ export type RecentColorTap =
 
 export interface SavedColoring {
   /**
-   * Prst se dotkl obrázku; štětec maluje barvou vybranou v paletě, guma
-   * gumuje (#90). Otevřený panel nástrojů zavře (#96 AC4). Vrátí, co se změnilo.
+   * Prst se dotkl obrázku; malovací nástroj maluje svou barvou (#110 AC1),
+   * guma gumuje (#90). Otevřený panel nástrojů zavře (#96 AC4). Vrátí, co se změnilo.
    */
   pointerDown(pointer: PointerSample): ChangedArea | null;
   /** Prst se posunul. Vrátí, co se zabarvilo. */
@@ -157,9 +174,9 @@ export interface SavedColoring {
   /** Odchod domečkem, schování nebo zavření stránky: ukončí tah a uloží obrázek. */
   suspend(): void;
   /**
-   * Ťuknutí na barvu: vybere ji a po gumě i naposledy vybraný malovací
-   * nástroj (#90 AC4, #93 AC5), u duhy štětec (#97 AC4), hned uloží a vrátí tón
-   * k zahrání. Panel zavře (#105 AC3), i když už barva vybraná byla.
+   * Ťuknutí na barvu: dá ji jen nástroji, který barvu dostává (#110 AC1,
+   * AC3), a vybere ho: po gumě naposledy vybraný malovací nástroj (#90 AC4,
+   * #93 AC5), u duhy štětec (#97 AC4). Hned uloží a vrátí tón k zahrání. Panel zavře (#105 AC3), i když už barva vybraná byla.
    * Během tahu se nepočítá (druhý prst) a vrátí `[]`.
    */
   tapColor(index: number): readonly Tone[];
@@ -179,8 +196,16 @@ export interface SavedColoring {
    * uloží. Historie je jen v paměti do odchodu z hry; `suspend` ji nemaže.
    */
   tapUndo(): UndoResult;
-  /** Stav palety (vybraná barva). */
+  /**
+   * Stav palety: označená je barva nástroje, který by výběr barvy dostal
+   * (#110 AC2), v kroku barev tedy barva nástroje na prvním místě.
+   */
   palette(): PaletteState;
+  /**
+   * Barva malovacího nástroje `tool` (index `PALETTE`), kterou ukazuje krok
+   * nástrojů (#110 AC2); guma a duha barvu nemají (`null`).
+   */
+  toolColor(tool: ToolId): number | null;
   /** Krok panelu: zavřený, krok nástrojů, nebo krok barev (#105). */
   panelView(): PanelView;
   /** Je panel nástrojů otevřený (#96), v kterémkoli kroku? */
@@ -198,8 +223,8 @@ export interface SavedColoring {
    */
   tapBackToTools(): readonly Tone[];
   /**
-   * Co ukazuje úchyt: vybraný nástroj ve vybrané barvě, guma a duha bez
-   * barvy, a vybraná velikost (#96 AC5, #90, #91, #97).
+   * Co ukazuje úchyt: vybraný nástroj v jeho barvě (#110 AC2), guma a duha
+   * bez barvy, a vybraná velikost (#96 AC5, #90, #91, #97).
    */
   handleView(): HandleView;
   /** Vybraná velikost čáry (#91). */
@@ -379,8 +404,23 @@ function memoryStorage(): KeyValueStorage {
 }
 
 /**
+ * Barvy nástrojů po otevření omalovánky (#110 AC5, AC6): platný záznam
+ * barev nástrojů, jinak všechny nástroje v barvě uloženého obrázku, bez
+ * obrázku výchozí barvy.
+ */
+function openingToolColors(
+  stored: ToolColors | null,
+  restored: { readonly selectedColor: number } | null,
+): ToolColors {
+  if (stored !== null) {
+    return stored;
+  }
+  return restored === null ? DEFAULT_TOOL_COLORS : allToolsIn(restored.selectedColor);
+}
+
+/**
  * Otevře omalovánku `picture` nad úložištěm hry aktivního profilu.
- * Pokračuje v uloženém obrázku, nebo začne prázdný s první barvou.
+ * Pokračuje v uloženém obrázku, nebo začne prázdný s výchozími barvami.
  */
 export function openColoring(options: {
   readonly regions: RegionMap;
@@ -394,8 +434,10 @@ export function openColoring(options: {
   const restored = stored === null ? null : readRecord(stored, picture, regions);
 
   const coloring = createColoring(regions, restored === null ? {} : { colors: restored.layer });
-  let palette: PaletteState =
-    restored === null ? initialPalette() : { selected: restored.selectedColor };
+  /** Barva každého malovacího nástroje, pamatuje se podle profilu (#110 AC5). */
+  let toolColors: ToolColors = openingToolColors(loadToolColors(storage, picture.id), restored);
+  /** Naposledy vybraná barva; ukládá se jako vybraná barva do záznamu obrázku. */
+  let lastPickedColor: number = restored === null ? toolColors.brush : restored.selectedColor;
   /** Prst, který právě maluje (tah ještě neskončil). */
   let strokePointer: number | null = null;
   /** Je od posledního úspěšného uložení něco nového? */
@@ -416,7 +458,10 @@ export function openColoring(options: {
   /** Velikost čáry pro všechny nástroje, pamatuje se podle profilu (#91 AC5). */
   let lineSize: LineSize = loadLineSize(storage);
   /** Dvě nedávné barvy v pruhu, pamatují se podle profilu (#99 AC5). */
-  let recentColors: RecentColors = loadRecentColors(storage, picture.id, palette.selected);
+  let recentColors: RecentColors = loadRecentColors(storage, picture.id);
+
+  /** Barva, kterou maluje vybraný nástroj; guma a duha ji nepoužijí. */
+  const paintColor = (): number => toolColors[toolReceivingColor(tool)];
 
   /** Zapíše první otevření spolu s prvním ukládáním (#92 AC1: samotné otevření nic nezapíše). */
   const rememberOpening = (): void => {
@@ -431,7 +476,8 @@ export function openColoring(options: {
     if (!unsaved) {
       return;
     }
-    const record = recordOf(picture, regions, coloring.colorLayer(), palette.selected);
+    storeToolColors(storage, picture.id, toolColors);
+    const record = recordOf(picture, regions, coloring.colorLayer(), lastPickedColor);
     if (storeRecord(storage, key, record)) {
       unsaved = false;
     }
@@ -460,23 +506,28 @@ export function openColoring(options: {
   };
 
   /**
-   * Vybere barvu `index` (z panelu i z pruhu): po gumě a duze přepne
-   * nástroj, posune nedávné barvy a hned uloží. Neplatný index nic nezmění.
+   * Dá barvu `index` (z panelu i z pruhu) nástroji, který barvu dostává,
+   * a vybere ho: po gumě se maluje hned touto barvou (#90 AC4), u duhy
+   * štětcem (#97 AC4). Posune nedávné barvy a hned uloží. Neplatný index
+   * nic nezmění.
    */
   const pickColor = (index: number): readonly Tone[] => {
-    if (isPaletteIndex(index)) {
-      // Barva patří malovacímu nástroji: po gumě se maluje hned vybranou barvou (#90 AC4),
-      // u duhy štětcem (#97 AC4).
-      tool = toolForColor(paintingTool);
-      paintingTool = tool;
+    if (!isPaletteIndex(index)) {
+      return [];
     }
-    const { state, tones } = tapColor(palette, index);
-    if (state.selected !== palette.selected) {
+    const receiving = toolReceivingColor(paintingTool);
+    tool = receiving;
+    paintingTool = receiving;
+    const previous = toolColors[receiving];
+    const { state, tones } = tapColor({ selected: previous }, index);
+    if (state.selected !== previous) {
       unsaved = true;
-      recentColors = recentAfterPick(recentColors, palette.selected, state.selected);
+      toolColors = withToolColor(toolColors, receiving, state.selected);
+      lastPickedColor = state.selected;
+      storeToolColors(storage, picture.id, toolColors);
+      recentColors = recentAfterPick(recentColors, previous, state.selected);
       storeRecentColors(storage, picture.id, recentColors);
     }
-    palette = state;
     save();
     return tones;
   };
@@ -488,7 +539,7 @@ export function openColoring(options: {
         strokePointer = pointer.id;
       }
       const width = brushWidthFor(regions.width, lineSize);
-      return noteChange(coloring.pointerDown(pointer, palette.selected, tool, width));
+      return noteChange(coloring.pointerDown(pointer, paintColor(), tool, width));
     },
 
     pointerMove(pointer) {
@@ -541,7 +592,9 @@ export function openColoring(options: {
       return { kind: 'undone', changed: change.area, tones: UNDO_TONES };
     },
 
-    palette: () => palette,
+    palette: () => ({ selected: toolColors[toolReceivingColor(paintingTool)] }),
+
+    toolColor: (colorTool) => (isColorTool(colorTool) ? toolColors[colorTool] : null),
 
     panelView: () => panelView,
 
@@ -569,7 +622,7 @@ export function openColoring(options: {
 
     handleView: () => ({
       tool,
-      color: usesSelectedColor(tool) ? palette.selected : null,
+      color: isColorTool(tool) ? toolColors[tool] : null,
       size: lineSize,
     }),
 

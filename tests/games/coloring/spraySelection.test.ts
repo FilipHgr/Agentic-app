@@ -127,8 +127,8 @@ describe('#104 AC1: sprej se vybírá v panelu jako ostatní nástroje', () => {
 
   it('úchyt ukazuje sprej ve vybrané barvě, i se zavřeným panelem a v každé velikosti', () => {
     const game = fresh();
-    game.tapColor(BLUE);
     choose(game, SPRAY);
+    game.tapColor(BLUE);
     expect(game.handleView(), 'po výběru').toMatchObject({ tool: SPRAY, color: BLUE });
 
     if (game.panelOpen()) {

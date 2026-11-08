@@ -19,18 +19,21 @@ import { COLORING_GAME_AREA_FIT, layoutColoring, touchTargetAt } from '../logic/
 import type { ColoringLayout } from '../logic/coloringLayout';
 import { startColoringSession } from '../logic/coloringSession';
 import type { ColoringPage } from '../logic/coloringSession';
-import { initialPalette, markedColors, tapColor } from '../logic/palette';
+import { markedColors, tapColor } from '../logic/palette';
 import type { PaletteState } from '../logic/palette';
 import { buildRegionMap, outlineFromImage } from '../logic/regionMap';
 import { noRecentColors } from '../logic/recentColors';
 import { RECENT_COLOR_WOBBLE_TONES, UNDO_WOBBLE_TONES, openColoring } from '../logic/savedPicture';
 import type { RecentColorTap, SavedColoring, UndoResult } from '../logic/savedPicture';
 import { PICTURE_STYLE } from '../logic/theme';
+import { DEFAULT_TOOL_COLORS, isColorTool } from '../logic/toolColors';
+import { handleColorDotFill } from '../logic/toolIcons';
 import {
   INITIAL_LINE_SIZE,
   INITIAL_TOOL,
   PANEL_CLOSE_TONES,
   PANEL_OPEN_TONES,
+  PANEL_TOOLS,
   markedTools,
 } from '../logic/toolPanel';
 import type { HandleView, LineSize, PanelView, ToolId } from '../logic/toolPanel';
@@ -92,7 +95,11 @@ const NO_PAGE: ColoringPage = {
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
   private layout: ColoringLayout = layoutColoring(this.gameArea);
-  private palette: PaletteState = initialPalette();
+  /**
+   * Barva štětce, dokud se obrázek připravuje (pak paletu i barvy nástrojů
+   * drží `coloring`, #110).
+   */
+  private paletteBeforeReady: PaletteState = { selected: DEFAULT_TOOL_COLORS.brush };
   /** Krok panelu, dokud se obrázek připravuje (pak ho drží `coloring`). */
   private panelViewBeforeReady: PanelView = 'closed';
   /**
@@ -181,7 +188,6 @@ export class ColoringScene extends Phaser.Scene {
       // Bez obrysu se maluje jen v paměti, aby se uložený obrázek nepřepsal prázdnou plochou.
       storage: outline.drawn ? this.readHost()?.storage : undefined,
     });
-    this.palette = this.coloring.palette();
     this.showSelection();
     this.showPanel();
     this.paintLayer = new PaintLayer(this, PAINT_TEXTURE_KEY, regions);
@@ -274,26 +280,51 @@ export class ColoringScene extends Phaser.Scene {
   }
 
   /**
-   * Co je v panelu označené; štětec, fix, pastelka, razítkový, puntíkový
-   * a proužkový fix a třpytky jsou vždy ve vybrané barvě, duha v duhových.
+   * Stav palety: barva nástroje, který by výběr barvy dostal (#110 AC2);
+   * dokud se obrázek připravuje, barva štětce.
+   */
+  private palette(): PaletteState {
+    return this.coloring?.palette() ?? this.paletteBeforeReady;
+  }
+
+  /**
+   * Barva malovacího nástroje (#110); dokud se obrázek připravuje, má
+   * štětec barvu z `paletteBeforeReady` a ostatní nástroje výchozí barvy.
+   */
+  private toolColor(tool: ToolId): number | null {
+    if (this.coloring !== null) {
+      return this.coloring.toolColor(tool);
+    }
+    if (tool === INITIAL_TOOL) {
+      return this.paletteBeforeReady.selected;
+    }
+    return isColorTool(tool) ? DEFAULT_TOOL_COLORS[tool] : null;
+  }
+
+  /**
+   * Co je v panelu označené; každý nástroj má kolečko své barvy (#110 AC2),
+   * guma bílé čárkované a duha duhové.
    */
   private panelSelection(): PanelSelection {
     return {
-      markedColors: markedColors(this.palette),
+      markedColors: markedColors(this.palette()),
       markedTools: markedTools(this.selectedTool()),
       lineSize: this.lineSize(),
       selectedTool: this.selectedTool(),
+      toolColorDots: PANEL_TOOLS.map((tool) =>
+        handleColorDotFill({ tool, color: this.toolColor(tool), size: this.lineSize() }),
+      ),
     };
   }
 
   /**
-   * Úchyt ukazuje vybraný nástroj ve vybrané barvě, gumu bez barvy
+   * Úchyt ukazuje vybraný nástroj v jeho barvě, gumu bez barvy
    * a tečku velikosti (#96 AC5, #90 AC1, #91 AC1).
    */
   private showHandle(open: boolean): void {
     const view: HandleView = this.coloring?.handleView() ?? {
       tool: INITIAL_TOOL,
-      color: this.palette.selected,
+      color: this.paletteBeforeReady.selected,
       size: INITIAL_LINE_SIZE,
     };
     this.handleView.show(view, open);
@@ -391,13 +422,12 @@ export class ColoringScene extends Phaser.Scene {
   private onColorTapped(index: number): void {
     if (this.coloring === null) {
       // Obrázek se ještě připravuje: barva se jen vybere, uloží se až s obrázkem.
-      const { state, tones } = tapColor(this.palette, index);
-      this.palette = state;
+      const { state, tones } = tapColor(this.paletteBeforeReady, index);
+      this.paletteBeforeReady = state;
       this.panelViewBeforeReady = 'closed';
       this.sounds.play(tones);
     } else {
       this.sounds.play(this.coloring.tapColor(index));
-      this.palette = this.coloring.palette();
     }
     this.showSelection();
     this.showPanel();
@@ -415,9 +445,6 @@ export class ColoringScene extends Phaser.Scene {
     };
     switch (result.kind) {
       case 'picked':
-        if (this.coloring !== null) {
-          this.palette = this.coloring.palette();
-        }
         this.sounds.play(result.tones);
         this.showSelection();
         return;

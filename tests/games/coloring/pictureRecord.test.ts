@@ -43,8 +43,18 @@ function storageWithPicture(): RecordingStorage {
   return storage;
 }
 
-/** Otevřená omalovánka je prázdná a vybraná je první barva. */
-function expectBlankStart(storage: RecordingStorage, regions: RegionMap, what: string): void {
+/**
+ * Otevřená omalovánka je prázdná a vybraná je první barva. Od #110 je
+ * „vybraná barva“ barva štětce, který je po otevření vybraný; když zůstal
+ * platný samostatný záznam barev nástrojů, má štětec uloženou barvu
+ * (`brushColor`, doporučení story-revieweru k #110 AC6).
+ */
+function expectBlankStart(
+  storage: RecordingStorage,
+  regions: RegionMap,
+  what: string,
+  brushColor = 0,
+): void {
   let painted = -1;
   let selected = -1;
   expect(() => {
@@ -53,7 +63,7 @@ function expectBlankStart(storage: RecordingStorage, regions: RegionMap, what: s
     selected = game.palette().selected;
   }, `${what}: hra se nezastaví`).not.toThrow();
   expect(painted, `${what}: prázdná omalovánka`).toBe(0);
-  expect(selected, `${what}: první barva`).toBe(0);
+  expect(selected, `${what}: barva štětce`).toBe(brushColor);
 }
 
 describe('#92 AC4: špatný záznam hru nezastaví, ukáže se prázdná omalovánka a první barva', () => {
@@ -99,17 +109,21 @@ describe('#92 AC4: špatný záznam hru nezastaví, ukáže se prázdná omalov�
     expectBlankStart(storage, twoHalves(), 'poškozený znak');
   });
 
-  it('záznam jiné verze omalovánky dá prázdnou omalovánku', () => {
+  // Přepsáno k #110 AC6: dřív i „první barva“. Záznam barev nástrojů zůstal
+  // v pořádku, štětec proto podle doporučení k #110 AC6 začne svou uloženou
+  // modrou, obrázek je dál prázdný.
+  it('záznam jiné verze omalovánky dá prázdnou omalovánku, štětec si nechá uloženou barvu', () => {
     const storage = storageWithPicture();
     const regions = twoHalves();
     const game = openOn(storage, regions, { id: PICTURE.id, version: PICTURE.version + 1 });
     expect(paintedPixels(game, regions)).toBe(0);
-    expect(game.palette().selected).toBe(0);
+    expect(game.handleView()).toMatchObject({ tool: 'brush', color: BLUE });
   });
 
-  it('záznam obrázku jiné velikosti dá prázdnou omalovánku', () => {
+  // Přepsáno k #110 AC6 stejně jako záznam jiné verze.
+  it('záznam obrázku jiné velikosti dá prázdnou omalovánku, štětec si nechá uloženou barvu', () => {
     const storage = storageWithPicture();
-    expectBlankStart(storage, drawing(200, 100).verticalLine(100).regions(), 'jiná velikost');
+    expectBlankStart(storage, drawing(200, 100).verticalLine(100).regions(), 'jiná velikost', BLUE);
   });
 
   it('úložiště, které nejde číst, dá prázdnou omalovánku', () => {

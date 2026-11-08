@@ -18,6 +18,7 @@ import {
   legacyP3GlitterRegions,
 } from './legacyP3GlitterRecordFixture';
 import { TOOL_NAMES } from './lineSizeHelpers';
+import { DEFAULT_TOOL_COLORS, defaultsWithBrush, isColorTool } from './toolColorsHelpers';
 import { choiceOf, expectedAfterPick, pick, seededRandom } from './recentColorsHelpers';
 import { at } from './strokeHelpers';
 import {
@@ -238,7 +239,10 @@ describe('#105 AC1: otevření panelu ukáže nástroje', () => {
 });
 
 describe('#105 AC2: nástroj s barvou otevře krok barev', () => {
+  // Upraveno k #110 AC1: dřív měl úchyt u každého nástroje barvu vybranou
+  // u štětce. Od #110 má každý nástroj svou barvu (výchozí podle #110 AC5).
   it('ťuknutí na štětec, fix, pastelku, razítkový, puntíkový i proužkový fix, třpytky a sprej otevře krok barev', () => {
+    const colors = defaultsWithBrush(GREEN);
     for (const tool of COLOR_TOOLS) {
       const game = onToolStep(gameWithColor(GREEN));
 
@@ -247,17 +251,21 @@ describe('#105 AC2: nástroj s barvou otevře krok barev', () => {
       const name = TOOL_NAMES[tool];
       expect(game.selectedTool(), `${name}: vybraný hned`).toBe(tool);
       expectShortTone(tones, name);
-      expect(game.handleView(), `${name}: úchyt ve vybrané barvě`).toMatchObject({
+      expect(game.handleView(), `${name}: úchyt v barvě nástroje`).toMatchObject({
         tool,
-        color: GREEN,
+        color: isColorTool(tool) ? colors[tool] : null,
       });
       expect(game.panelView(), `${name}: krok barev`).toBe('colors');
     }
   });
 
+  // Upraveno k #110 AC2: označená je barva nástroje, ke kterému se barva
+  // vybírá, proto se barva dává puntíkovému fixu, ne štětci.
   it('v kroku barev je označená vybraná barva a na prvním místě vybraný nástroj', () => {
     for (const color of [RED, BLUE, PINK]) {
-      const game = onColorStep('dots', onToolStep(gameWithColor(color)));
+      const game = onColorStep('dots', onToolStep());
+      game.tapColor(color);
+      onColorStep('dots', onToolStep(game));
 
       expect(game.selectedTool(), 'nástroj na prvním místě').toBe('dots');
       const marked = markedColors(game.palette());
@@ -320,10 +328,17 @@ describe('#105 AC3: výběr barvy panel zavře', () => {
     expect(paintedPixels(game, regions)).toBeGreaterThan(0);
   });
 
+  // Upraveno k #110 AC7: modrou dostane razítkový fix ve svém kroku barev,
+  // pak se mu znovu vybere tatáž barva.
   it('ťuknutí na už vybranou barvu panel zavře s tónem a barvu ani nedávné barvy nezmění', () => {
     const game = gameWithColor(PINK);
+    onColorStep('stamp', onToolStep(game));
     game.tapColor(BLUE);
     onColorStep('stamp', onToolStep(game));
+    expect(game.handleView(), 'razítkový fix je modrý').toMatchObject({
+      tool: 'stamp',
+      color: BLUE,
+    });
     const before = selectionOf(game);
 
     const tones = game.tapColor(BLUE);
@@ -335,9 +350,12 @@ describe('#105 AC3: výběr barvy panel zavře', () => {
 });
 
 describe('#105 AC4: návrat k nástrojům a nástroje bez barvy', () => {
+  // Upraveno k #110 AC1: černou dostane každý nástroj ve svém kroku barev.
   it('ťuknutí na vybraný nástroj v kroku barev vrátí panel na nástroje a nástroj ani barva se nezmění', () => {
     for (const tool of COLOR_TOOLS) {
-      const game = onColorStep(tool, onToolStep(gameWithColor(BLACK)));
+      const game = onColorStep(tool, onToolStep());
+      game.tapColor(BLACK);
+      onColorStep(tool, onToolStep(game));
       const before = selectionOf(game);
 
       const tones = game.tapBackToTools();
@@ -464,6 +482,9 @@ describe('#105 AC5: okrajové případy', () => {
     }
   });
 
+  // Upraveno k #110: dřív se po ťuknutí na nástroj čekala stejná barva jako
+  // u štětce. Od #110 ukáže nástroj svou barvu (proužkový fix výchozí
+  // růžovou), ale žádnou barvu nevybere: štětec i nedávné barvy zůstanou.
   it('jedno ťuknutí udělá jen jednu věc: nástroj nevybere barvu a návrat nic nevybere', () => {
     const game = gameWithColor(PINK);
     game.tapColor(GREEN);
@@ -472,14 +493,20 @@ describe('#105 AC5: okrajové případy', () => {
 
     choose(game, 'stripes');
     expect(
-      { ...selectionOf(game), tool: before.tool },
+      { ...selectionOf(game), tool: before.tool, color: before.color },
       'ťuknutí na nástroj změní jen nástroj',
     ).toEqual(before);
+    expect(game.handleView().color, 'proužkový fix ve své barvě').toBe(DEFAULT_TOOL_COLORS.stripes);
 
     const afterTool = selectionOf(game);
     game.tapBackToTools();
     expect(selectionOf(game), 'návrat nic nevybere').toEqual(afterTool);
     expect(game.panelView(), 'návrat jen přepne krok').toBe('tools');
+    choose(game, 'brush');
+    expect(game.handleView(), 'štětec si nechal zelenou').toMatchObject({
+      tool: 'brush',
+      color: GREEN,
+    });
   });
 
   it('ťuknutí na prázdné místo nástrojů v kroku nástrojů nic nevybere a krok nezmění', () => {

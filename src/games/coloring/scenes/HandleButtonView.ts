@@ -13,11 +13,10 @@ import Phaser from 'phaser';
 import { colorNumber } from '../../../shared/logic/theme';
 import { handleArrowShape, handleFace } from '../logic/coloringLayout';
 import type { ColoringLayout, LayoutRect } from '../logic/coloringLayout';
-import type { LayoutCircle } from '../logic/coloringLayout';
-import { HANDLE_COLOR_DOT_STYLE, HANDLE_STYLE } from '../logic/theme';
+import { HANDLE_STYLE } from '../logic/theme';
 import { handleColorDotFill } from '../logic/toolIcons';
-import type { HandleColorDotFill } from '../logic/toolIcons';
 import type { HandleView } from '../logic/toolPanel';
+import { drawColorDot } from './colorDot';
 import { showToolIcon } from './toolIconTextures';
 
 export class HandleButtonView {
@@ -80,7 +79,7 @@ export class HandleButtonView {
       { ...icon, left: rect.left + icon.left, top: rect.top + icon.top },
       this.cssScale,
     );
-    this.drawColorDot(graphics, colorDot, handleColorDotFill(view));
+    drawColorDot(graphics, colorDot, handleColorDotFill(view), this.cssScale);
     this.drawArrow(graphics, rect, panelOpen);
   }
 
@@ -89,66 +88,6 @@ export class HandleButtonView {
     this.icon?.destroy();
     this.graphics = null;
     this.icon = null;
-  }
-
-  /**
-   * Kolečko barvy: šedá linka, bílý lem a uvnitř vybraná barva. Guma má
-   * kolečko bílé s čárkovanou linkou, duhový štětec výseče v barvách duhy.
-   */
-  private drawColorDot(
-    graphics: Phaser.GameObjects.Graphics,
-    dot: LayoutCircle,
-    fill: HandleColorDotFill,
-  ): void {
-    const style = HANDLE_COLOR_DOT_STYLE;
-    const { centerX, centerY } = dot;
-    const fillRadius = dot.diameter / 2;
-    const rimRadius = fillRadius + style.rimCss / this.cssScale;
-    const line = style.lineCss / this.cssScale;
-    if (fill.kind === 'eraser') {
-      graphics.fillStyle(colorNumber(style.eraserFill), 1);
-      graphics.fillCircle(centerX, centerY, rimRadius + line);
-      this.drawDashedRing(graphics, centerX, centerY, rimRadius + line / 2, line);
-      return;
-    }
-    graphics.fillStyle(colorNumber(style.lineColor), 1);
-    graphics.fillCircle(centerX, centerY, rimRadius + line);
-    graphics.fillStyle(colorNumber(style.rimColor), 1);
-    graphics.fillCircle(centerX, centerY, rimRadius);
-    if (fill.kind === 'color') {
-      graphics.fillStyle(colorNumber(fill.hex), 1);
-      graphics.fillCircle(centerX, centerY, fillRadius);
-      return;
-    }
-    // Duha: stejně velké výseče po směru hodinových ručiček od 12 hodin.
-    const step = (2 * Math.PI) / fill.hexes.length;
-    fill.hexes.forEach((hex, index) => {
-      const start = -Math.PI / 2 + index * step;
-      graphics.fillStyle(colorNumber(hex), 1);
-      graphics.slice(centerX, centerY, fillRadius, start, start + step, false);
-      graphics.fillPath();
-    });
-  }
-
-  /** Čárkovaná šedá kružnice gumy: čárky dlouhé `eraserDashCss` se stejně dlouhými mezerami. */
-  private drawDashedRing(
-    graphics: Phaser.GameObjects.Graphics,
-    centerX: number,
-    centerY: number,
-    radius: number,
-    width: number,
-  ): void {
-    const style = HANDLE_COLOR_DOT_STYLE;
-    const dash = style.eraserDashCss / this.cssScale;
-    const dashes = Math.max(4, Math.round((2 * Math.PI * radius) / (2 * dash)));
-    const step = (2 * Math.PI) / dashes;
-    graphics.lineStyle(width, colorNumber(style.lineColor), 1);
-    for (let index = 0; index < dashes; index += 1) {
-      const start = index * step;
-      graphics.beginPath();
-      graphics.arc(centerX, centerY, radius, start, start + step / 2, false);
-      graphics.strokePath();
-    }
   }
 
   /**

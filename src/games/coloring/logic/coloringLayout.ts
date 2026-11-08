@@ -617,6 +617,27 @@ export function toolSlotIcon(slot: LayoutRect): LayoutRect {
   };
 }
 
+/**
+ * Kolečko barvy nástroje v místě panelu (#110 AC2): stejně velké jako
+ * střední kolečko v úchytu a stejně v pravém dolním rohu, ať je velikost
+ * čáry jakákoli (velikost platí pro všechny nástroje a ukazuje ji přepínač).
+ */
+const TOOL_SLOT_COLOR_DOT_SHARE = HANDLE_COLOR_DOT_SHARES.medium;
+
+/**
+ * Barevná výplň kolečka barvy nástroje vpravo dole v místě panelu (#110):
+ * `diameter` je průměr výplně, bílý lem a šedá linka se kreslí vně jako
+ * v úchytu. Ikona zůstává uprostřed, kolečko zakryje jen její roh.
+ */
+export function toolSlotColorDot(slot: LayoutRect): LayoutCircle {
+  const side = sideOf(slot);
+  return {
+    centerX: slot.left + slot.width - side * (1 - HANDLE_COLOR_DOT_CENTER_SHARE),
+    centerY: slot.top + slot.height - side * (1 - HANDLE_COLOR_DOT_CENTER_SHARE),
+    diameter: side * TOOL_SLOT_COLOR_DOT_SHARE,
+  };
+}
+
 /** Šipka úchytu: vrchol, délka ramene a tloušťka čáry v herních jednotkách. */
 export interface HandleArrowShape {
   readonly tipX: number;

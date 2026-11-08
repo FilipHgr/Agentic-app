@@ -6,7 +6,10 @@
  * štětec, gumu, fix, pastelku, duhu, razítkový, puntíkový a proužkový
  * fix, třpytky a sprej (`PANEL_TOOLS`, #90, #93, #97, #98, #101–#104).
  * Krok barev má v hlavičce vybraný nástroj a v těle 12 barev. Ikony
- * nástrojů jsou hotová SVG z Noto Emoji v barvách autora (#106). Vybraný nástroj i barva mají silný modrý okraj. Kroky se
+ * nástrojů jsou hotová SVG z Noto Emoji v barvách autora (#106). Barvu
+ * nástroje ukazuje kolečko vpravo dole jako v úchytu (#110 AC2), v kroku
+ * nástrojů u každého nástroje a v hlavičce kroku barev u vybraného.
+ * Vybraný nástroj i barva mají silný modrý okraj. Kroky se
  * vystřídají prolnutím do 0,2 s, karta se přitom nehne.
  *
  * Panel vyjíždí zleva (na šířku) nebo zdola (na výšku) do 0,3 s a zajíždí
@@ -17,12 +20,14 @@
 import Phaser from 'phaser';
 
 import { PAGE_BACKGROUND, colorNumber } from '../../../shared/logic/theme';
-import { sizeToggleDot, toolSlotIcon } from '../logic/coloringLayout';
+import { sizeToggleDot, toolSlotColorDot, toolSlotIcon } from '../logic/coloringLayout';
 import type { ColoringLayout, LayoutRect } from '../logic/coloringLayout';
 import { COLOR_BUTTON_STYLE, SIZE_DOT_STYLE, TOOL_PANEL_STYLE } from '../logic/theme';
+import type { HandleColorDotFill } from '../logic/toolIcons';
 import { PANEL_TOOLS } from '../logic/toolPanel';
 import type { LineSize, PanelView, ToolId } from '../logic/toolPanel';
 import { PaletteView } from './PaletteView';
+import { drawColorDot } from './colorDot';
 import { showToolIcon } from './toolIconTextures';
 
 /** Kde a jak velký panel je: rozložení, CSS px na jednotku a velikost herní plochy. */
@@ -36,14 +41,16 @@ export interface PanelPlacement {
 }
 
 /**
- * Co je v panelu označené: barva, nástroj, velikost čáry v přepínači
- * a vybraný nástroj v hlavičce kroku barev.
+ * Co je v panelu označené: barva, nástroj, velikost čáry v přepínači,
+ * vybraný nástroj v hlavičce kroku barev a kolečko barvy každého nástroje
+ * v pořadí `PANEL_TOOLS` (#110).
  */
 export interface PanelSelection {
   readonly markedColors: readonly boolean[];
   readonly markedTools: readonly boolean[];
   readonly lineSize: LineSize;
   readonly selectedTool: ToolId;
+  readonly toolColorDots: readonly HandleColorDotFill[];
 }
 
 /** Otevřený krok panelu. */
@@ -63,11 +70,14 @@ export class ToolPanelView {
   private toolButtons: Phaser.GameObjects.Graphics[] = [];
   /** Ikony nástrojů nad tlačítky, ve stejném pořadí. */
   private toolIcons: Phaser.GameObjects.Image[] = [];
+  /** Kolečka barvy nad ikonami, ve stejném pořadí a se stejným počátkem jako tlačítka. */
+  private toolDots: Phaser.GameObjects.Graphics[] = [];
   /** Přepínač velikosti s počátkem ve středu svého místa. */
   private sizeToggle: Phaser.GameObjects.Graphics | null = null;
   /** Vybraný nástroj v hlavičce kroku barev, počátek ve středu místa. */
   private colorStepTool: Phaser.GameObjects.Graphics | null = null;
   private colorStepIcon: Phaser.GameObjects.Image | null = null;
+  private colorStepDot: Phaser.GameObjects.Graphics | null = null;
   private readonly palette: PaletteView;
   private placement: PanelPlacement | null = null;
   private open = false;
@@ -90,11 +100,15 @@ export class ToolPanelView {
     this.toolButtons = layout.toolSlots
       .slice(0, PANEL_TOOLS.length)
       .map((slot) => this.addCentered(slot, toolStep));
-    // Ikony až po tlačítkách, aby ležely nad nimi.
+    // Ikony až po tlačítkách, aby ležely nad nimi, a kolečka barvy nad ikonami.
     this.toolIcons = this.toolButtons.map(() => this.addIcon(toolStep));
+    this.toolDots = layout.toolSlots
+      .slice(0, PANEL_TOOLS.length)
+      .map((slot) => this.addCentered(slot, toolStep));
     this.sizeToggle = this.addCentered(layout.sizeToggle, toolStep);
     this.colorStepTool = this.addCentered(layout.colorStepTool, colorStep);
     this.colorStepIcon = this.addIcon(colorStep);
+    this.colorStepDot = this.addCentered(layout.colorStepTool, colorStep);
     this.palette.place(layout.paletteColors, selection.markedColors, cssScale, colorStep);
     this.container = container;
     this.toolStep = toolStep;
@@ -106,7 +120,7 @@ export class ToolPanelView {
     this.jumpTo(this.open);
   }
 
-  /** Označí vybranou barvu, nástroj a velikost; malovací nástroje ukáže ve vybrané barvě. */
+  /** Označí vybranou barvu, nástroj a velikost; u nástrojů ukáže kolečko jejich barvy. */
   mark(selection: PanelSelection): void {
     this.palette.mark(selection.markedColors);
     this.showTools(selection);
@@ -235,9 +249,11 @@ export class ToolPanelView {
     this.colorStep = null;
     this.toolButtons = [];
     this.toolIcons = [];
+    this.toolDots = [];
     this.sizeToggle = null;
     this.colorStepTool = null;
     this.colorStepIcon = null;
+    this.colorStepDot = null;
   }
 
   /** Okamžitě bez animace (po otočení obrazovky). */
@@ -259,7 +275,10 @@ export class ToolPanelView {
       : { x: 0, y: areaHeight - panel.top + shadow };
   }
 
-  /** Překreslí tlačítka nástrojů: označený má silný okraj, ikony jsou v barvách autora. */
+  /**
+   * Překreslí tlačítka nástrojů: označený má silný okraj, ikony jsou
+   * v barvách autora a vpravo dole je kolečko barvy nástroje (#110 AC2).
+   */
   private showTools(selection: PanelSelection): void {
     const placement = this.placement;
     if (placement === null) {
@@ -277,24 +296,36 @@ export class ToolPanelView {
       if (icon !== undefined) {
         showToolIcon(icon, tool, toolSlotIcon(slot), placement.cssScale);
       }
+      const dot = this.toolDots[index];
+      const fill = selection.toolColorDots[index];
+      if (dot !== undefined && fill !== undefined) {
+        showSlotColorDot(dot, slot, fill, placement.cssScale);
+      }
     });
   }
 
   /**
-   * Překreslí vybraný nástroj v hlavičce kroku barev: označený stejně jako
-   * v kroku nástrojů (#105 AC2, AC7).
+   * Překreslí vybraný nástroj v hlavičce kroku barev: označený a s kolečkem
+   * své barvy stejně jako v kroku nástrojů (#105 AC2, AC7, #110 AC2).
    */
   private showColorStepTool(selection: PanelSelection): void {
     const graphics = this.colorStepTool;
     const icon = this.colorStepIcon;
+    const dot = this.colorStepDot;
     const placement = this.placement;
-    if (graphics === null || icon === null || placement === null) {
+    if (graphics === null || icon === null || dot === null || placement === null) {
       return;
     }
     const slot = placement.layout.colorStepTool;
     graphics.clear();
     drawToolButton(graphics, slot, placement.cssScale, true);
     showToolIcon(icon, selection.selectedTool, toolSlotIcon(slot), placement.cssScale);
+    const fill = selection.toolColorDots[PANEL_TOOLS.indexOf(selection.selectedTool)];
+    if (fill === undefined) {
+      dot.clear();
+    } else {
+      showSlotColorDot(dot, slot, fill, placement.cssScale);
+    }
   }
 
   /** Překreslí přepínač velikosti: tlačítko A3 a tmavá tečka velikosti `size` (#91 AC1). */
@@ -366,6 +397,21 @@ export class ToolPanelView {
 function shadowReachOf(cssScale: number): number {
   const style = TOOL_PANEL_STYLE;
   return (style.shadowLayers * style.shadowSpreadCss + style.shadowOffsetCss) / cssScale;
+}
+
+/**
+ * Kolečko barvy nástroje vpravo dole v místě `slot`; grafika má počátek
+ * ve středu místa.
+ */
+function showSlotColorDot(
+  graphics: Phaser.GameObjects.Graphics,
+  slot: LayoutRect,
+  fill: HandleColorDotFill,
+  cssScale: number,
+): void {
+  graphics.clear();
+  const centered = { ...slot, left: -slot.width / 2, top: -slot.height / 2 };
+  drawColorDot(graphics, toolSlotColorDot(centered), fill, cssScale);
 }
 
 /**

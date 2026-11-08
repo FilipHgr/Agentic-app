@@ -98,8 +98,8 @@ describe('#98 AC1: razítkový fix se vybírá v panelu jako ostatní nástroje'
 
   it('úchyt ukazuje hvězdičku ve vybrané barvě, i se zavřeným panelem a v každé velikosti', () => {
     const game = fresh();
-    game.tapColor(BLUE);
     choose(game, STAMP);
+    game.tapColor(BLUE);
     expect(game.handleView(), 'po výběru').toMatchObject({ tool: STAMP, color: BLUE });
 
     if (game.panelOpen()) {

@@ -135,8 +135,8 @@ describe('#103 AC1: třpytky se vybírají v panelu jako ostatní nástroje', ()
 
   it('úchyt ukazuje třpytky ve vybrané barvě, i se zavřeným panelem a v každé velikosti', () => {
     const game = fresh();
-    game.tapColor(BLUE);
     choose(game, GLITTER);
+    game.tapColor(BLUE);
     expect(game.handleView(), 'po výběru').toMatchObject({ tool: GLITTER, color: BLUE });
 
     if (game.panelOpen()) {

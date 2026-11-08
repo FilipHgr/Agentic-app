@@ -8,7 +8,14 @@ import {
   legacyPixels,
   legacyRegions,
 } from './legacyRecordFixture';
-import { PICTURE, RecordingStorage, openOn, paint, pixelsOf } from './savedPictureHelpers';
+import {
+  PICTURE,
+  RecordingStorage,
+  keepOnlyRecordsBefore110,
+  openOn,
+  paint,
+  pixelsOf,
+} from './savedPictureHelpers';
 
 /**
  * Test k #93 AC6: kódování vrstvy barev se kvůli zrnu pastelky zlepšilo
@@ -25,6 +32,8 @@ function storageWithLegacyRecord(): RecordingStorage {
   const game = openOn(storage, legacyRegions());
   game.tapColor(BLUE);
   game.suspend();
+  // Upraveno k #110: stará verze záznam barev nástrojů nezapisovala.
+  keepOnlyRecordsBefore110(storage);
   storage.rewriteAll((value) => (value.startsWith('p') ? LEGACY_P1_RECORD : value));
   return storage;
 }

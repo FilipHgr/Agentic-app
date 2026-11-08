@@ -16,6 +16,7 @@ import type { RegionMap } from '../../../src/games/coloring/logic/regionMap';
 import { COLORING_META } from '../../../src/games/coloring/meta';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 import type { ProfileStore } from '../../../src/shared/storage/profileStorage';
+import { LEGACY_P3_STORAGE } from './legacyP3RecordFixture';
 import { drawing } from './outlineFixtures';
 import type { Point } from './outlineFixtures';
 
@@ -115,4 +116,33 @@ export class RecordingStorage implements KeyValueStorage {
       this.data.set(key, change(value));
     }
   }
+}
+
+/**
+ * Klíče, které hra zapisovala před #110 (obrázek, nedávné barvy, velikost
+ * čáry a záznam o prvním otevření), převzaté z pevného úložiště
+ * `LEGACY_P3_STORAGE`. Záznam barev nástrojů z #110 mezi nimi není.
+ */
+const KEYS_BEFORE_110: ReadonlySet<string> = new Set(LEGACY_P3_STORAGE.map(([key]) => key));
+
+/**
+ * Nechá v úložišti jen záznamy, které uměla hra před #110, aby úložiště
+ * vypadalo jako od staré verze (bez záznamu barev nástrojů, #110 AC6).
+ * Testy tak nemusí znát klíč nového záznamu.
+ */
+export function keepOnlyRecordsBefore110(storage: RecordingStorage): void {
+  for (const key of storage.keys()) {
+    if (!KEYS_BEFORE_110.has(key)) {
+      storage.data.delete(key);
+    }
+  }
+}
+
+/**
+ * Klíče záznamů, které přibyly od #110 (v úložišti jsou, ale stará verze
+ * je nezapisovala). Testy tak najdou záznam barev nástrojů bez znalosti
+ * jeho klíče a tvaru.
+ */
+export function keysAddedBy110(storage: RecordingStorage): string[] {
+  return storage.keys().filter((key) => !KEYS_BEFORE_110.has(key));
 }

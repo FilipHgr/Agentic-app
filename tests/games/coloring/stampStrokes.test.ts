@@ -83,8 +83,8 @@ function stars(game: SavedColoring, path: readonly Point[], color = BLUE): void 
 
 /** Celou oblast A (nebo celý prázdný obrázek do x 450) vybarví štětcem. */
 function fillLeft(game: SavedColoring, color: number): void {
-  game.tapColor(color);
   choose(game, 'brush');
+  game.tapColor(color);
   for (let y = 0; y <= BIG_HEIGHT; y += 20) {
     paint(game, [
       at(4, Math.min(y, BIG_HEIGHT - 1)),
@@ -539,8 +539,8 @@ describe('#98 AC5: Zpět vrátí tah razítkovým fixem', () => {
   it('rozpracovaný tah se při schování stránky uloží tak, kam prst došel', () => {
     const regions = bigBlank();
     const { game, storage } = freshOn(regions);
-    game.tapColor(BLUE);
     choose(game, 'stamp');
+    game.tapColor(BLUE);
     startStroke(game, TEN_W);
     const drawn = pixelsOf(game, regions);
     game.suspend();

@@ -3,13 +3,18 @@
  * s předchozími barvami, aby dítě mohlo přepínat mezi dvěma barvami se
  * zavřeným panelem. Pořadí (AC2): je vybraná S a nedávné [A, B], výběr X
  * jiné než S dá vybranou X a nedávné S a za ní první ze starých nedávných,
- * která není X. Stejná barva tak nikdy není vidět dvakrát.
+ * která není X ani S.
+ *
+ * Od #110 má každý nástroj svou barvu a S je předchozí barva nástroje,
+ * který barvu dostává (#110 AC4). Nedávné barvy zůstávají barvy: přepnutí
+ * nástroje je nemění, takže jedno místo smí mít stejnou barvu jako úchyt.
+ * Dvě místa se ale nikdy neopakují.
  *
  * Pamatují se podle profilu v samostatném záznamu vedle obrázku (AC5),
  * záznam obrázku zůstává beze změny. Záznam je text „a,b“ s indexy barev
  * palety, prázdné místo je prázdné pole. Z chybějícího nebo poškozeného
- * záznamu se vezme jen platná část: nic mimo paletu, žádná barva dvakrát
- * ani shodná s vybranou. Čistý TypeScript bez Phaseru.
+ * záznamu se vezme jen platná část: nic mimo paletu a žádná barva dvakrát.
+ * Čistý TypeScript bez Phaseru.
  */
 
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
@@ -33,13 +38,13 @@ export function noRecentColors(): RecentColors {
 }
 
 /**
- * Platná část míst: barvy z palety bez opakování a bez vybrané barvy,
+ * Platná část míst: barvy z palety bez opakování a bez barvy `excluded`,
  * obsazená místa napřed, doplněná prázdnými na `RECENT_COLOR_COUNT`.
  */
-function cleaned(colors: readonly (number | null)[], selected: number): RecentColors {
+function cleaned(colors: readonly (number | null)[], excluded: number | null): RecentColors {
   const kept: number[] = [];
   for (const color of colors) {
-    if (color !== null && isPaletteIndex(color) && color !== selected && !kept.includes(color)) {
+    if (color !== null && isPaletteIndex(color) && color !== excluded && !kept.includes(color)) {
       kept.push(color);
     }
   }
@@ -52,7 +57,9 @@ function cleaned(colors: readonly (number | null)[], selected: number): RecentCo
 
 /**
  * Nedávné barvy po výběru barvy `picked`, když byla vybraná `selected`
- * (AC2). Výběr už vybrané barvy nic nezmění.
+ * (AC2, u #110 předchozí barva nástroje, který barvu dostává). Výběr už
+ * vybrané barvy nic nezmění. Když je `selected` už mezi nedávnými, druhé
+ * místo dostane první starou barvu, která není `selected` ani `picked`.
  */
 export function recentAfterPick(
   recent: RecentColors,
@@ -62,7 +69,7 @@ export function recentAfterPick(
   if (picked === selected) {
     return recent;
   }
-  const kept = recent.find((color) => color !== picked) ?? null;
+  const kept = recent.find((color) => color !== picked && color !== selected) ?? null;
   return cleaned([selected, kept], picked);
 }
 
@@ -77,8 +84,11 @@ function readField(field: string): number | null {
   return field !== '' && String(value) === field && isPaletteIndex(value) ? value : null;
 }
 
-/** Text záznamu na místa; nesmyslný text dá prázdná místa. */
-export function decodeRecentColors(record: string | null, selected: number): RecentColors {
+/**
+ * Text záznamu na místa; nesmyslný text dá prázdná místa. Barva shodná
+ * s barvou štětce se nezahodí (#110 AC5), nedávné barvy patří všem nástrojům.
+ */
+export function decodeRecentColors(record: string | null): RecentColors {
   if (record === null) {
     return noRecentColors();
   }
@@ -86,7 +96,7 @@ export function decodeRecentColors(record: string | null, selected: number): Rec
   if (fields.length !== RECENT_COLOR_COUNT) {
     return noRecentColors();
   }
-  return cleaned(fields.map(readField), selected);
+  return cleaned(fields.map(readField), null);
 }
 
 /** Místa jako text záznamu. */
@@ -95,16 +105,12 @@ export function encodeRecentColors(recent: RecentColors): string {
 }
 
 /**
- * Uložené nedávné barvy obrázku `pictureId` při vybrané barvě `selected`.
- * Chybějící, nesmyslný nebo nečitelný záznam dá prázdná místa (AC5).
+ * Uložené nedávné barvy obrázku `pictureId`. Chybějící, nesmyslný nebo
+ * nečitelný záznam dá prázdná místa (AC5).
  */
-export function loadRecentColors(
-  storage: KeyValueStorage,
-  pictureId: string,
-  selected: number,
-): RecentColors {
+export function loadRecentColors(storage: KeyValueStorage, pictureId: string): RecentColors {
   try {
-    return decodeRecentColors(storage.getItem(recordKey(pictureId)), selected);
+    return decodeRecentColors(storage.getItem(recordKey(pictureId)));
   } catch (error) {
     console.warn('Omalovánky: nedávné barvy nejde přečíst', error);
     return noRecentColors();

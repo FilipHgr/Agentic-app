@@ -15,7 +15,7 @@ import { brushWidthFor } from '../../../src/games/coloring/logic/coloring';
 import { regionAt } from '../../../src/games/coloring/logic/regionMap';
 import type { RegionMap } from '../../../src/games/coloring/logic/regionMap';
 import type { SavedColoring } from '../../../src/games/coloring/logic/savedPicture';
-import { PANEL_TOOLS } from '../../../src/games/coloring/logic/toolPanel';
+import { PANEL_TOOLS, usesSelectedColor } from '../../../src/games/coloring/logic/toolPanel';
 import type { ToolId } from '../../../src/games/coloring/logic/toolPanel';
 import type { Tone } from '../../../src/shared/audio/tonePlayer';
 import { centerOf, distanceToPath, drawing } from './outlineFixtures';
@@ -70,15 +70,22 @@ export function choose(game: SavedColoring, tool: ToolId): readonly Tone[] {
   return game.tapTool(slotOf(tool));
 }
 
-/** Tah nástrojem `tool` barvou `color`: výběr barvy, výběr nástroje, tah. */
+/**
+ * Tah nástrojem `tool` barvou `color`: výběr nástroje, výběr barvy v jeho
+ * kroku barev, tah. Od #110 má každý nástroj svou barvu, barva se proto
+ * vybírá až k vybranému nástroji (u gumy a duhy by výběr barvy přepnul
+ * nástroj, tam se barva nevybírá).
+ */
 export function drawWith(
   game: SavedColoring,
   tool: ToolId,
   color: number,
   path: readonly Point[],
 ): void {
-  game.tapColor(color);
   choose(game, tool);
+  if (usesSelectedColor(tool)) {
+    game.tapColor(color);
+  }
   paint(game, path);
 }
 

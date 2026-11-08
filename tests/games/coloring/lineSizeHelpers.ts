@@ -110,8 +110,8 @@ export function reachOf(game: SavedColoring, matches: (color: number | null) => 
 
 /** Celou oblast A vybarví štětcem střední velikosti barvou `color`. */
 export function fillAWithBrush(game: SavedColoring, color: number): void {
-  game.tapColor(color);
   choose(game, 'brush');
+  game.tapColor(color);
   chooseSize(game, 'medium');
   for (let y = 0; y <= BIG_HEIGHT; y += 20) {
     const row = Math.min(y, BIG_HEIGHT - 1);

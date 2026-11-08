@@ -20,6 +20,13 @@ import {
   TOOL_NAMES,
   hexOf,
 } from './toolIconHelpers';
+import {
+  DEFAULT_TOOL_COLORS,
+  defaultsWithBrush,
+  giveColor,
+  isColorTool,
+  pickTool,
+} from './toolColorsHelpers';
 
 /**
  * Testy chování k #106 AC6 (úchyt vždy ukazuje aktuální nástroj a barvu)
@@ -100,12 +107,16 @@ function onToolStep(color: number): SavedColoring {
 }
 
 describe('#106 AC6: úchyt vždy ukazuje aktuální nástroj a barvu', () => {
-  it('po ťuknutí na jiný nástroj v panelu ukáže úchyt hned jeho ikonu ve vybrané barvě', () => {
+  // Přepsáno k #110 AC2: dřív „ve vybrané barvě“ (barva štětce u všech
+  // nástrojů). Od #110 ukáže úchyt nástroj v jeho vlastní barvě.
+  it('po ťuknutí na jiný nástroj v panelu ukáže úchyt hned jeho ikonu v jeho barvě', () => {
     for (const color of [YELLOW, LIGHT_BLUE, BLACK]) {
+      const colors = defaultsWithBrush(color);
       for (const tool of TOOLS) {
         const game = onToolStep(color);
         choose(game, tool);
-        expectHandleShows(game, tool, color, `${TOOL_NAMES[tool]}, barva ${color}`);
+        const own = isColorTool(tool) ? colors[tool] : color;
+        expectHandleShows(game, tool, own, `${TOOL_NAMES[tool]}, štětec v barvě ${color}`);
       }
     }
   });
@@ -124,11 +135,13 @@ describe('#106 AC6: úchyt vždy ukazuje aktuální nástroj a barvu', () => {
     }
   });
 
+  // Upraveno k #110 AC4: růžovou i modrou dostane nástroj sám ve svém
+  // kroku barev, nedávná barva je pak jeho předchozí růžová.
   it('po ťuknutí na nedávnou barvu se zavřeným panelem ukáže úchyt hned nástroj v té barvě (#99)', () => {
     for (const tool of COLOR_TOOLS) {
-      const game = onToolStep(PINK);
-      choose(game, tool);
-      game.tapColor(BLUE);
+      const game = returningGame();
+      giveColor(game, tool, PINK);
+      giveColor(game, tool, BLUE);
       expect(game.panelView(), `${TOOL_NAMES[tool]}: panel zavřený`).toBe('closed');
       const recent = game.recentColors()[0];
       expect(recent, `${TOOL_NAMES[tool]}: nedávná barva je růžová`).toBe(PINK);
@@ -166,8 +179,10 @@ describe('#106 AC6: úchyt vždy ukazuje aktuální nástroj a barvu', () => {
 
   it('po opakovaném ťuknutí na vybraný nástroj zůstane ikona v úchytu stejná a tón i krok barev platí dál', () => {
     for (const tool of COLOR_TOOLS) {
-      const game = onToolStep(YELLOW);
-      choose(game, tool);
+      // Upraveno k #110 AC1: žlutou dostane nástroj sám ve svém kroku barev.
+      const game = returningGame();
+      giveColor(game, tool, YELLOW);
+      pickTool(game, tool);
       game.tapBackToTools();
       expect(game.panelView(), `${TOOL_NAMES[tool]}: zpět na nástrojích`).toBe('tools');
       const before = handleLook(game);
@@ -193,13 +208,15 @@ describe('#106 AC6: úchyt vždy ukazuje aktuální nástroj a barvu', () => {
     }
   });
 
+  // Upraveno k #110: dřív měl razítkový fix po výběru barvy u štětce tutéž
+  // světle modrou. Od #110 má svou barvu (výchozí oranžovou).
   it('regrese #96 AC5: úchyt je ve vybrané barvě a po návratu do hry ukazuje štětec v zapamatované barvě', () => {
     const storage = new RecordingStorage();
     const game = returningGame(storage);
     expectHandleShows(game, 'brush', game.palette().selected, 'na začátku');
     game.tapColor(LIGHT_BLUE);
     choose(game, 'stamp');
-    expectHandleShows(game, 'stamp', LIGHT_BLUE, 'razítkový fix');
+    expectHandleShows(game, 'stamp', DEFAULT_TOOL_COLORS.stamp, 'razítkový fix');
     game.suspend();
 
     const again = openOn(storage, twoHalves());

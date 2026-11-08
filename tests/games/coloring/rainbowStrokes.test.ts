@@ -91,8 +91,8 @@ function rainbow(game: SavedColoring, path: readonly Point[]): void {
 
 /** Celou oblast A vybarví štětcem barvou `color`. */
 function fillA(game: SavedColoring, color: number): void {
-  game.tapColor(color);
   choose(game, 'brush');
+  game.tapColor(color);
   for (let y = 0; y <= 600; y += 20) {
     paint(game, [at(4, Math.min(y, 599)), at(BIG_LINE_X - 4, Math.min(y, 599))]);
   }

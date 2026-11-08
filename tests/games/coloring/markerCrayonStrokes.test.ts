@@ -81,8 +81,8 @@ function freshGame(): { game: SavedColoring; regions: RegionMap; storage: Record
 
 /** Celou oblast A vybarví štětcem barvou `color` vodorovnými tahy. */
 function fillA(game: SavedColoring, color: number): void {
-  game.tapColor(color);
   choose(game, 'brush');
+  game.tapColor(color);
   for (let y = 0; y <= 600; y += 20) {
     const row = Math.min(y, 599);
     paint(game, [at(4, row), at(BIG_LINE_X - 4, row)]);

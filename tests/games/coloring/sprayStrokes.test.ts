@@ -355,8 +355,8 @@ describe('#104 AC3: tečky jsou pevné vůči obrázku a stejný tah dá stejné
       vi.useFakeTimers({ toFake: ['Date', 'performance'], now: 1_000_000 });
       const regions = bigBlank();
       const { game } = freshOn(regions);
-      game.tapColor(BLUE);
       choose(game, SPRAY);
+      game.tapColor(BLUE);
       const [first, ...rest] = path;
       game.pointerDown({ id: 1, x: first?.x ?? 0, y: first?.y ?? 0, kind: 'touch' });
       for (const point of rest) {
@@ -385,8 +385,8 @@ describe('#104 AC3: tečky jsou pevné vůči obrázku a stejný tah dá stejné
       vi.useFakeTimers({ toFake: ['Date', 'performance'], now: 1_000_000 });
       const regions = bigBlank();
       const { game } = freshOn(regions);
-      game.tapColor(BLUE);
       choose(game, SPRAY);
+      game.tapColor(BLUE);
 
       holdStill(game, tap, moves, stepMs);
       vi.useRealTimers();
@@ -404,8 +404,8 @@ describe('#104 AC3: tečky jsou pevné vůči obrázku a stejný tah dá stejné
     vi.useFakeTimers({ toFake: ['Date', 'performance'], now: 1_000_000 });
     const regions = bigBlank();
     const { game } = freshOn(regions);
-    game.tapColor(BLUE);
     choose(game, SPRAY);
+    game.tapColor(BLUE);
     startStroke(game, path);
     for (let move = 0; move < 60; move += 1) {
       vi.advanceTimersByTime(50);
@@ -714,8 +714,8 @@ describe('#104 AC4: tah, který nic nezměnil, se do Zpět nepočítá', () => {
     vi.useFakeTimers({ toFake: ['Date', 'performance'], now: 1_000_000 });
     const regions = bigBlank();
     const { game } = freshOn(regions);
-    game.tapColor(BLUE);
     choose(game, SPRAY);
+    game.tapColor(BLUE);
 
     holdStill(game, at(300.5, 300.5), 60, 50);
     vi.useRealTimers();
@@ -808,8 +808,8 @@ describe('#104 AC5: velikost mění šířku pásu, tečky zůstávají stejné'
     const { game } = freshOn(regions);
     const path = [at(60.5, 300.5), at(200.5, 300.5), at(420.5, 300.5)];
     chooseSize(game, 'large');
-    game.tapColor(BLUE);
     choose(game, SPRAY);
+    game.tapColor(BLUE);
     startStroke(game, path.slice(0, 2));
 
     // Ťuknutí na přepínač během tahu se nepočítá.
@@ -893,8 +893,8 @@ describe('#104 AC5: Zpět vrátí tah sprejem pixel po pixelu', () => {
   it('rozpracovaný tah se při schování stránky uloží tak, kam prst došel', () => {
     const regions = bigBlank();
     const { game, storage } = freshOn(regions);
-    game.tapColor(BLUE);
     choose(game, SPRAY);
+    game.tapColor(BLUE);
     startStroke(game, HORIZONTAL);
     const drawn = pixelsOf(game, regions);
     game.suspend();

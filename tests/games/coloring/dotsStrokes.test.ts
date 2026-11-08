@@ -649,8 +649,8 @@ describe('#101 AC5: velikost mění šířku stopy, puntíky zůstávají stejn�
     const before = pixelsOf(game, regions);
     const path = [at(60.5, 300.5), at(200.5, 300.5), at(420.5, 300.5)];
     chooseSize(game, 'large');
-    game.tapColor(BLUE);
     choose(game, DOTS);
+    game.tapColor(BLUE);
     startStroke(game, path.slice(0, 2));
 
     // Ťuknutí na přepínač během tahu se nepočítá.
@@ -729,8 +729,8 @@ describe('#101 AC5: Zpět vrátí tah puntíkovým fixem pixel po pixelu', () =>
   it('rozpracovaný tah se při schování stránky uloží tak, kam prst došel', () => {
     const regions = bigBlank();
     const { game, storage } = freshOn(regions);
-    game.tapColor(BLUE);
     choose(game, DOTS);
+    game.tapColor(BLUE);
     startStroke(game, HORIZONTAL);
     const drawn = pixelsOf(game, regions);
     game.suspend();

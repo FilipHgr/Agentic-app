@@ -3,8 +3,9 @@
  * z Google Noto Emoji (Apache-2.0, Google Inc., balíček `@iconify-json/noto`)
  * uložené jako SVG ve složce `src/games/coloring/icons/`. Ikony zůstávají
  * v barvách autora, panel, hlavička kroku barev i úchyt kreslí pro nástroj
- * stejný soubor, jen jinak velký. Vybranou barvu ukazuje v úchytu barevné
- * kolečko v rohu (`handleColorDotFill`). Čistý TypeScript bez Phaseru.
+ * stejný soubor, jen jinak velký. Barvu nástroje ukazuje barevné kolečko
+ * v rohu úchytu a od #110 i u každého nástroje v kroku nástrojů
+ * (`handleColorDotFill`). Čistý TypeScript bez Phaseru.
  */
 
 import { PALETTE, RAINBOW_COLORS } from './palette';
@@ -49,7 +50,7 @@ export function toolIconAsset(tool: ToolId): ToolIconAsset {
   return { emoji, file: `${emoji}.svg` };
 }
 
-/** Čím je vyplněné kolečko barvy v úchytu. */
+/** Čím je vyplněné kolečko barvy v úchytu a u nástroje v panelu. */
 export type HandleColorDotFill =
   | { readonly kind: 'color'; readonly hex: string }
   | { readonly kind: 'eraser' }
@@ -59,8 +60,9 @@ export type HandleColorDotFill =
 const RAINBOW_HEXES: readonly string[] = RAINBOW_COLORS.map((index) => PALETTE[index]?.hex ?? '');
 
 /**
- * Kolečko barvy v úchytu: malovací nástroj ve vybrané barvě palety, guma
- * bílé čárkované, duhový štětec v barvách duhy.
+ * Kolečko barvy nástroje `view.tool` v úchytu i v panelu: malovací nástroj
+ * ve své barvě palety `view.color` (#110), guma bílé čárkované, duhový
+ * štětec v barvách duhy. Velikost čáry kolečko nevyplňuje.
  */
 export function handleColorDotFill(view: HandleView): HandleColorDotFill {
   if (view.tool === 'eraser') {

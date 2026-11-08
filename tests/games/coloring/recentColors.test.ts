@@ -235,7 +235,10 @@ describe('#99 AC2: pořadí nedávných barev', () => {
     }
   });
 
-  it('stejná barva nikdy není vidět dvakrát, ani vybraná a nedávná zároveň', () => {
+  // Upraveno k #110 AC4: pravidlo „stejná barva nikdy není vidět dvakrát“
+  // z #99 AC2 je nahrazené. Platí dál, dokud dítě maluje jedním nástrojem;
+  // při střídání nástrojů viz `toolColorsRecent.test.ts`.
+  it('jedním nástrojem stejná barva nikdy není vidět dvakrát, ani vybraná a nedávná zároveň', () => {
     const random = seededRandom(7);
     const game = fresh();
     for (let step = 0; step < 300; step += 1) {

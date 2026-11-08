@@ -278,7 +278,10 @@ describe('#99 AC5: chybějící nebo nesmyslný záznam dá prázdná místa', (
     }
   });
 
-  it('jakkoli poškozený záznam nikdy neukáže barvu dvakrát ani barvu mimo paletu', () => {
+  // Přepsáno k #110 AC4: dřív „nikdy neukáže barvu dvakrát“ včetně vybrané
+  // barvy. Od #110 se dvě nedávná místa nikdy neopakují, ale jedno smí mít
+  // stejnou barvu jako úchyt (pravidlo z #99 AC2 je nahrazené).
+  it('jakkoli poškozený záznam nikdy neukáže dvě stejná nedávná místa ani barvu mimo paletu', () => {
     const regions = twoHalves();
     const { storage, recentKeys } = storageWithRecents(regions);
     expect(recentKeys.length, 'záznam nedávných barev se zapsal').toBeGreaterThan(0);
@@ -306,7 +309,8 @@ describe('#99 AC5: chybějící nebo nesmyslný záznam dá prázdná místa', (
         visible = visibleColors(choiceOf(game));
       }, `${what}: hra se nezastaví`).not.toThrow();
       expect(recent.length, `${what}: dvě místa`).toBe(2);
-      expect(new Set(visible).size, `${what}: žádná barva dvakrát`).toBe(visible.length);
+      const places = recent.filter((color): color is number => color !== null);
+      expect(new Set(places).size, `${what}: místa se neopakují`).toBe(places.length);
       for (const color of visible) {
         expect(
           Number.isInteger(color) && color >= 0 && color < PALETTE_SIZE,

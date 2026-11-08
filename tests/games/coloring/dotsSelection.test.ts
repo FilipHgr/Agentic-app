@@ -111,8 +111,8 @@ describe('#101 AC1: puntíkový fix se vybírá v panelu jako ostatní nástroje
 
   it('úchyt ukazuje puntíky ve vybrané barvě, i se zavřeným panelem a v každé velikosti', () => {
     const game = fresh();
-    game.tapColor(BLUE);
     choose(game, DOTS);
+    game.tapColor(BLUE);
     expect(game.handleView(), 'po výběru').toMatchObject({ tool: DOTS, color: BLUE });
 
     if (game.panelOpen()) {

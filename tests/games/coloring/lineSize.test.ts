@@ -4,7 +4,7 @@ import { brushWidthFor } from '../../../src/games/coloring/logic/coloring';
 import type { RegionMap } from '../../../src/games/coloring/logic/regionMap';
 import { decodePicture, encodePicture } from '../../../src/games/coloring/logic/savedPicture';
 import type { SavedColoring } from '../../../src/games/coloring/logic/savedPicture';
-import { PANEL_TOOLS } from '../../../src/games/coloring/logic/toolPanel';
+import { PANEL_TOOLS, usesSelectedColor } from '../../../src/games/coloring/logic/toolPanel';
 import type { LineSize, ToolId } from '../../../src/games/coloring/logic/toolPanel';
 import { PROFILE_COLORS } from '../../../src/shared/logic/profiles';
 import { openProfiles } from '../../../src/shared/storage/profileStorage';
@@ -33,6 +33,7 @@ import {
   PICTURE,
   RecordingStorage,
   enterColoring,
+  keepOnlyRecordsBefore110,
   openOn,
   paint,
   pixelsOf,
@@ -71,6 +72,7 @@ import {
  */
 
 const RED = 0;
+const GREEN = 3;
 const BLUE = 4;
 const BLACK = 7;
 
@@ -112,11 +114,13 @@ function strokeWith(tool: ToolId, size: LineSize): SavedColoring {
   if (tool === 'eraser') {
     fillAWithBrush(game, BLUE);
     expect(emptyInMeasuredColumns(game), 'oblast A je před gumováním celá vybarvená').toBe(0);
-  } else {
-    game.tapColor(RED);
   }
   chooseSize(game, size);
   choose(game, tool);
+  if (tool !== 'eraser') {
+    // Od #110 má každý nástroj svou barvu, barva se vybírá až k nástroji.
+    game.tapColor(RED);
+  }
   paint(game, HORIZONTAL);
   return game;
 }
@@ -180,7 +184,10 @@ describe('#91 AC1: přepínač velikosti', () => {
     ];
     let tool: ToolId = 'brush';
     let paintingTool: ToolId = 'brush';
-    let color = RED;
+    // Přepsáno k #110: dřív jedna barva pro všechny nástroje. Od #110 má
+    // každý nástroj svou barvu (výchozí podle tabulky v #110 AC5) a výběr
+    // barvy ji dá jen nástroji, ke kterému se vybírá.
+    const colors: Partial<Record<ToolId, number>> = { brush: RED, marker: BLUE, crayon: GREEN };
     let sizeIndex = SIZES.indexOf('medium');
     steps.forEach((step, index) => {
       if ('tool' in step) {
@@ -191,8 +198,8 @@ describe('#91 AC1: přepínač velikosti', () => {
         }
       } else if ('color' in step) {
         game.tapColor(step.color);
-        color = step.color;
         tool = paintingTool;
+        colors[tool] = step.color;
       } else {
         game.tapSizeToggle();
         sizeIndex = (sizeIndex + 1) % SIZES.length;
@@ -200,7 +207,7 @@ describe('#91 AC1: přepínač velikosti', () => {
       const size = SIZES[sizeIndex];
       expect(game.handleView(), `krok ${index + 1}: ${JSON.stringify(step)}`).toEqual({
         tool,
-        color: tool === 'eraser' ? null : color,
+        color: tool === 'eraser' ? null : (colors[tool] ?? null),
         size,
       });
     });
@@ -293,15 +300,24 @@ describe('#91 AC3: velikost platí pro všechny nástroje naráz', () => {
     expect(game.lineSize(), 'po výběru barvy').toBe('large');
   });
 
+  // Upraveno k #110 AC1: barva se vybírá až k vybranému nástroji (každý
+  // nástroj má svou barvu), u gumy a duhy úchyt barvu neukazuje.
   it('volba velikosti nezmění vybraný nástroj ani barvu', () => {
     for (const tool of PANEL_TOOLS) {
       const game = openOn(new RecordingStorage(), twoHalves());
-      game.tapColor(BLUE);
       choose(game, tool);
+      if (usesSelectedColor(tool)) {
+        game.tapColor(BLUE);
+      }
+      const before = game.handleView();
       for (let tap = 0; tap < SIZES.length; tap += 1) {
         game.tapSizeToggle();
-        expect(game.selectedTool(), `${TOOL_NAMES[tool]}, ťuknutí ${tap + 1}`).toBe(tool);
-        expect(game.palette().selected, `${TOOL_NAMES[tool]}, ťuknutí ${tap + 1}`).toBe(BLUE);
+        const what = `${TOOL_NAMES[tool]}, ťuknutí ${tap + 1}`;
+        expect(game.selectedTool(), what).toBe(tool);
+        expect(game.handleView().color, `${what}: barva`).toBe(before.color);
+      }
+      if (usesSelectedColor(tool)) {
+        expect(before.color, `${TOOL_NAMES[tool]}: vybraná modrá`).toBe(BLUE);
       }
     }
   });
@@ -597,6 +613,9 @@ describe('#91 AC5 a #92: obrázky uložené před tímto úkolem', () => {
     const game = openOn(storage, regions);
     game.tapColor(BLUE);
     game.suspend();
+    // Upraveno k #110: stará verze měla vedle obrázku jen záznam o prvním
+    // otevření, ne záznam barev nástrojů, který dnešní hra zapíše také.
+    keepOnlyRecordsBefore110(storage);
     storage.rewriteAll((value) => (value.startsWith('p') ? record : value));
     return storage;
   }
