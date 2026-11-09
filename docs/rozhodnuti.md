@@ -171,7 +171,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   v CI a před PR. Pomalé testy rozpoznávání psaní do vlastní skupiny, testy
   rozložení jako pravidla v cyklu místo snapshotů a testy zdrojového textu
   přepsat na chování. Ochrany se nesnižují, žádný test chování se nesmaže bez
-  náhrady. Hooky v `.claude/` mění vlastník sám. Úkoly #79–#83 před #78.
+  náhrady. Hooky v `.claude/` mění vlastník sám (nahrazeno). Úkoly #79–#83 před #78.
 - 2026-11-06 Ikona aplikace na plochu: varianta A, modré „+ −“ na #F5F5F7 (#78).
 - 2026-11-06 Testy sharpCanvas z #77 patří do #81. Všechny nové testy rovnou
   jako pravidla v cyklu (jeden test na pravidlo, popis případu v `expect`),
@@ -258,3 +258,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-09 Vlastní sady barev: každý z 8 nástrojů má vlastní sadu
   (varianta B, 44 barev). Nejdřív samostatný úkol na úspornější ukládání
   obrázku, pak sady.
+- 2026-11-09 Postup práce zrychlit (#117): Claude smí upravit hooky
+  v `.claude/` sám („klidně oprav hooky“). Testy při konci odpovědi se
+  nepouští, před commitem jen `test:changed`, dokumentace testy nespouští.
+  Celé `npm test` dál v CI a před PR.
