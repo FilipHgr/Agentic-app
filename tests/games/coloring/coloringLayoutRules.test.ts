@@ -68,10 +68,17 @@ describe('#88 AC1: plocha omalovánky je celá vidět a dost velká', () => {
     }
   });
 
-  it('obrázek se nezdeformuje: plocha má ve všech oknech poměr stran obrázku 4 : 3', () => {
+  it('obrázek se nezdeformuje: na šířku má plocha poměr stran 4 : 3, otočená na výšku 3 : 4', () => {
+    // Od #111 AC1 je obrázek na výšku otočený o 90°: na obrazovce je
+    // výška 4/3 šířky. Na šířku otočený není (dřív 4 : 3 ve všech oknech).
     for (const testCase of cases()) {
-      const aspect = widthOf(testCase.picture) / heightOf(testCase.picture);
-      expect(aspect, `${testCase.scene.label}: poměr stran plochy`).toBeCloseTo(PICTURE_ASPECT, 2);
+      const turned = !testCase.landscape;
+      const long = turned ? heightOf(testCase.picture) : widthOf(testCase.picture);
+      const short = turned ? widthOf(testCase.picture) : heightOf(testCase.picture);
+      expect(long / short, `${testCase.scene.label}: poměr stran plochy`).toBeCloseTo(
+        PICTURE_ASPECT,
+        2,
+      );
     }
   });
 });

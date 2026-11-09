@@ -15,7 +15,14 @@ import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import { brushWidthFor } from '../logic/coloring';
 import type { PointerSample } from '../logic/coloring';
-import { COLORING_GAME_AREA_FIT, layoutColoring, touchTargetAt } from '../logic/coloringLayout';
+import {
+  COLORING_GAME_AREA_FIT,
+  layoutColoring,
+  pictureLayerPoint,
+  pictureLayerSize,
+  pictureScreenPoint,
+  touchTargetAt,
+} from '../logic/coloringLayout';
 import type { ColoringLayout } from '../logic/coloringLayout';
 import { startColoringSession } from '../logic/coloringSession';
 import type { ColoringPage } from '../logic/coloringSession';
@@ -50,9 +57,14 @@ import { UndoButtonView } from './UndoButtonView';
 /** Vrstva barev a obrys mají 1024 × 768 pixelů (poměr plochy 4 : 3). */
 const PICTURE_PIXEL_WIDTH = TABLET_GAME_WIDTH;
 const PICTURE_PIXEL_HEIGHT = TABLET_GAME_HEIGHT;
+const PICTURE_LAYER = { width: PICTURE_PIXEL_WIDTH, height: PICTURE_PIXEL_HEIGHT } as const;
 
-/** Hloubky: obrázek dole, nad ním lesk třpytek, panel, pozadí pruhu a nahoře pruh ovládání. */
-const SHINE_DEPTH = 3;
+/**
+ * Hloubky: obrázek dole (bílá plocha, vrstva barev 1, obrys 2), nad ním
+ * rámeček, lesk třpytek, panel, pozadí pruhu a nahoře pruh ovládání.
+ */
+const PICTURE_FRAME_DEPTH = 3;
+const SHINE_DEPTH = 4;
 const PANEL_DEPTH = 10;
 const STRIP_DEPTH = 20;
 
@@ -91,6 +103,10 @@ const NO_PAGE: ColoringPage = {
  * podle kroku, který byl vidět; zvednutí prstu už nic nevybírá, takže
  * nově ukázaný krok tentýž dotyk nedostane a jedno ťuknutí udělá jen
  * jednu věc.
+ *
+ * Od #111 je obrázek na výšku otočený o 90° po směru hodinových ručiček.
+ * Otáčí se jen zobrazení vrstvy barev a obrysu; dotyk převede na bod
+ * vrstvy `pictureLayerPoint`, takže logika i uložený obrázek se nemění.
  */
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -109,6 +125,7 @@ export class ColoringScene extends Phaser.Scene {
   private coloring: SavedColoring | null = null;
   private paintLayer: PaintLayer | null = null;
   private pictureBackground: Phaser.GameObjects.Rectangle | null = null;
+  private pictureFrame: Phaser.GameObjects.Rectangle | null = null;
   private paintImage: Phaser.GameObjects.Image | null = null;
   private outlineImage: Phaser.GameObjects.Image | null = null;
   private readonly panelView = new ToolPanelView(this);
@@ -154,10 +171,10 @@ export class ColoringScene extends Phaser.Scene {
 
   override update(): void {
     this.paintLayer?.flush();
+    const { layout } = this;
     this.shineView.draw({
-      picture: this.layout.picture,
-      layerWidth: PICTURE_PIXEL_WIDTH,
-      layerHeight: PICTURE_PIXEL_HEIGHT,
+      toScreen: (point) => pictureScreenPoint(layout, PICTURE_LAYER, point.x, point.y),
+      unitsPerLayerPixel: this.unitsPerLayerPixel(),
       cssScale: this.gameArea.scale,
     });
   }
@@ -193,8 +210,8 @@ export class ColoringScene extends Phaser.Scene {
     this.paintLayer = new PaintLayer(this, PAINT_TEXTURE_KEY, regions);
     this.paintLayer.paintAll(this.coloring);
     this.textures.addCanvas(OUTLINE_TEXTURE_KEY, outlineCanvas);
-    this.paintImage = this.add.image(0, 0, PAINT_TEXTURE_KEY).setOrigin(0, 0);
-    this.outlineImage = this.add.image(0, 0, OUTLINE_TEXTURE_KEY).setOrigin(0, 0);
+    this.paintImage = this.add.image(0, 0, PAINT_TEXTURE_KEY);
+    this.outlineImage = this.add.image(0, 0, OUTLINE_TEXTURE_KEY);
     this.placePicture();
   }
 
@@ -206,11 +223,16 @@ export class ColoringScene extends Phaser.Scene {
     this.pictureBackground?.destroy();
     this.pictureBackground = this.add
       .rectangle(0, 0, 0, 0, colorNumber(PICTURE_STYLE.background))
+      .setOrigin(0, 0);
+    this.pictureFrame?.destroy();
+    this.pictureFrame = this.add
+      .rectangle(0, 0, 0, 0)
       .setOrigin(0, 0)
       .setStrokeStyle(
         PICTURE_STYLE.frameWidthCss / this.gameArea.scale,
         colorNumber(PICTURE_STYLE.frameColor),
-      );
+      )
+      .setDepth(PICTURE_FRAME_DEPTH);
     this.placePicture();
     const view = this.currentPanelView();
     this.panelView.place(
@@ -231,28 +253,49 @@ export class ColoringScene extends Phaser.Scene {
     this.showRecentColors();
   }
 
-  /** Bílá plocha s rámečkem, vrstva barev a obrys přesně na místo omalovánky. */
+  /**
+   * Bílá plocha, vrstva barev, obrys a rámeček přesně na místo omalovánky.
+   * Bílá plocha leží neotočená na obdélníku obrázku na obrazovce. Rámeček
+   * je nad obrysem celý uvnitř obdélníku (obrázek na šířku sahá k okraji
+   * plochy a rámeček na hraně by byl vidět jen napůl). Vrstva barev a obrys
+   * se otočí kolem středu obrázku (#111), jejich rozměr před otočením dává
+   * `pictureLayerSize`.
+   */
   private placePicture(): void {
-    const { picture } = this.layout;
+    const { picture, pictureTurn } = this.layout;
+    const frameInset = PICTURE_STYLE.frameWidthCss / this.gameArea.scale / 2;
     this.pictureBackground
       ?.setPosition(picture.left, picture.top)
       .setSize(picture.width, picture.height);
+    this.pictureFrame
+      ?.setPosition(picture.left + frameInset, picture.top + frameInset)
+      .setSize(picture.width - 2 * frameInset, picture.height - 2 * frameInset);
+    const layerSize = pictureLayerSize(this.layout);
+    const centerX = picture.left + picture.width / 2;
+    const centerY = picture.top + picture.height / 2;
     // Vrstva barev nad bílou plochou, obrys nad vrstvou barev.
     for (const [depth, image] of [
       [1, this.paintImage],
       [2, this.outlineImage],
     ] as const) {
       image
-        ?.setPosition(picture.left, picture.top)
-        .setDisplaySize(picture.width, picture.height)
+        ?.setPosition(centerX, centerY)
+        .setAngle(pictureTurn)
+        .setDisplaySize(layerSize.width, layerSize.height)
         .setDepth(depth);
     }
+  }
+
+  /** Kolik herních jednotek na obrazovce je jeden pixel vrstvy barev. */
+  private unitsPerLayerPixel(): number {
+    return pictureLayerSize(this.layout).width / PICTURE_PIXEL_WIDTH;
   }
 
   private onGameAreaChanged(): void {
     this.gameArea = this.readGameArea();
     this.layout = layoutColoring(this.gameArea);
-    // Otočení telefonu: rozpracovaný tah se ukončí, namalované zůstane.
+    // Otočení telefonu: rozpracovaný tah se ukončí, namalované zůstane a další
+    // tah se převede už podle nového rozložení (#111 AC5).
     this.interruptStroke();
     this.drawScreen();
   }
@@ -578,13 +621,16 @@ export class ColoringScene extends Phaser.Scene {
     this.shineView.start(sample.id, brushWidth, sample);
   }
 
-  /** Dotyk v pixelech vrstvy barev; bod mimo omalovánku je mimo plochu. */
+  /**
+   * Dotyk v pixelech vrstvy barev, i na otočeném obrázku přesně pod prstem
+   * (#111 AC2); bod mimo omalovánku je mimo plochu.
+   */
   private sampleOf(pointer: Phaser.Input.Pointer): PointerSample {
-    const { picture } = this.layout;
+    const point = pictureLayerPoint(this.layout, PICTURE_LAYER, pointer.worldX, pointer.worldY);
     return {
       id: pointer.id,
-      x: ((pointer.worldX - picture.left) * PICTURE_PIXEL_WIDTH) / picture.width,
-      y: ((pointer.worldY - picture.top) * PICTURE_PIXEL_HEIGHT) / picture.height,
+      x: point.x,
+      y: point.y,
       kind: pointer.wasTouch ? 'touch' : 'mouse',
     };
   }

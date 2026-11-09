@@ -25,6 +25,14 @@
  * Omalovánky mají herní plochu přes celou volnou plochu okna i na iPadu
  * (`COLORING_GAME_AREA_FIT`, #96), jak ji hra dostane od stránky.
  *
+ * Od #111 sahá obrázek na šířku až k hornímu a dolnímu okraji volné plochy
+ * (#111 AC4). Je to schválená výjimka z pravidla „aspoň 4 px od okraje“
+ * (rozhodnutí 2026-11-08), proto má plocha omalovánky na šířku odstup od
+ * okraje 0 px (`PICTURE_EDGE_EXCEPTION`). Výjimka platí jen pro obrázek
+ * a jen na šířku, ostatní prvky mají dál aspoň 4 px. Na výšku je obrázek
+ * otočený o 90° po směru hodinových ručiček (#111 AC1), `picture` je
+ * obdélník, který zabírá na obrazovce (šířka 3, výška 4).
+ *
  * Navržené rozhraní `src/games/coloring/logic/coloringLayout.ts`
  * (v herních jednotkách, jedno rozložení pro oba stavy panelu, aby se
  * obrázek při otevření ani zavření neposunul):
@@ -64,6 +72,7 @@ import type { LayoutItem, LayoutScene } from '../../shared/layoutRules';
 import {
   IPAD_WINDOWS,
   JUST_ABOVE_LIMIT,
+  NO_NOTCH,
   PHONE_PORTRAIT_EDGE_WINDOWS,
   PHONE_PORTRAIT_WINDOWS,
   PHONE_WINDOWS,
@@ -73,15 +82,36 @@ import {
 } from '../../shared/viewportFixtures';
 import type { Box, TestWindow } from '../../shared/viewportFixtures';
 
+/**
+ * iPhone 8 Plus na výšku v Safari s lištami (#111): nízké okno, kde se
+ * otočený obrázek přes šířku okna nevejde mezi domeček a lištu a musí se
+ * zmenšit na volnou výšku.
+ */
+export const LOW_PORTRAIT_PHONE: TestWindow = {
+  name: '414×622 iPhone 8 Plus v Safari s lištami',
+  width: 414,
+  height: 622,
+  safeArea: NO_NOTCH,
+};
+
 /** Všechna okna, ve kterých se Omalovánky hrají, i z plochy. */
 export const COLORING_WINDOWS: readonly TestWindow[] = [
   ...IPAD_WINDOWS,
   JUST_ABOVE_LIMIT,
   ...PHONE_WINDOWS,
   ...PHONE_PORTRAIT_WINDOWS,
+  LOW_PORTRAIT_PHONE,
   ...PHONE_PORTRAIT_EDGE_WINDOWS,
   ...HOME_SCREEN_WINDOWS,
 ];
+
+/**
+ * Je herní plocha na šířku (obrázek neotočený)? Rozložení rozhoduje podle
+ * tvaru herní plochy, ne okna (#111).
+ */
+export function isLandscapeArea(area: GameArea): boolean {
+  return area.width >= area.height;
+}
 
 /** Zavřený panel, krok nástrojů, nebo krok barev (#105). */
 export type PanelState = PanelView;
@@ -118,6 +148,13 @@ export function colorName(index: number): string {
 export function toolName(index: number): string {
   return `nástroj ${index + 1}`;
 }
+
+/**
+ * Schválený odstup obrázku od okraje volné plochy na šířku v CSS px
+ * (#111 AC4, rozhodnutí 2026-11-08): obrázek smí sahat k hornímu
+ * a dolnímu okraji. Jen pro plochu omalovánky.
+ */
+export const PICTURE_EDGE_EXCEPTION = 0;
 
 export function recentColorName(index: number): string {
   return `nedávná barva ${index + 1}`;
@@ -286,8 +323,12 @@ export function coloringCase(window: TestWindow, panel: PanelState = 'closed'): 
   const colorStepTool = css(layout.colorStepTool ?? layout.sizeToggle);
   const divider = css(layout.panelDivider);
   const panelPlaces = { sizeToggle, tools, colorStepTool, colors };
+  const landscape = window.width >= window.height;
+  const pictureItem: LayoutItem = isLandscapeArea(area)
+    ? { name: PICTURE_NAME, box: picture, minEdge: PICTURE_EDGE_EXCEPTION }
+    : { name: PICTURE_NAME, box: picture };
   const items: LayoutItem[] = [
-    { name: PICTURE_NAME, box: picture },
+    pictureItem,
     ...stripItems(home, handle, undo, recentColors),
     ...panelItems(panel, panelBox, panelPlaces),
   ];
@@ -298,7 +339,7 @@ export function coloringCase(window: TestWindow, panel: PanelState = 'closed'): 
     window,
     area,
     panel,
-    landscape: window.width >= window.height,
+    landscape,
     layout,
     visible: visibleAreaOf(window, area),
     picture,

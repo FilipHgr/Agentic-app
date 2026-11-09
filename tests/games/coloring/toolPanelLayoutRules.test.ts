@@ -38,10 +38,14 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * 10 nástrojů a přepínač velikosti, celkem 23 ploch“ a „všech 23 ploch
  * panelu má aspoň 64 × 64 px a leží celé v panelu“) nahrazují od #105
  * testy obou kroků v `panelStepsLayoutRules.test.ts`.
+ *
+ * Test AC1 „obrázek je největší 4 : 3 v prostoru mimo pruh: od dvou
+ * protilehlých hranic nejvýš 8 px“ nahrazují od #111 přesnější testy
+ * v `pictureRotationLayoutRules.test.ts`: na výšku otočený obrázek přes
+ * šířku bez okrajů 8 px na středu mezi domečkem a lištou (#111 AC1), na
+ * šířku obrázek přes celou výšku, nebo co nejširší, na středu (#111 AC4).
+ * Zde zůstává, že obrázek leží celý v prostoru mimo pruh.
  */
-
-/** Plocha je od dvou protilehlých hranic volného prostoru nejvýš 8 px (AC1). */
-const MAX_PICTURE_DISTANCE = 8;
 
 /** Na iPadu na šířku má plocha kratší stranu aspoň 700 px (AC1). */
 const MIN_IPAD_PICTURE_SIDE = 700;
@@ -208,22 +212,12 @@ describe('#96 AC1: obrázek je přes celou obrazovku, vedle něj jen úzký pruh
     }
   });
 
-  it('obrázek je největší 4 : 3 v prostoru mimo pruh: od dvou protilehlých hranic nejvýš 8 px', () => {
+  it('obrázek leží celý v prostoru mimo pruh', () => {
     for (const testCase of cases()) {
       const { label } = testCase.scene;
-      const space = spaceBesideStrip(testCase);
-      const { picture } = testCase;
-      expect(isInside(picture, space), `${label}: obrázek leží v prostoru mimo pruh`).toBe(true);
-      const fromLeft = picture.left - space.left;
-      const fromRight = space.right - picture.right;
-      const fromTop = picture.top - space.top;
-      const fromBottom = space.bottom - picture.bottom;
-      const touchesSides = fromLeft <= MAX_PICTURE_DISTANCE && fromRight <= MAX_PICTURE_DISTANCE;
-      const touchesTopAndBottom =
-        fromTop <= MAX_PICTURE_DISTANCE && fromBottom <= MAX_PICTURE_DISTANCE;
       expect(
-        touchesSides || touchesTopAndBottom,
-        `${label}: od kraje vlevo ${fromLeft}, vpravo ${fromRight}, nahoře ${fromTop}, dole ${fromBottom} px`,
+        isInside(testCase.picture, spaceBesideStrip(testCase)),
+        `${label}: obrázek leží v prostoru mimo pruh`,
       ).toBe(true);
     }
   });

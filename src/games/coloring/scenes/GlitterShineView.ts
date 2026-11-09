@@ -10,7 +10,7 @@
 import type Phaser from 'phaser';
 
 import { colorNumber } from '../../../shared/logic/theme';
-import type { LayoutRect } from '../logic/coloringLayout';
+import type { PicturePoint } from '../logic/coloringLayout';
 import { createGlitterShine, starPoints } from '../logic/glitterShine';
 import type { GlitterShine } from '../logic/glitterShine';
 import { GLITTER_STYLE } from '../logic/theme';
@@ -27,11 +27,15 @@ const OUTLINE_ALPHA = 0.9;
 /** Hloubka zářezů mezi cípy jiskry jako díl délky cípu. */
 const NOTCH_SHARE = 0.3;
 
-/** Kam se vrstva barev kreslí: obdélník obrázku a rozměr vrstvy v pixelech. */
+/**
+ * Kam se vrstva barev kreslí: převod bodu vrstvy na obrazovku (i na
+ * otočený obrázek, #111) a zvětšení vrstvy na obrazovce.
+ */
 export interface ShinePlacement {
-  readonly picture: LayoutRect;
-  readonly layerWidth: number;
-  readonly layerHeight: number;
+  /** Bod vrstvy barev (pixely) na obrazovce v herních jednotkách. */
+  readonly toScreen: (point: PicturePoint) => PicturePoint;
+  /** Kolik herních jednotek je jeden pixel vrstvy barev. */
+  readonly unitsPerLayerPixel: number;
   /** Kolik CSS pixelů je jedna herní jednotka. */
   readonly cssScale: number;
 }
@@ -88,14 +92,11 @@ export class GlitterShineView {
     const graphics = this.graphicsObject();
     graphics.clear();
     this.drawnAny = sparks.length > 0;
-    const { picture, layerWidth, layerHeight, cssScale } = placement;
-    const scaleX = picture.width / layerWidth;
-    const scaleY = picture.height / layerHeight;
-    const maxReach = SPARK_REACH_SHARE * this.brushWidth * scaleX;
+    const { toScreen, unitsPerLayerPixel, cssScale } = placement;
+    const maxReach = SPARK_REACH_SHARE * this.brushWidth * unitsPerLayerPixel;
     const outlineWidth = OUTLINE_CSS / cssScale;
     for (const spark of sparks) {
-      const x = picture.left + spark.x * scaleX;
-      const y = picture.top + spark.y * scaleY;
+      const { x, y } = toScreen(spark);
       const reach = spark.size * maxReach;
       graphics.lineStyle(
         outlineWidth,
