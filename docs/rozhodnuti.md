@@ -262,3 +262,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   v `.claude/` sám („klidně oprav hooky“). Testy při konci odpovědi se
   nepouští, před commitem jen `test:changed`, dokumentace testy nespouští.
   Celé `npm test` dál v CI a před PR.
+- 2026-11-09 Sady barev (#116): podle doporučení výraznější odstíny puntíkového
+  fixu a fixu (víc odlišné od štětce) a modřejší stříbrná třpytek. Nové
+  obrázky ukázat před implementací.
