@@ -78,7 +78,7 @@ describe('#103 AC1: třpytky jsou na vyhrazeném místě v panelu', () => {
     }
   });
 
-  it('třpytky nepřekrývají jiné nástroje, přepínač velikosti ani ovládání v pruhu', () => {
+  it('třpytky nepřekrývají jiné nástroje, tlačítka tloušťky ani ovládání v pruhu', () => {
     expect(GLITTER_SLOT, 'třpytky jsou v panelu').toBeGreaterThanOrEqual(0);
     for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: třpytky`;
@@ -90,7 +90,7 @@ describe('#103 AC1: třpytky jsou na vyhrazeném místě v panelu', () => {
         testCase.home,
         testCase.handle,
         testCase.undo,
-        testCase.sizeToggle,
+        ...testCase.sizeButtons,
         ...testCase.recentColors,
       ];
       for (const control of strip) {

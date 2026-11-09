@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { touchTargetAt } from '../../../src/games/coloring/logic/coloringLayout';
 import type { LayoutRect } from '../../../src/games/coloring/logic/coloringLayout';
+import { LINE_SIZES } from '../../../src/games/coloring/logic/toolPanel';
 import { MIN_TAP_GAP, MIN_TAP_SIDE } from '../../shared/layoutRules';
 import {
   IPAD_WINDOWS,
@@ -19,11 +20,12 @@ import {
   COLOR_STEP_TOOL_NAME,
   MAX_STEP_PLACES,
   PLANNED_COLORS,
+  PLANNED_LINE_SIZES,
   PLANNED_TOOLS,
-  SIZE_TOGGLE_NAME,
   coloringCase,
   coloringCases,
   colorName,
+  lineSizeName,
   toolName,
 } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
@@ -34,8 +36,8 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * oknech, krok se vejde, nic nepřekryje a panel má v obou krocích stejný
  * rozměr. K tomu rozložení ze schválených obrázků (komentář vlastníka
  * k issue): krok má nejvýš 13 ploch, v hlavičce je v kroku nástrojů
- * přepínač velikosti a v kroku barev vybraný nástroj, obojí na stejném
- * místě. Na iPadu a na výšku je hlavička řada nahoře, na telefonu na šířku
+ * od #112 trojice tlačítek tloušťky (dřív přepínač velikosti) a v kroku
+ * barev vybraný nástroj na místě prvního z nich. Na iPadu a na výšku je hlavička řada nahoře, na telefonu na šířku
  * sloupec vlevo, od těla ji dělí čára. A část AC1, AC2, AC4 a AC5, která
  * patří rozložení: kam v kterém kroku patří dotyk.
  *
@@ -52,7 +54,7 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * - `touchTargetAt(layout, panel: PanelView, x, y): TouchTarget`, nový cíl
  *   `{ kind: 'backToTools' }` (vybraný nástroj na prvním místě kroku barev),
  * - `ColoringLayout.colorStepTool: LayoutRect` vybraný nástroj v hlavičce
- *   kroku barev, stejný obdélník jako `sizeToggle`,
+ *   kroku barev, stejný obdélník jako `sizeButtons[0]` (#112),
  * - `ColoringLayout.panelDivider` čára mezi hlavičkou a tělem,
  * - `toolSlots` (10) a `paletteColors` (12) jsou tělo kroku nástrojů
  *   a kroku barev na stejném místě panelu.
@@ -97,9 +99,9 @@ function casesIn(panel: ColoringCase['panel']): ColoringCase[] {
   return cases().filter((testCase) => testCase.panel === panel);
 }
 
-/** Hlavička kroku: přepínač velikosti, nebo vybraný nástroj (CSS px). */
+/** Hlavička kroku: tlačítka tloušťky (#112), nebo vybraný nástroj (CSS px). */
 function headerOf(testCase: ColoringCase): Box {
-  return testCase.panel === 'tools' ? testCase.sizeToggle : testCase.colorStepTool;
+  return testCase.panel === 'tools' ? boundsOf(testCase.sizeButtons) : testCase.colorStepTool;
 }
 
 /** Tělo kroku: 10 nástrojů, nebo 12 barev (CSS px). */
@@ -111,7 +113,7 @@ function bodyOf(testCase: ColoringCase): readonly Box[] {
 function stepRects(testCase: ColoringCase): LayoutRect[] {
   const { layout } = testCase;
   return testCase.panel === 'tools'
-    ? [layout.sizeToggle, ...layout.toolSlots]
+    ? [...layout.sizeButtons, ...layout.toolSlots]
     : [layout.colorStepTool, ...layout.paletteColors];
 }
 
@@ -120,7 +122,7 @@ function stepItemNames(testCase: ColoringCase): string[] {
   return testCase.scene.items
     .filter((item) => item.tappable === true)
     .map((item) => item.name)
-    .filter((name) => /^(barva \d+|nástroj \d+|přepínač velikosti|vybraný nástroj)$/.test(name));
+    .filter((name) => /^(barva \d+|nástroj \d+|tloušťka \d+|vybraný nástroj)$/.test(name));
 }
 
 /** Je hlavička řada nahoře (iPad, na výšku), nebo sloupec vlevo (telefon na šířku)? */
@@ -190,9 +192,9 @@ describe('#105 AC1, AC2: co je v kterém kroku panelu', () => {
     }
   });
 
-  it('krok nástrojů ukazuje přepínač velikosti a 10 nástrojů, žádnou barvu', () => {
+  it('krok nástrojů ukazuje tři tlačítka tloušťky a 10 nástrojů, žádnou barvu', () => {
     const expected = [
-      SIZE_TOGGLE_NAME,
+      ...Array.from({ length: PLANNED_LINE_SIZES }, (_, index) => lineSizeName(index)),
       ...Array.from({ length: PLANNED_TOOLS }, (_, index) => toolName(index)),
     ];
     for (const testCase of casesIn('tools')) {
@@ -327,10 +329,10 @@ describe('#105 AC6: pravidla rozložení z #96 platí pro oba kroky ve všech ok
 });
 
 describe('#105: hlavička kroku podle schválených obrázků', () => {
-  it('vybraný nástroj v kroku barev je na stejném místě jako přepínač velikosti v kroku nástrojů', () => {
+  it('vybraný nástroj v kroku barev je na 1. místě hlavičky, kde je v kroku nástrojů tlačítko nejtenčí tloušťky', () => {
     for (const testCase of cases()) {
       expect(testCase.layout.colorStepTool, testCase.scene.label).toEqual(
-        testCase.layout.sizeToggle,
+        testCase.layout.sizeButtons[0],
       );
     }
   });
@@ -389,7 +391,7 @@ describe('#105: hlavička kroku podle schválených obrázků', () => {
 });
 
 describe('#105 AC2, AC4, AC5: kam patří dotyk v krocích panelu', () => {
-  it('v kroku nástrojů ťuknutí na nástroj jde na ten nástroj a na přepínač na přepínač velikosti', () => {
+  it('v kroku nástrojů ťuknutí na nástroj jde na ten nástroj a na tlačítko tloušťky na jeho tloušťku', () => {
     for (const testCase of casesIn('tools')) {
       const { layout } = testCase;
       layout.toolSlots.forEach((slot, index) => {
@@ -399,11 +401,13 @@ describe('#105 AC2, AC4, AC5: kam patří dotyk v krocích panelu', () => {
           `${testCase.scene.label}: nástroj ${index + 1}`,
         ).toEqual({ kind: 'tool', index });
       });
-      const toggle = center(layout.sizeToggle);
-      expect(
-        touchTargetAt(layout, 'tools', toggle.x, toggle.y),
-        `${testCase.scene.label}: přepínač`,
-      ).toEqual({ kind: 'sizeToggle' });
+      layout.sizeButtons.forEach((button, index) => {
+        const { x, y } = center(button);
+        expect(
+          touchTargetAt(layout, 'tools', x, y),
+          `${testCase.scene.label}: tlačítko tloušťky ${index + 1}`,
+        ).toEqual({ kind: 'lineSize', size: LINE_SIZES[index] });
+      });
     }
   });
 
@@ -427,7 +431,7 @@ describe('#105 AC2, AC4, AC5: kam patří dotyk v krocích panelu', () => {
 
   it('v kroku nástrojů nejde vybrat barvu a v kroku barev nástroj ani velikost', () => {
     const allowed: Record<'tools' | 'colors', readonly string[]> = {
-      tools: ['tool', 'sizeToggle', 'panel'],
+      tools: ['tool', 'lineSize', 'panel'],
       colors: ['color', 'backToTools', 'panel'],
     };
     for (const testCase of stepCases()) {
@@ -459,7 +463,7 @@ describe('#105 AC2, AC4, AC5: kam patří dotyk v krocích panelu', () => {
   });
 
   it('se zavřeným panelem nejde na místě panelu vybrat nástroj, barvu, velikost ani návrat', () => {
-    const panelKinds = ['tool', 'color', 'sizeToggle', 'backToTools', 'panel'];
+    const panelKinds = ['tool', 'color', 'lineSize', 'backToTools', 'panel'];
     for (const testCase of casesIn('closed')) {
       for (const point of gridIn(testCase.layout.panel, 40)) {
         const { kind } = touchTargetAt(testCase.layout, 'closed', point.x, point.y);

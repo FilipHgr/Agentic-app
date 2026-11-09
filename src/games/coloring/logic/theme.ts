@@ -84,9 +84,15 @@ export const HANDLE_STYLE = {
   arrowColor: BLUE,
 } as const;
 
-/** Tečka velikosti čáry (#91) v přepínači: tmavá jako text. */
-export const SIZE_DOT_STYLE = {
-  color: TEXT,
+/**
+ * Vlnka na tlačítkách tloušťky (#112 AC1, AC3): u gumy a duhy tmavá jako
+ * text. Barvu se slabým kontrastem vůči pozadí tlačítka obepíná tmavý
+ * obrys (v CSS px, kreslí se vně čáry).
+ */
+export const LINE_SIZE_WAVE_STYLE = {
+  neutralColor: TEXT,
+  outlineColor: TEXT,
+  outlineWidthCss: 1.5,
 } as const;
 
 /**

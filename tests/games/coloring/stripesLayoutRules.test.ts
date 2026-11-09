@@ -78,7 +78,7 @@ describe('#102 AC1: proužkový fix je na vyhrazeném místě v panelu', () => {
     }
   });
 
-  it('proužkový fix nepřekrývá jiné nástroje, přepínač velikosti ani ovládání v pruhu', () => {
+  it('proužkový fix nepřekrývá jiné nástroje, tlačítka tloušťky ani ovládání v pruhu', () => {
     expect(STRIPES_SLOT, 'proužkový fix je v panelu').toBeGreaterThanOrEqual(0);
     for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: proužkový fix`;
@@ -90,7 +90,7 @@ describe('#102 AC1: proužkový fix je na vyhrazeném místě v panelu', () => {
         testCase.home,
         testCase.handle,
         testCase.undo,
-        testCase.sizeToggle,
+        ...testCase.sizeButtons,
         ...testCase.recentColors,
       ];
       for (const control of strip) {

@@ -104,13 +104,13 @@ describe('#93 AC1: fix a pastelka jsou na vyhrazených místech v panelu', () =>
     }
   });
 
-  it('fix a pastelka nepřekrývají jiné nástroje, přepínač velikosti ani ovládání v pruhu', () => {
+  it('fix a pastelka nepřekrývají jiné nástroje, tlačítka tloušťky ani ovládání v pruhu', () => {
     for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const strip = [
         testCase.home,
         testCase.handle,
         testCase.undo,
-        testCase.sizeToggle,
+        ...testCase.sizeButtons,
         ...testCase.recentColors,
       ];
       for (const { name, index } of newToolPlaces(testCase)) {

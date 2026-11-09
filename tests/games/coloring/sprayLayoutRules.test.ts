@@ -79,7 +79,7 @@ describe('#104 AC1: sprej je na vyhrazeném místě v panelu', () => {
     }
   });
 
-  it('sprej nepřekrývá jiné nástroje, přepínač velikosti ani ovládání v pruhu', () => {
+  it('sprej nepřekrývá jiné nástroje, tlačítka tloušťky ani ovládání v pruhu', () => {
     expect(SPRAY_SLOT, 'sprej je v panelu').toBeGreaterThanOrEqual(0);
     for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: sprej`;
@@ -91,7 +91,7 @@ describe('#104 AC1: sprej je na vyhrazeném místě v panelu', () => {
         testCase.home,
         testCase.handle,
         testCase.undo,
-        testCase.sizeToggle,
+        ...testCase.sizeButtons,
         ...testCase.recentColors,
       ];
       for (const control of strip) {

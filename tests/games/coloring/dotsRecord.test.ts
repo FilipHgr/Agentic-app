@@ -306,7 +306,7 @@ describe('#101 AC5: dříve uložené obrázky se otevřou beze změny', () => {
       const game = openOn(storage, regions);
       game.tapColor(PINK);
       choose(game, DOTS);
-      game.tapSizeToggle();
+      game.tapLineSize('large');
       game.suspend();
 
       const reopened = openOn(storage, regions);

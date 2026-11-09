@@ -108,12 +108,13 @@ describe('#98 AC1: razítkový fix se vybírá v panelu jako ostatní nástroje'
     expect(game.panelOpen()).toBe(false);
     expect(game.handleView(), 'se zavřeným panelem').toMatchObject({ tool: STAMP, color: BLUE });
 
-    for (let tap = 0; tap < 3; tap += 1) {
-      game.tapSizeToggle();
-      expect(game.handleView(), `po přepnutí velikosti ${tap + 1}`).toMatchObject({
+    // #112: tloušťka se vybírá přímo tlačítkem, ne přepínačem dokola.
+    for (const size of ['large', 'small', 'medium'] as const) {
+      game.tapLineSize(size);
+      expect(game.handleView(), `po výběru tloušťky ${size}`).toMatchObject({
         tool: STAMP,
         color: BLUE,
-        size: game.lineSize(),
+        size,
       });
     }
   });

@@ -5,8 +5,6 @@ import {
   handleArrow,
   handleColorDot,
   handleFace,
-  sizeToggleDot,
-  touchTargetAt,
 } from '../../../src/games/coloring/logic/coloringLayout';
 import type { LayoutCircle, LayoutRect } from '../../../src/games/coloring/logic/coloringLayout';
 import { HANDLE_COLOR_DOT_STYLE } from '../../../src/games/coloring/logic/theme';
@@ -17,10 +15,10 @@ import type { ColoringCase } from './coloringLayoutScenes';
 import { SIZES, SIZE_NAMES, TOOL_FACTOR } from './lineSizeHelpers';
 
 /**
- * Testy rozložení k #91 v upraveném znění AC1 (přepínač v panelu na místě
- * vyhrazeném v #96, tečka velikosti v přepínači, v úchytu ji podle #106 nahradilo kolečko barvy) a AC3 (nejtenčí
+ * Testy rozložení k #91 v upraveném znění AC1 (v úchytu tečku velikosti
+ * podle #106 nahradilo kolečko barvy) a AC3 (nejtenčí
  * stopa aspoň 3 CSS px na obrazovce). Společná pravidla rozložení z #96
- * (64 px, 8 px, nic se nepřekrývá, vejde se) platí pro přepínač beze změny
+ * (64 px, 8 px, nic se nepřekrývá, vejde se) platí pro tlačítka tloušťky
  * v `toolPanelLayoutRules.test.ts`. Každé pravidlo projde v cyklu všechna
  * okna z `coloringLayoutScenes.ts` (zavřený i otevřený panel) a všechny
  * tři velikosti; popis případu je v `expect`.
@@ -32,9 +30,12 @@ import { SIZES, SIZE_NAMES, TOOL_FACTOR } from './lineSizeHelpers';
  *   kam úchyt kreslí ikonu nástroje; tečku velikosti v úchytu nahradilo
  *   kolečko barvy z #106 `handleColorDot(handle: LayoutRect, size: LineSize): LayoutCircle`
  *   (průměr barevné výplně, lem a linka z `HANDLE_COLOR_DOT_STYLE` vně),
- * - `sizeToggleDot(toggle: LayoutRect, size: LineSize): LayoutCircle`
- *   tečka velikosti v přepínači.
- * Scéna kreslí ikonu úchytu do `icon` a tečky přesně podle těchto kruhů.
+ * Scéna kreslí ikonu úchytu do `icon` a kolečko přesně podle tohoto kruhu.
+ *
+ * Testy přepínače s tečkou (#91 AC1: ťuknutí jde na přepínač, se zavřeným
+ * panelem a v kroku barev ne, tečka leží v přepínači, tečky rostou s
+ * velikostí) nahradily od #112 testy tří tlačítek tloušťky
+ * v `lineSizeButtonsLayoutRules.test.ts`.
  */
 
 /** Tolerance na zaokrouhlení v herních jednotkách. */
@@ -121,48 +122,6 @@ function sizeCases(): Array<{ testCase: ColoringCase; size: LineSize; name: stri
     SIZES.map((size) => ({ testCase, size, name: `${testCase.scene.label}, ${SIZE_NAMES[size]}` })),
   );
 }
-
-describe('#91 AC1: přepínač velikosti je v panelu na vyhrazeném místě', () => {
-  it('ťuknutí na přepínač v kroku nástrojů jde na přepínač ve všech oknech', () => {
-    for (const testCase of cases().filter((each) => each.panel === 'tools')) {
-      const { x, y } = centerOf(testCase.layout.sizeToggle);
-      expect(touchTargetAt(testCase.layout, 'tools', x, y), testCase.scene.label).toEqual({
-        kind: 'sizeToggle',
-      });
-    }
-  });
-
-  it('se zavřeným panelem ani v kroku barev ťuknutí na místo přepínače velikost nepřepne', () => {
-    for (const testCase of cases().filter((each) => each.panel !== 'tools')) {
-      const { x, y } = centerOf(testCase.layout.sizeToggle);
-      expect(
-        touchTargetAt(testCase.layout, testCase.panel, x, y).kind,
-        testCase.scene.label,
-      ).not.toBe('sizeToggle');
-    }
-  });
-
-  it('tečka v přepínači leží celá v přepínači ve všech oknech a velikostech', () => {
-    for (const { testCase, size, name } of sizeCases()) {
-      const dot = sizeToggleDot(testCase.layout.sizeToggle, size);
-      expect(dot.diameter, `${name}: tečka je vidět`).toBeGreaterThan(0);
-      expect(circleInside(dot, testCase.layout.sizeToggle), `${name}: tečka v přepínači`).toBe(
-        true,
-      );
-    }
-  });
-
-  it('tečka v přepínači je u malé velikosti nejmenší a u velké největší ve všech oknech', () => {
-    for (const testCase of cases()) {
-      const [small, medium, large] = SIZES.map(
-        (size) => sizeToggleDot(testCase.layout.sizeToggle, size).diameter,
-      );
-      const name = testCase.scene.label;
-      expect(small, `${name}: malá < střední`).toBeLessThan(medium ?? 0);
-      expect(medium, `${name}: střední < velká`).toBeLessThan(large ?? 0);
-    }
-  });
-});
 
 describe('#91 AC1 a #106: úchyt ukazuje ikonu nástroje a kolečko barvy velké podle velikosti čáry', () => {
   it('ikona nástroje leží v úchytu, je aspoň 0,45 strany a smí být posunutá vlevo nahoru', () => {

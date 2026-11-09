@@ -740,8 +740,8 @@ describe('#103 AC5: velikost mění šířku stopy, jiskry zůstávají stejné'
     game.tapColor(BLUE);
     startStroke(game, path.slice(0, 2));
 
-    // Ťuknutí na přepínač během tahu se nepočítá.
-    game.tapSizeToggle();
+    // Ťuknutí na tlačítko jiné tloušťky během tahu se nepočítá (#112 AC5).
+    game.tapLineSize('small');
     game.pointerMove({ id: 1, x: 420.5, y: 300.5, kind: 'touch' });
     game.pointerUp(1);
 

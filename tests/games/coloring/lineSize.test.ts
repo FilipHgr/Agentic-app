@@ -50,8 +50,11 @@ import {
  * nejmenší ploše jsou v `lineSizeLayoutRules.test.ts`, limit uložení (AC6)
  * v `lineSizeRecord.test.ts`.
  *
- * Ťuknutí na přepínač (`touchTargetAt(…).kind === 'sizeToggle'`) hlásí
- * scéna jako `game.tapSizeToggle()`. Druhý prst během tahu je ťuknutí na
+ * Od #112 nahrazují přepínač tři tlačítka tloušťky: ťuknutí na tlačítko
+ * (`touchTargetAt(…)` je `{ kind: 'lineSize', size }`) hlásí scéna jako
+ * `game.tapLineSize(size)`. Testy přepínání dokola jsou nahrazené testy
+ * přímého výběru (stejně silné nebo silnější), nové chování tlačítek je
+ * v `lineSizeButtons.test.ts`. Druhý prst během tahu je ťuknutí na
  * ovládání, zatímco první prst ještě nezvedl (`startStroke` bez `pointerUp`).
  *
  * Navržené rozhraní:
@@ -64,9 +67,10 @@ import {
  *     šířka W pro velikost `size` (1/50, 1/30, 1/15 šířky plochy).
  * - `src/games/coloring/logic/savedPicture.ts`, nová pole `SavedColoring`:
  *   - `lineSize(): LineSize` vybraná velikost,
- *   - `tapSizeToggle(): readonly Tone[]` ťuknutí na přepínač: přepne
- *     malá → střední → velká → malá, hned uloží a vrátí tón kratší než
- *     1 s; během tahu se nepočítá a vrátí `[]`.
+ *   - `tapLineSize(size: LineSize): readonly Tone[]` (#112, místo
+ *     `tapSizeToggle`) ťuknutí na tlačítko tloušťky: vybere `size`, hned
+ *     uloží a vrátí tón té tloušťky kratší než 1 s; během tahu se nepočítá
+ *     a vrátí `[]`.
  * Velikost se ukládá do úložiště hry profilu (doporučeno samostatným
  * záznamem vedle obrázku, aby záznam obrázku p1 a p2 zůstal beze změny).
  */
@@ -125,35 +129,31 @@ function strokeWith(tool: ToolId, size: LineSize): SavedColoring {
   return game;
 }
 
-describe('#91 AC1: přepínač velikosti', () => {
+describe('#91 AC1 a #112 AC2: výběr velikosti', () => {
   it('na začátku je vybraná střední velikost', () => {
     expect(openOn(new RecordingStorage(), twoHalves()).lineSize()).toBe('medium');
   });
 
-  it('ťuknutí na přepínač přepne velikost dokola malá → střední → velká → malá', () => {
-    const game = openOn(new RecordingStorage(), twoHalves());
-    const seen: LineSize[] = [game.lineSize()];
-    for (let tap = 0; tap < 7; tap += 1) {
-      game.tapSizeToggle();
-      seen.push(game.lineSize());
+  // Nahrazuje #91 „ťuknutí na přepínač přepne velikost dokola“ (#112 AC6):
+  // každá tloušťka jde vybrat z každé jedním ťuknutím, v libovolném pořadí.
+  it('ťuknutí na tlačítko tloušťky vybere právě tu tloušťku, z kterékoli tloušťky jedním ťuknutím', () => {
+    for (const from of SIZES) {
+      for (const to of SIZES) {
+        const game = openOn(new RecordingStorage(), twoHalves());
+        game.tapLineSize(from);
+        expect(game.lineSize(), `výchozí ${SIZE_NAMES[from]}`).toBe(from);
+        game.tapLineSize(to);
+        expect(game.lineSize(), `${SIZE_NAMES[from]} → ${SIZE_NAMES[to]}`).toBe(to);
+      }
     }
-    expect(seen).toEqual([
-      'medium',
-      'large',
-      'small',
-      'medium',
-      'large',
-      'small',
-      'medium',
-      'large',
-    ]);
   });
 
-  it('po každém ťuknutí na přepínač zazní tón kratší než 1 s', () => {
+  // Nahrazuje #91 „po každém ťuknutí na přepínač zazní tón kratší než 1 s“.
+  it('po každém ťuknutí na tlačítko tloušťky zazní tón kratší než 1 s', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
-    for (let tap = 1; tap <= SIZES.length; tap += 1) {
-      const tones = game.tapSizeToggle();
-      const what = `ťuknutí ${tap} (${SIZE_NAMES[game.lineSize()]})`;
+    for (const size of ['large', 'small', 'medium', 'small'] as const) {
+      const tones = game.tapLineSize(size);
+      const what = `ťuknutí na ${SIZE_NAMES[size]}`;
       expect(tones.length, `${what}: nějaký tón zazní`).toBeGreaterThan(0);
       expect(endOf(tones), `${what}: délka tónu v sekundách`).toBeLessThan(1);
     }
@@ -166,18 +166,21 @@ describe('#91 AC1: přepínač velikosti', () => {
 
   it('úchyt po každé změně nástroje, barvy nebo velikosti ukazuje aktuální nástroj, barvu i velikost', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
-    type Step = { readonly tool: ToolId } | { readonly color: number } | { readonly toggle: true };
+    type Step =
+      { readonly tool: ToolId } | { readonly color: number } | { readonly size: LineSize };
+    // #112: místo přepínače dokola ťuknutí přímo na tloušťku (stejné pořadí
+    // velikostí jako dřív: velká, malá, střední, velká, malá).
     const steps: Step[] = [
-      { toggle: true },
+      { size: 'large' },
       { color: BLUE },
       { tool: 'marker' },
-      { toggle: true },
+      { size: 'small' },
       { tool: 'eraser' },
-      { toggle: true },
+      { size: 'medium' },
       { color: BLACK },
       { tool: 'crayon' },
-      { toggle: true },
-      { toggle: true },
+      { size: 'large' },
+      { size: 'small' },
       { tool: 'eraser' },
       { tool: 'brush' },
       { color: RED },
@@ -188,7 +191,7 @@ describe('#91 AC1: přepínač velikosti', () => {
     // každý nástroj svou barvu (výchozí podle tabulky v #110 AC5) a výběr
     // barvy ji dá jen nástroji, ke kterému se vybírá.
     const colors: Partial<Record<ToolId, number>> = { brush: RED, marker: BLUE, crayon: GREEN };
-    let sizeIndex = SIZES.indexOf('medium');
+    let size: LineSize = 'medium';
     steps.forEach((step, index) => {
       if ('tool' in step) {
         choose(game, step.tool);
@@ -201,10 +204,9 @@ describe('#91 AC1: přepínač velikosti', () => {
         tool = paintingTool;
         colors[tool] = step.color;
       } else {
-        game.tapSizeToggle();
-        sizeIndex = (sizeIndex + 1) % SIZES.length;
+        game.tapLineSize(step.size);
+        size = step.size;
       }
-      const size = SIZES[sizeIndex];
       expect(game.handleView(), `krok ${index + 1}: ${JSON.stringify(step)}`).toEqual({
         tool,
         color: tool === 'eraser' ? null : (colors[tool] ?? null),
@@ -251,7 +253,7 @@ describe('#91 AC2: šířka W podle velikosti', () => {
     }
   });
 
-  it('bez ťuknutí na přepínač maluje štětec střední velikostí', () => {
+  it('bez ťuknutí na tlačítko tloušťky maluje štětec střední velikostí', () => {
     const game = freshBigGame();
     paint(game, HORIZONTAL);
     expectHalfWidth(measuredHalf(game, 'brush', RED), expectedHalf('brush', 'medium'), 'střední');
@@ -310,9 +312,9 @@ describe('#91 AC3: velikost platí pro všechny nástroje naráz', () => {
         game.tapColor(BLUE);
       }
       const before = game.handleView();
-      for (let tap = 0; tap < SIZES.length; tap += 1) {
-        game.tapSizeToggle();
-        const what = `${TOOL_NAMES[tool]}, ťuknutí ${tap + 1}`;
+      for (const size of SIZES) {
+        game.tapLineSize(size);
+        const what = `${TOOL_NAMES[tool]}, ${SIZE_NAMES[size]}`;
         expect(game.selectedTool(), what).toBe(tool);
         expect(game.handleView().color, `${what}: barva`).toBe(before.color);
       }
@@ -331,9 +333,9 @@ describe('#91 AC4: změna velikosti', () => {
     paint(game, [at(20, 100), at(140, 100)]);
     const before = pixelsOf(game, regions);
 
-    for (let tap = 0; tap < 4; tap += 1) {
-      game.tapSizeToggle();
-      expect(pixelsOf(game, regions), `ťuknutí ${tap + 1}`).toEqual(before);
+    for (const size of ['large', 'small', 'medium', 'medium'] as const) {
+      game.tapLineSize(size);
+      expect(pixelsOf(game, regions), SIZE_NAMES[size]).toEqual(before);
     }
   });
 
@@ -371,12 +373,14 @@ describe('#91 AC4: změna velikosti', () => {
     expect(pixelsOf(game, regions)).toEqual(before);
   });
 
-  it('ťuknutí druhým prstem na přepínač během tahu se nepočítá a tah pokračuje stejnou velikostí', () => {
+  it('ťuknutí druhým prstem na tlačítko tloušťky během tahu se nepočítá a tah pokračuje stejnou velikostí', () => {
     const game = freshBigGame();
     startStroke(game, [at(60, 300), at(200, 300)]);
 
-    expect(game.tapSizeToggle(), 'během tahu žádný tón').toEqual([]);
-    expect(game.lineSize(), 'velikost se nezměnila').toBe('medium');
+    for (const size of ['large', 'small'] as const) {
+      expect(game.tapLineSize(size), `${SIZE_NAMES[size]}: během tahu žádný tón`).toEqual([]);
+      expect(game.lineSize(), `${SIZE_NAMES[size]}: velikost se nezměnila`).toBe('medium');
+    }
 
     game.pointerMove({ id: 1, x: 390, y: 300, kind: 'touch' });
     game.pointerUp(1);
@@ -391,19 +395,19 @@ describe('#91 AC4: změna velikosti', () => {
     const viewBefore = game.handleView();
 
     expect(game.tapHandle(), 'během tahu žádný tón').toEqual([]);
-    expect(game.tapSizeToggle(), 'přepínač během tahu').toEqual([]);
+    expect(game.tapLineSize('large'), 'tlačítko tloušťky během tahu').toEqual([]);
     expect(game.panelOpen(), 'panel').toBe(panelBefore);
     expect(game.handleView(), 'úchyt').toEqual(viewBefore);
     game.pointerUp(1);
   });
 
-  it('po skončení tahu přepínač zase přepíná', () => {
+  it('po skončení tahu jde tloušťka zase vybrat', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
     startStroke(game, [at(20, 40), at(60, 40)]);
-    game.tapSizeToggle();
+    game.tapLineSize('small');
     game.pointerUp(1);
 
-    const tones = game.tapSizeToggle();
+    const tones = game.tapLineSize('large');
 
     expect(game.lineSize()).toBe('large');
     expect(tones.length).toBeGreaterThan(0);
@@ -460,7 +464,7 @@ describe('#91 AC5: velikost se pamatuje podle profilu jako barva', () => {
     }
   });
 
-  it('ťuknutí na přepínač velikost uloží hned, bez tahu a bez odchodu ze hry', () => {
+  it('ťuknutí na tlačítko tloušťky velikost uloží hned, bez tahu a bez odchodu ze hry', () => {
     const storage = new RecordingStorage();
     const game = openOn(storage, twoHalves());
     chooseSize(game, 'small');
@@ -574,7 +578,7 @@ describe('#91 AC5: velikost se pamatuje podle profilu jako barva', () => {
     expect(size).toBe('medium');
   });
 
-  it('při plném úložišti jde velikost přepínat dál bez chyby', () => {
+  it('při plném úložišti jde tloušťku vybírat dál bez chyby', () => {
     const storage = new RecordingStorage();
     const game = openOn(storage, twoHalves());
     storage.failWrites = true;

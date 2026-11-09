@@ -1,7 +1,9 @@
 /**
- * Pomůcky pro testy velikosti čáry v Omalovánkách (#91). Velikost se
- * přepíná ťuknutím na přepínač v panelu, které scéna hlásí jako
- * `game.tapSizeToggle()`, vybraná velikost je `game.lineSize()`.
+ * Pomůcky pro testy velikosti čáry v Omalovánkách (#91, #112). Velikost
+ * (tloušťka) se od #112 vybírá ťuknutím přímo na jedno ze tří tlačítek
+ * tloušťky v hlavičce kroku nástrojů, které scéna hlásí jako
+ * `game.tapLineSize(size)`; dřív přepínač dokola (`tapSizeToggle`).
+ * Vybraná velikost je `game.lineSize()`.
  *
  * Šířka stopy se měří na větším zkušebním obrázku 900 × 600
  * z `drawingToolHelpers.ts`: W je 900 / 50 = 18 px (malá), 900 / 30 = 30 px
@@ -19,7 +21,7 @@ import type { Point } from './outlineFixtures';
 import { at } from './strokeHelpers';
 import { paint } from './savedPictureHelpers';
 
-/** Velikosti v pořadí, ve kterém je přepínač prochází od malé (AC1). */
+/** Velikosti od nejtenčí, v pořadí tlačítek tloušťky (#91 AC1, #112 AC1). */
 export const SIZES = ['small', 'medium', 'large'] as const satisfies readonly LineSize[];
 
 export const SIZE_NAMES: Record<LineSize, string> = {
@@ -81,15 +83,11 @@ export function expectedHalf(tool: ToolId, size: LineSize): number {
 }
 
 /**
- * Dítě ťuká na přepínač, dokud není vybraná velikost `size` (nejvýš třikrát
- * dokola). Vrátí tóny posledního ťuknutí.
+ * Dítě ťukne na tlačítko tloušťky `size` (#112 AC2), i když už vybraná je.
+ * Vrátí tóny ťuknutí.
  */
 export function chooseSize(game: SavedColoring, size: LineSize): readonly Tone[] {
-  let tones: readonly Tone[] = [];
-  for (let tap = 0; tap < SIZES.length && game.lineSize() !== size; tap += 1) {
-    tones = game.tapSizeToggle();
-  }
-  return tones;
+  return game.tapLineSize(size);
 }
 
 /**

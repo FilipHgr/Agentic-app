@@ -25,7 +25,7 @@
  * nebo proužkový fix, třpytky, sprej, #90, #93, #97, #98, #101–#104) je jen v paměti: po otevření hry je vždy štětec, výběr barvy po gumě
  * přepne na naposledy vybraný malovací nástroj. Duha vybranou barvu
  * nepoužívá, výběr barvy u ní (i po gumě) přepne na štětec. Ťuknutí na nástroj, barvu, úchyt,
- * přepínač velikosti nebo Zpět druhým prstem během tahu se nepočítá (AC3).
+ * tlačítko tloušťky nebo Zpět druhým prstem během tahu se nepočítá (AC3).
  *
  * Velikost čáry (#91) platí pro všechny nástroje a pamatuje se podle
  * profilu v samostatném záznamu vedle obrázku (`toolPanel.ts`), záznam
@@ -80,10 +80,9 @@ import {
   INITIAL_TOOL,
   PANEL_CLOSE_TONES,
   PANEL_OPEN_TONES,
-  SIZE_TOGGLE_TONES,
+  LINE_SIZE_TONES,
   TOOL_PICK_TONES,
   loadLineSize,
-  nextLineSize,
   paintsWithColor,
   rememberOpened,
   storeLineSize,
@@ -230,10 +229,11 @@ export interface SavedColoring {
   /** Vybraná velikost čáry (#91). */
   lineSize(): LineSize;
   /**
-   * Ťuknutí na přepínač velikosti (#91 AC1): přepne malá → střední →
-   * velká → malá, hned uloží a vrátí tón. Během tahu se nepočítá a vrátí `[]`.
+   * Ťuknutí na tlačítko tloušťky `size` (#112 AC2, AC5): vybere ji, při
+   * změně hned uloží a vrátí tón té tloušťky, i když už vybraná byla.
+   * Panel, nástroj ani barvy nemění. Během tahu se nepočítá a vrátí `[]`.
    */
-  tapSizeToggle(): readonly Tone[];
+  tapLineSize(size: LineSize): readonly Tone[];
   /** Vybraný nástroj (#90). */
   selectedTool(): ToolId;
   /**
@@ -628,14 +628,16 @@ export function openColoring(options: {
 
     lineSize: () => lineSize,
 
-    tapSizeToggle() {
+    tapLineSize(size) {
       if (strokePointer !== null) {
         return [];
       }
-      lineSize = nextLineSize(lineSize);
-      rememberOpening();
-      storeLineSize(storage, lineSize);
-      return SIZE_TOGGLE_TONES[lineSize];
+      if (size !== lineSize) {
+        lineSize = size;
+        rememberOpening();
+        storeLineSize(storage, lineSize);
+      }
+      return LINE_SIZE_TONES[size];
     },
 
     selectedTool: () => tool,

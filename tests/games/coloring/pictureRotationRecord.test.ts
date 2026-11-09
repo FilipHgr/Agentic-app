@@ -111,7 +111,7 @@ const PATTERN_TOOLS: ReadonlyArray<{ readonly tool: ToolId; readonly color: numb
 /** Dítě vybere nástroj (a jeho barvu) a velkou velikost čáry. */
 function prepareTool(game: SavedColoring, tool: ToolId, color: number | null): void {
   openToolStep(game);
-  game.tapSizeToggle();
+  game.tapLineSize('large');
   if (color === null) {
     pickTool(game, tool);
   } else {

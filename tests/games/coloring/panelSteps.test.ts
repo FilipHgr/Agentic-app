@@ -668,7 +668,7 @@ describe('#105 AC5: záznamy se ukládají beze změny', () => {
 
     const stepped = openOn(viaSteps, twoHalves());
     stepped.tapHandle();
-    stepped.tapSizeToggle();
+    stepped.tapLineSize('large');
     choose(stepped, 'marker');
     stepped.tapColor(BLUE);
     paint(stepped, [at(20, 100), at(140, 100)]);
@@ -680,7 +680,7 @@ describe('#105 AC5: záznamy se ukládají beze změny', () => {
     stepped.suspend();
 
     const plain = openOn(direct, twoHalves());
-    plain.tapSizeToggle();
+    plain.tapLineSize('large');
     choose(plain, 'marker');
     plain.tapColor(BLUE);
     paint(plain, [at(20, 100), at(140, 100)]);

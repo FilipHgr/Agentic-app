@@ -14,6 +14,9 @@
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
+import { contrastRatio } from '../../../shared/logic/theme';
+import { PALETTE } from './palette';
+import { COLOR_BUTTON_STYLE, LINE_SIZE_WAVE_STYLE } from './theme';
 
 /**
  * Nástroje Omalovánek: štětec, guma (#90), fix a pastelka (#93), duhový
@@ -69,8 +72,8 @@ export function toolForColor(paintingTool: ToolId): ToolId {
 }
 
 /**
- * Krok panelu (#105): zavřený, krok nástrojů (přepínač velikosti a 10
- * nástrojů), nebo krok barev (vybraný nástroj a 12 barev).
+ * Krok panelu (#105): zavřený, krok nástrojů (tři tlačítka tloušťky od
+ * #112 a 10 nástrojů), nebo krok barev (vybraný nástroj a 12 barev).
  */
 export type PanelView = 'closed' | 'tools' | 'colors';
 
@@ -108,27 +111,52 @@ export function toolAtSlot(index: number): ToolId | null {
 /** Velikost čáry (#91): platí pro všechny nástroje naráz. */
 export type LineSize = 'small' | 'medium' | 'large';
 
-/** Velikosti v pořadí, ve kterém je přepínač prochází (#91 AC1). */
+/** Tloušťky od nejtenčí, v pořadí tlačítek tloušťky v panelu (#91, #112 AC1). */
 export const LINE_SIZES: readonly LineSize[] = ['small', 'medium', 'large'];
 
 /** Velikost na začátku a po chybějícím nebo nesmyslném záznamu (#91 AC2, AC5). */
 export const INITIAL_LINE_SIZE: LineSize = 'medium';
 
-/** Velikost po ťuknutí na přepínač: malá → střední → velká → malá (#91 AC1). */
-export function nextLineSize(size: LineSize): LineSize {
-  const next = (LINE_SIZES.indexOf(size) + 1) % LINE_SIZES.length;
-  return LINE_SIZES[next] ?? INITIAL_LINE_SIZE;
+/** U každé tloušťky z `LINE_SIZES`, jestli je označená (vždy právě jedna, #112 AC1). */
+export function markedLineSizes(selected: LineSize): readonly boolean[] {
+  return LINE_SIZES.map((size) => size === selected);
 }
 
 /**
- * Krátký tón při ťuknutí na přepínač velikosti (#91 AC1), dozní za 0,14 s.
- * Tenká čára zní výš, tlustá níž.
+ * Krátký tón při ťuknutí na tlačítko tloušťky (#91, #112 AC2), dozní za
+ * 0,14 s. Tenká čára zní výš, tlustá níž.
  */
-export const SIZE_TOGGLE_TONES: Readonly<Record<LineSize, readonly Tone[]>> = {
+export const LINE_SIZE_TONES: Readonly<Record<LineSize, readonly Tone[]>> = {
   small: [{ frequencyHz: 880, startSeconds: 0, durationSeconds: 0.14, volume: 0.14 }],
   medium: [{ frequencyHz: 659.25, startSeconds: 0, durationSeconds: 0.14, volume: 0.14 }],
   large: [{ frequencyHz: 493.88, startSeconds: 0, durationSeconds: 0.14, volume: 0.14 }],
 };
+
+/** Vzhled vlnky na tlačítkách tloušťky: barva `#RRGGBB` a jestli má tmavý obrys. */
+export interface LineSizeWaveLook {
+  readonly color: string;
+  readonly outlined: boolean;
+}
+
+/** Vlnka potřebuje aspoň tento kontrast vůči pozadí tlačítka, jinak dostane obrys (#112 AC3). */
+const WAVE_MIN_CONTRAST = 3;
+
+/**
+ * Barva vlnek podle toho, co ukazuje úchyt (#112 AC1, AC3): u malovacího
+ * nástroje jeho barva (#110), u gumy a duhy (bez barvy) tmavá. Barva se
+ * slabým kontrastem vůči pozadí tlačítka dostane tmavý obrys.
+ */
+export function lineSizeWaveLook(view: {
+  readonly tool: ToolId;
+  readonly color: number | null;
+}): LineSizeWaveLook {
+  const paletteColor = view.color === null ? undefined : PALETTE[view.color];
+  if (paletteColor === undefined) {
+    return { color: LINE_SIZE_WAVE_STYLE.neutralColor, outlined: false };
+  }
+  const contrast = contrastRatio(paletteColor.hex, COLOR_BUTTON_STYLE.background);
+  return { color: paletteColor.hex, outlined: contrast < WAVE_MIN_CONTRAST };
+}
 
 /** Klíč záznamu velikosti v úložišti hry profilu, samostatně vedle obrázku (#91 AC5). */
 const LINE_SIZE_KEY = 'lineSize';

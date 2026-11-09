@@ -11,8 +11,8 @@
  * zdola (P-A). Domeček na výšku zůstává vlevo nahoře.
  *
  * Od #105 je panel ve dvou krocích se stejným rozměrem panelu: krok
- * nástrojů (přepínač velikosti v hlavičce a 10 nástrojů v těle) a krok
- * barev (vybraný nástroj v hlavičce na místě přepínače a 12 barev v těle),
+ * nástrojů (od #112 tři tlačítka tloušťky v hlavičce a 10 nástrojů v těle)
+ * a krok barev (vybraný nástroj na 1. místě hlavičky a 12 barev v těle),
  * každý nejvýš 13 ploch. Každé okno se zkouší se zavřeným panelem a v obou
  * krocích. Otevřený panel leží přes obrázek, proto se s ním smí překrývat
  * (a plochy kroku s pozadím panelu). Plochy druhého kroku na obrazovce
@@ -45,13 +45,18 @@
  * - `paletteColors: readonly LayoutRect[]` 12 míst pro barvy v panelu
  *   (barvy `PALETTE` na prvních místech, ostatní zatím prázdné),
  * - `toolSlots: readonly LayoutRect[]` 10 míst pro nástroje,
- * - `sizeToggle: LayoutRect` přepínač velikosti.
+ * - `sizeButtons: readonly LayoutRect[]` tři tlačítka tloušťky (#112,
+ *   nahrazují přepínač `sizeToggle` z #91).
+ *
+ * Od #112 jsou v hlavičce kroku nástrojů místo přepínače tři tlačítka
+ * tloušťky (malá, střední, velká, `sizeButtons`), krok nástrojů má tedy
+ * 13 ploch. Vybraný nástroj v kroku barev je na místě prvního z nich.
  *
  * Navržené rozšíření (#105):
  * - `paletteColors` a `toolSlots` jsou tělo kroku barev a kroku nástrojů
  *   (na stejném místě panelu, každý krok ukazuje jen svoje),
  * - `colorStepTool: LayoutRect` vybraný nástroj v hlavičce kroku barev,
- *   stejný obdélník jako `sizeToggle` v hlavičce kroku nástrojů,
+ *   stejný obdélník jako první tlačítko tloušťky v hlavičce kroku nástrojů,
  * - `panelDivider: LayoutRect` čára mezi hlavičkou a tělem (v obou krocích),
  * - `touchTargetAt(layout, panel: PanelView, x, y)` s
  *   `PanelView = 'closed' | 'tools' | 'colors'` (`toolPanel.ts`) a novým
@@ -123,9 +128,10 @@ export function isOpen(testCase: { readonly panel: PanelState }): boolean {
   return testCase.panel !== 'closed';
 }
 
-/** Obsah panelu (#96 AC3): 12 barev, 10 nástrojů a přepínač velikosti. */
+/** Obsah panelu (#96 AC3, #112): 12 barev, 10 nástrojů a 3 tlačítka tloušťky. */
 export const PLANNED_COLORS = 12;
 export const PLANNED_TOOLS = 10;
+export const PLANNED_LINE_SIZES = 3;
 
 /** Krok panelu má nejvýš tolik ploch (#105, schválené obrázky). */
 export const MAX_STEP_PLACES = 13;
@@ -138,7 +144,6 @@ export const HOME_NAME = 'domeček a 8 px kolem';
 export const HANDLE_NAME = 'úchyt panelu';
 export const UNDO_NAME = 'Zpět';
 export const PANEL_NAME = 'panel nástrojů';
-export const SIZE_TOGGLE_NAME = 'přepínač velikosti';
 export const COLOR_STEP_TOOL_NAME = 'vybraný nástroj';
 
 export function colorName(index: number): string {
@@ -147,6 +152,11 @@ export function colorName(index: number): string {
 
 export function toolName(index: number): string {
   return `nástroj ${index + 1}`;
+}
+
+/** Tlačítko tloušťky na místě `index` hlavičky (0 malá, 1 střední, 2 velká, #112). */
+export function lineSizeName(index: number): string {
+  return `tloušťka ${index + 1}`;
 }
 
 /**
@@ -202,7 +212,7 @@ function surroundingOf(inner: Box, margin: number): Box {
 }
 
 /** Prvky otevřeného panelu, které leží přes obrázek. */
-const PANEL_PART = /^(panel nástrojů|barva \d+|nástroj \d+|přepínač velikosti|vybraný nástroj)$/;
+const PANEL_PART = /^(panel nástrojů|barva \d+|nástroj \d+|tloušťka \d+|vybraný nástroj)$/;
 
 function isPanelPart(item: LayoutItem): boolean {
   return PANEL_PART.test(item.name);
@@ -247,8 +257,8 @@ export interface ColoringCase {
   readonly colors: readonly Box[];
   /** Místa pro nástroje v kroku nástrojů v CSS px okna. */
   readonly tools: readonly Box[];
-  /** Přepínač velikosti v hlavičce kroku nástrojů. */
-  readonly sizeToggle: Box;
+  /** Tři tlačítka tloušťky v hlavičce kroku nástrojů (#112), od nejtenčí. */
+  readonly sizeButtons: readonly Box[];
   /** Vybraný nástroj v hlavičce kroku barev (#105). */
   readonly colorStepTool: Box;
   /** Čára mezi hlavičkou a tělem panelu (#105). */
@@ -267,10 +277,10 @@ function stripItems(home: Box, handle: Box, undo: Box, recentColors: readonly Bo
   ];
 }
 
-/** Krok nástrojů: přepínač velikosti a 10 nástrojů, žádné barvy (#105 AC1). */
-function toolStepItems(sizeToggle: Box, tools: readonly Box[]): LayoutItem[] {
+/** Krok nástrojů: 3 tlačítka tloušťky a 10 nástrojů, žádné barvy (#105 AC1, #112 AC1). */
+function toolStepItems(sizeButtons: readonly Box[], tools: readonly Box[]): LayoutItem[] {
   return [
-    { name: SIZE_TOGGLE_NAME, box: sizeToggle, tappable: true },
+    ...sizeButtons.map((box, index) => ({ name: lineSizeName(index), box, tappable: true })),
     ...tools.map((box, index) => ({ name: toolName(index), box, tappable: true })),
   ];
 }
@@ -286,14 +296,19 @@ function colorStepItems(colorStepTool: Box, colors: readonly Box[]): LayoutItem[
 function panelItems(
   panel: PanelState,
   panelBox: Box,
-  places: { sizeToggle: Box; tools: readonly Box[]; colorStepTool: Box; colors: readonly Box[] },
+  places: {
+    sizeButtons: readonly Box[];
+    tools: readonly Box[];
+    colorStepTool: Box;
+    colors: readonly Box[];
+  },
 ): LayoutItem[] {
   if (panel === 'closed') {
     return [];
   }
   const step =
     panel === 'tools'
-      ? toolStepItems(places.sizeToggle, places.tools)
+      ? toolStepItems(places.sizeButtons, places.tools)
       : colorStepItems(places.colorStepTool, places.colors);
   return [{ name: PANEL_NAME, box: panelBox }, ...step];
 }
@@ -317,12 +332,12 @@ export function coloringCase(window: TestWindow, panel: PanelState = 'closed'): 
   const panelBox = css(layout.panel);
   const colors = layout.paletteColors.map(css);
   const tools = layout.toolSlots.map(css);
-  const sizeToggle = css(layout.sizeToggle);
-  // Před implementací #105 pole chybí; obrazovka se pak složí bez něj
-  // a testy #105 selžou na vlastních kontrolách, ne tady.
-  const colorStepTool = css(layout.colorStepTool ?? layout.sizeToggle);
+  // Před implementací #112 pole chybí; obrazovka se pak složí bez tlačítek
+  // tloušťky a testy #112 selžou na vlastních kontrolách, ne tady.
+  const sizeButtons = (layout.sizeButtons ?? []).map(css);
+  const colorStepTool = css(layout.colorStepTool);
   const divider = css(layout.panelDivider);
-  const panelPlaces = { sizeToggle, tools, colorStepTool, colors };
+  const panelPlaces = { sizeButtons, tools, colorStepTool, colors };
   const landscape = window.width >= window.height;
   const pictureItem: LayoutItem = isLandscapeArea(area)
     ? { name: PICTURE_NAME, box: picture, minEdge: PICTURE_EDGE_EXCEPTION }
@@ -350,7 +365,7 @@ export function coloringCase(window: TestWindow, panel: PanelState = 'closed'): 
     panelBox,
     colors,
     tools,
-    sizeToggle,
+    sizeButtons,
     colorStepTool,
     divider,
     stepPlaces,

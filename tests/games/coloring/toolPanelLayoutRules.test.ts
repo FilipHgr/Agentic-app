@@ -151,7 +151,7 @@ function containsPoint(rect: LayoutRect, point: { x: number; y: number }): boole
 function panelSlots(testCase: ColoringCase): LayoutRect[] {
   const { layout } = testCase;
   return testCase.panel === 'tools'
-    ? [layout.sizeToggle, ...layout.toolSlots]
+    ? [...layout.sizeButtons, ...layout.toolSlots]
     : [layout.colorStepTool, ...layout.paletteColors];
 }
 

@@ -11,8 +11,8 @@
  *   nad pruhem.
  *
  * Panel je od #105 ve dvou krocích se stejným rozměrem: hlavička
- * (v kroku nástrojů přepínač velikosti, v kroku barev vybraný nástroj na
- * stejném místě), čára a tělo (10 nástrojů, nebo 12 barev na stejných
+ * (v kroku nástrojů tři tlačítka tloušťky od #112, v kroku barev vybraný
+ * nástroj na místě prvního z nich), čára a tělo (10 nástrojů, nebo 12 barev na stejných
  * místech). Na iPadu a na výšku je hlavička řada nahoře, na telefonu na
  * šířku sloupec vlevo (schválené obrázky k #105). Jedno rozložení platí
  * pro zavřený panel i oba kroky, obrázek se tedy nikdy neposune. Kam
@@ -28,6 +28,7 @@
 import { homeButtonInFreeArea } from '../../../shared/logic/homeButton';
 import type { GameArea, GameAreaFit } from '../../../shared/logic/viewportLayout';
 import { PALETTE } from './palette';
+import { LINE_SIZES } from './toolPanel';
 import type { LineSize, PanelView } from './toolPanel';
 
 /** Omalovánky chtějí herní plochu přes celou volnou plochu okna i na iPadu (#96). */
@@ -62,9 +63,12 @@ export interface ColoringLayout {
   readonly paletteColors: readonly LayoutRect[];
   /** 10 míst pro nástroje v těle kroku nástrojů, štětec na prvním. */
   readonly toolSlots: readonly LayoutRect[];
-  /** Přepínač velikosti čáry (#91) v hlavičce kroku nástrojů. */
-  readonly sizeToggle: LayoutRect;
-  /** Vybraný nástroj v hlavičce kroku barev (#105), stejné místo jako `sizeToggle`. */
+  /**
+   * Tři tlačítka tloušťky čáry (#112) v hlavičce kroku nástrojů v pořadí
+   * `LINE_SIZES` (od nejtenčí), na prvních třech místech hlavičky.
+   */
+  readonly sizeButtons: readonly LayoutRect[];
+  /** Vybraný nástroj v hlavičce kroku barev (#105), stejné místo jako `sizeButtons[0]`. */
   readonly colorStepTool: LayoutRect;
   /** Tenká čára mezi hlavičkou a tělem panelu (#105). */
   readonly panelDivider: LayoutRect;
@@ -74,7 +78,7 @@ export interface ColoringLayout {
   readonly pictureTurn: PictureTurn;
 }
 
-/** Kruh v herních jednotkách (tečka velikosti čáry, #91). */
+/** Kruh v herních jednotkách (kolečko barvy, #106). */
 export interface LayoutCircle {
   readonly centerX: number;
   readonly centerY: number;
@@ -89,7 +93,8 @@ export type TouchTarget =
   | { readonly kind: 'recentColor'; readonly index: number }
   | { readonly kind: 'color'; readonly index: number }
   | { readonly kind: 'tool'; readonly index: number }
-  | { readonly kind: 'sizeToggle' }
+  /** Tlačítko tloušťky v kroku nástrojů (#112). */
+  | { readonly kind: 'lineSize'; readonly size: LineSize }
   /** Vybraný nástroj v kroku barev: návrat ke kroku nástrojů (#105 AC4). */
   | { readonly kind: 'backToTools' }
   /** Pozadí panelu nebo prázdné místo v něm: nic se nestane, nemaluje se. */
@@ -122,7 +127,11 @@ const MIN_EDGE_CSS = 4;
 /** Okraj uvnitř panelu kolem tlačítek v CSS px (na nízkém telefonu méně). */
 const PANEL_PADDING_CSS = 12;
 
-/** Mezera mezi hlavičkou a tělem panelu v CSS px, uprostřed je čára. */
+/**
+ * Mezera mezi hlavičkou a tělem panelu v CSS px, v ní je čára. Od #112 je
+ * čára 8 px pod hlavičkou (tlačítka tloušťky od ní mají aspoň 8 px)
+ * a rozměr panelu ani tělo se nemění.
+ */
 const SECTION_GAP_CSS = 16;
 
 /** Tloušťka čáry mezi hlavičkou a tělem v CSS px. */
@@ -234,10 +243,13 @@ interface PanelPlaces {
   readonly panel: LayoutRect;
   readonly paletteColors: LayoutRect[];
   readonly toolSlots: LayoutRect[];
-  readonly sizeToggle: LayoutRect;
+  readonly sizeButtons: LayoutRect[];
   readonly colorStepTool: LayoutRect;
   readonly panelDivider: LayoutRect;
 }
+
+/** Tlačítek tloušťky v hlavičce (#112): malá, střední, velká. */
+const LINE_SIZE_BUTTONS = 3;
 
 /**
  * Panel s mřížkou `grid` a okrajem `padding`, levý horní roh `left`, `top`.
@@ -253,16 +265,24 @@ function panelAt(left: number, top: number, grid: PanelGrid, padding: number): P
   const headerRow = grid.header === 'row';
   const bodyLeft = headerRow ? innerLeft : innerLeft + side + SECTION_GAP_CSS;
   const bodyTop = headerRow ? innerTop + side + SECTION_GAP_CSS : innerTop;
-  const dividerOffset = side + (SECTION_GAP_CSS - DIVIDER_CSS) / 2;
+  const dividerOffset = side + GAP_CSS;
   const panelDivider = headerRow
     ? rect(innerLeft, innerTop + dividerOffset, body.width, DIVIDER_CSS)
     : rect(innerLeft + dividerOffset, innerTop, DIVIDER_CSS, body.height);
-  const header = square(innerLeft, innerTop, side);
+  // Tlačítka tloušťky na prvních místech hlavičky: v řadě nad sloupci
+  // těla, ve sloupci vedle jeho řádků (#112 AC1).
+  const sizeButtons = Array.from({ length: LINE_SIZE_BUTTONS }, (_, index) => {
+    const offset = index * (side + GAP_CSS);
+    return headerRow
+      ? square(innerLeft + offset, innerTop, side)
+      : square(innerLeft, innerTop + offset, side);
+  });
+  const header = sizeButtons[0] ?? square(innerLeft, innerTop, side);
   return {
     panel: rect(left, top, size.width + 2 * padding, size.height + 2 * padding),
     paletteColors: gridSlots(bodyLeft, bodyTop, PANEL_COLOR_PLACES, columns, side),
     toolSlots: gridSlots(bodyLeft, bodyTop, PANEL_TOOL_PLACES, columns, side),
-    sizeToggle: header,
+    sizeButtons,
     colorStepTool: header,
     panelDivider,
   };
@@ -444,7 +464,7 @@ function layoutInUnits(css: CssLayout, unitsPerCss: number): ColoringLayout {
     panel: units(css.panel),
     paletteColors: css.paletteColors.map(units),
     toolSlots: css.toolSlots.map(units),
-    sizeToggle: units(css.sizeToggle),
+    sizeButtons: css.sizeButtons.map(units),
     colorStepTool: units(css.colorStepTool),
     panelDivider: units(css.panelDivider),
     panelSlidesFrom: css.panelSlidesFrom,
@@ -479,13 +499,14 @@ function indexContaining(places: readonly LayoutRect[], x: number, y: number): n
   return places.findIndex((place) => contains(place, x, y));
 }
 
-/** Dotyk v kroku nástrojů: nástroj, přepínač velikosti, nebo jen panel. */
+/** Dotyk v kroku nástrojů: nástroj, tlačítko tloušťky, nebo jen panel. */
 function toolStepTarget(layout: ColoringLayout, x: number, y: number): TouchTarget {
   const tool = indexContaining(layout.toolSlots, x, y);
   if (tool >= 0) {
     return { kind: 'tool', index: tool };
   }
-  return contains(layout.sizeToggle, x, y) ? { kind: 'sizeToggle' } : { kind: 'panel' };
+  const size = LINE_SIZES[indexContaining(layout.sizeButtons, x, y)];
+  return size === undefined ? { kind: 'panel' } : { kind: 'lineSize', size };
 }
 
 /** Dotyk v kroku barev: barva, vybraný nástroj (návrat), nebo jen panel. */
@@ -525,11 +546,8 @@ export function touchTargetAt(
 }
 
 // ---------------------------------------------------------------------------
-// Tečka velikosti čáry (#91)
+// Kolečko barvy v úchytu (#106) a vlnka tloušťky (#112)
 // ---------------------------------------------------------------------------
-
-/** Průměry tečky velikosti v poměru 1 : 2 : 3 (#91 AC1). */
-const SIZE_DOT_STEPS: Readonly<Record<LineSize, number>> = { small: 1, medium: 2, large: 3 };
 
 /**
  * Kolečko barvy v úchytu (#106): průměr barevné výplně jako díl strany
@@ -561,16 +579,8 @@ const HANDLE_ICON_SHARE = 0.48;
 const HANDLE_ICON_CENTER_X_SHARE = 0.5;
 const HANDLE_ICON_CENTER_Y_SHARE = 0.35;
 
-/** Velká tečka v přepínači má průměr tento díl strany přepínače. */
-const TOGGLE_LARGE_DOT_SHARE = 0.6;
-
 function sideOf(rect: LayoutRect): number {
   return Math.min(rect.width, rect.height);
-}
-
-/** Průměr tečky velikosti `size`, když má velká tečka průměr `largeDiameter`. */
-function dotDiameter(size: LineSize, largeDiameter: number): number {
-  return (largeDiameter * SIZE_DOT_STEPS[size]) / SIZE_DOT_STEPS.large;
 }
 
 /**
@@ -606,13 +616,49 @@ export function handleColorDot(handle: LayoutRect, size: LineSize): LayoutCircle
   };
 }
 
-/** Tmavá tečka vybrané velikosti uprostřed přepínače (#91 AC1), poměr 1 : 2 : 3. */
-export function sizeToggleDot(toggle: LayoutRect, size: LineSize): LayoutCircle {
-  return {
-    centerX: toggle.left + toggle.width / 2,
-    centerY: toggle.top + toggle.height / 2,
-    diameter: dotDiameter(size, sideOf(toggle) * TOGGLE_LARGE_DOT_SHARE),
-  };
+/** Vlnka na tlačítku tloušťky: střední čára zleva doprava a tloušťka čáry (#112 AC3). */
+export interface LineSizeWave {
+  readonly points: readonly { readonly x: number; readonly y: number }[];
+  /** Tloušťka čáry s kulatými konci v herních jednotkách. */
+  readonly lineWidth: number;
+}
+
+/**
+ * Tloušťka čáry vlnky jako díl strany tlačítka v poměru 3 : 5 : 10
+ * (#112 AC3): na tlačítku 64 CSS px je to 3, 5 a 10 CSS px.
+ */
+const WAVE_LINE_SHARES: Readonly<Record<LineSize, number>> = {
+  small: 3 / 64,
+  medium: 5 / 64,
+  large: 10 / 64,
+};
+
+/** Délka vlnky a výkyv nahoru i dolů od středu jako díl strany tlačítka. */
+const WAVE_LENGTH_SHARE = 0.4;
+const WAVE_AMPLITUDE_SHARE = 0.085;
+
+/** Z kolika úseků se vlnka skládá (jedna celá vlna, nahoru a dolů). */
+const WAVE_SEGMENTS = 24;
+
+/**
+ * Vlnka tloušťky `size` uprostřed tlačítka `button` (#112 AC1, AC3):
+ * jedna celá vlna (nahoru a dolů), stejně dlouhá u všech tlouštěk, liší
+ * se jen tloušťkou čáry.
+ */
+export function lineSizeWave(button: LayoutRect, size: LineSize): LineSizeWave {
+  const side = sideOf(button);
+  const length = side * WAVE_LENGTH_SHARE;
+  const amplitude = side * WAVE_AMPLITUDE_SHARE;
+  const left = button.left + (button.width - length) / 2;
+  const middle = button.top + button.height / 2;
+  const points = Array.from({ length: WAVE_SEGMENTS + 1 }, (_, index) => {
+    const share = index / WAVE_SEGMENTS;
+    return {
+      x: left + share * length,
+      y: middle - amplitude * Math.sin(share * 2 * Math.PI),
+    };
+  });
+  return { points, lineWidth: side * WAVE_LINE_SHARES[size] };
 }
 
 // ---------------------------------------------------------------------------
@@ -650,7 +696,7 @@ export function toolSlotIcon(slot: LayoutRect): LayoutRect {
 /**
  * Kolečko barvy nástroje v místě panelu (#110 AC2): stejně velké jako
  * střední kolečko v úchytu a stejně v pravém dolním rohu, ať je velikost
- * čáry jakákoli (velikost platí pro všechny nástroje a ukazuje ji přepínač).
+ * čáry jakákoli (velikost platí pro všechny nástroje a ukazují ji tlačítka tloušťky).
  */
 const TOOL_SLOT_COLOR_DOT_SHARE = HANDLE_COLOR_DOT_SHARES.medium;
 

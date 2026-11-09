@@ -76,7 +76,7 @@ describe('#97 AC1: duhový štětec je na vyhrazeném místě v panelu', () => {
     }
   });
 
-  it('duha nepřekrývá jiné nástroje, přepínač velikosti ani ovládání v pruhu', () => {
+  it('duha nepřekrývá jiné nástroje, tlačítka tloušťky ani ovládání v pruhu', () => {
     for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const name = `${testCase.scene.label}: duha`;
       const box = testCase.tools[RAINBOW_SLOT];
@@ -87,7 +87,7 @@ describe('#97 AC1: duhový štětec je na vyhrazeném místě v panelu', () => {
         testCase.home,
         testCase.handle,
         testCase.undo,
-        testCase.sizeToggle,
+        ...testCase.sizeButtons,
         ...testCase.recentColors,
       ];
       for (const control of strip) {

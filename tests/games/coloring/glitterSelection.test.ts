@@ -148,12 +148,13 @@ describe('#103 AC1: třpytky se vybírají v panelu jako ostatní nástroje', ()
       color: BLUE,
     });
 
-    for (let tap = 0; tap < 3; tap += 1) {
-      game.tapSizeToggle();
-      expect(game.handleView(), `po přepnutí velikosti ${tap + 1}`).toMatchObject({
+    // #112: tloušťka se vybírá přímo tlačítkem, ne přepínačem dokola.
+    for (const size of ['large', 'small', 'medium'] as const) {
+      game.tapLineSize(size);
+      expect(game.handleView(), `po výběru tloušťky ${size}`).toMatchObject({
         tool: GLITTER,
         color: BLUE,
-        size: game.lineSize(),
+        size,
       });
     }
   });

@@ -487,8 +487,8 @@ describe('#98 AC5: velikost mění velikost hvězdiček i rozestup', () => {
     choose(game, 'stamp');
     startStroke(game, [at(60.5, 300.5), at(200.5, 300.5)]);
 
-    // Ťuknutí na přepínač během tahu se nepočítá.
-    game.tapSizeToggle();
+    // Ťuknutí na tlačítko jiné tloušťky během tahu se nepočítá (#112 AC5).
+    game.tapLineSize('small');
     game.pointerMove({ id: 1, x: 60.5 + 10 * widthOf('large'), y: 300.5, kind: 'touch' });
     game.pointerUp(1);
 

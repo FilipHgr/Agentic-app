@@ -140,12 +140,13 @@ describe('#104 AC1: sprej se vybírá v panelu jako ostatní nástroje', () => {
       color: BLUE,
     });
 
-    for (let tap = 0; tap < 3; tap += 1) {
-      game.tapSizeToggle();
-      expect(game.handleView(), `po přepnutí velikosti ${tap + 1}`).toMatchObject({
+    // #112: tloušťka se vybírá přímo tlačítkem, ne přepínačem dokola.
+    for (const size of ['large', 'small', 'medium'] as const) {
+      game.tapLineSize(size);
+      expect(game.handleView(), `po výběru tloušťky ${size}`).toMatchObject({
         tool: SPRAY,
         color: BLUE,
-        size: game.lineSize(),
+        size,
       });
     }
   });

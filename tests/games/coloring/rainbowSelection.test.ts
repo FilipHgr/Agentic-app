@@ -117,11 +117,12 @@ describe('#97 AC1: duhový štětec se vybírá v panelu jako ostatní nástroje
     expect(game.panelOpen()).toBe(false);
     expect(game.handleView().tool, 'se zavřeným panelem').toBe('rainbow');
 
-    for (let tap = 0; tap < 3; tap += 1) {
-      game.tapSizeToggle();
-      expect(game.handleView(), `po přepnutí velikosti ${tap + 1}`).toMatchObject({
+    // #112: tloušťka se vybírá přímo tlačítkem, ne přepínačem dokola.
+    for (const size of ['large', 'small', 'medium'] as const) {
+      game.tapLineSize(size);
+      expect(game.handleView(), `po výběru tloušťky ${size}`).toMatchObject({
         tool: 'rainbow',
-        size: game.lineSize(),
+        size,
       });
     }
   });

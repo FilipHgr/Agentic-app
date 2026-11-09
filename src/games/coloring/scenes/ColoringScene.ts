@@ -41,6 +41,7 @@ import {
   PANEL_CLOSE_TONES,
   PANEL_OPEN_TONES,
   PANEL_TOOLS,
+  lineSizeWaveLook,
   markedTools,
 } from '../logic/toolPanel';
 import type { HandleView, LineSize, PanelView, ToolId } from '../logic/toolPanel';
@@ -346,13 +347,18 @@ export class ColoringScene extends Phaser.Scene {
 
   /**
    * Co je v panelu označené; každý nástroj má kolečko své barvy (#110 AC2),
-   * guma bílé čárkované a duha duhové.
+   * guma bílé čárkované a duha duhové. Vlnky tlačítek tloušťky jsou
+   * v barvě vybraného nástroje (#112 AC1).
    */
   private panelSelection(): PanelSelection {
     return {
       markedColors: markedColors(this.palette()),
       markedTools: markedTools(this.selectedTool()),
       lineSize: this.lineSize(),
+      waveLook: lineSizeWaveLook({
+        tool: this.selectedTool(),
+        color: this.toolColor(this.selectedTool()),
+      }),
       selectedTool: this.selectedTool(),
       toolColorDots: PANEL_TOOLS.map((tool) =>
         handleColorDotFill({ tool, color: this.toolColor(tool), size: this.lineSize() }),
@@ -443,17 +449,17 @@ export class ColoringScene extends Phaser.Scene {
   }
 
   /**
-   * Ťuknutí na přepínač velikosti (#91 AC1): další velikost s tónem
-   * a krátkým zhoupnutím přepínače. Druhý prst během tahu nic nedělá;
-   * dokud se obrázek připravuje, zůstává střední velikost.
+   * Ťuknutí na tlačítko tloušťky (#112 AC2): vybere ji s tónem a krátkým
+   * zhoupnutím tlačítka, panel zůstane na kroku nástrojů. Druhý prst
+   * během tahu nic nedělá; dokud se obrázek připravuje, zůstává střední.
    */
-  private onSizeToggleTapped(): void {
-    const tones = this.coloring?.tapSizeToggle() ?? [];
+  private onLineSizeTapped(size: LineSize): void {
+    const tones = this.coloring?.tapLineSize(size) ?? [];
     if (tones.length === 0) {
       return;
     }
     this.sounds.play(tones);
-    this.panelView.wobbleSizeToggle();
+    this.panelView.wobbleLineSize(size);
     this.showSelection();
   }
 
@@ -581,8 +587,8 @@ export class ColoringScene extends Phaser.Scene {
       case 'tool':
         this.onToolTapped(target.index);
         return;
-      case 'sizeToggle':
-        this.onSizeToggleTapped();
+      case 'lineSize':
+        this.onLineSizeTapped(target.size);
         return;
       case 'backToTools':
         this.onBackToToolsTapped();
