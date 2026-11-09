@@ -265,3 +265,5 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-09 Sady barev (#116): podle doporučení výraznější odstíny puntíkového
   fixu a fixu (víc odlišné od štětce) a modřejší stříbrná třpytek. Nové
   obrázky ukázat před implementací.
+- 2026-11-09 Odstíny sad v2 schváleny (#116): fix tmavé inkoustové, puntíkový
+  6 jasných vlastních barev (výchozí #FF039F), stříbrná #8D9FC3. Celkem 46 barev.
