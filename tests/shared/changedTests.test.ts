@@ -17,6 +17,12 @@ import type { ChangedTestsPlan } from '../../tools/test/changedTests';
  * změně rozpoznávání, jeho vzorů, pomůcek se vzorky nebo testů skupiny.
  * V prvním řádku je skupina „rozpoznávání“ hned za svou hrou.
  *
+ * #117: změna jen dokumentace (`docs/**`, `*.md` kdekoli) nebo nastavení
+ * agentů (`.claude/**` kromě `.claude/hooks/`) pustí jen kontroly celku
+ * a s jinými změnami se na výběru testů nepodepíše. Změna hooků pustí
+ * všechny testy, protože hooky jsou ochrana. Případy dokumentace, které
+ * dřív pouštěly všechny testy (#79 AC5, #80 AC5), jsou proto v testech #117.
+ *
  * Každé pravidlo je jeden test, který projde tabulku případů v cyklu.
  * Popis případu je v `expect`, aby selhání ukázalo, který případ selhal.
  */
@@ -181,7 +187,7 @@ describe('#79 AC3: změna sdílené části a víc částí naráz', () => {
 });
 
 describe('#79 AC5: změna mimo všechny části pustí všechny testy', () => {
-  it('změna nastavení, nástrojů, vstupů stránky, veřejných souborů nebo dokumentace pustí všechny testy', () => {
+  it('změna nastavení, nástrojů, vstupů stránky nebo veřejných souborů pustí všechny testy', () => {
     expectEachPlan(
       [
         { label: 'nastavení projektu', paths: ['package.json'] },
@@ -200,12 +206,8 @@ describe('#79 AC5: změna mimo všechny části pustí všechny testy', () => {
         { label: 'stránka', paths: ['index.html'] },
         { label: 'veřejný soubor', paths: ['public/licence.txt'] },
         { label: 'nahrávka', paths: ['public/voice/cs/counting/guide-1.mp3'] },
-        { label: 'dokumentace', paths: ['docs/rozhodnuti.md'] },
-        { label: 'pravidla projektu', paths: ['CLAUDE.md'] },
-        { label: 'popis projektu', paths: ['README.md'] },
-        { label: 'skill', paths: ['.claude/skills/novy-ukol/SKILL.md'] },
         { label: 'soubor v kořeni testů mimo části', paths: ['tests/setup.ts'] },
-        { label: 'soubor ve složce her mimo hru', paths: ['src/games/README.md'] },
+        { label: 'soubor ve složce her mimo hru', paths: ['src/games/registry.ts'] },
         {
           label: 'změna mimo části spolu se změnou menu a sdílené části',
           paths: ['src/menu/logic/menu.ts', 'package.json', 'src/shared/logic/settings.ts'],
@@ -329,7 +331,6 @@ describe('#80 AC5: změna rozpoznávání pustí skupinu rozpoznávání', () =>
         { label: 'nástroj, který vytváří vzory', paths: ['tools/recognition/make_templates.mjs'] },
         { label: 'testovací část sady vzorků', paths: ['data/pendigits/pendigits.tes'] },
         { label: 'trénovací část sady vzorků', paths: ['data/pendigits/pendigits.tra'] },
-        { label: 'popis sady vzorků', paths: ['data/pendigits/README.md'] },
         {
           label: 'sada vzorků spolu s rozpoznáváním',
           paths: ['data/pendigits/pendigits.tes', 'src/games/counting/logic/digitRecognition.ts'],
@@ -441,5 +442,145 @@ describe('#80 AC6: okrajové případy skupiny rozpoznávání', () => {
     for (const { label, paths, expected } of cases) {
       expect(planChangedTests(paths, SCRIPTS), label).toEqual(expected);
     }
+  });
+});
+
+/** Jen kontroly celku, stejně jako bez změn (#79 AC6). */
+const WHOLE_ONLY: ChangedTestsPlan = { headline: 'Testy: celek', scripts: ['test:whole'] };
+
+/** Změněná dokumentace a nastavení agentů z AC3 (#117). */
+const DOCUMENTATION_CASES: readonly PlanCase[] = [
+  { label: 'deník rozhodnutí', paths: ['docs/rozhodnuti.md'] },
+  { label: 'jiný soubor v docs', paths: ['docs/navrhy/menu.png'] },
+  { label: 'popis projektu', paths: ['README.md'] },
+  { label: 'šablona issue', paths: ['.github/ISSUE_TEMPLATE/user-story.md'] },
+  { label: 'popis ve složce her', paths: ['src/games/README.md'] },
+  { label: 'popis sady vzorků', paths: ['data/pendigits/README.md'] },
+  { label: 'agent', paths: ['.claude/agents/x.md'] },
+  { label: 'skill', paths: ['.claude/skills/novy-ukol/SKILL.md'] },
+];
+
+describe('#117 AC3: změna jen dokumentace pustí jen kontroly celku', () => {
+  it('změna jen dokumentace, souborů .md nebo nastavení agentů pustí jen kontroly celku', () => {
+    expectEachPlan(
+      [
+        ...DOCUMENTATION_CASES,
+        {
+          label: 'víc souborů dokumentace a nastavení agentů naráz',
+          paths: ['docs/rozhodnuti.md', '.claude/skills/novy-ukol/SKILL.md', 'README.md'],
+        },
+      ],
+      WHOLE_ONLY,
+    );
+  });
+
+  it('dokumentace spolu se změnou části pustí stejné testy jako změna té části samotná', () => {
+    const partChanges: readonly (PlanCase & { readonly expected: ChangedTestsPlan })[] = [
+      {
+        label: 'menu',
+        paths: ['src/menu/logic/menu.ts'],
+        expected: { headline: 'Testy: menu, celek', scripts: ['test:menu', 'test:whole'] },
+      },
+      {
+        label: 'sdílená část',
+        paths: ['src/shared/logic/settings.ts'],
+        expected: { headline: 'Testy: shared, celek', scripts: ['test:shared', 'test:whole'] },
+      },
+      {
+        label: 'hra',
+        paths: ['src/games/counting/logic/problems.ts'],
+        expected: COUNTING_ONLY,
+      },
+      {
+        label: 'rozpoznávání',
+        paths: ['src/games/counting/logic/digitRecognition.ts'],
+        expected: COUNTING_WITH_RECOGNITION,
+      },
+      {
+        label: 'sdílená část a menu',
+        paths: ['src/menu/a.ts', 'src/shared/a.ts'],
+        expected: {
+          headline: 'Testy: shared, menu, celek',
+          scripts: ['test:shared', 'test:menu', 'test:whole'],
+        },
+      },
+    ];
+    for (const partChange of partChanges) {
+      for (const documentation of DOCUMENTATION_CASES) {
+        const docsFirst = [...documentation.paths, ...partChange.paths];
+        const docsLast = [...partChange.paths, ...documentation.paths];
+        expect(
+          planChangedTests(docsFirst, SCRIPTS),
+          `${documentation.label} před změnou: ${partChange.label}`,
+        ).toEqual(partChange.expected);
+        expect(
+          planChangedTests(docsLast, SCRIPTS),
+          `${documentation.label} za změnou: ${partChange.label}`,
+        ).toEqual(partChange.expected);
+      }
+    }
+  });
+
+  it('dokumentace spolu se změnou mimo části dál pustí všechny testy', () => {
+    expectEachPlan(
+      [
+        { label: 'deník a nastavení projektu', paths: ['docs/rozhodnuti.md', 'package.json'] },
+        { label: 'nastavení buildu a pravidla projektu', paths: ['vite.config.ts', 'CLAUDE.md'] },
+        {
+          label: 'skill a nástroj',
+          paths: ['.claude/skills/novy-ukol/SKILL.md', 'tools/voice/make_voice.mjs'],
+        },
+        {
+          label: 'popis a sada vzorků',
+          paths: ['data/pendigits/README.md', 'data/pendigits/pendigits.tes'],
+        },
+        {
+          label: 'deník, menu a CI',
+          paths: ['docs/rozhodnuti.md', 'src/menu/a.ts', '.github/workflows/ci.yml'],
+        },
+        {
+          label: 'agent a hra bez skriptu',
+          paths: ['.claude/agents/x.md', 'src/games/puzzle/a.ts'],
+        },
+      ],
+      ALL_TESTS,
+    );
+  });
+
+  it('soubor, který jen připomíná dokumentaci, pustí dál všechny testy', () => {
+    expectEachPlan(
+      [
+        { label: 'složka podobná docs', paths: ['docsx/a.md.ts'] },
+        { label: 'soubor docs v kořeni bez složky', paths: ['docs'] },
+        { label: 'soubor s .md uprostřed názvu', paths: ['tools/readme.md.mjs'] },
+        { label: 'složka podobná .claude', paths: ['.claudex/settings.json'] },
+      ],
+      ALL_TESTS,
+    );
+  });
+});
+
+describe('#117 AC4: změna hooků pustí všechny testy', () => {
+  it('změna v hoocích pustí všechny testy, i spolu s dokumentací nebo částí', () => {
+    expectEachPlan(
+      [
+        { label: 'hook před commitem', paths: ['.claude/hooks/pre-commit.sh'] },
+        { label: 'hook v podsložce', paths: ['.claude/hooks/lib/run.mjs'] },
+        // V nastavení Claude Code je, které hooky se spouštějí, proto patří k hookům.
+        { label: 'nastavení Claude Code', paths: ['.claude/settings.json'] },
+        { label: 'místní nastavení Claude Code', paths: ['.claude/settings.local.json'] },
+        // CLAUDE.md čte test hlasu jazyků (voiceScriptLanguages.test.ts).
+        { label: 'pravidla projektu čtená testem', paths: ['CLAUDE.md'] },
+        { label: 'pravidla projektu a deník', paths: ['CLAUDE.md', 'docs/rozhodnuti.md'] },
+        { label: 'popis hooků', paths: ['.claude/hooks/README.md'] },
+        { label: 'hook a deník', paths: ['docs/rozhodnuti.md', '.claude/hooks/stop.sh'] },
+        {
+          label: 'hook a nastavení Claude Code',
+          paths: ['.claude/settings.json', '.claude/hooks/stop.sh'],
+        },
+        { label: 'hook a menu', paths: ['src/menu/a.ts', '.claude/hooks/pre-commit.sh'] },
+      ],
+      ALL_TESTS,
+    );
   });
 });

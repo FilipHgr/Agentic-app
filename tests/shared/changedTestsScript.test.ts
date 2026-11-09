@@ -163,10 +163,11 @@ describe('#79 AC4: za změnu se počítá všechno od posledního commitu', () =
     () => {
       expectEachRun(
         [
-          { label: 'nová dokumentace', change: (dir) => writeRepoFile(dir, 'docs/novy.md') },
+          // Dokumentace od #117 pustí jen kontroly celku, proto nástroj a nastavení.
+          { label: 'nový nástroj', change: (dir) => writeRepoFile(dir, 'tools/novy.mjs') },
           {
-            label: 'změněná dokumentace',
-            change: (dir) => writeRepoFile(dir, 'docs/rozhodnuti.md'),
+            label: 'změněné nastavení buildu',
+            change: (dir) => writeRepoFile(dir, 'vite.config.ts'),
           },
         ],
         { firstLine: 'Testy: všechny', ran: ['test'] },

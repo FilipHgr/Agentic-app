@@ -85,6 +85,31 @@ const SLOW_TEST_GROUPS: readonly SlowTestGroup[] = [
   },
 ];
 
+/**
+ * Soubory dokumentace, které čte některý test, a proto nejsou dokumentace
+ * (CLAUDE.md kontroluje test hlasu jazyků v Počítání).
+ */
+const DOCUMENTS_READ_BY_TESTS: ReadonlySet<string> = new Set(['CLAUDE.md']);
+
+/**
+ * Dokumentace a nastavení agentů (#117 AC3): soubory `docs/**`, `*.md`
+ * a složky agentů a skillů v `.claude/` testy nespouští. Hooky a ostatní
+ * nastavení Claude Code (které hooky běží, povolené příkazy) jsou ochrana
+ * a dál pustí všechny testy (#117 AC4).
+ */
+function isDocumentation(path: string): boolean {
+  if (DOCUMENTS_READ_BY_TESTS.has(path) || path.startsWith('.claude/hooks/')) {
+    return false;
+  }
+  if (path.startsWith('.claude/agents/') || path.startsWith('.claude/skills/')) {
+    return true;
+  }
+  if (path.startsWith('.claude/')) {
+    return false;
+  }
+  return path.startsWith('docs/') || path.endsWith('.md');
+}
+
 function partOfPath(path: string): Part | null {
   if (path.startsWith('src/shared/') || path.startsWith('tests/shared/')) {
     return { kind: 'shared' };
@@ -117,6 +142,9 @@ export function planChangedTests(
   const slowGroups = new Set<SlowTestGroup>();
 
   for (const path of changedPaths) {
+    if (isDocumentation(path)) {
+      continue;
+    }
     for (const group of SLOW_TEST_GROUPS) {
       if (group.matches(path)) {
         slowGroups.add(group);
