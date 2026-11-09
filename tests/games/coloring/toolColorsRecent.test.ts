@@ -8,7 +8,7 @@ import { TOOL_NAMES } from './lineSizeHelpers';
 import { pick, seededRandom } from './recentColorsHelpers';
 import { RecordingStorage, openOn, twoHalves } from './savedPictureHelpers';
 import {
-  BLUE,
+  MARKER_BLUE,
   COLOR_TOOLS,
   DEFAULT_TOOL_COLORS,
   GRAY,
@@ -52,7 +52,8 @@ describe('#110 AC4: nedávné barvy zůstávají barvy', () => {
     giveColor(game, 'brush', YELLOW);
     giveColor(game, 'brush', RED);
     expect(toolColorsOf(game).brush, 'štětec je červený').toBe(RED);
-    expect(toolColorsOf(game).marker, 'fix je modrý').toBe(BLUE);
+    // Upraveno k #116: výchozí modrá fixu je ze sady fixu (MARKER_BLUE), ne modrá štětce.
+    expect(toolColorsOf(game).marker, 'fix je modrý').toBe(MARKER_BLUE);
     expect(recentOf(game), 'nedávné [žlutá, prázdné]').toEqual([YELLOW, null]);
 
     pickTool(game, 'marker');
@@ -61,7 +62,7 @@ describe('#110 AC4: nedávné barvy zůstávají barvy', () => {
     game.tapColor(GREEN);
 
     expect(toolColorsOf(game).marker, 'fix je zelený').toBe(GREEN);
-    expect(recentOf(game), 'nedávné [modrá, žlutá]').toEqual([BLUE, YELLOW]);
+    expect(recentOf(game), 'nedávné [modrá, žlutá]').toEqual([MARKER_BLUE, YELLOW]);
     expect(toolColorsOf(game).brush, 'štětec je dál červený').toBe(RED);
   });
 
@@ -164,14 +165,14 @@ describe('#110 AC4: nedávné barvy zůstávají barvy', () => {
     pickTool(game, 'brush');
 
     expect(game.handleView().color, 'úchyt: červený štětec').toBe(RED);
-    expect(recentOf(game), 'nedávné [červená, modrá]').toEqual([RED, BLUE]);
+    expect(recentOf(game), 'nedávné [červená, modrá]').toEqual([RED, MARKER_BLUE]);
   });
 
   it('výběr barvy po přepnutí nástroje nikdy nedá dvě stejná nedávná místa a S je první', () => {
     const game = fresh();
     giveColor(game, 'marker', RED);
     giveColor(game, 'marker', GREEN);
-    expect(recentOf(game), 'nedávné [červená, modrá]').toEqual([RED, BLUE]);
+    expect(recentOf(game), 'nedávné [červená, modrá]').toEqual([RED, MARKER_BLUE]);
     pickTool(game, 'brush');
 
     // Červený štětec dostane žlutou: S je červená a červená je už i v nedávných.

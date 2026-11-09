@@ -15,7 +15,7 @@
 import type { Tone } from '../../../shared/audio/tonePlayer';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import { contrastRatio } from '../../../shared/logic/theme';
-import { PALETTE } from './palette';
+import { colorHex } from './toolColorSets';
 import { COLOR_BUTTON_STYLE, LINE_SIZE_WAVE_STYLE } from './theme';
 
 /**
@@ -150,12 +150,12 @@ export function lineSizeWaveLook(view: {
   readonly tool: ToolId;
   readonly color: number | null;
 }): LineSizeWaveLook {
-  const paletteColor = view.color === null ? undefined : PALETTE[view.color];
-  if (paletteColor === undefined) {
+  const hex = view.color === null ? undefined : colorHex(view.color);
+  if (hex === undefined) {
     return { color: LINE_SIZE_WAVE_STYLE.neutralColor, outlined: false };
   }
-  const contrast = contrastRatio(paletteColor.hex, COLOR_BUTTON_STYLE.background);
-  return { color: paletteColor.hex, outlined: contrast < WAVE_MIN_CONTRAST };
+  const contrast = contrastRatio(hex, COLOR_BUTTON_STYLE.background);
+  return { color: hex, outlined: contrast < WAVE_MIN_CONTRAST };
 }
 
 /** Klíč záznamu velikosti v úložišti hry profilu, samostatně vedle obrázku (#91 AC5). */

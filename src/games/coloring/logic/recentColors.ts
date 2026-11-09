@@ -18,7 +18,8 @@
  */
 
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
-import { PALETTE, isPaletteIndex } from './palette';
+import { isPaletteIndex } from './palette';
+import { ALL_COLOR_COUNT } from './toolColorSets';
 
 /** Kolik míst pro nedávné barvy je v pruhu (#99, otázka 1). */
 export const RECENT_COLOR_COUNT = 2;
@@ -66,13 +67,13 @@ function cleaned(
  * (AC2, u #110 předchozí barva nástroje, který barvu dostává). Výběr už
  * vybrané barvy nic nezmění. Když je `selected` už mezi nedávnými, druhé
  * místo dostane první starou barvu, která není `selected` ani `picked`.
- * `paletteSize` je počet barev palety (#115), bez něj dnešní `PALETTE`.
+ * `paletteSize` je počet barev palety (#115), bez něj všechny barvy sad (#116).
  */
 export function recentAfterPick(
   recent: RecentColors,
   selected: number,
   picked: number,
-  paletteSize: number = PALETTE.length,
+  paletteSize: number = ALL_COLOR_COUNT,
 ): RecentColors {
   if (picked === selected) {
     return recent;
@@ -99,7 +100,7 @@ function readField(field: string): number | null {
  */
 export function decodeRecentColors(
   record: string | null,
-  paletteSize: number = PALETTE.length,
+  paletteSize: number = ALL_COLOR_COUNT,
 ): RecentColors {
   if (record === null) {
     return noRecentColors();
@@ -123,7 +124,7 @@ export function encodeRecentColors(recent: RecentColors): string {
 export function loadRecentColors(
   storage: KeyValueStorage,
   pictureId: string,
-  paletteSize: number = PALETTE.length,
+  paletteSize: number = ALL_COLOR_COUNT,
 ): RecentColors {
   try {
     return decodeRecentColors(storage.getItem(recordKey(pictureId)), paletteSize);

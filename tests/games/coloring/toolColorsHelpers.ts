@@ -2,13 +2,12 @@
  * Pomůcky pro testy k #110 (každý nástroj v Omalovánkách si pamatuje svou
  * barvu). Barva nástroje se čte tak, jak ji vidí dítě: úchyt ukazuje
  * vybraný nástroj v jeho barvě (`game.handleView()`), krok barev označí
- * barvu vybraného nástroje (`markedColors(game.palette())`) a krok nástrojů
+ * barvu vybraného nástroje (od #116 `game.markedColorPlace()`) a krok nástrojů
  * ukazuje barvu každého malovacího nástroje (`game.toolColor(tool)`,
  * navržené rozhraní v `toolColors.test.ts`).
  */
 
 import type { SavedColoring } from '../../../src/games/coloring/logic/savedPicture';
-import { markedColors } from '../../../src/games/coloring/logic/palette';
 import type { ToolId } from '../../../src/games/coloring/logic/toolPanel';
 import { choose } from './drawingToolHelpers';
 
@@ -43,16 +42,33 @@ export type ColorTool = (typeof COLOR_TOOLS)[number];
 /** Nástroje bez barvy (#110 AC1): guma a duha. */
 export const TOOLS_WITHOUT_COLOR = ['eraser', 'rainbow'] as const satisfies readonly ToolId[];
 
-/** Výchozí barvy nástrojů v novém profilu, tabulka z #110 AC5 (přepsaná přímo ze zadání). */
+/**
+ * Výchozí barvy nových sad z #116 jako čísla barev: nové barvy mají čísla
+ * od 12 po sloupcích schválené tabulky v2 (fix 12–16, pastelka 17–21,
+ * razítkový 22–25, puntíkový 26–31, proužkový 32–35, třpytky 36–40,
+ * sprej 41–45). Čísla jsou v uložených obrázcích, proto jsou tu opsaná.
+ */
+export const MARKER_BLUE = 14; // #0040DD
+export const CRAYON_GREEN = 18; // #5E9E3A
+export const STAMP_ORANGE = 22; // #FF7E1A
+export const DOTS_PINK = 30; // #FF039F
+export const STRIPES_LIGHT_BLUE = 35; // #2E8FD8
+export const GLITTER_GOLD = 36; // #C9A227
+export const SPRAY_PURPLE = 45; // #9933FF
+
+/**
+ * Výchozí barvy nástrojů v novém profilu. Tabulku z #110 AC5 nahradil #116
+ * (výchozí barvy ze zadání #116, puntíkový podle tabulky v2).
+ */
 export const DEFAULT_TOOL_COLORS: Readonly<Record<ColorTool, number>> = {
   brush: RED,
-  marker: BLUE,
-  crayon: GREEN,
-  stamp: ORANGE,
-  dots: PURPLE,
-  stripes: PINK,
-  glitter: LIGHT_BLUE,
-  spray: BLACK,
+  marker: MARKER_BLUE,
+  crayon: CRAYON_GREEN,
+  stamp: STAMP_ORANGE,
+  dots: DOTS_PINK,
+  stripes: STRIPES_LIGHT_BLUE,
+  glitter: GLITTER_GOLD,
+  spray: SPRAY_PURPLE,
 };
 
 /** Je nástroj malovací nástroj s vlastní barvou? */
@@ -78,9 +94,16 @@ export function toolColorsOf(game: SavedColoring): Record<ColorTool, number | nu
   >;
 }
 
-/** Index jediné označené barvy v kroku barev (nebo všechny označené, když jich je víc). */
+/**
+ * Barva (číslo barvy) označená v kroku barev, prázdné, když není označená
+ * žádná. Upraveno k #116: krok barev ukazuje sadu nástroje, označené místo
+ * je `markedColorPlace()` a barva na něm `colorStep()[místo]`; do #116 to
+ * bylo `markedColors(game.palette())` nad 12 barvami štětce.
+ */
 export function markedColorIndexes(game: SavedColoring): number[] {
-  return markedColors(game.palette()).flatMap((marked, index) => (marked ? [index] : []));
+  const place = game.markedColorPlace();
+  const color = place === null ? undefined : game.colorStep()[place];
+  return color === undefined ? [] : [color];
 }
 
 /** Panel otevřený na kroku nástrojů (z kteréhokoli kroku). */

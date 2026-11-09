@@ -11,8 +11,8 @@
  */
 
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
-import { PALETTE, isPaletteIndex } from './palette';
-import type { PaletteColorId } from './palette';
+import { isPaletteIndex } from './palette';
+import { ALL_COLOR_COUNT, colorAtPlace } from './toolColorSets';
 import type { ToolId } from './toolPanel';
 
 /** Malovací nástroj s vlastní barvou (všechny kromě gumy a duhy). */
@@ -30,26 +30,32 @@ export const COLOR_TOOLS: readonly ColorToolId[] = [
   'spray',
 ];
 
-/** Barva každého malovacího nástroje jako index `PALETTE`. */
+/** Barva každého malovacího nástroje jako číslo barvy (`ALL_COLORS`, #116). */
 export type ToolColors = Readonly<Record<ColorToolId, number>>;
 
 /** Nástroj, který dostane barvu, když je vybraná duha (#97 AC4). */
 const RAINBOW_COLOR_TOOL: ColorToolId = 'brush';
 
-/** Výchozí barvy nástrojů v novém profilu (tabulka v #110 AC5). */
-const DEFAULT_COLOR_IDS: Readonly<Record<ColorToolId, PaletteColorId>> = {
-  brush: 'red',
-  marker: 'blue',
-  crayon: 'green',
-  stamp: 'orange',
-  dots: 'purple',
-  stripes: 'pink',
-  glitter: 'lightBlue',
-  spray: 'black',
+/**
+ * Výchozí barvy nástrojů v novém profilu jako místo v sadě nástroje
+ * (#116 nahrazuje tabulku z #110 AC5): štětec #FF3B30, fix #0040DD,
+ * pastelka #5E9E3A, razítkový #FF7E1A, puntíkový #FF039F (tabulka v2),
+ * proužkový #2E8FD8, třpytky #C9A227, sprej #9933FF.
+ */
+const DEFAULT_COLOR_PLACES: Readonly<Record<ColorToolId, number>> = {
+  brush: 0,
+  marker: 4,
+  crayon: 3,
+  stamp: 1,
+  dots: 8,
+  stripes: 11,
+  glitter: 2,
+  spray: 5,
 };
 
-function paletteIndexOf(id: PaletteColorId): number {
-  return PALETTE.findIndex((color) => color.id === id);
+/** Výchozí barva nástroje: barva na jeho výchozím místě, jinak první barva palety. */
+function defaultColorOf(tool: ColorToolId): number {
+  return colorAtPlace(tool, DEFAULT_COLOR_PLACES[tool]) ?? 0;
 }
 
 /** Barvy nástrojů podle `colorOf`. */
@@ -61,10 +67,8 @@ function toolColorsFrom(colorOf: (tool: ColorToolId) => number): ToolColors {
   return colors;
 }
 
-/** Výchozí barvy nástrojů v novém profilu (AC5). */
-export const DEFAULT_TOOL_COLORS: ToolColors = toolColorsFrom((tool) =>
-  paletteIndexOf(DEFAULT_COLOR_IDS[tool]),
-);
+/** Výchozí barvy nástrojů v novém profilu (#110 AC5, odstíny podle #116). */
+export const DEFAULT_TOOL_COLORS: ToolColors = toolColorsFrom(defaultColorOf);
 
 /** Všechny malovací nástroje v barvě `color`: obrázek uložený před #110 (AC6). */
 export function allToolsIn(color: number): ToolColors {
@@ -110,7 +114,7 @@ function readField(field: string, paletteSize: number): number | null {
  */
 export function decodeToolColors(
   record: string,
-  paletteSize: number = PALETTE.length,
+  paletteSize: number = ALL_COLOR_COUNT,
 ): ToolColors | null {
   const fields = record.split(FIELD_SEPARATOR).map((field) => readField(field, paletteSize));
   if (fields.length !== COLOR_TOOLS.length) {
@@ -139,7 +143,7 @@ export function encodeToolColors(colors: ToolColors): string {
 export function loadToolColors(
   storage: KeyValueStorage,
   pictureId: string,
-  paletteSize: number = PALETTE.length,
+  paletteSize: number = ALL_COLOR_COUNT,
 ): ToolColors | null {
   try {
     const record = storage.getItem(recordKey(pictureId));

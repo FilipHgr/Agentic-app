@@ -413,10 +413,12 @@ describe('#100 AC5: záznam s neznámou barvou se ukáže jako prázdná omalov�
     }
   });
 
-  it('nedávné barvy mimo 12 barev se neukážou, nové barvy ano', () => {
+  it('nedávné barvy mimo barvy hry se neukážou, nové barvy ano', () => {
     const regions = legacyP2Regions();
     for (const [record, expected] of [
-      ['12,13', [null, null]],
+      // Upraveno k #116: hra zná 46 barev (barvy 12 a 13 jsou ze sady fixu),
+      // neznámé jsou až barvy od 46.
+      ['46,50', [null, null]],
       ['99,8', [PINK, null]],
       ['9,11', [SKIN, LIGHT_BLUE]],
     ] as const) {

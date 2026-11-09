@@ -46,6 +46,9 @@ export interface PanelPlacement {
  * a kolečko barvy každého nástroje v pořadí `PANEL_TOOLS` (#110).
  */
 export interface PanelSelection {
+  /** Barvy kroku barev v pořadí míst: sada nástroje, který by výběr dostal (#116). */
+  readonly stepColors: readonly number[];
+  /** U každého místa kroku barev, jestli je označené (nejvýš jedno, #116 AC5). */
   readonly markedColors: readonly boolean[];
   readonly markedTools: readonly boolean[];
   readonly lineSize: LineSize;
@@ -110,7 +113,13 @@ export class ToolPanelView {
     this.colorStepTool = this.addCentered(layout.colorStepTool, colorStep);
     this.colorStepIcon = this.addIcon(colorStep);
     this.colorStepDot = this.addCentered(layout.colorStepTool, colorStep);
-    this.palette.place(layout.paletteColors, selection.markedColors, cssScale, colorStep);
+    this.palette.place(
+      layout.paletteColors,
+      selection.stepColors,
+      selection.markedColors,
+      cssScale,
+      colorStep,
+    );
     this.container = container;
     this.toolStep = toolStep;
     this.colorStep = colorStep;
@@ -123,7 +132,7 @@ export class ToolPanelView {
 
   /** Označí vybranou barvu, nástroj a tloušťku; u nástrojů ukáže kolečko jejich barvy. */
   mark(selection: PanelSelection): void {
-    this.palette.mark(selection.markedColors);
+    this.palette.mark(selection.stepColors, selection.markedColors);
     this.showTools(selection);
     this.showSizes(selection);
     this.showColorStepTool(selection);

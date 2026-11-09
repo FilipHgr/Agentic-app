@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SavedColoring } from '../../../src/games/coloring/logic/savedPicture';
 import { choose, endOf } from './drawingToolHelpers';
 import { TOOL_NAMES } from './lineSizeHelpers';
+import { ALL_COLOR_COUNT } from './toolColorSetsHelpers';
 import {
   BLACK,
   BLUE,
@@ -205,7 +206,8 @@ describe('#99 AC2: pořadí nedávných barev', () => {
 
   it('neplatné ťuknutí na barvu nedávné barvy nezmění', () => {
     const game = arranged();
-    for (const index of [-1, PALETTE_SIZE, 1.5, Number.NaN]) {
+    // Upraveno k #116: hra zná 46 barev ze sad nástrojů, neplatná je až barva 46.
+    for (const index of [-1, ALL_COLOR_COUNT, 1.5, Number.NaN]) {
       game.tapColor(index);
       expect(choiceOf(game), `index ${index}`).toEqual({ selected: S, recent: [A, B] });
     }

@@ -21,6 +21,7 @@ import {
   toolSlotIcon,
 } from '../../../src/games/coloring/logic/coloringLayout';
 import { PALETTE, RAINBOW_COLORS } from '../../../src/games/coloring/logic/palette';
+import { ALL_COLORS } from '../../../src/games/coloring/logic/toolColorSets';
 import { HANDLE_COLOR_DOT_STYLE } from '../../../src/games/coloring/logic/theme';
 import { toolIconAsset } from '../../../src/games/coloring/logic/toolIcons';
 import { PANEL_TOOLS } from '../../../src/games/coloring/logic/toolPanel';
@@ -98,8 +99,9 @@ export function sameHex(first: string, second: string): boolean {
   return first.toUpperCase() === second.toUpperCase();
 }
 
+/** Odstín barvy `color`; od #116 i barvy ze sad nástrojů (`ALL_COLORS`). */
 export function hexOf(color: number): string {
-  const hex = PALETTE[color]?.hex;
+  const hex = ALL_COLORS[color]?.hex;
   if (hex === undefined) {
     throw new Error(`barva ${color} v paletě není`);
   }

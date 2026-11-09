@@ -10,15 +10,15 @@ import Phaser from 'phaser';
 
 import { joinAreas } from '../logic/coloring';
 import type { ChangedArea, Coloring } from '../logic/coloring';
-import { PALETTE } from '../logic/palette';
 import { OUTLINE_REGION } from '../logic/regionMap';
 import type { RegionMap } from '../logic/regionMap';
 import { PICTURE_STYLE, rgbOf } from '../logic/theme';
+import { ALL_COLORS } from '../logic/toolColorSets';
 
 const OPAQUE = 255;
 
-/** Barvy palety jako RGB, ať se při malování nepřevádějí znovu. */
-const PALETTE_RGB = PALETTE.map((color) => rgbOf(color.hex));
+/** Všechny barvy hry (i ze sad nástrojů, #116) jako RGB, ať se při malování nepřevádějí znovu. */
+const COLOR_RGB = ALL_COLORS.map((color) => rgbOf(color.hex));
 
 /** Bílá plocha pod barvami. */
 const BACKGROUND_RGB = rgbOf(PICTURE_STYLE.background);
@@ -79,7 +79,7 @@ export class PaintLayer {
           continue;
         }
         const color = coloring.colorAt(x, y);
-        this.setPixel(index, (color === null ? undefined : PALETTE_RGB[color]) ?? BACKGROUND_RGB);
+        this.setPixel(index, (color === null ? undefined : COLOR_RGB[color]) ?? BACKGROUND_RGB);
       }
     }
     this.pending = joinAreas(this.pending, area);

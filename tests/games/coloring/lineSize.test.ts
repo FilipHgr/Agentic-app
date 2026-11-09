@@ -40,6 +40,7 @@ import {
   startStroke,
   twoHalves,
 } from './savedPictureHelpers';
+import { DEFAULT_TOOL_COLORS } from './toolColorsHelpers';
 
 /**
  * Testy k #91 (tři velikosti čáry v Omalovánkách) v upraveném znění AC1,
@@ -76,7 +77,6 @@ import {
  */
 
 const RED = 0;
-const GREEN = 3;
 const BLUE = 4;
 const BLACK = 7;
 
@@ -189,8 +189,13 @@ describe('#91 AC1 a #112 AC2: výběr velikosti', () => {
     let paintingTool: ToolId = 'brush';
     // Přepsáno k #110: dřív jedna barva pro všechny nástroje. Od #110 má
     // každý nástroj svou barvu (výchozí podle tabulky v #110 AC5) a výběr
-    // barvy ji dá jen nástroji, ke kterému se vybírá.
-    const colors: Partial<Record<ToolId, number>> = { brush: RED, marker: BLUE, crayon: GREEN };
+    // barvy ji dá jen nástroji, ke kterému se vybírá. Výchozí barvy fixu
+    // a pastelky jsou od #116 ze sad nástrojů.
+    const colors: Partial<Record<ToolId, number>> = {
+      brush: RED,
+      marker: DEFAULT_TOOL_COLORS.marker,
+      crayon: DEFAULT_TOOL_COLORS.crayon,
+    };
     let size: LineSize = 'medium';
     steps.forEach((step, index) => {
       if ('tool' in step) {

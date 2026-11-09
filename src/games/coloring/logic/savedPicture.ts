@@ -13,7 +13,8 @@
  * rozměr) dá prázdnou omalovánku (AC4). Stejně tak záznam s barvou, kterou
  * formát zná, ale paleta ne (#100 AC5, #115 AC4).
  *
- * Velikost palety (#115) je volba `paletteSize`, bez ní dnešní `PALETTE`.
+ * Velikost palety (#115) je volba `paletteSize`, bez ní všech 46 barev
+ * ze sad nástrojů (`ALL_COLORS`, #116).
  * Formát p4 zná nejvýš 64 barev (`MAX_PALETTE_SIZE`); barvy 0 až
  * `paletteSize − 1` jde vybrat, malovat, uložit a obnovit, včetně barev
  * nástrojů a nedávných barev. Selhání úložiště
@@ -50,6 +51,12 @@
  * naposledy vybraná barva: když záznam barev nástrojů chybí nebo je
  * poškozený, dostanou ji všechny nástroje (#110 AC6), bez obrázku platí
  * výchozí barvy.
+ *
+ * Od #116 má každý malovací nástroj v kroku barev vlastní sadu 12 barev
+ * (`toolColorSets.ts`). Krok barev ukazuje sadu nástroje, který by výběr
+ * dostal, a označí místo jeho barvy. Barvu mimo sadu (starší záznam,
+ * nedávná barva) nástroj má a maluje jí dál, v kroku barev pak není
+ * označené nic (#116 AC5).
  * Čistý TypeScript bez Phaseru.
  */
 
@@ -58,7 +65,7 @@ import type { Tone } from '../../../shared/audio/tonePlayer';
 import { HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
 import { NO_COLOR, brushWidthFor, createColoring, emptyColorLayer } from './coloring';
 import type { ChangedArea, PointerSample } from './coloring';
-import { PALETTE, isPaletteIndex, tapColor } from './palette';
+import { isPaletteIndex, tapColor } from './palette';
 import type { PaletteState } from './palette';
 import {
   CURRENT_LAYER_CODE,
@@ -72,6 +79,7 @@ import type { RegionMap } from './regionMap';
 import { loadRecentColors, recentAfterPick, storeRecentColors } from './recentColors';
 import type { RecentColors } from './recentColors';
 import { createUndoHistory } from './strokeHistory';
+import { ALL_COLOR_COUNT, TOOL_COLOR_SETS, placeInSet } from './toolColorSets';
 import {
   DEFAULT_TOOL_COLORS,
   allToolsIn,
@@ -211,7 +219,19 @@ export interface SavedColoring {
    */
   palette(): PaletteState;
   /**
-   * Barva malovacího nástroje `tool` (index `PALETTE`), kterou ukazuje krok
+   * Krok barev (#116 AC1): 12 čísel barev v pořadí míst, sada nástroje,
+   * který by výběr barvy dostal (vybraný malovací nástroj, po gumě
+   * naposledy vybraný, po duze štětec). Scéna ťuknutí na místo k hlásí
+   * jako `tapColor(colorStep()[k])`.
+   */
+  colorStep(): readonly number[];
+  /**
+   * Označené místo kroku barev (0 až 11): místo barvy nástroje z `colorStep`
+   * v jeho sadě; `null`, když barvu sada nemá a nic se neoznačí (#116 AC5).
+   */
+  markedColorPlace(): number | null;
+  /**
+   * Barva malovacího nástroje `tool` (číslo barvy `ALL_COLORS`), kterou ukazuje krok
    * nástrojů (#110 AC2); guma a duha barvu nemají (`null`).
    */
   toolColor(tool: ToolId): number | null;
@@ -273,12 +293,12 @@ function checksumOf(text: string): string {
 }
 
 /**
- * Velikost palety z volby `paletteSize`: bez ní dnešní `PALETTE`, jinak
+ * Velikost palety z volby `paletteSize`: bez ní všechny barvy sad (#116), jinak
  * omezená na 1 až `MAX_PALETTE_SIZE`, aby se každá barva dala uložit.
  */
 function paletteSizeOf(paletteSize: number | undefined): number {
   if (paletteSize === undefined || !Number.isInteger(paletteSize)) {
-    return PALETTE.length;
+    return ALL_COLOR_COUNT;
   }
   return Math.min(Math.max(paletteSize, 1), MAX_PALETTE_SIZE);
 }
@@ -382,7 +402,7 @@ function readRecord(
 
 /**
  * Přečte záznam; `null`, když je poškozený, nečitelný, jiné omalovánky,
- * nebo má barvu mimo paletu s `paletteSize` barvami (bez ní dnešní `PALETTE`).
+ * nebo má barvu mimo paletu s `paletteSize` barvami (bez ní všechny barvy sad, #116).
  */
 export function decodePicture(
   record: string,
@@ -466,7 +486,7 @@ function openingToolColors(
 /**
  * Otevře omalovánku `picture` nad úložištěm hry aktivního profilu.
  * Pokračuje v uloženém obrázku, nebo začne prázdný s výchozími barvami.
- * `paletteSize` je počet barev palety (#115), bez něj dnešní `PALETTE`.
+ * `paletteSize` je počet barev palety (#115), bez něj všechny barvy sad (#116).
  */
 export function openColoring(options: {
   readonly regions: RegionMap;
@@ -644,6 +664,13 @@ export function openColoring(options: {
     },
 
     palette: () => ({ selected: toolColors[toolReceivingColor(paintingTool)] }),
+
+    colorStep: () => TOOL_COLOR_SETS[toolReceivingColor(paintingTool)],
+
+    markedColorPlace() {
+      const receiving = toolReceivingColor(paintingTool);
+      return placeInSet(receiving, toolColors[receiving]);
+    },
 
     toolColor: (colorTool) => (isColorTool(colorTool) ? toolColors[colorTool] : null),
 

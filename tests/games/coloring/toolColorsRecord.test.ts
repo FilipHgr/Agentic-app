@@ -69,6 +69,7 @@ import {
 import {
   BLACK,
   BLUE,
+  MARKER_BLUE,
   BROWN,
   COLOR_TOOLS,
   DEFAULT_TOOL_COLORS,
@@ -84,6 +85,7 @@ import {
   toolColorsOf,
 } from './toolColorsHelpers';
 import type { ColorTool } from './toolColorsHelpers';
+import { ALL_COLOR_COUNT } from './toolColorSetsHelpers';
 
 /**
  * Testy k #110 AC5 (pamatování a výchozí barvy) a AC6 (staré uložené stavy
@@ -330,13 +332,14 @@ describe('#110 AC5: barvy nástrojů se pamatují podle profilu a omalovánky', 
     const game = openOn(storage, regions);
     giveColor(game, 'marker', RED);
     giveColor(game, 'marker', GREEN);
-    expect(game.recentColors(), 'nedávné [červená, modrá]').toEqual([RED, BLUE]);
+    // Upraveno k #116: výchozí modrá fixu je ze sady fixu (MARKER_BLUE).
+    expect(game.recentColors(), 'nedávné [červená, modrá]').toEqual([RED, MARKER_BLUE]);
     game.suspend();
 
     const again = openOn(storage, regions);
 
     expect(again.handleView(), 'štětec je červený').toMatchObject({ tool: 'brush', color: RED });
-    expect(again.recentColors(), 'pořád [červená, modrá]').toEqual([RED, BLUE]);
+    expect(again.recentColors(), 'pořád [červená, modrá]').toEqual([RED, MARKER_BLUE]);
   });
 
   it('při plném úložišti jde vybírat barvy dál bez chyby a platí aspoň do odchodu', () => {
@@ -616,7 +619,8 @@ describe('#110 AC6: chybějící nebo špatný záznam barev nástrojů', () => 
       for (const tool of COLOR_TOOLS) {
         const color = colors[tool];
         expect(
-          color !== null && Number.isInteger(color) && color >= 0 && color < 12,
+          // Upraveno k #116: hra zná 46 barev ze sad nástrojů (do #116 jen 12).
+          color !== null && Number.isInteger(color) && color >= 0 && color < ALL_COLOR_COUNT,
           `${what}: ${tool} má barvu ${String(color)}`,
         ).toBe(true);
       }

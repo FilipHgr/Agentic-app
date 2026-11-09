@@ -9,6 +9,7 @@
  */
 
 import { PALETTE, RAINBOW_COLORS } from './palette';
+import { colorHex } from './toolColorSets';
 import type { HandleView, ToolId } from './toolPanel';
 
 /** Jména použitých emoji v sadě Noto. */
@@ -61,7 +62,7 @@ const RAINBOW_HEXES: readonly string[] = RAINBOW_COLORS.map((index) => PALETTE[i
 
 /**
  * Kolečko barvy nástroje `view.tool` v úchytu i v panelu: malovací nástroj
- * ve své barvě palety `view.color` (#110), guma bílé čárkované, duhový
+ * ve své barvě `view.color` (#110), i z vlastní sady nástroje (#116), guma bílé čárkované, duhový
  * štětec v barvách duhy. Velikost čáry kolečko nevyplňuje.
  */
 export function handleColorDotFill(view: HandleView): HandleColorDotFill {
@@ -71,7 +72,7 @@ export function handleColorDotFill(view: HandleView): HandleColorDotFill {
   if (view.tool === 'rainbow') {
     return { kind: 'rainbow', hexes: RAINBOW_HEXES };
   }
-  const hex = view.color === null ? undefined : PALETTE[view.color]?.hex;
+  const hex = view.color === null ? undefined : colorHex(view.color);
   if (hex === undefined) {
     // Malovací nástroj má vždy vybranou barvu, bez ní ukáže kolečko jako guma.
     return { kind: 'eraser' };

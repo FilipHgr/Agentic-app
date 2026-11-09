@@ -26,14 +26,15 @@ import {
 import type { ColoringLayout } from '../logic/coloringLayout';
 import { startColoringSession } from '../logic/coloringSession';
 import type { ColoringPage } from '../logic/coloringSession';
-import { markedColors, tapColor } from '../logic/palette';
+import { tapColor } from '../logic/palette';
 import type { PaletteState } from '../logic/palette';
 import { buildRegionMap, outlineFromImage } from '../logic/regionMap';
 import { noRecentColors } from '../logic/recentColors';
 import { RECENT_COLOR_WOBBLE_TONES, UNDO_WOBBLE_TONES, openColoring } from '../logic/savedPicture';
 import type { RecentColorTap, SavedColoring, UndoResult } from '../logic/savedPicture';
 import { PICTURE_STYLE } from '../logic/theme';
-import { DEFAULT_TOOL_COLORS, isColorTool } from '../logic/toolColors';
+import { ALL_COLOR_COUNT, TOOL_COLOR_SETS, placeInSet } from '../logic/toolColorSets';
+import { DEFAULT_TOOL_COLORS, isColorTool, toolReceivingColor } from '../logic/toolColors';
 import { handleColorDotFill } from '../logic/toolIcons';
 import {
   INITIAL_LINE_SIZE,
@@ -54,6 +55,9 @@ import { preloadToolIcons } from './toolIconTextures';
 import { ToolPanelView } from './ToolPanelView';
 import type { PanelSelection } from './ToolPanelView';
 import { UndoButtonView } from './UndoButtonView';
+
+/** Nástroj, který dostane barvu, dokud se obrázek připravuje (štětec). */
+const INITIAL_COLOR_TOOL = toolReceivingColor(INITIAL_TOOL);
 
 /** Vrstva barev a obrys mají 1024 × 768 pixelů (poměr plochy 4 : 3). */
 const PICTURE_PIXEL_WIDTH = TABLET_GAME_WIDTH;
@@ -324,11 +328,22 @@ export class ColoringScene extends Phaser.Scene {
   }
 
   /**
-   * Stav palety: barva nástroje, který by výběr barvy dostal (#110 AC2);
-   * dokud se obrázek připravuje, barva štětce.
+   * Barvy kroku barev v pořadí míst: sada nástroje, který by výběr dostal
+   * (#116 AC1); dokud se obrázek připravuje, sada štětce.
    */
-  private palette(): PaletteState {
-    return this.coloring?.palette() ?? this.paletteBeforeReady;
+  private colorStep(): readonly number[] {
+    return this.coloring?.colorStep() ?? TOOL_COLOR_SETS[INITIAL_COLOR_TOOL];
+  }
+
+  /**
+   * Označené místo kroku barev, `null` když barvu nástroje jeho sada nemá
+   * (#116 AC5); dokud se obrázek připravuje, místo barvy štětce.
+   */
+  private markedColorPlace(): number | null {
+    if (this.coloring !== null) {
+      return this.coloring.markedColorPlace();
+    }
+    return placeInSet(INITIAL_COLOR_TOOL, this.paletteBeforeReady.selected);
   }
 
   /**
@@ -351,8 +366,10 @@ export class ColoringScene extends Phaser.Scene {
    * v barvě vybraného nástroje (#112 AC1).
    */
   private panelSelection(): PanelSelection {
+    const markedPlace = this.markedColorPlace();
     return {
-      markedColors: markedColors(this.palette()),
+      stepColors: this.colorStep(),
+      markedColors: this.colorStep().map((_, place) => place === markedPlace),
       markedTools: markedTools(this.selectedTool()),
       lineSize: this.lineSize(),
       waveLook: lineSizeWaveLook({
@@ -467,16 +484,23 @@ export class ColoringScene extends Phaser.Scene {
   // Paleta
   // -------------------------------------------------------------------------
 
-  /** Ťuknutí na barvu v kroku barev: vybere ji s tónem a panel zavře (#105 AC3). */
-  private onColorTapped(index: number): void {
+  /**
+   * Ťuknutí na místo `place` kroku barev: vybere barvu, kterou místo
+   * ukazuje (ze sady nástroje, #116), s tónem a panel zavře (#105 AC3).
+   */
+  private onColorTapped(place: number): void {
+    const color = this.colorStep()[place];
+    if (color === undefined) {
+      return;
+    }
     if (this.coloring === null) {
       // Obrázek se ještě připravuje: barva se jen vybere, uloží se až s obrázkem.
-      const { state, tones } = tapColor(this.paletteBeforeReady, index);
+      const { state, tones } = tapColor(this.paletteBeforeReady, color, ALL_COLOR_COUNT);
       this.paletteBeforeReady = state;
       this.panelViewBeforeReady = 'closed';
       this.sounds.play(tones);
     } else {
-      this.sounds.play(this.coloring.tapColor(index));
+      this.sounds.play(this.coloring.tapColor(color));
     }
     this.showSelection();
     this.showPanel();

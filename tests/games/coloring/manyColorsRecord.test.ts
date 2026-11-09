@@ -96,8 +96,11 @@ import { at } from './strokeHelpers';
 /** Nejvyšší barva zkušební palety. */
 const HIGHEST_COLOR = TEST_PALETTE_SIZE - 1;
 
-/** Barva, kterou zná formát, ale dnešní paleta s 12 barvami ne. */
-const BEYOND_TODAY = 40;
+/**
+ * Barva, kterou zná formát, ale dnešní paleta ne. Upraveno k #116: hra zná
+ * 46 barev ze sad nástrojů, dřívější barva 40 je dnes barva třpytek.
+ */
+const BEYOND_TODAY = 50;
 
 /** Barva dnešní palety (světle modrá z #100). */
 const TODAY_COLOR = 11;
@@ -585,8 +588,8 @@ describe('#115 AC4: poškozený nebo nepoznaný záznam dá prázdnou omalovánk
     expect(todayGame.palette().selected, 'dnešní vybraná barva').toBe(TODAY_COLOR);
 
     for (const [what, pixels, selected] of [
-      ['pixely v barvě 40', beyondPixels, 3],
-      ['vybraná barva 40', todayPixels, BEYOND_TODAY],
+      [`pixely v barvě ${BEYOND_TODAY}`, beyondPixels, 3],
+      [`vybraná barva ${BEYOND_TODAY}`, todayPixels, BEYOND_TODAY],
       [
         'pixely i vybraná barva 63',
         pixelsFrom({ colorAt: () => HIGHEST_COLOR }, regions),

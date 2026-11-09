@@ -27,8 +27,8 @@
 
 import { homeButtonInFreeArea } from '../../../shared/logic/homeButton';
 import type { GameArea, GameAreaFit } from '../../../shared/logic/viewportLayout';
-import { PALETTE } from './palette';
 import { COLOR_BUTTON_STYLE, HANDLE_COLOR_DOT_STYLE } from './theme';
+import { COLOR_STEP_SIZE } from './toolColorSets';
 import { LINE_SIZES } from './toolPanel';
 import type { LineSize, PanelView } from './toolPanel';
 
@@ -514,7 +514,7 @@ function toolStepTarget(layout: ColoringLayout, x: number, y: number): TouchTarg
 function colorStepTarget(layout: ColoringLayout, x: number, y: number): TouchTarget {
   const color = indexContaining(layout.paletteColors, x, y);
   if (color >= 0) {
-    return color < PALETTE.length ? { kind: 'color', index: color } : { kind: 'panel' };
+    return color < COLOR_STEP_SIZE ? { kind: 'color', index: color } : { kind: 'panel' };
   }
   return contains(layout.colorStepTool, x, y) ? { kind: 'backToTools' } : { kind: 'panel' };
 }

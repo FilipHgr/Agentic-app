@@ -24,7 +24,8 @@ import type { Tone } from '../../../src/shared/audio/tonePlayer';
  *   'blue' | 'purple' | 'brown' | 'black'`,
  * - `PaletteState { selected: number }` (index barvy v `PALETTE`),
  * - `initialPalette(): PaletteState`,
- * - `tapColor(state, index): { state: PaletteState; tones: readonly Tone[] }`,
+ * - `tapColor(state, index, paletteSize): { state: PaletteState; tones: readonly Tone[] }`
+ *   (upraveno k #116: `paletteSize` je povinný, tady 12 barev `PALETTE`),
  * - `markedColors(state): readonly boolean[]` (jedno `true` u označené barvy),
  * - `COLOR_PICK_TONES: readonly Tone[]` tón výběru barvy.
  */
@@ -73,14 +74,14 @@ describe('#88 AC4: na začátku je vybraná první barva', () => {
 
 describe('#88 AC4: ťuknutí na barvu ji hned vybere a ozve se krátký tón', () => {
   it.each(COLOR_INDEXES)('ťuknutí na barvu %i ji hned vybere', (index) => {
-    const { state } = tapColor(initialPalette(), index);
+    const { state } = tapColor(initialPalette(), index, PALETTE.length);
     expect(state.selected).toBe(index);
   });
 
   it('po každém ťuknutí je označená právě jedna barva, ta ťuknutá', () => {
     let state = initialPalette();
     for (const index of [3, 7, 0, 5, 5, 1, 6, 2, 4]) {
-      state = tapColor(state, index).state;
+      state = tapColor(state, index, PALETTE.length).state;
       const marks = markedColors(state);
       expect(marks.length, `po ťuknutí na ${index}`).toBe(PALETTE.length);
       expect(marks.filter(Boolean).length, `po ťuknutí na ${index}`).toBe(1);
@@ -90,7 +91,7 @@ describe('#88 AC4: ťuknutí na barvu ji hned vybere a ozve se krátký tón', (
 
   it('ťuknutí na barvu zahraje tón kratší než 1 s', () => {
     for (const index of COLOR_INDEXES) {
-      const { tones } = tapColor(initialPalette(), index);
+      const { tones } = tapColor(initialPalette(), index, PALETTE.length);
       expect(tones.length, `barva ${index}`).toBeGreaterThan(0);
       expect(tones, `barva ${index}`).toEqual(COLOR_PICK_TONES);
     }
@@ -107,8 +108,8 @@ describe('#88 AC4: ťuknutí na barvu ji hned vybere a ozve se krátký tón', (
   });
 
   it('ťuknutí na už vybranou barvu ji nechá vybranou a tón zazní znovu', () => {
-    const first = tapColor(initialPalette(), 4);
-    const again = tapColor(first.state, 4);
+    const first = tapColor(initialPalette(), 4, PALETTE.length);
+    const again = tapColor(first.state, 4, PALETTE.length);
     expect(again.state.selected).toBe(4);
     expect(again.tones).toEqual(COLOR_PICK_TONES);
   });
@@ -120,9 +121,9 @@ describe('#88 AC4: ťuknutí na barvu ji hned vybere a ozve se krátký tón', (
     ['desetinný index', 1.5],
     ['nečíselný index', Number.NaN],
   ])('%s barvu nezmění, nezahraje tón a nic neshodí', (_name, index) => {
-    const before = tapColor(initialPalette(), 2).state;
-    expect(() => tapColor(before, index)).not.toThrow();
-    const { state, tones } = tapColor(before, index);
+    const before = tapColor(initialPalette(), 2, PALETTE.length).state;
+    expect(() => tapColor(before, index, PALETTE.length)).not.toThrow();
+    const { state, tones } = tapColor(before, index, PALETTE.length);
     expect(state.selected).toBe(2);
     expect(tones).toEqual([]);
     expect(markedColors(state).filter(Boolean).length).toBe(1);

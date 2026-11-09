@@ -6,6 +6,7 @@ import { choose, endOf } from './drawingToolHelpers';
 import { TOOL_NAMES } from './lineSizeHelpers';
 import { at } from './strokeHelpers';
 import { RecordingStorage, openOn, paint, startStroke, twoHalves } from './savedPictureHelpers';
+import { DEFAULT_TOOL_COLORS } from './toolColorsHelpers';
 
 /**
  * Testy k #97 AC1 (výběr duhového štětce, úchyt) a AC4 (volba barvy
@@ -134,7 +135,9 @@ describe('#97 AC1: duhový štětec se vybírá v panelu jako ostatní nástroje
 
     choose(game, 'marker');
 
-    expect(game.handleView()).toMatchObject({ tool: 'marker', color: BLUE });
+    // Upraveno k #116: fix má svou výchozí barvu ze sady fixu (do #116 byla
+    // stejná jako modrá štětce, kterou dostal štětec).
+    expect(game.handleView()).toMatchObject({ tool: 'marker', color: DEFAULT_TOOL_COLORS.marker });
   });
 
   it('ťuknutí druhým prstem na duhu během tahu se nepočítá a tah pokračuje', () => {

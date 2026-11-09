@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { decodePicture } from '../../../src/games/coloring/logic/savedPicture';
 import type { SavedColoring } from '../../../src/games/coloring/logic/savedPicture';
-import { markedColors } from '../../../src/games/coloring/logic/palette';
 import { PANEL_TOOLS, markedTools } from '../../../src/games/coloring/logic/toolPanel';
 import type { PanelView, ToolId } from '../../../src/games/coloring/logic/toolPanel';
 import type { Tone } from '../../../src/shared/audio/tonePlayer';
@@ -20,6 +19,7 @@ import {
 import { TOOL_NAMES } from './lineSizeHelpers';
 import { DEFAULT_TOOL_COLORS, defaultsWithBrush, isColorTool } from './toolColorsHelpers';
 import { choiceOf, expectedAfterPick, pick, seededRandom } from './recentColorsHelpers';
+import { TOOL_SETS, giveToolPlace, stepHexes } from './toolColorSetsHelpers';
 import { at } from './strokeHelpers';
 import {
   PICTURE,
@@ -72,7 +72,6 @@ import {
  * Krok panelu se neukládá, záznamy v úložišti zůstávají beze změny.
  */
 
-const RED = 0;
 const YELLOW = 2;
 const GREEN = 3;
 const BLUE = 4;
@@ -261,18 +260,19 @@ describe('#105 AC2: nástroj s barvou otevře krok barev', () => {
 
   // Upraveno k #110 AC2: označená je barva nástroje, ke kterému se barva
   // vybírá, proto se barva dává puntíkovému fixu, ne štětci.
+  // Upraveno k #116: puntíkový fix má vlastní sadu barev, dítě ťuká na místa
+  // jeho kroku barev a označené je místo právě vybrané barvy.
   it('v kroku barev je označená vybraná barva a na prvním místě vybraný nástroj', () => {
-    for (const color of [RED, BLUE, PINK]) {
-      const game = onColorStep('dots', onToolStep());
-      game.tapColor(color);
+    for (const place of [0, 4, 11]) {
+      const game = returningGame();
+      giveToolPlace(game, 'dots', place);
       onColorStep('dots', onToolStep(game));
 
       expect(game.selectedTool(), 'nástroj na prvním místě').toBe('dots');
-      const marked = markedColors(game.palette());
-      expect(
-        marked.map((isMarked, index) => (isMarked ? index : -1)).filter((index) => index >= 0),
-        `označená barva ${color}`,
-      ).toEqual([color]);
+      expect(game.markedColorPlace(), `označené místo ${place + 1}`).toBe(place);
+      expect(stepHexes(game)[place], `na místě ${place + 1} barva puntíkového fixu`).toBe(
+        TOOL_SETS.dots[place],
+      );
     }
   });
 
@@ -447,9 +447,11 @@ describe('#105 AC4: návrat k nástrojům a nástroje bez barvy', () => {
     const game = onColorStep('marker', onToolStep(gameWithColor(BLUE)));
     game.tapHandle();
 
-    expect(game.handleView()).toMatchObject({ tool: 'marker', color: BLUE });
+    // Upraveno k #116: dosavadní barva fixu je jeho výchozí barva ze sady fixu
+    // (do #116 byla výchozí barva fixu modrá štětce, stejná jako BLUE).
+    expect(game.handleView()).toMatchObject({ tool: 'marker', color: DEFAULT_TOOL_COLORS.marker });
     paint(game, [at(20, 100), at(140, 100)]);
-    expect(game.colorAt(20, 100)).toBe(BLUE);
+    expect(game.colorAt(20, 100)).toBe(DEFAULT_TOOL_COLORS.marker);
   });
 });
 

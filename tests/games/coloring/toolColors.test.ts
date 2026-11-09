@@ -12,7 +12,6 @@ import { at } from './strokeHelpers';
 import { RecordingStorage, openOn, paint, startStroke, twoHalves } from './savedPictureHelpers';
 import {
   BLACK,
-  BLUE,
   BROWN,
   COLOR_TOOLS,
   DEFAULT_TOOL_COLORS,
@@ -137,7 +136,8 @@ describe('#110 AC1: každý malovací nástroj má svou barvu', () => {
     const regions = twoHalves();
     const game = openOn(new RecordingStorage(), regions);
     expect(toolColorsOf(game).brush, 'štětec je červený').toBe(RED);
-    expect(toolColorsOf(game).marker, 'fix je modrý').toBe(BLUE);
+    // Upraveno k #116: fix má výchozí modrou ze své sady, ne modrou štětce.
+    expect(toolColorsOf(game).marker, 'fix je modrý').toBe(DEFAULT_TOOL_COLORS.marker);
 
     giveColor(game, 'marker', GREEN);
     pickTool(game, 'brush');
@@ -374,13 +374,20 @@ describe('#110 AC3: barva po gumě a duze', () => {
   it('s duhou dá nedávná barva barvu štětci', () => {
     const game = fresh();
     giveColor(game, 'spray', YELLOW);
-    expect(game.recentColors()[0], 'nedávná je černá (předchozí barva spreje)').toBe(BLACK);
+    // Upraveno k #116: výchozí barva spreje je fialová ze sady spreje (do #116 černá).
+    expect(game.recentColors()[0], 'nedávná je předchozí barva spreje').toBe(
+      DEFAULT_TOOL_COLORS.spray,
+    );
     pickTool(game, 'rainbow');
 
     game.tapRecentColor(0);
 
     expect(game.selectedTool()).toBe('brush');
-    expect(toolColorsOf(game)).toEqual({ ...DEFAULT_TOOL_COLORS, spray: YELLOW, brush: BLACK });
+    expect(toolColorsOf(game)).toEqual({
+      ...DEFAULT_TOOL_COLORS,
+      spray: YELLOW,
+      brush: DEFAULT_TOOL_COLORS.spray,
+    });
   });
 
   it('po gumě a duze se maluje hned nástrojem, který barvu dostal, a jen jeho barvou', () => {
@@ -491,7 +498,11 @@ describe('#110 AC7: okrajové případy', () => {
     const game = fresh();
     giveColor(game, 'marker', RED);
     giveColor(game, 'marker', GREEN);
-    expect(game.recentColors(), 'nedávné červená a modrá').toEqual([RED, BLUE]);
+    // Upraveno k #116: výchozí modrá fixu je ze sady fixu.
+    expect(game.recentColors(), 'nedávné červená a modrá').toEqual([
+      RED,
+      DEFAULT_TOOL_COLORS.marker,
+    ]);
     pickTool(game, 'brush');
     game.tapHandle();
     expect(game.handleView().color, 'štětec je červený jako první nedávné místo').toBe(RED);

@@ -10,7 +10,7 @@ import Phaser from 'phaser';
 
 import { colorNumber } from '../../../shared/logic/theme';
 import type { LayoutRect } from '../logic/coloringLayout';
-import { PALETTE } from '../logic/palette';
+import { colorHex } from '../logic/toolColorSets';
 import type { RecentColors } from '../logic/recentColors';
 import { COLOR_BUTTON_STYLE } from '../logic/theme';
 import { drawEmptySlot } from './emptySlot';
@@ -92,7 +92,7 @@ export class RecentColorsView {
 /** Odstín nedávné barvy na místě `index`, nebo `null` u prázdného místa. */
 function colorHexAt(recent: RecentColors, index: number): string | null {
   const color = recent[index] ?? null;
-  return color === null ? null : (PALETTE[color]?.hex ?? null);
+  return color === null ? null : (colorHex(color) ?? null);
 }
 
 /** Tlačítko barvy se středem v počátku: podklad s okrajem a kolečko barvy. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { PALETTE } from '../../../src/games/coloring/logic/palette';
+import { ALL_COLORS } from '../../../src/games/coloring/logic/toolColorSets';
 import type { SavedColoring } from '../../../src/games/coloring/logic/savedPicture';
 import {
   LINE_SIZES,
@@ -130,7 +130,7 @@ describe('#112 AC1 a AC3: barva vlnky podle vybraného nástroje', () => {
   it('na začátku jsou vlnky v barvě štětce', () => {
     const game = fresh();
     const brushColor = game.toolColor('brush') ?? -1;
-    expect(waveColorOf(game)).toBe(PALETTE[brushColor]?.hex.toUpperCase());
+    expect(waveColorOf(game)).toBe(ALL_COLORS[brushColor]?.hex.toUpperCase());
   });
 
   it('u malovacího nástroje jsou vlnky v jeho barvě, u gumy a duhy tmavé', () => {
@@ -138,7 +138,8 @@ describe('#112 AC1 a AC3: barva vlnky podle vybraného nástroje', () => {
       const game = fresh();
       pickTool(game, tool);
       const color = game.toolColor(tool);
-      const expected = color === null ? DARK : PALETTE[color]?.hex.toUpperCase();
+      // Upraveno k #116: barva nástroje může být ze sady nástroje, ne jen ze 12 barev štětce.
+      const expected = color === null ? DARK : ALL_COLORS[color]?.hex.toUpperCase();
       expect(waveColorOf(game), TOOL_NAMES[tool]).toBe(expected);
     }
   });

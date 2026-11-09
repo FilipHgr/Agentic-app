@@ -117,9 +117,10 @@ describe('#100 AC1: v panelu je 12 barev ve schválené variantě', () => {
   });
 });
 
+// Upraveno k #116: `tapColor` palety má povinný počet barev, tady 12 barev `PALETTE`.
 describe('#100 AC1: nová barva se vybírá stejně jako ostatní', () => {
   it.each(NEW_COLORS)('ťuknutí na novou barvu %i ji vybere a označená je právě ona', (color) => {
-    const { state, tones } = tapColor(initialPalette(), color);
+    const { state, tones } = tapColor(initialPalette(), color, PALETTE.length);
 
     expect(state.selected, nameOf(color)).toBe(color);
     const marks = markedColors(state);
@@ -132,7 +133,7 @@ describe('#100 AC1: nová barva se vybírá stejně jako ostatní', () => {
   it('po každém ťuknutí na starou i novou barvu je označená právě jedna, ta ťuknutá', () => {
     let state = initialPalette();
     for (const color of [PINK, 3, LIGHT_BLUE, SKIN, 7, GRAY, GRAY, 0, LIGHT_BLUE]) {
-      state = tapColor(state, color).state;
+      state = tapColor(state, color, PALETTE.length).state;
       const marks = markedColors(state);
       expect(marks.filter(Boolean).length, `po ťuknutí na ${nameOf(color)}`).toBe(1);
       expect(marks[color], `po ťuknutí na ${nameOf(color)}`).toBe(true);
@@ -175,10 +176,10 @@ describe('#100 AC1: nová barva se vybírá stejně jako ostatní', () => {
   });
 
   it('index za 12 barvami barvu nezmění, nezahraje tón a nic neshodí', () => {
-    const before = tapColor(initialPalette(), SKIN).state;
+    const before = tapColor(initialPalette(), SKIN, PALETTE.length).state;
     for (const index of [COLOR_COUNT, COLOR_COUNT + 1, 255]) {
-      expect(() => tapColor(before, index), `index ${index}`).not.toThrow();
-      const { state, tones } = tapColor(before, index);
+      expect(() => tapColor(before, index, PALETTE.length), `index ${index}`).not.toThrow();
+      const { state, tones } = tapColor(before, index, PALETTE.length);
       expect(state.selected, `index ${index}`).toBe(SKIN);
       expect(tones, `index ${index}`).toEqual([]);
     }
