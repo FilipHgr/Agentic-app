@@ -35,5 +35,9 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    // Testy tahů a záznamů Omalovánek procházejí velké obrázky a samy trvají
+    // 3–7 s; při souběhu s jinou prací přetekly výchozích 5 s. Limit je jen
+    // pojistka proti zaseknutí, kontroly v testech se tím nemění.
+    testTimeout: 20_000,
   },
 });
