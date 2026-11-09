@@ -55,7 +55,7 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
   1. složka `src/games/<id>/` (id malými písmeny bez diakritiky) se vstupem
      `index.ts`, který vydává `scenes`, a s `meta.ts`,
   2. kategorie z `GAME_CATEGORIES`; nová kategorie potřebuje název
-     v `src/menu/texts/<jazyk>.ts`,
+     v `src/menu/texts/<jazyk>.ts` a vlastní symbol bez emoji podoby,
   3. záznam v `src/gameList.ts` (`gameEntry(meta, () => import('./games/<id>'))`),
   4. název hry `title` v textech hry ve všech jazycích,
   5. testy v `tests/games/<id>/` a skript `test:<id>` v `package.json`.

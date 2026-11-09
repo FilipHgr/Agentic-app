@@ -136,7 +136,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-05 Vzhled menu podle návrhu B: nahoře profil (barevné kolečko
   s písmenem a přezdívkou), vpravo jazyk a zástupná tlačítka, vlevo kategorie
   (na telefonu nahoře v řadě), vedle mřížka dlaždic her. Při startu výběr
-  profilu (návrh P: velká barevná kolečka a +). (výběr při startu nahrazen)
+  profilu (návrh P: velká barevná kolečka a +). (výběr při startu nahrazen) (řada na telefonu na výšku nahrazena)
 - 2026-11-05 Z hry do menu se dítě vrátí domečkem vlevo nahoře podržením
   1 s, ťuknutí domeček jen zhoupne.
 - 2026-11-05 (nahrazeno) Profil zakládá rodič: formulář se otevře podržením „+“ 1 s,
@@ -251,3 +251,10 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-08 Přepínač tloušťky čáry (#91) vlastník vůbec nepoznal. Udělat
   ho jinak, aby bylo na první pohled jasné, že jde o tloušťku (nový úkol
   s obrázky).
+- 2026-11-08 Omalovánka má být přes celou výšku mezi horní a spodní lištou.
+  Na výšku se obrázek otočí o 90°, aby vyplnil výšku (nový úkol s obrázky).
+- 2026-11-09 Výběr kategorií na telefonu na výšku je rozbalovací seznam
+  (#95): symboly Vše ▦, Sčítání a odčítání „+ −“, Kreslení ✎, bez ztmavení.
+- 2026-11-09 Vlastní sady barev: každý z 8 nástrojů má vlastní sadu
+  (varianta B, 44 barev). Nejdřív samostatný úkol na úspornější ukládání
+  obrázku, pak sady.
