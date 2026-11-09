@@ -16,10 +16,11 @@ describe('#93 AC6: uložené obrázky se čtou stejně i po změně zrna pastelk
 });
 
 describe('#100: barvy palety se do uloženého obrázku vždy vejdou', () => {
-  it('ukládaná verze záznamu zná přesně tolik barev, kolik má paleta', () => {
+  // Od #115 zná ukládaná verze 64 barev, víc než dnešní paleta (rezerva pro sady barev nástrojů).
+  it('ukládaná verze záznamu zná aspoň tolik barev, kolik má paleta', () => {
     expect(
       LAYER_COLOR_COUNT[CURRENT_LAYER_CODE],
       'víc barev v paletě potřebuje novou verzi záznamu, jinak by se obrázek uložil bez nich',
-    ).toBe(PALETTE.length);
+    ).toBeGreaterThanOrEqual(PALETTE.length);
   });
 });

@@ -70,16 +70,21 @@ export function initialPalette(): PaletteState {
   return { selected: 0 };
 }
 
-function isPaletteIndex(index: number): boolean {
-  return Number.isInteger(index) && index >= 0 && index < PALETTE.length;
+/** Je `index` barva palety s `paletteSize` barvami (bez ní dnešní `PALETTE`, #115)? */
+export function isPaletteIndex(index: number, paletteSize: number = PALETTE.length): boolean {
+  return Number.isInteger(index) && index >= 0 && index < paletteSize;
 }
 
-/** Ťuknutí na barvu: vybere ji a zahraje tón. Neplatný index nic nezmění. */
+/**
+ * Ťuknutí na barvu: vybere ji a zahraje tón. Neplatný index nic nezmění.
+ * `paletteSize` je počet barev palety (#115), bez něj dnešní `PALETTE`.
+ */
 export function tapColor(
   state: PaletteState,
   index: number,
+  paletteSize: number = PALETTE.length,
 ): { state: PaletteState; tones: readonly Tone[] } {
-  if (!isPaletteIndex(index)) {
+  if (!isPaletteIndex(index, paletteSize)) {
     return { state, tones: [] };
   }
   return { state: { selected: index }, tones: COLOR_PICK_TONES };

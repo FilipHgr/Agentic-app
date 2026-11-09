@@ -11,7 +11,7 @@
  */
 
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
-import { PALETTE } from './palette';
+import { PALETTE, isPaletteIndex } from './palette';
 import type { PaletteColorId } from './palette';
 import type { ToolId } from './toolPanel';
 
@@ -50,10 +50,6 @@ const DEFAULT_COLOR_IDS: Readonly<Record<ColorToolId, PaletteColorId>> = {
 
 function paletteIndexOf(id: PaletteColorId): number {
   return PALETTE.findIndex((color) => color.id === id);
-}
-
-function isPaletteIndex(value: number): boolean {
-  return Number.isInteger(value) && value >= 0 && value < PALETTE.length;
 }
 
 /** Barvy nástrojů podle `colorOf`. */
@@ -100,15 +96,23 @@ function recordKey(pictureId: string): string {
   return `toolColors.${pictureId}`;
 }
 
-/** Jedno pole záznamu: index barvy v přesném zápisu, jinak `null`. */
-function readField(field: string): number | null {
+/** Jedno pole záznamu: index barvy palety s `paletteSize` barvami v přesném zápisu, jinak `null`. */
+function readField(field: string, paletteSize: number): number | null {
   const value = Number(field);
-  return field !== '' && String(value) === field && isPaletteIndex(value) ? value : null;
+  return field !== '' && String(value) === field && isPaletteIndex(value, paletteSize)
+    ? value
+    : null;
 }
 
-/** Text záznamu na barvy nástrojů; poškozený záznam dá `null`. */
-export function decodeToolColors(record: string): ToolColors | null {
-  const fields = record.split(FIELD_SEPARATOR).map(readField);
+/**
+ * Text záznamu na barvy nástrojů; poškozený záznam nebo barva mimo paletu
+ * s `paletteSize` barvami (#115) dá `null`.
+ */
+export function decodeToolColors(
+  record: string,
+  paletteSize: number = PALETTE.length,
+): ToolColors | null {
+  const fields = record.split(FIELD_SEPARATOR).map((field) => readField(field, paletteSize));
   if (fields.length !== COLOR_TOOLS.length) {
     return null;
   }
@@ -130,12 +134,16 @@ export function encodeToolColors(colors: ToolColors): string {
 
 /**
  * Uložené barvy nástrojů omalovánky `pictureId`; chybějící, poškozený
- * nebo nečitelný záznam dá `null` (AC6).
+ * nebo nečitelný záznam dá `null` (AC6). `paletteSize` jako u `decodeToolColors`.
  */
-export function loadToolColors(storage: KeyValueStorage, pictureId: string): ToolColors | null {
+export function loadToolColors(
+  storage: KeyValueStorage,
+  pictureId: string,
+  paletteSize: number = PALETTE.length,
+): ToolColors | null {
   try {
     const record = storage.getItem(recordKey(pictureId));
-    return record === null ? null : decodeToolColors(record);
+    return record === null ? null : decodeToolColors(record, paletteSize);
   } catch (error) {
     console.warn('Omalovánky: barvy nástrojů nejde přečíst', error);
     return null;

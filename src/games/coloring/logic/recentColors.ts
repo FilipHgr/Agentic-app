@@ -18,7 +18,7 @@
  */
 
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
-import { PALETTE } from './palette';
+import { PALETTE, isPaletteIndex } from './palette';
 
 /** Kolik míst pro nedávné barvy je v pruhu (#99, otázka 1). */
 export const RECENT_COLOR_COUNT = 2;
@@ -28,23 +28,29 @@ export type RecentColors = readonly (number | null)[];
 
 const FIELD_SEPARATOR = ',';
 
-function isPaletteIndex(value: number): boolean {
-  return Number.isInteger(value) && value >= 0 && value < PALETTE.length;
-}
-
 /** Na začátku jsou obě místa prázdná (AC3). */
 export function noRecentColors(): RecentColors {
   return Array.from({ length: RECENT_COLOR_COUNT }, () => null);
 }
 
 /**
- * Platná část míst: barvy z palety bez opakování a bez barvy `excluded`,
- * obsazená místa napřed, doplněná prázdnými na `RECENT_COLOR_COUNT`.
+ * Platná část míst: barvy z palety s `paletteSize` barvami bez opakování
+ * a bez barvy `excluded`, obsazená místa napřed, doplněná prázdnými na
+ * `RECENT_COLOR_COUNT`.
  */
-function cleaned(colors: readonly (number | null)[], excluded: number | null): RecentColors {
+function cleaned(
+  colors: readonly (number | null)[],
+  excluded: number | null,
+  paletteSize: number,
+): RecentColors {
   const kept: number[] = [];
   for (const color of colors) {
-    if (color !== null && isPaletteIndex(color) && color !== excluded && !kept.includes(color)) {
+    if (
+      color !== null &&
+      isPaletteIndex(color, paletteSize) &&
+      color !== excluded &&
+      !kept.includes(color)
+    ) {
       kept.push(color);
     }
   }
@@ -60,17 +66,19 @@ function cleaned(colors: readonly (number | null)[], excluded: number | null): R
  * (AC2, u #110 předchozí barva nástroje, který barvu dostává). Výběr už
  * vybrané barvy nic nezmění. Když je `selected` už mezi nedávnými, druhé
  * místo dostane první starou barvu, která není `selected` ani `picked`.
+ * `paletteSize` je počet barev palety (#115), bez něj dnešní `PALETTE`.
  */
 export function recentAfterPick(
   recent: RecentColors,
   selected: number,
   picked: number,
+  paletteSize: number = PALETTE.length,
 ): RecentColors {
   if (picked === selected) {
     return recent;
   }
   const kept = recent.find((color) => color !== picked && color !== selected) ?? null;
-  return cleaned([selected, kept], picked);
+  return cleaned([selected, kept], picked, paletteSize);
 }
 
 /** Klíč záznamu v úložišti hry profilu, samostatně vedle obrázku `pictureId`. */
@@ -81,14 +89,18 @@ function recordKey(pictureId: string): string {
 /** Jedno pole záznamu: index barvy v přesném zápisu, prázdné pole je prázdné místo. */
 function readField(field: string): number | null {
   const value = Number(field);
-  return field !== '' && String(value) === field && isPaletteIndex(value) ? value : null;
+  return field !== '' && String(value) === field && Number.isInteger(value) ? value : null;
 }
 
 /**
  * Text záznamu na místa; nesmyslný text dá prázdná místa. Barva shodná
  * s barvou štětce se nezahodí (#110 AC5), nedávné barvy patří všem nástrojům.
+ * Barva mimo paletu s `paletteSize` barvami (#115) se nepoužije.
  */
-export function decodeRecentColors(record: string | null): RecentColors {
+export function decodeRecentColors(
+  record: string | null,
+  paletteSize: number = PALETTE.length,
+): RecentColors {
   if (record === null) {
     return noRecentColors();
   }
@@ -96,7 +108,7 @@ export function decodeRecentColors(record: string | null): RecentColors {
   if (fields.length !== RECENT_COLOR_COUNT) {
     return noRecentColors();
   }
-  return cleaned(fields.map(readField), null);
+  return cleaned(fields.map(readField), null, paletteSize);
 }
 
 /** Místa jako text záznamu. */
@@ -106,11 +118,15 @@ export function encodeRecentColors(recent: RecentColors): string {
 
 /**
  * Uložené nedávné barvy obrázku `pictureId`. Chybějící, nesmyslný nebo
- * nečitelný záznam dá prázdná místa (AC5).
+ * nečitelný záznam dá prázdná místa (AC5). `paletteSize` jako u `decodeRecentColors`.
  */
-export function loadRecentColors(storage: KeyValueStorage, pictureId: string): RecentColors {
+export function loadRecentColors(
+  storage: KeyValueStorage,
+  pictureId: string,
+  paletteSize: number = PALETTE.length,
+): RecentColors {
   try {
-    return decodeRecentColors(storage.getItem(recordKey(pictureId)));
+    return decodeRecentColors(storage.getItem(recordKey(pictureId)), paletteSize);
   } catch (error) {
     console.warn('Omalovánky: nedávné barvy nejde přečíst', error);
     return noRecentColors();

@@ -10,7 +10,13 @@
  * součet celého zbytku. Záznam delší než limit se neuloží.
  *
  * Chybějící, poškozený, nečitelný nebo cizí záznam (jiná verze nebo
- * rozměr) dá prázdnou omalovánku (AC4). Selhání úložiště
+ * rozměr) dá prázdnou omalovánku (AC4). Stejně tak záznam s barvou, kterou
+ * formát zná, ale paleta ne (#100 AC5, #115 AC4).
+ *
+ * Velikost palety (#115) je volba `paletteSize`, bez ní dnešní `PALETTE`.
+ * Formát p4 zná nejvýš 64 barev (`MAX_PALETTE_SIZE`); barvy 0 až
+ * `paletteSize − 1` jde vybrat, malovat, uložit a obnovit, včetně barev
+ * nástrojů a nedávných barev. Selhání úložiště
  * hra nikdy nevyhodí (AC5); co se nepodaří uložit, drží v paměti úložiště
  * profilu (`gameStorage`) do zavření stránky.
  *
@@ -52,11 +58,12 @@ import type { Tone } from '../../../shared/audio/tonePlayer';
 import { HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
 import { NO_COLOR, brushWidthFor, createColoring, emptyColorLayer } from './coloring';
 import type { ChangedArea, PointerSample } from './coloring';
-import { PALETTE, tapColor } from './palette';
+import { PALETTE, isPaletteIndex, tapColor } from './palette';
 import type { PaletteState } from './palette';
 import {
   CURRENT_LAYER_CODE,
   LAYER_COLOR_COUNT,
+  MAX_LAYER_COLOR_COUNT,
   decodeColorLayer,
   encodeColorLayer,
 } from './colorLayerCode';
@@ -95,12 +102,15 @@ import type { HandleView, LineSize, PanelView, ToolId } from './toolPanel';
 /** Nejdelší záznam jedné omalovánky ve znacích (AC6). */
 export const PICTURE_RECORD_LIMIT = 50_000;
 
+/** Nejvíc barev palety, které ukládaný formát zná (#115 AC1). */
+export const MAX_PALETTE_SIZE: number = MAX_LAYER_COLOR_COUNT;
+
 /**
  * Označení formátu záznamu je verze kódování vrstvy barev; při změně
- * kódování se zvýší. Ukládá se v nejnovější (p3 s 12 barvami, #100), číst
- * jde i starší s 8 barvami (p1 z #92, p2 z #93).
+ * kódování se zvýší. Ukládá se v nejnovější (p4 s 64 barvami, #115), číst
+ * jde i starší s 8 barvami (p1 z #92, p2 z #93) a s 12 barvami (p3 z #100).
  */
-const READABLE_FORMATS: readonly LayerCodeVersion[] = ['p1', 'p2', 'p3'];
+const READABLE_FORMATS: readonly LayerCodeVersion[] = ['p1', 'p2', 'p3', 'p4'];
 
 function isReadableFormat(format: string | undefined): format is LayerCodeVersion {
   return READABLE_FORMATS.some((readable) => readable === format);
@@ -262,8 +272,25 @@ function checksumOf(text: string): string {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
-function isPaletteIndex(value: number): boolean {
-  return Number.isInteger(value) && value >= 0 && value < PALETTE.length;
+/**
+ * Velikost palety z volby `paletteSize`: bez ní dnešní `PALETTE`, jinak
+ * omezená na 1 až `MAX_PALETTE_SIZE`, aby se každá barva dala uložit.
+ */
+function paletteSizeOf(paletteSize: number | undefined): number {
+  if (paletteSize === undefined || !Number.isInteger(paletteSize)) {
+    return PALETTE.length;
+  }
+  return Math.min(Math.max(paletteSize, 1), MAX_PALETTE_SIZE);
+}
+
+/** Zná paleta s `paletteSize` barvami všechny barvy vrstvy? */
+function layerFitsPalette(layer: Uint8Array, paletteSize: number): boolean {
+  for (const value of layer) {
+    if (value !== NO_COLOR && value >= paletteSize) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /** Záznam z vrstvy barev a vybrané barvy. */
@@ -285,19 +312,24 @@ function recordOf(
   return `${body}${FIELD_SEPARATOR}${checksumOf(body)}`;
 }
 
-/** Zakóduje obrázek do záznamu (s kontrolním součtem, verzí a rozměrem). */
+/**
+ * Zakóduje obrázek do záznamu (s kontrolním součtem, verzí a rozměrem).
+ * Barvy mimo paletu s `paletteSize` barvami se neuloží.
+ */
 export function encodePicture(options: {
   readonly picture: PictureIdentity;
   readonly regions: RegionMap;
   readonly colors: PictureColors;
   readonly selectedColor: number;
+  readonly paletteSize?: number;
 }): string {
   const { picture, regions, colors, selectedColor } = options;
+  const paletteSize = paletteSizeOf(options.paletteSize);
   const layer = emptyColorLayer(regions);
   for (let y = 0; y < regions.height; y += 1) {
     for (let x = 0; x < regions.width; x += 1) {
       const color = colors.colorAt(x, y);
-      if (color !== null && isPaletteIndex(color)) {
+      if (color !== null && isPaletteIndex(color, paletteSize)) {
         layer[y * regions.width + x] = color;
       }
     }
@@ -305,11 +337,15 @@ export function encodePicture(options: {
   return recordOf(picture, regions, layer, selectedColor);
 }
 
-/** Vrstva a vybraná barva ze záznamu; `null` u neplatného nebo cizího záznamu. */
+/**
+ * Vrstva a vybraná barva ze záznamu; `null` u neplatného nebo cizího
+ * záznamu a u záznamu s barvou mimo paletu s `paletteSize` barvami.
+ */
 function readRecord(
   record: string,
   picture: PictureIdentity,
   regions: RegionMap,
+  paletteSize: number,
 ): { layer: Uint8Array; selectedColor: number } | null {
   if (record.length > PICTURE_RECORD_LIMIT) {
     return null;
@@ -330,22 +366,31 @@ function readRecord(
     width === String(regions.width) &&
     height === String(regions.height);
   const selectedColor = Number(selected);
-  // Vybraná barva musí být barva, kterou verze záznamu zná (p1 a p2 jen 8 barev).
-  const knownColor = isPaletteIndex(selectedColor) && selectedColor < LAYER_COLOR_COUNT[format];
+  // Vybraná barva musí být barva, kterou zná verze záznamu (p1 a p2 jen 8
+  // barev) i paleta (#100 AC5, #115 AC4).
+  const knownColor =
+    isPaletteIndex(selectedColor, paletteSize) && selectedColor < LAYER_COLOR_COUNT[format];
   if (!matches || !knownColor || selected !== String(selectedColor)) {
     return null;
   }
   const layer = decodeColorLayer(regions, data ?? '', format);
-  return layer === null ? null : { layer, selectedColor };
+  if (layer === null || !layerFitsPalette(layer, paletteSize)) {
+    return null;
+  }
+  return { layer, selectedColor };
 }
 
-/** Přečte záznam; `null`, když je poškozený, nečitelný nebo jiné omalovánky. */
+/**
+ * Přečte záznam; `null`, když je poškozený, nečitelný, jiné omalovánky,
+ * nebo má barvu mimo paletu s `paletteSize` barvami (bez ní dnešní `PALETTE`).
+ */
 export function decodePicture(
   record: string,
   picture: PictureIdentity,
   regions: RegionMap,
+  paletteSize?: number,
 ): DecodedPicture | null {
-  const read = readRecord(record, picture, regions);
+  const read = readRecord(record, picture, regions, paletteSizeOf(paletteSize));
   if (read === null) {
     return null;
   }
@@ -421,21 +466,27 @@ function openingToolColors(
 /**
  * Otevře omalovánku `picture` nad úložištěm hry aktivního profilu.
  * Pokračuje v uloženém obrázku, nebo začne prázdný s výchozími barvami.
+ * `paletteSize` je počet barev palety (#115), bez něj dnešní `PALETTE`.
  */
 export function openColoring(options: {
   readonly regions: RegionMap;
   readonly picture: PictureIdentity;
   readonly storage: KeyValueStorage | undefined;
+  readonly paletteSize?: number;
 }): SavedColoring {
   const { regions, picture } = options;
+  const paletteSize = paletteSizeOf(options.paletteSize);
   const storage = options.storage ?? memoryStorage();
   const key = recordKey(picture);
   const stored = loadRecord(storage, key);
-  const restored = stored === null ? null : readRecord(stored, picture, regions);
+  const restored = stored === null ? null : readRecord(stored, picture, regions, paletteSize);
 
   const coloring = createColoring(regions, restored === null ? {} : { colors: restored.layer });
   /** Barva každého malovacího nástroje, pamatuje se podle profilu (#110 AC5). */
-  let toolColors: ToolColors = openingToolColors(loadToolColors(storage, picture.id), restored);
+  let toolColors: ToolColors = openingToolColors(
+    loadToolColors(storage, picture.id, paletteSize),
+    restored,
+  );
   /** Naposledy vybraná barva; ukládá se jako vybraná barva do záznamu obrázku. */
   let lastPickedColor: number = restored === null ? toolColors.brush : restored.selectedColor;
   /** Prst, který právě maluje (tah ještě neskončil). */
@@ -458,7 +509,7 @@ export function openColoring(options: {
   /** Velikost čáry pro všechny nástroje, pamatuje se podle profilu (#91 AC5). */
   let lineSize: LineSize = loadLineSize(storage);
   /** Dvě nedávné barvy v pruhu, pamatují se podle profilu (#99 AC5). */
-  let recentColors: RecentColors = loadRecentColors(storage, picture.id);
+  let recentColors: RecentColors = loadRecentColors(storage, picture.id, paletteSize);
 
   /** Barva, kterou maluje vybraný nástroj; guma a duha ji nepoužijí. */
   const paintColor = (): number => toolColors[toolReceivingColor(tool)];
@@ -512,20 +563,20 @@ export function openColoring(options: {
    * nic nezmění.
    */
   const pickColor = (index: number): readonly Tone[] => {
-    if (!isPaletteIndex(index)) {
+    if (!isPaletteIndex(index, paletteSize)) {
       return [];
     }
     const receiving = toolReceivingColor(paintingTool);
     tool = receiving;
     paintingTool = receiving;
     const previous = toolColors[receiving];
-    const { state, tones } = tapColor({ selected: previous }, index);
+    const { state, tones } = tapColor({ selected: previous }, index, paletteSize);
     if (state.selected !== previous) {
       unsaved = true;
       toolColors = withToolColor(toolColors, receiving, state.selected);
       lastPickedColor = state.selected;
       storeToolColors(storage, picture.id, toolColors);
-      recentColors = recentAfterPick(recentColors, previous, state.selected);
+      recentColors = recentAfterPick(recentColors, previous, state.selected, paletteSize);
       storeRecentColors(storage, picture.id, recentColors);
     }
     save();
