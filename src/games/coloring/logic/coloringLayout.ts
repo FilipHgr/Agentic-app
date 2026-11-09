@@ -28,6 +28,7 @@
 import { homeButtonInFreeArea } from '../../../shared/logic/homeButton';
 import type { GameArea, GameAreaFit } from '../../../shared/logic/viewportLayout';
 import { PALETTE } from './palette';
+import { COLOR_BUTTON_STYLE, HANDLE_COLOR_DOT_STYLE } from './theme';
 import { LINE_SIZES } from './toolPanel';
 import type { LineSize, PanelView } from './toolPanel';
 
@@ -680,14 +681,24 @@ const HANDLE_ARROW_CLOSED_X_SHARE = 0.88;
 const HANDLE_ARROW_Y_SHARE = 0.87;
 
 /**
+ * Posun ikony z prostředku místa nahoru a doleva jako díl strany místa
+ * (#114 AC4): uvolní roh pro kolečko barvy a odsune duhu od kolečka.
+ * Nejvýš 3 CSS px na největším místě nástroje (iPad, 76 CSS px); kdyby
+ * místo bylo větší, posun by 3 px překročil (hlídá test pravidel ikon).
+ */
+const TOOL_SLOT_ICON_SHIFT_SHARE = 3 / 76;
+
+/**
  * Čtverec ikony nástroje v místě panelu i v hlavičce kroku barev (#105,
- * #106): strana je díl kratší strany místa, ikona je uprostřed.
+ * #106, #114): strana je díl kratší strany místa, ikona je kousek nahoru
+ * a doleva od prostředku, u všech nástrojů stejně.
  */
 export function toolSlotIcon(slot: LayoutRect): LayoutRect {
   const side = sideOf(slot) * TOOL_SLOT_ICON_SHARE;
+  const shift = sideOf(slot) * TOOL_SLOT_ICON_SHIFT_SHARE;
   return {
-    left: slot.left + slot.width / 2 - side / 2,
-    top: slot.top + slot.height / 2 - side / 2,
+    left: slot.left + slot.width / 2 - side / 2 - shift,
+    top: slot.top + slot.height / 2 - side / 2 - shift,
     width: side,
     height: side,
   };
@@ -701,15 +712,31 @@ export function toolSlotIcon(slot: LayoutRect): LayoutRect {
 const TOOL_SLOT_COLOR_DOT_SHARE = HANDLE_COLOR_DOT_SHARES.medium;
 
 /**
- * Barevná výplň kolečka barvy nástroje vpravo dole v místě panelu (#110):
- * `diameter` je průměr výplně, bílý lem a šedá linka se kreslí vně jako
- * v úchytu. Ikona zůstává uprostřed, kolečko zakryje jen její roh.
+ * Odstup středu kolečka barvy od pravé i spodní hrany místa jako díl strany
+ * (#114 AC1): na nejmenším místě 64 CSS px je to silný modrý okraj
+ * vybraného nástroje (5 CSS px), bílý lem a šedá linka (2 + 1 CSS px),
+ * 1 CSS px mezera a poloměr výplně (6,4 CSS px). Na větších místech je
+ * mezera od okraje větší.
+ */
+const TOOL_SLOT_COLOR_DOT_INSET_SHARE =
+  (COLOR_BUTTON_STYLE.selectedBorderWidthCss +
+    HANDLE_COLOR_DOT_STYLE.rimCss +
+    HANDLE_COLOR_DOT_STYLE.lineCss +
+    1) /
+    64 +
+  TOOL_SLOT_COLOR_DOT_SHARE / 2;
+
+/**
+ * Barevná výplň kolečka barvy nástroje vpravo dole v místě panelu (#110,
+ * #114): `diameter` je průměr výplně, bílý lem a šedá linka se kreslí vně
+ * jako v úchytu. Kolečko je celé uvnitř silného okraje vybraného nástroje
+ * a u vybraného i nevybraného nástroje na stejném místě.
  */
 export function toolSlotColorDot(slot: LayoutRect): LayoutCircle {
   const side = sideOf(slot);
   return {
-    centerX: slot.left + slot.width - side * (1 - HANDLE_COLOR_DOT_CENTER_SHARE),
-    centerY: slot.top + slot.height - side * (1 - HANDLE_COLOR_DOT_CENTER_SHARE),
+    centerX: slot.left + slot.width - side * TOOL_SLOT_COLOR_DOT_INSET_SHARE,
+    centerY: slot.top + slot.height - side * TOOL_SLOT_COLOR_DOT_INSET_SHARE,
     diameter: side * TOOL_SLOT_COLOR_DOT_SHARE,
   };
 }

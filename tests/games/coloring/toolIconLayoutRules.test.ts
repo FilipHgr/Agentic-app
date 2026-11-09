@@ -34,6 +34,11 @@ import type { DotCss } from './toolIconHelpers';
  * celého svého čtverce. Měří se proto čtverec ikony, ne její pixely:
  * dřívější měření na nakreslených tvarech stylu D se tím nahrazuje.
  *
+ * Kolečko barvy a ikona v místě nástroje v panelu a v hlavičce kroku barev
+ * (#110, upravené v #114: uvnitř silného okraje vybraného nástroje, odstup
+ * od duhy, zakrytí ikony) jsou v `toolIconSlotDotLayoutRules.test.ts`.
+ * Pravidla úchytu níže #114 nemění (úchyt je mimo rozsah).
+ *
  * Navržené rozhraní (`src/games/coloring/logic/coloringLayout.ts`, herní
  * jednotky):
  * - čtverec ikony dál určují `toolSlotIcon(slot)` (panel i hlavička kroku
