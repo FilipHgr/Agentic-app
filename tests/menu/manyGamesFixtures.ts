@@ -1,7 +1,8 @@
 import { createMenu } from '../../src/menu/logic/menu';
 import type { Menu, MenuFeedback, MenuLanguageSource } from '../../src/menu/logic/menu';
 import { menuLayoutFor } from '../../src/menu/logic/menuLayout';
-import type { MenuBox, MenuLayout } from '../../src/menu/logic/menuLayout';
+import type { MenuBox, MenuCategoryPicker, MenuLayout } from '../../src/menu/logic/menuLayout';
+import type { MenuSoundName } from '../../src/menu/logic/menuSounds';
 import { DRAG_THRESHOLD_PX } from '../../src/menu/logic/menuScroll';
 import { createMenuTouch } from '../../src/menu/logic/menuTouch';
 import type { MenuTouch } from '../../src/menu/logic/menuTouch';
@@ -15,6 +16,7 @@ import {
   viewportOf,
 } from '../shared/viewportFixtures';
 import type { TestWindow } from '../shared/viewportFixtures';
+import { soundsOf } from './menuFixtures';
 
 /**
  * Zkušební menu pro hodně her (#69), jen v testech: 40 her ve 12
@@ -37,9 +39,29 @@ export const MANY_CATEGORY_TITLES: readonly string[] = [
   'Geometrie',
 ];
 
+/**
+ * Symboly zkušebních kategorií (#95), navzájem různé a bez emoji
+ * variant, jen v testech.
+ */
+export const MANY_CATEGORY_SYMBOLS: readonly string[] = [
+  '+ −',
+  '×',
+  '÷',
+  '△',
+  '◷',
+  '¢',
+  '½',
+  '‹ ›',
+  '◆',
+  'cm',
+  'Aa',
+  '□',
+];
+
 export const MANY_CATEGORIES: readonly GameCategory[] = MANY_CATEGORY_TITLES.map((_, index) => ({
   id: `category${index + 1}`,
   titleKey: `categories.category${index + 1}.title`,
+  symbol: MANY_CATEGORY_SYMBOLS[index] ?? '?',
 }));
 
 const SYMBOLS = ['2+3', '△○', '3·4', '◷', '1<2', '½', '10+', '◫', '7−3', '★'];
@@ -169,6 +191,8 @@ export class FingerMenu {
   readonly touch: MenuTouch;
   readonly started: string[] = [];
   readonly feedback: MenuFeedback[] = [];
+  /** Kolikrát menu požádalo o výběr profilu (#72). */
+  profileOpened = 0;
   /** Počet her v „Vše“: podle něj se volí výška dlaždic. */
   readonly gameCount: number;
   window: TestWindow;
@@ -190,6 +214,9 @@ export class FingerMenu {
       },
       feedback: (event) => this.feedback.push(event),
       languages,
+      onOpenProfilePicker: () => {
+        this.profileOpened += 1;
+      },
     });
     this.touch = createMenuTouch({ menu: this.menu });
     this.relayout();
@@ -331,6 +358,40 @@ export class FingerMenu {
   /** Střed viditelné plochy seznamu jazyků (#70). */
   languageListCenter(): Point {
     return centerOf(this.layout().languagePanel.list.viewport);
+  }
+
+  /** Tóny, které by scéna k odezvě zahrála, v pořadí (#95). */
+  sounds(): MenuSoundName[] {
+    return soundsOf(this.feedback);
+  }
+
+  /** Výběr kategorie na telefonu na výšku (#95); jinde test selže. */
+  picker(): MenuCategoryPicker {
+    const picker = this.layout().categoryPicker;
+    if (picker === null || picker === undefined) {
+      throw new Error(`${this.window.name}: menu nemá výběr kategorie`);
+    }
+    return picker;
+  }
+
+  /** Střed tlačítka výběru kategorie (#95). */
+  categoryButtonCenter(): Point {
+    return centerOf(this.picker().button);
+  }
+
+  /** Střed řádku kategorie v otevřeném seznamu, jak je teď posunutý (#95). */
+  categoryRowCenter(index: number): Point {
+    const row = this.picker().rows[index];
+    if (row === undefined) {
+      throw new Error(`kategorie ${index} v seznamu není`);
+    }
+    const center = centerOf(row);
+    return { x: center.x, y: center.y - this.touch.categoryListOffset() };
+  }
+
+  /** Střed viditelné plochy seznamu kategorií (#95). */
+  categoryListCenter(): Point {
+    return centerOf(this.picker().list.viewport);
   }
 
   selectedCategory(): string | undefined {

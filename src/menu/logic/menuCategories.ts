@@ -6,8 +6,12 @@
 
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
 
-/** „Vše“ není kategorie ze seznamu, ukáže všechny hry. */
-export const ALL_CATEGORY: GameCategory = { id: 'all', titleKey: 'categories.all.title' };
+/** „Vše“ není kategorie ze seznamu, ukáže všechny hry. Symbol ▦ podle obrázku D4 (#95). */
+export const ALL_CATEGORY: GameCategory = {
+  id: 'all',
+  titleKey: 'categories.all.title',
+  symbol: '▦',
+};
 
 /** Id kategorií, které menu ukáže: „Vše“ a kategorie s aspoň jednou hrou. */
 export function visibleCategories(

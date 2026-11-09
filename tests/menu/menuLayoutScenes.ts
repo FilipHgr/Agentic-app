@@ -5,7 +5,12 @@ import { letterKeys } from '../../src/menu/logic/letterGrid';
 import type { LetterKey, LetterLayer } from '../../src/menu/logic/letterGrid';
 import { ALL_CATEGORY, visibleCategories } from '../../src/menu/logic/menuCategories';
 import { menuLayoutFor } from '../../src/menu/logic/menuLayout';
-import type { MenuBox, MenuLanguagePanel, MenuLayout } from '../../src/menu/logic/menuLayout';
+import type {
+  MenuBox,
+  MenuCategoryPicker,
+  MenuLanguagePanel,
+  MenuLayout,
+} from '../../src/menu/logic/menuLayout';
 import { menuText } from '../../src/menu/logic/menuTexts';
 import {
   colorStepLayoutFor,
@@ -59,9 +64,11 @@ import {
  * musí). O 8 px a 4 px rozhodne vlastník. Jinak menu výjimky z pravidel
  * nemá.
  *
- * Dnešní řada kategorií se na telefonu na výšku smí dočasně posouvat, když
- * se nevejde (rozhodnutí vlastníka k #88, později ji nahradí rozbalovací
- * výběr). Pak se měří jako posouvaný obsah: viditelná část v ořezu řady.
+ * Na telefonu na výšku je místo řady kategorií tlačítko výběru kategorie
+ * (#95, nahrazuje posouvanou řadu z #88). Tlačítko je na místě dřívější
+ * řady a vůči posouvané mřížce má stejnou výjimku jako dřív řada (0 px:
+ * nic se nepřekrývá). Otevřený seznam kategorií je karta jako nabídka
+ * jazyků a jeho řádky se posouvají jako seznam jazyků.
  *
  * Karta (nabídka jazyků, rámeček potvrzení) leží nad obrazovkou a nese
  * svůj obsah: obsah smí ležet na kartě, jen když je na ní celý.
@@ -259,6 +266,166 @@ const LANGUAGE_CARD = 'nabídka jazyků';
 const DELETE_CARD = 'rámeček potvrzení';
 
 // ---------------------------------------------------------------------------
+// Výběr kategorie na telefonu na výšku (#95)
+// ---------------------------------------------------------------------------
+
+export const PICKER_BUTTON = 'výběr kategorie';
+export const CATEGORY_CARD = 'seznam kategorií';
+
+/**
+ * Název kategorie na tlačítku výběru: vedle něj se musí vejít symbol
+ * v rámečku a šipka ▾ (odhad šířky z #65, AC1).
+ */
+export function pickerButtonText(picker: MenuCategoryPicker, title: string): LayoutText {
+  return {
+    text: title,
+    fontSize: picker.fontSize,
+    padding: picker.textInset,
+    reserve: picker.symbolWidth + picker.arrowWidth,
+  };
+}
+
+/** Název kategorie v řádku seznamu: vedle něj symbol a ✓ (AC2). */
+export function pickerRowText(picker: MenuCategoryPicker, title: string): LayoutText {
+  return {
+    text: title,
+    fontSize: picker.fontSize,
+    padding: picker.textInset,
+    reserve: picker.symbolWidth + picker.checkWidth,
+  };
+}
+
+/**
+ * Tlačítko výběru kategorie (jen telefon na výšku). Na tlačítku může být
+ * kterákoli kategorie, proto nese názvy všech a pravidlo „text se vejde“
+ * změří i nejdelší.
+ */
+function pickerButtonItems(layout: MenuLayout, titles: readonly string[]): LayoutItem[] {
+  const picker = layout.categoryPicker;
+  if (picker === null || picker === undefined) {
+    return [];
+  }
+  return [
+    {
+      name: PICKER_BUTTON,
+      box: picker.button,
+      tappable: true,
+      texts: titles.map((title) => pickerButtonText(picker, title)),
+    },
+  ];
+}
+
+/** Karta seznamu kategorií a viditelné části řádků při posunu `offset`. */
+function pickerListItems(
+  picker: MenuCategoryPicker,
+  titles: readonly string[],
+  offset: number,
+): LayoutItem[] {
+  const rows = picker.rows.flatMap((row, index) =>
+    scrolledItem(`kategorie ${titles[index] ?? index + 1}`, shiftY(row, offset), picker.list.clip, [
+      pickerRowText(picker, titles[index] ?? ''),
+    ]),
+  );
+  return [{ name: CATEGORY_CARD, box: picker.panel }, ...rows];
+}
+
+/**
+ * Seznamy kategorií pro výběr (#95 AC1, AC4, AC6): dnešní kategorie,
+ * jen „Vše“ a jedna kategorie a zkušební seznam 13 kategorií (jen
+ * v testech).
+ */
+export function categoryPickerCases(language: Language): ReadonlyArray<{
+  readonly name: string;
+  readonly titles: readonly string[];
+  readonly tileCount: number;
+}> {
+  const today = todayCategoryTitles(language);
+  return [
+    { name: 'dnešní kategorie', titles: today, tileCount: GAMES.length },
+    { name: '„Vše“ a jedna kategorie', titles: today.slice(0, 2), tileCount: 1 },
+    { name: '13 kategorií', titles: MANY_MENU_CATEGORY_TITLES, tileCount: MANY_GAMES_COUNT },
+  ];
+}
+
+export function categoryPickerLayout(
+  window: TestWindow,
+  titles: readonly string[],
+  tileCount: number,
+): MenuLayout {
+  return menuLayoutFor(viewportOf(window), {
+    categoryTitles: titles,
+    tileCount,
+    allTileCount: tileCount,
+    languageNames: TODAY_LANGUAGE_NAMES,
+  });
+}
+
+/** Dlaždice na začátku mřížky, oříznuté ořezem mřížky. */
+function startTiles(layout: MenuLayout): LayoutItem[] {
+  return layout.tiles.flatMap((tile, index) =>
+    scrolledItem(`dlaždice ${index + 1}`, tile, layout.gridScroll.clip, []),
+  );
+}
+
+/**
+ * Výběr kategorie ve všech oknech, jazycích a seznamech: zavřený (lišta,
+ * tlačítko a mřížka) a otevřený při každém zkoušeném posunu seznamu
+ * (lišta, tlačítko, karta a řádky). Okno bez výběru (sloupec kategorií)
+ * má jeden případ se sloupcem, aby bylo vidět, že tam výběr není.
+ */
+export function categoryPickerScenes(windows: readonly TestWindow[] = MENU_WINDOWS): LayoutScene[] {
+  return LANGUAGES.flatMap((language) =>
+    windows.flatMap((window): LayoutScene[] =>
+      categoryPickerCases(language).flatMap(({ name, titles, tileCount }): LayoutScene[] => {
+        const layout = categoryPickerLayout(window, titles, tileCount);
+        const picker = layout.categoryPicker;
+        const prefix = `výběr kategorie, ${window.name}, ${name}, ${language}`;
+        if (picker === null || picker === undefined) {
+          return [
+            {
+              label: `${prefix}, sloupec bez výběru`,
+              free: freeAreaOf(window),
+              items: [...barItems(layout, LANGUAGES), ...todayCategoryItems(layout, titles, 0)],
+            },
+          ];
+        }
+        const closed: LayoutScene = {
+          label: `${prefix}, zavřený`,
+          free: freeAreaOf(window),
+          items: [
+            ...barItems(layout, LANGUAGES),
+            ...pickerButtonItems(layout, titles),
+            ...startTiles(layout),
+          ],
+          minGap: scrolledGap,
+        };
+        const fractions = offsetsOf(picker.list.maxOffset, LIST_OFFSET_FRACTIONS);
+        const reach = reachOffsets(
+          picker.list.maxOffset,
+          picker.rows.map((row, index) => ({
+            name: `kategorie ${titles[index] ?? index + 1}`,
+            end: row.bottom,
+          })),
+          picker.list.viewport.bottom,
+          fractions,
+        );
+        const open = [...fractions, ...reach].map((offset): LayoutScene => ({
+          label: `${prefix}, otevřený, seznam ${offset.name}`,
+          free: freeAreaOf(window),
+          items: [
+            ...barItems(layout, LANGUAGES),
+            ...pickerButtonItems(layout, titles),
+            ...pickerListItems(picker, titles, offset.value),
+          ],
+          mayOverlap: onCard(CATEGORY_CARD),
+        }));
+        return [closed, ...open];
+      }),
+    ),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Mřížka her a kategorie (dnešní obsah, #67)
 // ---------------------------------------------------------------------------
 
@@ -361,6 +528,7 @@ export function gridScenes(windows: readonly TestWindow[] = MENU_WINDOWS): Layou
         free: freeAreaOf(window),
         items: [
           ...barItems(layout, LANGUAGES),
+          ...pickerButtonItems(layout, titles),
           ...todayCategoryItems(layout, titles, offset.value),
           ...tiles,
         ],
@@ -416,7 +584,12 @@ function scrollScene(
       `posouvání, ${window.name}, ${contentName}, ` +
       `mřížka ${gridOffset.name}, kategorie ${categoryOffset.name}`,
     free: freeAreaOf(window),
-    items: [...barItems(layout, LANGUAGES), ...categories, ...tiles],
+    items: [
+      ...barItems(layout, LANGUAGES),
+      ...pickerButtonItems(layout, MANY_MENU_CATEGORY_TITLES),
+      ...categories,
+      ...tiles,
+    ],
     minGap: scrolledGap,
   };
 }
@@ -430,6 +603,10 @@ function categoryEnd(layout: MenuLayout, box: MenuBox): number {
 function partOf(item: LayoutItem): 'lišta' | 'kategorie' | 'mřížka' | 'jiné' {
   if (BAR_NAMES.some((name) => item.name.startsWith(name))) {
     return 'lišta';
+  }
+  // Tlačítko výběru kategorie je na místě dřívější řady kategorií (#95).
+  if (item.name === PICKER_BUTTON) {
+    return 'kategorie';
   }
   if (item.whole === undefined) {
     return 'jiné';
@@ -803,6 +980,7 @@ export function menuScenesIn(
     'výběr profilu': () => pickerScenes(windows),
     'formulář profilu': () => formScenes(windows),
     'potvrzení smazání profilu': () => deleteScenes(windows),
+    'výběr kategorie': () => categoryPickerScenes(windows),
   };
 }
 

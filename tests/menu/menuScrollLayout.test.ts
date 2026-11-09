@@ -24,7 +24,6 @@ import {
 } from './manyGamesFixtures';
 import {
   describeLayoutRules,
-  gridScenes,
   scrollScenes,
   unseenElements,
   shiftCategory,
@@ -51,6 +50,11 @@ import {
  * Společná pravidla pro viditelnou část každé dlaždice a kategorie při
  * každém zkoušeném posunu hlídá `describeLayoutRules` (#82). Tady
  * zůstávají kontroly podle schválených obrázků, každá v cyklu přes okna.
+ *
+ * Na telefonu na výšku nahradil posouvanou řadu kategorií výběr kategorie
+ * (#95). Kontroly řady na telefonu na výšku (#88 a #69 AC4) jsou nahrazené
+ * kontrolami seznamu v `categoryPickerLayout.test.ts`; tady kategorie
+ * hlídají jen okna se sloupcem.
  */
 
 const ROUNDING = 1e-6;
@@ -124,21 +128,27 @@ function isPhonePortrait(window: TestWindow): boolean {
   return chooseLayoutMode(viewportOf(window)) === 'phonePortrait';
 }
 
-/** Okna, ve kterých se 13 kategorií nevejde. */
+/** Okna se sloupcem kategorií (iPad, zmenšené zobrazení, telefon na šířku). */
+const COLUMN_WINDOWS: readonly TestWindow[] = MENU_WINDOWS.filter(
+  (window) => !isPhonePortrait(window),
+);
+
+/** Okna se sloupcem, ve kterých se 13 kategorií nevejde. */
 function overflowingWindows(): TestWindow[] {
-  return MENU_WINDOWS.filter((window) => categoryAxis(manyGamesLayout(window)).overflowing);
+  return COLUMN_WINDOWS.filter((window) => categoryAxis(manyGamesLayout(window)).overflowing);
 }
 
 describe('#82 AC1: posouvání ukáže každou dlaždici a kategorii', () => {
   it('každá dlaždice a kategorie je změřená v každém případu a aspoň v jednom je celá vidět', () => {
     const scenes = scrollScenes();
-    const names = [
-      ...Array.from({ length: MANY_GAMES_COUNT }, (_, index) => `dlaždice ${index + 1}`),
-      ...MANY_MENU_CATEGORY_TITLES.map((title) => `kategorie ${title}`),
-    ];
+    const tiles = Array.from({ length: MANY_GAMES_COUNT }, (_, index) => `dlaždice ${index + 1}`);
+    const categories = MANY_MENU_CATEGORY_TITLES.map((title) => `kategorie ${title}`);
     for (const window of MENU_WINDOWS) {
       const prefix = `posouvání, ${window.name}, ${MANY_GAMES_COUNT} her`;
       const own = scenes.filter((scene) => scene.label.startsWith(prefix));
+      // Na telefonu na výšku jsou kategorie v seznamu výběru (#95), ten
+      // hlídá categoryPickerLayout.test.ts.
+      const names = isPhonePortrait(window) ? tiles : [...tiles, ...categories];
       expect(own.length, window.name).toBeGreaterThan(0);
       expect(unseenElements(own, names), window.name).toEqual([]);
     }
@@ -195,55 +205,9 @@ describe('#69 AC1: dnes (jedna hra) se nic neposouvá, když se kategorie vejdou
   });
 });
 
-describe('#88: dnešní řada kategorií se na telefonu na výšku posouvá, když se nevejde', () => {
-  const overflowingToday = (): TestWindow[] =>
-    MENU_WINDOWS.filter((window) => isPhonePortrait(window) && !todayFits(window));
-
-  it('na telefonu na výšku jde řadu posunout až na poslední kategorii, která je pak celá vidět', () => {
-    expect(overflowingToday().length, 'aspoň jedno okno přetéká').toBeGreaterThan(0);
-    for (const window of overflowingToday()) {
-      const layout = todayLayout(window);
-      const { viewport, maxOffset } = layout.categoryScroll;
-      const hits = layout.categories.map((category) => category.hit);
-      expect(layout.categoryDirection, window.name).toBe('row');
-      expect(maxOffset, window.name).toBeGreaterThan(0);
-      const first = hits[0] ?? { ...viewport, left: -1 };
-      expect(isInside(first, viewport), `${window.name}: „Vše“ na začátku`).toBe(true);
-      const last = shiftCategory(layout, lastOf(hits, window), maxOffset);
-      expect(isInside(last, viewport), `${window.name}: poslední kategorie na konci`).toBe(true);
-      const { end, viewportEnd } = categoryAxis(layout);
-      expect(viewportEnd - end(last), `${window.name}: prázdné místo na konci`).toBeLessThanOrEqual(
-        MAX_END_SPACE,
-      );
-    }
-  });
-
-  it('z kategorie, která se nevejde, je vidět aspoň 24 px, aby bylo poznat, že je jich víc', () => {
-    for (const window of overflowingToday()) {
-      const layout = todayLayout(window);
-      const { end, viewportEnd } = categoryAxis(layout);
-      const viewport = layout.categoryScroll.viewport;
-      const pill = layout.categories.find(
-        (category) => end(category.pill) > viewportEnd + ROUNDING,
-      )?.pill;
-      const part = visiblePart(pill ?? viewport, viewport);
-      expect(part, window.name).toBeDefined();
-      expect(part === undefined ? 0 : widthOf(part), window.name).toBeGreaterThanOrEqual(
-        CATEGORY_PEEK,
-      );
-    }
-  });
-
-  it('každá dnešní kategorie je při některém posunu celá vidět a změří ji společná pravidla', () => {
-    const titles = todayCategoryTitles().map((title) => `kategorie ${title}`);
-    const scenes = gridScenes();
-    for (const window of overflowingToday()) {
-      const own = scenes.filter((scene) => scene.label.includes(`, ${window.name}, `));
-      expect(own.length, window.name).toBeGreaterThan(1);
-      expect(unseenElements(own, titles), window.name).toEqual([]);
-    }
-  });
-});
+// #88 (posouvaná řada dnešních kategorií na telefonu na výšku) nahradil
+// výběr kategorie (#95): náhrada je v categoryPickerLayout.test.ts
+// („#95 AC4: …“ pro dnešní kategorie i 13 kategorií).
 
 describe('#69 AC1: mřížka se 40 hrami se posouvá svisle a je poznat, že je toho víc', () => {
   it(`ve „Vše“ je ${MANY_GAMES_COUNT} dlaždic, mřížka jde posunout, na začátku je první celá vidět a poslední jde posunout celá do viditelné plochy`, () => {
@@ -319,7 +283,10 @@ describe('#69 AC1: kamera mřížky má rezervu a nezasahuje do lišty, kategori
       const layout = manyGamesLayout(window);
       const { clip } = layout.gridScroll;
       const gridViewport = layout.gridScroll.viewport;
-      const categoryViewport = layout.categoryScroll.viewport;
+      // Na telefonu na výšku je místo kategorií tlačítko výběru (#95).
+      const picker = layout.categoryPicker;
+      const categoryViewport =
+        picker === null || picker === undefined ? layout.categoryScroll.viewport : picker.button;
       const free = freeAreaOf(window);
       for (const bar of barBoxes(layout)) {
         expect(overlaps(clip, bar), `${window.name}: ořez × lišta`).toBe(false);
@@ -355,7 +322,7 @@ describe('#69 AC1: kamera mřížky má rezervu a nezasahuje do lišty, kategori
   });
 });
 
-describe('#69 AC4: 13 kategorií (12 a „Vše“) se posouvá a je poznat, že je jich víc', () => {
+describe('#69 AC4: 13 kategorií (12 a „Vše“) se ve sloupci posouvá a je poznat, že je jich víc', () => {
   it('rozestup kategorií je nejvýš 88 px jako na obrázku (744×296 a 800×300)', () => {
     for (const name of ['744×296', '800×300']) {
       const [first, second] = manyGamesLayout(findWindow(name)).categories;
@@ -364,7 +331,7 @@ describe('#69 AC4: 13 kategorií (12 a „Vše“) se posouvá a je poznat, že 
   });
 
   it('každá kategorie má svou ťukací plochu a na začátku je „Vše“ celá vidět', () => {
-    for (const window of MENU_WINDOWS) {
+    for (const window of COLUMN_WINDOWS) {
       const layout = manyGamesLayout(window);
       const viewport = layout.categoryScroll.viewport;
       expect(layout.categories, window.name).toHaveLength(MANY_MENU_CATEGORY_TITLES.length);
@@ -374,7 +341,7 @@ describe('#69 AC4: 13 kategorií (12 a „Vše“) se posouvá a je poznat, že 
   });
 
   it('kategorie, které se nevejdou, jdou posunout až na poslední; ty, které se vejdou, se neposouvají', () => {
-    for (const window of MENU_WINDOWS) {
+    for (const window of COLUMN_WINDOWS) {
       const layout = manyGamesLayout(window);
       const { viewport, maxOffset } = layout.categoryScroll;
       const hits = layout.categories.map((category) => category.hit);
@@ -393,7 +360,7 @@ describe('#69 AC4: 13 kategorií (12 a „Vše“) se posouvá a je poznat, že 
 
   it('z další skryté kategorie je vidět aspoň 24 px', () => {
     expect(overflowingWindows().length, 'aspoň jedno okno přetéká').toBeGreaterThan(0);
-    for (const window of MENU_WINDOWS) {
+    for (const window of COLUMN_WINDOWS) {
       const layout = manyGamesLayout(window);
       const { end, viewportEnd, overflowing } = categoryAxis(layout);
       if (!overflowing) {
@@ -413,7 +380,7 @@ describe('#69 AC4: 13 kategorií (12 a „Vše“) se posouvá a je poznat, že 
 
   it('na konci se kategorie zastaví bez prázdného místa za poslední', () => {
     expect(overflowingWindows().length, 'aspoň jedno okno přetéká').toBeGreaterThan(0);
-    for (const window of MENU_WINDOWS) {
+    for (const window of COLUMN_WINDOWS) {
       const layout = manyGamesLayout(window);
       const { end, viewportEnd, overflowing } = categoryAxis(layout);
       if (!overflowing) {

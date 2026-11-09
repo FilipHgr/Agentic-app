@@ -2,7 +2,8 @@
  * Rozložení menu podle obrázku B (#67 AC1) v CSS px okna, i s výřezem
  * a lištou domů. Nahoře lišta (místo pro profil vlevo, místo pro jazyk
  * a zástupná tlačítka „…“ vpravo), pod ní kategorie (sloupec vlevo, na
- * telefonu na výšku řada) a vedle nebo pod nimi mřížka dlaždic.
+ * telefonu na výšku výběr kategorie, #95) a vedle nebo pod nimi mřížka
+ * dlaždic.
  * Čistý TypeScript bez Phaseru.
  *
  * Místa pro profil a jazyk mají pevnou velikost, aby se dlaždice podle
@@ -24,6 +25,13 @@
  * a vejde se do volné plochy. Když se seznam jazyků nevejde, posouvá se
  * jako mřížka a z prvního skrytého jazyka je vidět 55 % řádku. Panel
  * leží nad mřížkou a kategoriemi, jejich polohy se kvůli němu nemění.
+ *
+ * Výběr kategorie (#95, obrázky D1–D3): na telefonu na výšku je místo řady
+ * kategorií jedno tlačítko přes celou šířku na jejím místě (ťukací plocha
+ * 64 px, nakreslené 56 px). Seznam kategorií je pod ním karta jako nabídka
+ * jazyků přes mřížku, řádky 64 px s mezerou 8 px; když se nevejdou,
+ * posouvají se a z první skryté řádky je vidět 55 %. Lišta ani dlaždice se
+ * kvůli výběru nepohnou.
  */
 
 import {
@@ -89,6 +97,39 @@ export interface MenuProfileBadgeLayout {
   readonly labelInset: number;
 }
 
+/** Výběr kategorie na telefonu na výšku (#95). */
+export interface MenuCategoryPicker {
+  /** Ťukací plocha tlačítka (64 px vysoká, přes celou šířku menu). */
+  readonly button: MenuBox;
+  /** Nakreslené tlačítko (56 px vysoké) uprostřed ťukací plochy. */
+  readonly buttonDrawn: MenuBox;
+  /** Písmo názvu kategorie na tlačítku i v řádcích. */
+  readonly fontSize: number;
+  /** Odsazení obsahu od levého i pravého okraje tlačítka a řádku. */
+  readonly textInset: number;
+  /** Místo pro symbol v rámečku i s mezerou k názvu. */
+  readonly symbolWidth: number;
+  readonly symbolFontSize: number;
+  /** Světle modrý rámeček symbolu. */
+  readonly symbolBoxWidth: number;
+  readonly symbolBoxHeight: number;
+  /** Mezera mezi rámečkem symbolu, názvem a šipkou nebo ✓. */
+  readonly contentGap: number;
+  /** Šířka šipky a ✓. */
+  readonly markWidth: number;
+  /** Místo pro šipku ▾ / ▴ vpravo na tlačítku i s mezerou k názvu. */
+  readonly arrowWidth: number;
+  readonly arrowFontSize: number;
+  /** Místo pro ✓ vpravo v řádku i s mezerou k názvu. */
+  readonly checkWidth: number;
+  /** Bílá karta seznamu pod tlačítkem. */
+  readonly panel: MenuBox;
+  /** Ťukací plochy kategorií (64 px vysoké) bez posunu, v pořadí menu. */
+  readonly rows: readonly MenuBox[];
+  /** Seznam kategorií se posouvá svisle. */
+  readonly list: MenuScrollArea;
+}
+
 export interface MenuLayout {
   readonly mode: LayoutMode;
   readonly profileSlot: MenuBox;
@@ -113,6 +154,11 @@ export interface MenuLayout {
   readonly gridScroll: MenuScrollArea;
   /** Kategorie v řadě se posouvají vodorovně, ve sloupci svisle. */
   readonly categoryScroll: MenuScrollArea;
+  /**
+   * Výběr kategorie (#95), jen na telefonu na výšku; jinde `null`
+   * a kategorie jsou ve sloupci. S výběrem je `categories` prázdné.
+   */
+  readonly categoryPicker: MenuCategoryPicker | null;
 }
 
 export interface MenuContent {
@@ -220,7 +266,7 @@ const PHONE_LANDSCAPE_METRICS: MenuMetrics = {
   tileTitleFontSize: 15,
 };
 
-/** Telefon na výšku (obrázek B na telefonu): kategorie v řadě nahoře. */
+/** Telefon na výšku (obrázek B na telefonu): výběr kategorie nahoře na místě řady (#95). */
 const PHONE_PORTRAIT_METRICS: MenuMetrics = {
   sideMargin: 16,
   barTop: 12,
@@ -265,6 +311,32 @@ const LANGUAGE_PANEL_EDGE = 8;
  * jeho názvu a bylo poznat, že seznam pokračuje (pravidlo z #69: 20–60 %).
  */
 const LANGUAGE_ROW_PEEK = 0.55;
+
+/**
+ * Výběr kategorie (#95) podle obrázků D1–D3: nakreslené tlačítko 56 px,
+ * vlevo symbol v rámečku 52 × 40 px, mezera 12 px, název, mezera 12 px
+ * a šipka 24 px. Vpravo u šipky je 16 px, u ✓ v řádku 20 px. Panel je
+ * od tlačítka 8 px, má okraj 8 px a od spodku volné plochy je aspoň 8 px.
+ */
+const PICKER_DRAWN_HEIGHT = 56;
+const PICKER_FONT_SIZE = 17;
+const PICKER_TEXT_INSET = 8;
+const PICKER_SYMBOL_BOX_WIDTH = 52;
+const PICKER_SYMBOL_BOX_HEIGHT = 40;
+const PICKER_SYMBOL_FONT_SIZE = 20;
+const PICKER_CONTENT_GAP = 12;
+const PICKER_MARK_WIDTH = 24;
+const PICKER_ARROW_FONT_SIZE = 16;
+/** Šipka je od pravého okraje 16 px (odsazení 8 px a 8 px navíc). */
+const PICKER_ARROW_RIGHT_EXTRA = 8;
+/** ✓ je od pravého okraje řádku 20 px (odsazení 8 px a 12 px navíc). */
+const PICKER_CHECK_RIGHT_EXTRA = 12;
+const PICKER_PANEL_GAP = 8;
+const PICKER_PANEL_PADDING = 8;
+const PICKER_PANEL_EDGE = 8;
+const PICKER_ROW_GAP = 8;
+/** Z první skryté řádky je vidět 55 % (obrázek D3, pravidlo 20–60 %). */
+const PICKER_ROW_PEEK = 0.55;
 
 /** Kolečko profilu (#71): písmeno jako na obrázku palety, přezdívka jako kategorie. */
 const PROFILE_SYMBOL_FONT_SIZE = 22;
@@ -329,26 +401,6 @@ function categoryColumn(
       metrics.categoryWidth,
     ),
   );
-}
-
-/** Kategorie v řadě; každá je široká podle svého názvu. */
-function categoryRow(
-  free: MenuBox,
-  metrics: MenuMetrics,
-  titles: readonly string[],
-  gap: number,
-): MenuCategorySlot[] {
-  const slots: MenuCategorySlot[] = [];
-  let left = free.left + metrics.sideMargin;
-  for (const title of titles) {
-    const width = Math.max(
-      BUTTON_SIZE,
-      Math.ceil(textWidth(title, metrics.categoryFontSize) + 2 * metrics.categoryTextInset),
-    );
-    slots.push(categorySlot(left, free.top + metrics.contentTop, width));
-    left += width + gap;
-  }
-  return slots;
 }
 
 interface GridArea {
@@ -535,14 +587,17 @@ function profileBadgeFor(
   };
 }
 
-/** Výška viditelné části seznamu: celý, nebo celé řady a 55 % další. */
-function languageListHeight(count: number, available: number): number {
-  const step = BUTTON_SIZE + LANGUAGE_ROW_GAP;
-  const content = Math.max(0, count * step - LANGUAGE_ROW_GAP);
+/**
+ * Výška viditelné části seznamu řádků 64 px s mezerou `gap`: celý, nebo
+ * celé řady a `peekShare` další.
+ */
+function listHeight(count: number, available: number, gap: number, peekShare: number): number {
+  const step = BUTTON_SIZE + gap;
+  const content = Math.max(0, count * step - gap);
   if (content <= available) {
     return content;
   }
-  const peek = LANGUAGE_ROW_PEEK * BUTTON_SIZE;
+  const peek = peekShare * BUTTON_SIZE;
   const fullRows = Math.max(1, Math.floor((available - peek) / step));
   return Math.min(available, fullRows * step + peek);
 }
@@ -567,12 +622,12 @@ export function languagePanelFor(
   const left = Math.max(free.left + LANGUAGE_PANEL_EDGE, right - width);
   const top = button.bottom + LANGUAGE_PANEL_GAP;
   const available = free.bottom - LANGUAGE_PANEL_EDGE - top - 2 * LANGUAGE_PANEL_PADDING;
-  const listHeight = languageListHeight(names.length, available);
+  const height = listHeight(names.length, available, LANGUAGE_ROW_GAP, LANGUAGE_ROW_PEEK);
   const list: MenuBox = {
     left: left + LANGUAGE_PANEL_PADDING,
     right: left + width - LANGUAGE_PANEL_PADDING,
     top: top + LANGUAGE_PANEL_PADDING,
-    bottom: top + LANGUAGE_PANEL_PADDING + listHeight,
+    bottom: top + LANGUAGE_PANEL_PADDING + height,
   };
   const rows = names.map((_, index) =>
     boxAt(
@@ -594,6 +649,61 @@ export function languagePanelFor(
     fontSize: LANGUAGE_FONT_SIZE,
     textInset: LANGUAGE_TEXT_INSET,
     checkWidth: LANGUAGE_CHECK_WIDTH,
+  };
+}
+
+/**
+ * Výběr kategorie (#95): tlačítko přes šířku od `left` do `right` na místě
+ * řady kategorií a pod ním seznam kategorií v kartě stejně široké.
+ */
+function categoryPickerFor(
+  free: MenuBox,
+  left: number,
+  right: number,
+  top: number,
+  count: number,
+): MenuCategoryPicker {
+  const button = boxAt(left, top, right - left, BUTTON_SIZE);
+  const drawnInset = (BUTTON_SIZE - PICKER_DRAWN_HEIGHT) / 2;
+  const panelTop = button.bottom + PICKER_PANEL_GAP;
+  const available = free.bottom - PICKER_PANEL_EDGE - panelTop - 2 * PICKER_PANEL_PADDING;
+  const height = listHeight(count, available, PICKER_ROW_GAP, PICKER_ROW_PEEK);
+  const list: MenuBox = {
+    left: left + PICKER_PANEL_PADDING,
+    right: right - PICKER_PANEL_PADDING,
+    top: panelTop + PICKER_PANEL_PADDING,
+    bottom: panelTop + PICKER_PANEL_PADDING + height,
+  };
+  const rows = Array.from({ length: count }, (_, index) =>
+    boxAt(
+      list.left,
+      list.top + index * (BUTTON_SIZE + PICKER_ROW_GAP),
+      list.right - list.left,
+      BUTTON_SIZE,
+    ),
+  );
+  const last = rows[rows.length - 1];
+  return {
+    button,
+    buttonDrawn: { ...button, top: button.top + drawnInset, bottom: button.bottom - drawnInset },
+    fontSize: PICKER_FONT_SIZE,
+    textInset: PICKER_TEXT_INSET,
+    symbolWidth: PICKER_SYMBOL_BOX_WIDTH + PICKER_CONTENT_GAP,
+    symbolFontSize: PICKER_SYMBOL_FONT_SIZE,
+    symbolBoxWidth: PICKER_SYMBOL_BOX_WIDTH,
+    symbolBoxHeight: PICKER_SYMBOL_BOX_HEIGHT,
+    contentGap: PICKER_CONTENT_GAP,
+    markWidth: PICKER_MARK_WIDTH,
+    arrowWidth: PICKER_CONTENT_GAP + PICKER_MARK_WIDTH + PICKER_ARROW_RIGHT_EXTRA,
+    arrowFontSize: PICKER_ARROW_FONT_SIZE,
+    checkWidth: PICKER_CONTENT_GAP + PICKER_MARK_WIDTH + PICKER_CHECK_RIGHT_EXTRA,
+    panel: { left, right, top: panelTop, bottom: list.bottom + PICKER_PANEL_PADDING },
+    rows,
+    list: {
+      viewport: list,
+      clip: list,
+      maxOffset: last === undefined ? 0 : Math.max(0, last.bottom - list.bottom),
+    },
   };
 }
 
@@ -633,14 +743,14 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
         top: free.top + metrics.contentTop - VIEWPORT_EDGE,
         bottom: free.bottom - VIEWPORT_EDGE,
       };
-  const categories = categorySlotsFor(
-    (categoryGap) =>
-      isRow
-        ? categoryRow(free, metrics, content.categoryTitles, categoryGap)
-        : categoryColumn(free, metrics, content.categoryTitles.length, categoryGap),
-    categoryViewport,
-    direction,
-  );
+  // Na telefonu na výšku jsou kategorie v seznamu výběru (#95), ne v řadě.
+  const categories = isRow
+    ? []
+    : categorySlotsFor(
+        (categoryGap) => categoryColumn(free, metrics, content.categoryTitles.length, categoryGap),
+        categoryViewport,
+        direction,
+      );
   const lastCategory = categories[categories.length - 1];
   const categoryEnd = isRow ? free.right - metrics.sideMargin : free.bottom - metrics.sideMargin;
   const categoryMaxOffset =
@@ -718,6 +828,16 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
       ? 0
       : maxOffsetFor(gridBottom(grid, rows, tileHeight, gap), gridViewport.bottom, grid.bottom);
 
+  const categoryPicker = isRow
+    ? categoryPickerFor(
+        free,
+        profileSlot.left,
+        Math.max(languageSlot.right, ...placeholders.map((box) => box.right)),
+        free.top + metrics.contentTop,
+        content.categoryTitles.length,
+      )
+    : null;
+
   return {
     mode,
     profileSlot,
@@ -742,5 +862,6 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
       clip: categoryViewport,
       maxOffset: categoryMaxOffset,
     },
+    categoryPicker,
   };
 }

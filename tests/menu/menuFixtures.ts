@@ -2,6 +2,8 @@ import { vi } from 'vitest';
 
 import { createMenu } from '../../src/menu/logic/menu';
 import type { Menu, MenuFeedback, MenuLanguageSource } from '../../src/menu/logic/menu';
+import { menuSoundFor } from '../../src/menu/logic/menuSounds';
+import type { MenuSoundName } from '../../src/menu/logic/menuSounds';
 import type { GameCategory, GameEntry } from '../../src/shared/logic/gameRegistry';
 
 /**
@@ -15,10 +17,10 @@ import type { GameCategory, GameEntry } from '../../src/shared/logic/gameRegistr
  */
 
 export const TEST_CATEGORIES: readonly GameCategory[] = [
-  { id: 'shapes', titleKey: 'categories.shapes.title' },
-  { id: 'adding', titleKey: 'categories.adding.title' },
-  { id: 'empty', titleKey: 'categories.empty.title' },
-  { id: 'logic', titleKey: 'categories.logic.title' },
+  { id: 'shapes', titleKey: 'categories.shapes.title', symbol: '△' },
+  { id: 'adding', titleKey: 'categories.adding.title', symbol: '+' },
+  { id: 'empty', titleKey: 'categories.empty.title', symbol: '∅' },
+  { id: 'logic', titleKey: 'categories.logic.title', symbol: '<>' },
 ];
 
 /** Zkušební hra se stahováním, které test nahradí vlastním. */
@@ -148,6 +150,18 @@ export interface TestMenu {
   readonly feedback: MenuFeedback[];
   /** Druhy odezvy v pořadí, jak přišly. */
   kinds(): string[];
+  /** Tóny, které by scéna k odezvě zahrála, v pořadí (#95). */
+  sounds(): MenuSoundName[];
+  /** Kolikrát menu požádalo o výběr profilu (#72). */
+  profileOpened(): number;
+}
+
+/** Tóny k odezvě menu v pořadí, jak by je scéna zahrála (#95). */
+export function soundsOf(feedback: readonly MenuFeedback[]): MenuSoundName[] {
+  return feedback.flatMap((event) => {
+    const sound = menuSoundFor(event);
+    return sound === undefined ? [] : [sound];
+  });
 }
 
 export interface TestMenuOptions {
@@ -204,6 +218,7 @@ export function testMenu(options: TestMenuOptions = {}): TestMenu {
   const download = new FakeDownload();
   const game = new FakeGame();
   const feedback: MenuFeedback[] = [];
+  let profileOpened = 0;
   const games = (options.games ?? TEST_GAMES).map((entry) => ({ ...entry, load: download.load }));
   const menu = createMenu({
     games,
@@ -213,8 +228,19 @@ export function testMenu(options: TestMenuOptions = {}): TestMenu {
     feedback: (event) => feedback.push(event),
     languages: options.languages,
     onLanguageChanged: options.onLanguageChanged,
+    onOpenProfilePicker: () => {
+      profileOpened += 1;
+    },
   });
-  return { menu, download, game, feedback, kinds: () => feedback.map((event) => event.kind) };
+  return {
+    menu,
+    download,
+    game,
+    feedback,
+    kinds: () => feedback.map((event) => event.kind),
+    sounds: () => soundsOf(feedback),
+    profileOpened: () => profileOpened,
+  };
 }
 
 /** Úložiště v paměti místo `localStorage`, které si pamatuje každý zápis. */

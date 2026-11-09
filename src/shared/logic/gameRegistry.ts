@@ -8,20 +8,25 @@
 import type { Language } from '../texts/languages';
 import type { GameAccess } from './gameAccess';
 
-/** Kategorie her v menu. Id je stálé, název se bere z textů menu podle klíče. */
+/**
+ * Kategorie her v menu. Id je stálé, název se bere z textů menu podle klíče.
+ * Symbol (#95) ukazuje výběr kategorie na telefonu na výšku; není to text
+ * jazyka, každá kategorie má jiný a bez barevné emoji podoby.
+ */
 export interface GameCategory {
   readonly id: string;
   readonly titleKey: string;
+  readonly symbol: string;
 }
 
 /**
  * Kategorie v pořadí, v jakém je menu ukáže. Menu ukáže jen ty, ve kterých
  * je aspoň jedna hra. Nová kategorie potřebuje název v textech menu
- * (`src/menu/texts/<jazyk>.ts`).
+ * (`src/menu/texts/<jazyk>.ts`) a vlastní symbol (#95).
  */
 export const GAME_CATEGORIES: readonly GameCategory[] = [
-  { id: 'addingSubtracting', titleKey: 'categories.addingSubtracting.title' },
-  { id: 'drawing', titleKey: 'categories.drawing.title' },
+  { id: 'addingSubtracting', titleKey: 'categories.addingSubtracting.title', symbol: '+ −' },
+  { id: 'drawing', titleKey: 'categories.drawing.title', symbol: '✎' },
 ];
 
 /**

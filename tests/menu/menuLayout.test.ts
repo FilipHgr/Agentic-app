@@ -20,6 +20,11 @@ import {
  * výřezem. Dnes jsou v menu kategorie „Vše“ a „Sčítání a odčítání“
  * a jedna dlaždice (Počítání).
  *
+ * Na telefonu na výšku je místo řady kategorií tlačítko výběru kategorie
+ * (#95, `layout.categoryPicker`, jinde `null`) a `layout.categories` je
+ * tam prázdné. Řádky seznamu a jejich rozložení hlídá
+ * `categoryPickerLayout.test.ts`.
+ *
  * Společná pravidla (vejde se, 4 px od okraje, nic se nepřekrývá, 64 px,
  * 8 px, text se vejde podle odhadu z #65) hlídá `describeLayoutRules` nad obrazovkami
  * z `menuLayoutScenes.ts` (#82). Tady zůstávají kontroly podle obrázku B,
@@ -52,22 +57,28 @@ function isPhonePortrait(window: TestWindow): boolean {
   return chooseLayoutMode(viewportOf(window)) === 'phonePortrait';
 }
 
+/** Tlačítko výběru kategorie (#95), jen na telefonu na výšku. */
+function pickerBoxes(layout: MenuLayout): MenuBox[] {
+  const picker = layout.categoryPicker;
+  return picker === null || picker === undefined ? [] : [picker.button];
+}
+
 /** Všechno v menu i s místy pro profil (#71) a jazyk (#70). */
 function allBoxes(layout: MenuLayout): MenuBox[] {
   return [
     layout.profileSlot,
     layout.languageSlot,
     ...layout.placeholders,
+    ...pickerBoxes(layout),
     ...layout.categories.map((category) => category.hit),
     ...layout.tiles,
   ];
 }
 
 /**
- * Plochy, které jsou na začátku vidět celé. Řada kategorií, která se na
- * telefonu na výšku nevejde (#88), se posouvá a ořízne výřezem řady jako
- * posouvaný obsah v #82: kategorie uříznutá okrajem řady se do „úplně
- * vpravo“ nepočítá, její viditelnou část hlídá pravidlo 4 px od okraje.
+ * Plochy, které jsou na začátku vidět celé. Kategorie uříznutá okrajem
+ * posouvaného sloupce se nepočítá, její viditelnou část hlídá pravidlo
+ * 4 px od okraje.
  */
 function wholeVisibleBoxes(layout: MenuLayout): MenuBox[] {
   const viewport = layout.categoryScroll.viewport;
@@ -78,6 +89,7 @@ function wholeVisibleBoxes(layout: MenuLayout): MenuBox[] {
     layout.profileSlot,
     layout.languageSlot,
     ...layout.placeholders,
+    ...pickerBoxes(layout),
     ...categories,
     ...layout.tiles,
   ];
@@ -89,11 +101,18 @@ function neighbours<T>(items: readonly T[]): Array<[T, T]> {
 }
 
 describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', () => {
-  it('menu má jednu dlaždici na hru (žádné šedé „?“) a každá kategorie svou ťukací plochu', () => {
+  it('menu má jednu dlaždici na hru (žádné šedé „?“) a každá kategorie svou ťukací plochu (na telefonu na výšku řádek seznamu, #95)', () => {
     for (const window of MENU_WINDOWS) {
       const layout = todayLayout(window);
+      const count = todayCategoryTitles('cs').length;
       expect(layout.tiles, window.name).toHaveLength(GAMES.length);
-      expect(layout.categories, window.name).toHaveLength(todayCategoryTitles('cs').length);
+      if (isPhonePortrait(window)) {
+        expect(layout.categories, window.name).toHaveLength(0);
+        expect(layout.categoryPicker?.rows, window.name).toHaveLength(count);
+      } else {
+        expect(layout.categories, window.name).toHaveLength(count);
+        expect(layout.categoryPicker ?? null, window.name).toBeNull();
+      }
     }
   });
 
@@ -144,21 +163,26 @@ describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', 
         layout.languageSlot.bottom,
         ...layout.placeholders.map((box) => box.bottom),
       );
-      for (const box of [...layout.categories.map((c) => c.hit), ...layout.tiles]) {
+      for (const box of [
+        ...pickerBoxes(layout),
+        ...layout.categories.map((c) => c.hit),
+        ...layout.tiles,
+      ]) {
         expect(box.top, window.name).toBeGreaterThanOrEqual(barBottom);
       }
     }
   });
 
-  it('kategorie jdou v pořadí: na výšku v řadě zleva doprava, jinak ve sloupci shora dolů', () => {
+  it('kategorie jdou v pořadí: na výšku v seznamu výběru shora dolů (#95), jinak ve sloupci shora dolů', () => {
     for (const window of MENU_WINDOWS) {
       const layout = todayLayout(window);
       const hits = layout.categories.map((category) => category.hit);
       if (isPhonePortrait(window)) {
-        expect(layout.categoryDirection, window.name).toBe('row');
-        for (const [previous, next] of neighbours(hits)) {
-          expect(next.top, window.name).toBeCloseTo(previous.top, 5);
-          expect(next.left, window.name).toBeGreaterThanOrEqual(previous.right);
+        const rows = layout.categoryPicker?.rows ?? [];
+        expect(rows, window.name).toHaveLength(todayCategoryTitles('cs').length);
+        for (const [previous, next] of neighbours(rows)) {
+          expect(next.left, window.name).toBeCloseTo(previous.left, 5);
+          expect(next.top, window.name).toBeGreaterThanOrEqual(previous.bottom);
         }
       } else {
         expect(layout.categoryDirection, window.name).toBe('column');
@@ -170,14 +194,15 @@ describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', 
     }
   });
 
-  it('mřížka dlaždic je na výšku pod řadou kategorií, jinak vpravo vedle sloupce', () => {
+  it('mřížka dlaždic je na výšku pod tlačítkem výběru kategorie (#95), jinak vpravo vedle sloupce', () => {
     for (const window of MENU_WINDOWS) {
       const layout = todayLayout(window);
       const hits = layout.categories.map((category) => category.hit);
       for (const tile of layout.tiles) {
         if (isPhonePortrait(window)) {
+          expect(pickerBoxes(layout), window.name).toHaveLength(1);
           expect(tile.top, window.name).toBeGreaterThanOrEqual(
-            Math.max(...hits.map((hit) => hit.bottom)),
+            Math.max(...pickerBoxes(layout).map((box) => box.bottom)),
           );
         } else {
           expect(tile.left, window.name).toBeGreaterThanOrEqual(

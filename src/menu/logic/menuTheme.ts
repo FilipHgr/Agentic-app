@@ -33,6 +33,22 @@ export const MENU_STYLE = {
   /** Aktuální jazyk: světle modrý řádek, modrý text a ✓ (barvy z A3). */
   selectedLanguageBackground: '#E5F0FF',
   selectedLanguageText: BLUE,
+  /**
+   * Výběr kategorie (#95, obrázky D1–D2): bílé tlačítko se stínem,
+   * otevřené se světle modrým okrajem, symbol v světle modrém rámečku,
+   * šedá šipka. Vybraný řádek seznamu je světle modrý s modrým textem
+   * a ✓, jeho rámeček symbolu je bílý.
+   */
+  pickerBackground: WHITE,
+  pickerShadowAlpha: 0.06,
+  pickerOpenBorder: '#B8D6FF',
+  pickerText: TEXT,
+  pickerArrow: '#6E6E73',
+  pickerSymbolBackground: '#E5F0FF',
+  pickerSymbol: BLUE,
+  selectedPickerRowBackground: '#E5F0FF',
+  selectedPickerRowText: BLUE,
+  selectedPickerSymbolBackground: WHITE,
 } as const;
 
 /** Tloušťa šedého čárkovaného okraje zástupného tlačítka v CSS px. */

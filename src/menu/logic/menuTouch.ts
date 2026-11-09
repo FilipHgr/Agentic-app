@@ -21,10 +21,17 @@
  *   a zavře. Dokud je otevřená, ťuká se jen na jazyky v ní a tah po
  *   seznamu ho posouvá jako mřížku. Ťuknutí mimo panel nabídku zavře,
  *   tah mimo panel nic neposune. Po otevření začíná seznam nahoře.
+ * - Výběr kategorie (#95, telefon na výšku): ťuknutí na tlačítko výběru
+ *   seznam kategorií otevře a zavře, otevřený zavře i během dojíždění
+ *   (dojíždění zastaví). Dokud je seznam otevřený, ťuká se jen na
+ *   kategorie v něm a tah po něm ho posouvá svisle. Ťuknutí i tah mimo
+ *   panel seznam jen zavře a nic jiného neposune ani nespustí. Po otevření
+ *   je vybraná kategorie v seznamu celá vidět. Rozložení bez výběru
+ *   (otočení na šířku) seznam potichu zavře.
  */
 
 import type { Menu } from './menu';
-import type { MenuBox, MenuLayout } from './menuLayout';
+import type { MenuBox, MenuCategoryPicker, MenuLayout } from './menuLayout';
 import { DRAG_THRESHOLD_PX, createScroller } from './menuScroll';
 import type { Scroller } from './menuScroll';
 
@@ -54,6 +61,8 @@ export interface MenuTouch {
   categoryOffset(): number;
   /** O kolik px je seznam jazyků v nabídce posunutý nahoru (#70). */
   languageOffset(): number;
+  /** O kolik px je seznam kategorií ve výběru posunutý nahoru (#95). */
+  categoryListOffset(): number;
   /** Dlaždice nebo kategorie, která je právě zmáčknutá prstem, jinak `undefined`. */
   pressed(): PressedTarget | undefined;
 }
@@ -62,7 +71,8 @@ export interface MenuTouch {
 export type PressedTarget =
   | { readonly kind: 'tile'; readonly gameId: string }
   | { readonly kind: 'category'; readonly categoryId: string }
-  | { readonly kind: 'language'; readonly language: string };
+  | { readonly kind: 'language'; readonly language: string }
+  | { readonly kind: 'categoryRow'; readonly categoryId: string };
 
 /** Jak dlouho zpátky se počítá rychlost prstu při puštění. */
 const SPEED_WINDOW_MS = 100;
@@ -77,7 +87,13 @@ type TapTarget =
   | { readonly kind: 'languageButton' }
   | { readonly kind: 'language'; readonly language: string }
   /** Ťuknutí mimo otevřenou nabídku jazyků. */
-  | { readonly kind: 'outsideLanguageMenu' };
+  | { readonly kind: 'outsideLanguageMenu' }
+  /** Tlačítko výběru kategorie (#95). */
+  | { readonly kind: 'categoryButton' }
+  /** Kategorie v otevřeném seznamu (#95). */
+  | { readonly kind: 'categoryRow'; readonly categoryId: string }
+  /** Ťuknutí nebo tah mimo otevřený seznam kategorií (#95). */
+  | { readonly kind: 'outsideCategoryMenu' };
 
 interface Sample {
   readonly timeMs: number;
@@ -195,6 +211,7 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
   const grid = createPart();
   const categories = createPart();
   const languages = createPart();
+  const categoryList = createPart();
   let layout: MenuLayout | undefined;
   let gesture: Gesture | null = null;
 
@@ -225,6 +242,31 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
     return { target: { kind: 'outsideLanguageMenu' } };
   }
 
+  /** Co je pod prstem s otevřeným seznamem kategorií: tlačítko, kategorie, panel nebo nic z toho. */
+  function findCategoryListTarget(
+    picker: MenuCategoryPicker,
+    point: TouchPoint,
+  ): { part?: ScrollPart; target?: TapTarget } {
+    if (contains(picker.button, point)) {
+      return { target: { kind: 'categoryButton' } };
+    }
+    if (categoryList.viewport !== undefined && contains(categoryList.viewport, point)) {
+      const offset = categoryList.scroller.offset();
+      const index = categoryList.boxes.findIndex((box) =>
+        contains(shifted(box, 'y', offset), point),
+      );
+      const categoryId = menu.categories()[index]?.id;
+      return {
+        part: categoryList,
+        target: categoryId === undefined ? undefined : { kind: 'categoryRow', categoryId },
+      };
+    }
+    if (contains(picker.panel, point)) {
+      return {};
+    }
+    return { target: { kind: 'outsideCategoryMenu' } };
+  }
+
   /** Co je pod prstem: posouvaná plocha a dlaždice, kategorie nebo tlačítko v liště. */
   function findTarget(point: TouchPoint): { part?: ScrollPart; target?: TapTarget } {
     if (layout === undefined) {
@@ -232,6 +274,13 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
     }
     if (menu.isLanguageMenuOpen()) {
       return findLanguageTarget(layout, point);
+    }
+    const picker = layout.categoryPicker;
+    if (picker !== null && menu.isCategoryMenuOpen()) {
+      return findCategoryListTarget(picker, point);
+    }
+    if (picker !== null && contains(picker.button, point)) {
+      return { target: { kind: 'categoryButton' } };
     }
     for (const part of [grid, categories]) {
       if (part.viewport === undefined || !contains(part.viewport, point)) {
@@ -291,7 +340,51 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
       case 'outsideLanguageMenu':
         menu.closeLanguageMenu();
         break;
+      case 'categoryButton':
+        menu.tapCategoryButton();
+        if (menu.isCategoryMenuOpen()) {
+          showSelectedCategoryRow();
+        }
+        break;
+      case 'categoryRow': {
+        const before = selectedCategoryId();
+        menu.tapCategory(target.categoryId);
+        if (selectedCategoryId() !== before) {
+          grid.scroller.jumpTo(0);
+        }
+        break;
+      }
+      case 'outsideCategoryMenu':
+        menu.closeCategoryMenu();
+        break;
     }
+  }
+
+  /**
+   * Po otevření seznamu kategorií je vybraná kategorie celá vidět: seznam
+   * začíná nahoře, a když je vybraná níž, posune se jen tolik, aby byla
+   * vidět celá u spodního okraje.
+   */
+  function showSelectedCategoryRow(): void {
+    const viewport = categoryList.viewport;
+    const index = menu.categories().findIndex((category) => category.selected);
+    const row = categoryList.boxes[index];
+    if (viewport === undefined || row === undefined) {
+      categoryList.scroller.jumpTo(0);
+      return;
+    }
+    categoryList.scroller.jumpTo(Math.max(0, row.bottom - viewport.bottom));
+  }
+
+  /**
+   * Ťuknutí, které platí i během dojíždění: s otevřeným seznamem kategorií
+   * ho tlačítko výběru i ťuknutí mimo něj zavře (#95 AC6), nic nevybere.
+   */
+  function closesCategoryMenu(target: TapTarget | undefined): boolean {
+    return (
+      menu.isCategoryMenuOpen() &&
+      (target?.kind === 'categoryButton' || target?.kind === 'outsideCategoryMenu')
+    );
   }
 
   function follow(current: Gesture, point: TouchPoint, nowMs: number): void {
@@ -315,7 +408,8 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
     return (
       grid.scroller.isCoasting() ||
       categories.scroller.isCoasting() ||
-      languages.scroller.isCoasting()
+      languages.scroller.isCoasting() ||
+      categoryList.scroller.isCoasting()
     );
   }
 
@@ -344,7 +438,21 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
         next.languagePanel.rows,
         next.languagePanel.list.maxOffset,
       );
-      if (gridChanged || categoriesChanged || languagesChanged) {
+      const picker = next.categoryPicker;
+      let categoryListChanged = false;
+      if (picker === null) {
+        // Bez výběru (otočení na šířku) se seznam potichu zavře, kategorie zůstane.
+        menu.hideCategoryMenu();
+      } else {
+        categoryListChanged = updatePart(
+          categoryList,
+          'y',
+          picker.list.viewport,
+          picker.rows,
+          picker.list.maxOffset,
+        );
+      }
+      if (gridChanged || categoriesChanged || languagesChanged || categoryListChanged) {
         // Pod prstem je teď něco jiného: rozběhnutý dotyk nic neudělá.
         gesture = null;
       }
@@ -358,6 +466,7 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
       grid.scroller.stop();
       categories.scroller.stop();
       languages.scroller.stop();
+      categoryList.scroller.stop();
       const { part, target } = findTarget(point);
       gesture = {
         pointerId,
@@ -367,7 +476,7 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
         axis: part?.axis ?? 'y',
         dragOrigin: undefined,
         dragging: false,
-        canTap: !wasMoving,
+        canTap: !wasMoving || closesCategoryMenu(target),
         samples: [{ timeMs: nowMs, position: part?.axis === 'x' ? point.x : point.y }],
       };
     },
@@ -386,6 +495,11 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
       }
       follow(current, point, nowMs);
       gesture = null;
+      if (current.target?.kind === 'outsideCategoryMenu') {
+        // Ťuknutí i tah mimo seznam ho jen zavře, nic se neposune (#95 AC3).
+        tap(current.target);
+        return;
+      }
       if (current.dragging) {
         current.scroller?.release(fingerSpeed(current.samples, nowMs), nowMs);
         return;
@@ -405,11 +519,13 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
       grid.scroller.step(nowMs);
       categories.scroller.step(nowMs);
       languages.scroller.step(nowMs);
+      categoryList.scroller.step(nowMs);
     },
 
     gridOffset: () => grid.scroller.offset(),
     categoryOffset: () => categories.scroller.offset(),
     languageOffset: () => languages.scroller.offset(),
+    categoryListOffset: () => categoryList.scroller.offset(),
 
     pressed(): PressedTarget | undefined {
       const target = gesture?.target;
@@ -420,11 +536,14 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
         case 'tile':
         case 'category':
         case 'language':
+        case 'categoryRow':
           return target;
         case 'placeholder':
         case 'profile':
         case 'languageButton':
         case 'outsideLanguageMenu':
+        case 'categoryButton':
+        case 'outsideCategoryMenu':
           return undefined;
       }
     },

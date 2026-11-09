@@ -11,7 +11,7 @@ import { MENU_STYLE } from '../logic/menuTheme';
  */
 
 /** Symbol u aktuálního jazyka v nabídce (není to text jazyka). */
-const CHECK_SYMBOL = '✓';
+export const CHECK_SYMBOL = '✓';
 const LANGUAGE_PANEL_RADIUS = 20;
 const LANGUAGE_ROW_RADIUS = 14;
 /** Jak daleko od karty nabídky sahá její stín (px). */

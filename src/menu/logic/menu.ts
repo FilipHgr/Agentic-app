@@ -30,6 +30,13 @@
  * Profil (#71): vlevo nahoře kolečko aktivního profilu v jeho barvě
  * s prvním písmenem přezdívky (bez přezdívky ★) a vedle přezdívka.
  * Ťuknutí na něj otevře výběr profilu (#72), i s jedním profilem.
+ *
+ * Výběr kategorie (#95, telefon na výšku): tlačítko se symbolem a názvem
+ * vybrané kategorie a šipkou otevře seznam kategorií, otevřený zavře.
+ * Ťuknutí na kategorii v seznamu ji vybere a seznam zavře, ťuknutí mimo
+ * seznam (dlaždice, profil, jazyk, „…“) ho jen zavře a nic jiného
+ * neudělá. Seznam kategorií a nabídka jazyků nejsou nikdy otevřené
+ * současně: tlačítko jednoho s otevřeným druhým jen zavře to druhé.
  */
 
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
@@ -50,13 +57,21 @@ export const LOADING_TIMEOUT_MS = 15_000;
 /** Symbol v kolečku profilu bez přezdívky (není to text jazyka). */
 export const PROFILE_WITHOUT_NICKNAME_SYMBOL = '★';
 
+/** Šipka na tlačítku výběru kategorie: zavřený a otevřený seznam (není to text jazyka). */
+export const CATEGORY_MENU_CLOSED_ARROW = '▾';
+export const CATEGORY_MENU_OPEN_ARROW = '▴';
+
 /** Profil, když stránka menu žádný nedá: výchozí profil bez přezdívky. */
 const FALLBACK_PROFILE: Profile = { id: DEFAULT_PROFILE_ID, color: DEFAULT_PROFILE_COLOR };
 
-/** Co se zhouplo: zástupné tlačítko, nebo už vybraná kategorie. */
+/**
+ * Co se zhouplo: zástupné tlačítko, nebo už vybraná kategorie. Ťuknutí na
+ * už vybranou kategorii v seznamu (#95) jen zazní, nic se nehoupe.
+ */
 export type WobbleTarget =
   | { readonly kind: 'placeholder'; readonly index: number }
-  | { readonly kind: 'category'; readonly categoryId: string };
+  | { readonly kind: 'category'; readonly categoryId: string }
+  | { readonly kind: 'categoryMenu' };
 
 /**
  * Odezva menu:
@@ -67,7 +82,9 @@ export type WobbleTarget =
  * - `wobble` zhoupnutí a tichý zvuk,
  * - `profilePress` kolečko profilu se zmáčkne a zazní krátký zvuk (#72),
  * - `languageMenu` nabídka jazyků se otevřela nebo zavřela (#70),
- * - `language` vybral se jiný jazyk (#70).
+ * - `language` vybral se jiný jazyk (#70),
+ * - `categoryMenu` seznam kategorií se otevřel nebo zavřel (#95); `quiet`
+ *   je zavření bez vlastního tónu (po výběru v seznamu nebo po otočení).
  */
 export type MenuFeedback =
   | { readonly kind: 'press'; readonly gameId: string }
@@ -78,7 +95,8 @@ export type MenuFeedback =
   | { readonly kind: 'wobble'; readonly target: WobbleTarget }
   | { readonly kind: 'profilePress' }
   | { readonly kind: 'languageMenu'; readonly open: boolean }
-  | { readonly kind: 'language'; readonly language: string };
+  | { readonly kind: 'language'; readonly language: string }
+  | { readonly kind: 'categoryMenu'; readonly open: boolean; readonly quiet: boolean };
 
 /** Jazyky v nabídce (#70): seznam, aktuální jazyk, výběr a vlastní názvy. */
 export interface MenuLanguageSource {
@@ -109,8 +127,17 @@ export interface MenuProfileBadge {
 
 export interface MenuCategoryView {
   readonly id: string;
+  /** Symbol kategorie (#95), není to text jazyka. */
+  readonly symbol: string;
   readonly title: string;
   readonly selected: boolean;
+}
+
+/** Tlačítko výběru kategorie (#95): vybraná kategorie a šipka ▾ / ▴. */
+export interface MenuCategoryButton {
+  readonly symbol: string;
+  readonly title: string;
+  readonly arrow: string;
 }
 
 export interface MenuTileView {
@@ -187,6 +214,15 @@ export interface Menu {
   profileBadge(): MenuProfileBadge;
   /** Ťuknutí na profil: otevře výběr profilu (#72). */
   tapProfile(): void;
+  /** Tlačítko výběru kategorie (#95): symbol a název vybrané kategorie a šipka. */
+  categoryButton(): MenuCategoryButton;
+  isCategoryMenuOpen(): boolean;
+  /** Ťuknutí na tlačítko výběru: seznam otevře, otevřený zavře (#95). */
+  tapCategoryButton(): void;
+  /** Ťuknutí nebo tah mimo seznam: zavře ho beze změny, zazní „select“. */
+  closeCategoryMenu(): void;
+  /** Seznam se zavře potichu, protože výběr zmizel (otočení na šířku). */
+  hideCategoryMenu(): void;
 }
 
 /** Rozběhnuté stahování a spuštění jedné hry. */
@@ -206,6 +242,7 @@ export function createMenu(options: MenuOptions): Menu {
   let launch: Launch | null = null;
   let running: GameEntry | null = null;
   let languageMenuOpen = false;
+  let categoryMenuOpen = false;
 
   function emit(event: MenuFeedback): void {
     options.feedback(event);
@@ -213,6 +250,11 @@ export function createMenu(options: MenuOptions): Menu {
 
   function categoryById(id: string): GameCategory | undefined {
     return [ALL_CATEGORY, ...categories].find((category) => category.id === id);
+  }
+
+  function setCategoryMenuOpen(open: boolean, quiet = false): void {
+    categoryMenuOpen = open;
+    emit({ kind: 'categoryMenu', open, quiet });
   }
 
   function stopTimers(current: Launch): void {
@@ -308,15 +350,34 @@ export function createMenu(options: MenuOptions): Menu {
   }
 
   /**
-   * Ťuknutí na dlaždici, kategorii nebo zástupné tlačítko s otevřenou
-   * nabídkou jazyků ji jen zavře. Vrátí `true`, když ťuknutí spotřebovala.
+   * Ťuknutí na dlaždici, kategorii, profil nebo zástupné tlačítko
+   * s otevřenou nabídkou jazyků nebo seznamem kategorií (#95) je jen zavře.
+   * Vrátí `true`, když ťuknutí spotřebovala.
    */
-  function closeLanguageMenuInstead(): boolean {
-    if (!languageMenuOpen) {
-      return false;
+  function closeOpenMenuInstead(): boolean {
+    if (languageMenuOpen) {
+      setLanguageMenuOpen(false);
+      return true;
     }
-    setLanguageMenuOpen(false);
-    return true;
+    if (categoryMenuOpen) {
+      setCategoryMenuOpen(false);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Ťuknutí na kategorii v otevřeném seznamu (#95): seznam se potichu
+   * zavře a zazní jen výběr, nebo u už vybrané kategorie zhoupnutí.
+   */
+  function chooseInCategoryMenu(categoryId: string): void {
+    setCategoryMenuOpen(false, true);
+    if (categoryId === selectedCategoryId) {
+      emit({ kind: 'wobble', target: { kind: 'categoryMenu' } });
+      return;
+    }
+    selectedCategoryId = categoryId;
+    emit({ kind: 'select', categoryId });
   }
 
   function download(game: GameEntry): void {
@@ -351,11 +412,15 @@ export function createMenu(options: MenuOptions): Menu {
 
   return {
     categories(): MenuCategoryView[] {
-      return shownCategoryIds.map((id) => ({
-        id,
-        title: translate(categoryById(id)?.titleKey ?? ''),
-        selected: id === selectedCategoryId,
-      }));
+      return shownCategoryIds.map((id) => {
+        const category = categoryById(id);
+        return {
+          id,
+          symbol: category?.symbol ?? '',
+          title: translate(category?.titleKey ?? ''),
+          selected: id === selectedCategoryId,
+        };
+      });
     },
 
     tiles(): MenuTileView[] {
@@ -367,11 +432,15 @@ export function createMenu(options: MenuOptions): Menu {
     },
 
     tapCategory(categoryId: string): void {
-      if (
-        running !== null ||
-        closeLanguageMenuInstead() ||
-        !shownCategoryIds.includes(categoryId)
-      ) {
+      if (running !== null || !shownCategoryIds.includes(categoryId)) {
+        return;
+      }
+      if (categoryMenuOpen) {
+        cancelDownload();
+        chooseInCategoryMenu(categoryId);
+        return;
+      }
+      if (closeOpenMenuInstead()) {
         return;
       }
       cancelDownload();
@@ -384,7 +453,7 @@ export function createMenu(options: MenuOptions): Menu {
     },
 
     tapPlaceholder(index: number): void {
-      if (running !== null || closeLanguageMenuInstead()) {
+      if (running !== null || closeOpenMenuInstead()) {
         return;
       }
       cancelDownload();
@@ -393,7 +462,7 @@ export function createMenu(options: MenuOptions): Menu {
 
     tapTile(gameId: string): void {
       const game = findGame(games, gameId);
-      if (running !== null || closeLanguageMenuInstead() || game === undefined) {
+      if (running !== null || closeOpenMenuInstead() || game === undefined) {
         return;
       }
       emit({ kind: 'press', gameId: game.id });
@@ -454,6 +523,11 @@ export function createMenu(options: MenuOptions): Menu {
         return;
       }
       cancelDownload();
+      if (categoryMenuOpen) {
+        // Seznam kategorií a nabídka jazyků nejsou nikdy otevřené současně.
+        setCategoryMenuOpen(false);
+        return;
+      }
       setLanguageMenuOpen(!languageMenuOpen);
     },
 
@@ -486,12 +560,50 @@ export function createMenu(options: MenuOptions): Menu {
     },
 
     tapProfile(): void {
-      if (running !== null || closeLanguageMenuInstead()) {
+      if (running !== null || closeOpenMenuInstead()) {
         return;
       }
       cancelDownload();
       emit({ kind: 'profilePress' });
       options.onOpenProfilePicker?.();
+    },
+
+    categoryButton(): MenuCategoryButton {
+      const selected = categoryById(selectedCategoryId);
+      return {
+        symbol: selected?.symbol ?? '',
+        title: translate(selected?.titleKey ?? ''),
+        arrow: categoryMenuOpen ? CATEGORY_MENU_OPEN_ARROW : CATEGORY_MENU_CLOSED_ARROW,
+      };
+    },
+
+    isCategoryMenuOpen(): boolean {
+      return categoryMenuOpen;
+    },
+
+    tapCategoryButton(): void {
+      if (running !== null) {
+        return;
+      }
+      cancelDownload();
+      if (languageMenuOpen) {
+        // Seznam kategorií a nabídka jazyků nejsou nikdy otevřené současně.
+        setLanguageMenuOpen(false);
+        return;
+      }
+      setCategoryMenuOpen(!categoryMenuOpen);
+    },
+
+    closeCategoryMenu(): void {
+      if (categoryMenuOpen) {
+        setCategoryMenuOpen(false);
+      }
+    },
+
+    hideCategoryMenu(): void {
+      if (categoryMenuOpen) {
+        setCategoryMenuOpen(false, true);
+      }
     },
   };
 }

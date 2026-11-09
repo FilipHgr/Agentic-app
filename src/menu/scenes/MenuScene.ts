@@ -5,8 +5,13 @@ import { isSharedAudioUnlocked, sharedToneContext } from '../../shared/audio/sha
 import type { Tone } from '../../shared/audio/tonePlayer';
 import { FONT_FAMILY, colorNumber } from '../../shared/logic/theme';
 import type { Menu, MenuFeedback } from '../logic/menu';
-import type { MenuBox, MenuLanguagePanel, MenuLayout } from '../logic/menuLayout';
-import { MENU_SOUNDS } from '../logic/menuSounds';
+import type {
+  MenuBox,
+  MenuCategoryPicker,
+  MenuLanguagePanel,
+  MenuLayout,
+} from '../logic/menuLayout';
+import { MENU_SOUNDS, menuSoundFor } from '../logic/menuSounds';
 import type { MenuTouch, TouchPoint } from '../logic/menuTouch';
 import { MENU_STYLE, PLACEHOLDER_BORDER_WIDTH } from '../logic/menuTheme';
 import {
@@ -15,6 +20,7 @@ import {
   languageCardArt,
   languageRowArt,
 } from './languageArt';
+import { categoryButtonArt, categoryRowArt } from './categoryPickerArt';
 
 /** Herní jednotky na 1 CSS px: plátno menu má dvojnásobné rozlišení okna. */
 export const MENU_UNITS_PER_CSS_PX = 2;
@@ -67,6 +73,11 @@ interface Tappable {
  * Nabídka jazyků (#70) má dvě kamery přidané až po mřížce, aby ležela nad
  * ní: jedna kreslí kartu panelu, druhá posouvaný seznam jazyků. Otevření
  * a zavření nabídky překreslí jen ji, výběr jiného jazyka celé menu.
+ *
+ * Výběr kategorie (#95, telefon na výšku) má tlačítko v liště a seznam
+ * kategorií stejně jako nabídka jazyků ve dvou kamerách nad mřížkou
+ * (karta a posouvané řádky). Otevření a zavření seznamu překreslí jen
+ * tlačítko a seznam, výběr jiné kategorie celé menu.
  */
 export class MenuScene extends Phaser.Scene {
   private readonly sounds = createTonePlayer(sharedToneContext);
@@ -76,19 +87,27 @@ export class MenuScene extends Phaser.Scene {
   private languageButton: Tappable | undefined;
   private profileBadge: Tappable | undefined;
   private languageRows = new Map<string, Tappable>();
+  private categoryRows = new Map<string, Tappable>();
+  private categoryButton: Tappable | undefined;
   private drawn: Phaser.GameObjects.GameObject[] = [];
   /** Nakreslená nabídka jazyků; překresluje se zvlášť od zbytku menu. */
   private drawnPanel: Phaser.GameObjects.GameObject[] = [];
+  /** Nakreslený výběr kategorie (tlačítko a seznam); překresluje se zvlášť (#95). */
+  private drawnPicker: Phaser.GameObjects.GameObject[] = [];
   /** Vrstvy: lišta (hlavní kamera), kategorie a mřížka (každá svou kamerou). */
   private barLayer!: Phaser.GameObjects.Container;
   private categoryLayer!: Phaser.GameObjects.Container;
   private tileLayer!: Phaser.GameObjects.Container;
   private panelLayer!: Phaser.GameObjects.Container;
   private languageLayer!: Phaser.GameObjects.Container;
+  private pickerPanelLayer!: Phaser.GameObjects.Container;
+  private pickerListLayer!: Phaser.GameObjects.Container;
   private categoryCamera!: Phaser.Cameras.Scene2D.Camera;
   private gridCamera!: Phaser.Cameras.Scene2D.Camera;
   private panelCamera!: Phaser.Cameras.Scene2D.Camera;
   private languageCamera!: Phaser.Cameras.Scene2D.Camera;
+  private pickerPanelCamera!: Phaser.Cameras.Scene2D.Camera;
+  private pickerListCamera!: Phaser.Cameras.Scene2D.Camera;
   private layout: MenuLayout | undefined;
   /** Dlaždice nebo kategorie, která je teď nakreslená jako zmáčknutá. */
   private held: Tappable | undefined;
@@ -96,6 +115,8 @@ export class MenuScene extends Phaser.Scene {
   private redrawWanted = false;
   /** Nabídka jazyků se otevřela nebo zavřela: překreslí se v dalším snímku. */
   private panelRedrawWanted = false;
+  /** Seznam kategorií se otevřel nebo zavřel: překreslí se v dalším snímku (#95). */
+  private pickerRedrawWanted = false;
   /** Kategorie vybraná při posledním kreslení. */
   private drawnSelection: string | undefined;
 
@@ -111,12 +132,16 @@ export class MenuScene extends Phaser.Scene {
     this.tileLayer = this.add.container(0, 0);
     this.panelLayer = this.add.container(0, 0);
     this.languageLayer = this.add.container(0, 0);
+    this.pickerPanelLayer = this.add.container(0, 0);
+    this.pickerListLayer = this.add.container(0, 0);
     const layers = [
       this.barLayer,
       this.categoryLayer,
       this.tileLayer,
       this.panelLayer,
       this.languageLayer,
+      this.pickerPanelLayer,
+      this.pickerListLayer,
     ];
     const onlyLayer = (camera: Phaser.Cameras.Scene2D.Camera, shown: unknown): void => {
       camera.ignore(layers.filter((layer) => layer !== shown));
@@ -131,6 +156,11 @@ export class MenuScene extends Phaser.Scene {
     onlyLayer(this.panelCamera, this.panelLayer);
     this.languageCamera = this.cameras.add(0, 0, 1, 1);
     onlyLayer(this.languageCamera, this.languageLayer);
+    // Seznam kategorií (#95) také nad mřížkou.
+    this.pickerPanelCamera = this.cameras.add(0, 0, 1, 1);
+    onlyLayer(this.pickerPanelCamera, this.pickerPanelLayer);
+    this.pickerListCamera = this.cameras.add(0, 0, 1, 1);
+    onlyLayer(this.pickerListCamera, this.pickerListLayer);
     this.listenToFingers();
     this.redraw();
   }
@@ -140,10 +170,17 @@ export class MenuScene extends Phaser.Scene {
     if (this.redrawWanted) {
       this.redrawWanted = false;
       this.panelRedrawWanted = false;
+      this.pickerRedrawWanted = false;
       this.redraw();
-    } else if (this.panelRedrawWanted) {
-      this.panelRedrawWanted = false;
-      this.redrawLanguagePanel();
+    } else {
+      if (this.panelRedrawWanted) {
+        this.panelRedrawWanted = false;
+        this.redrawLanguagePanel();
+      }
+      if (this.pickerRedrawWanted) {
+        this.pickerRedrawWanted = false;
+        this.redrawCategoryPicker();
+      }
     }
     this.scrollCameras();
     this.showHeld();
@@ -163,6 +200,8 @@ export class MenuScene extends Phaser.Scene {
       item = this.categories.get(target.categoryId);
     } else if (target?.kind === 'language') {
       item = this.languageRows.get(target.language);
+    } else if (target?.kind === 'categoryRow') {
+      item = this.categoryRows.get(target.categoryId);
     }
     if (item === this.held) {
       return;
@@ -228,6 +267,13 @@ export class MenuScene extends Phaser.Scene {
       Math.round(languages.left * unit),
       Math.round(languages.top * unit) + this.host.touch.languageOffset() * unit,
     );
+    const picker = layout.categoryPicker;
+    if (picker !== null) {
+      this.pickerListCamera.setScroll(
+        Math.round(picker.list.clip.left * unit),
+        Math.round(picker.list.clip.top * unit) + this.host.touch.categoryListOffset() * unit,
+      );
+    }
   }
 
   /** Kamera kreslí jen do plochy ořezu (rozšířené o `margin` px), obsah mimo ni ořízne. */
@@ -281,6 +327,10 @@ export class MenuScene extends Phaser.Scene {
     this.fitCamera(this.categoryCamera, layout.categoryScroll.clip);
     this.fitCamera(this.panelCamera, layout.languagePanel.panel, LANGUAGE_PANEL_SHADOW);
     this.fitCamera(this.languageCamera, layout.languagePanel.list.clip);
+    if (layout.categoryPicker !== null) {
+      this.fitCamera(this.pickerPanelCamera, layout.categoryPicker.panel, LANGUAGE_PANEL_SHADOW);
+      this.fitCamera(this.pickerListCamera, layout.categoryPicker.list.clip);
+    }
     this.drawProfileBadge(layout);
     this.drawLanguageButton(layout, layout.languageSlot);
     layout.placeholders.forEach((box, index) => this.drawPlaceholder(layout, box, index));
@@ -299,13 +349,17 @@ export class MenuScene extends Phaser.Scene {
       }
     });
     this.redrawLanguagePanel();
+    this.redrawCategoryPicker();
   }
 
-  /** Zahraje odezvu, kterou ohlásila logika menu. */
+  /** Zahraje odezvu, kterou ohlásila logika menu: tón podle `menuSoundFor` a animaci. */
   play(event: MenuFeedback): void {
+    const sound = menuSoundFor(event);
+    if (sound !== undefined) {
+      this.playSound(MENU_SOUNDS[sound]);
+    }
     switch (event.kind) {
       case 'press':
-        this.playSound(MENU_SOUNDS.press);
         this.press(this.tiles.get(event.gameId));
         break;
       case 'pulse':
@@ -315,19 +369,19 @@ export class MenuScene extends Phaser.Scene {
         this.settle(this.tiles.get(event.gameId));
         break;
       case 'shake':
-        this.playSound(MENU_SOUNDS.shake);
         this.shake(this.tiles.get(event.gameId));
         break;
       case 'select':
-        this.playSound(MENU_SOUNDS.select);
         break;
       case 'languageMenu':
-        this.playSound(MENU_SOUNDS.select);
         this.press(this.languageButton);
         this.panelRedrawWanted = true;
         break;
+      case 'categoryMenu':
+        // Šipka, okraj tlačítka a seznam se překreslí v dalším snímku.
+        this.pickerRedrawWanted = true;
+        break;
       case 'profilePress':
-        this.playSound(MENU_SOUNDS.press);
         this.press(this.profileBadge);
         break;
       case 'language':
@@ -335,12 +389,12 @@ export class MenuScene extends Phaser.Scene {
         this.requestRedraw();
         break;
       case 'wobble':
-        this.playSound(MENU_SOUNDS.wobble);
         if (event.target.kind === 'placeholder') {
           this.wobble(this.placeholders[event.target.index], WOBBLE.angle);
-        } else {
+        } else if (event.target.kind === 'category') {
           this.wobble(this.categories.get(event.target.categoryId), CATEGORY_WOBBLE_ANGLE);
         }
+        // Už vybraná kategorie v seznamu (#95) jen zazní, nic se nehoupe.
         break;
     }
   }
@@ -501,6 +555,72 @@ export class MenuScene extends Phaser.Scene {
         this.drawLanguageRow(layout.languagePanel, row, language);
       }
     });
+  }
+
+  /**
+   * Výběr kategorie podle logiky menu (#95): tlačítko se šipkou ▾ nebo ▴
+   * a otevřený seznam kategorií. Bez výběru (sloupec kategorií) nic.
+   */
+  private redrawCategoryPicker(): void {
+    for (const object of this.drawnPicker) {
+      this.tweens.killTweensOf(object);
+      object.destroy();
+    }
+    this.drawnPicker = [];
+    if (
+      this.held !== undefined &&
+      (this.held === this.categoryButton || [...this.categoryRows.values()].includes(this.held))
+    ) {
+      this.held = undefined;
+    }
+    this.categoryRows = new Map();
+    this.categoryButton = undefined;
+    const picker = this.layout?.categoryPicker ?? null;
+    const open = picker !== null && this.host.menu.isCategoryMenuOpen();
+    this.pickerPanelCamera.setVisible(open);
+    this.pickerListCamera.setVisible(open);
+    if (picker === null) {
+      return;
+    }
+    this.drawCategoryButton(picker, open);
+    if (!open) {
+      return;
+    }
+    const card = languageCardArt(this, picker.panel, MENU_UNITS_PER_CSS_PX);
+    this.pickerPanelLayer.add(card);
+    this.drawnPicker.push(card);
+    this.host.menu.categories().forEach((category, index) => {
+      const row = picker.rows[index];
+      if (row === undefined) {
+        return;
+      }
+      const container = this.pickerContainer(row, this.pickerListLayer);
+      container.add(categoryRowArt(this, picker, row, category, MENU_UNITS_PER_CSS_PX));
+      this.categoryRows.set(category.id, { container, homeX: container.x });
+    });
+  }
+
+  private drawCategoryButton(picker: MenuCategoryPicker, open: boolean): void {
+    const container = this.pickerContainer(picker.buttonDrawn, this.barLayer);
+    container.add(
+      categoryButtonArt(this, picker, this.host.menu.categoryButton(), open, MENU_UNITS_PER_CSS_PX),
+    );
+    this.categoryButton = { container, homeX: container.x };
+  }
+
+  /** Kontejner výběru kategorie uprostřed obdélníku; maže se s výběrem. */
+  private pickerContainer(
+    box: MenuBox,
+    layer: Phaser.GameObjects.Container,
+  ): Phaser.GameObjects.Container {
+    const unit = MENU_UNITS_PER_CSS_PX;
+    const container = this.add.container(
+      ((box.left + box.right) / 2) * unit,
+      ((box.top + box.bottom) / 2) * unit,
+    );
+    layer.add(container);
+    this.drawnPicker.push(container);
+    return container;
   }
 
   private drawLanguageCard(panel: MenuBox): void {

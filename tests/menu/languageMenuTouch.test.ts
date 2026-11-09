@@ -161,10 +161,17 @@ describe('#70 AC1: ťuknutí pod nabídku nic nespustí', () => {
         expect(finger.feedback.filter((event) => event.kind === 'press')).toEqual([]);
       });
 
-      it('kategorie s otevřenou nabídkou se nevybere', () => {
+      it('kategorie s otevřenou nabídkou se nevybere (na telefonu na výšku se neotevře výběr kategorie, #95)', () => {
         const finger = fingerMenu(window);
         openLanguages(finger);
-        finger.tap(finger.categoryCenter(1));
+        if (window === PHONE_PORTRAIT) {
+          // Levý kraj tlačítka výběru, mimo panel nabídky jazyků vpravo.
+          const button = finger.picker().button;
+          finger.tap({ x: button.left + 20, y: (button.top + button.bottom) / 2 });
+          expect(finger.menu.isCategoryMenuOpen()).toBe(false);
+        } else {
+          finger.tap(finger.categoryCenter(1));
+        }
         expect(finger.selectedCategory()).toBe('all');
         expect(finger.feedback.filter((event) => event.kind === 'select')).toEqual([]);
       });

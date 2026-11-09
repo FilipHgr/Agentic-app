@@ -19,6 +19,12 @@ import type { Point } from './manyGamesFixtures';
  * Tah posouvá od místa, kde prst překročil práh, takže obsah neposkočí.
  * Ťuknutí na dlaždici nebo kategorii platí až po zvednutí prstu, a jen když
  * se prst nepohnul víc než o 10 px (`DRAG_THRESHOLD_PX`).
+ *
+ * Řadu kategorií na telefonu na výšku nahradil výběr kategorie (#95).
+ * Testy posouvání kategorií (AC4) a návratu z hry s posunutými kategoriemi
+ * (AC5) tu proto běží jen v oknech se sloupcem; jejich náhrada pro
+ * telefon na výšku (posouvání seznamu kategorií) je
+ * v `categoryPickerTouch.test.ts`.
  */
 
 const IPAD = findWindow('iPad 1180×820');
@@ -26,8 +32,11 @@ const IPAD_PORTRAIT = findWindow('zmenšené zobrazení 820×1180');
 const PHONE_LANDSCAPE = findWindow('844×340');
 const PHONE_PORTRAIT = findWindow('390×844');
 
-/** Okna, ve kterých se mřížka i kategorie posouvají (kategorie v řadě i ve sloupci). */
+/** Okna, ve kterých se mřížka posouvá (i telefon na výšku). */
 const SCROLL_WINDOWS = [IPAD, PHONE_LANDSCAPE, PHONE_PORTRAIT];
+
+/** Okna se sloupcem kategorií, který se posouvá svisle (#95: na výšku je výběr). */
+const CATEGORY_WINDOWS = [IPAD, PHONE_LANDSCAPE];
 
 function offsetBy(point: Point, dx: number, dy: number): Point {
   return { x: point.x + dx, y: point.y + dy };
@@ -409,24 +418,17 @@ describe('#69 AC3: setrvačnost mřížky', () => {
 });
 
 describe('#69 AC4: kategorie se posouvají prstem', () => {
-  for (const window of SCROLL_WINDOWS) {
+  for (const window of CATEGORY_WINDOWS) {
     describe(window.name, () => {
-      it(
-        window === PHONE_PORTRAIT
-          ? 'na telefonu na výšku se řada kategorií posune vodorovně'
-          : 'sloupec kategorií se posune svisle',
-        () => {
-          const finger = new FingerMenu(window);
-          expect(finger.layout().categoryDirection).toBe(
-            window === PHONE_PORTRAIT ? 'row' : 'column',
-          );
-          const start = categoryPoint(finger);
-          const { dx, dy } = categoryStep(finger, -40);
-          finger.slowDrag(start, offsetBy(start, dx, dy));
-          expect(finger.touch.categoryOffset()).toBeCloseTo(40, 5);
-          expect(finger.touch.gridOffset()).toBe(0);
-        },
-      );
+      it('sloupec kategorií se posune svisle', () => {
+        const finger = new FingerMenu(window);
+        expect(finger.layout().categoryDirection).toBe('column');
+        const start = categoryPoint(finger);
+        const { dx, dy } = categoryStep(finger, -40);
+        finger.slowDrag(start, offsetBy(start, dx, dy));
+        expect(finger.touch.categoryOffset()).toBeCloseTo(40, 5);
+        expect(finger.touch.gridOffset()).toBe(0);
+      });
 
       it('tah napříč řadou kategorií je neposune', () => {
         const finger = new FingerMenu(window);
@@ -601,7 +603,7 @@ describe('#69 AC5: menu zůstane, kde dítě bylo', () => {
     finger.relayout();
   }
 
-  for (const window of SCROLL_WINDOWS) {
+  for (const window of CATEGORY_WINDOWS) {
     it(`${window.name}: po návratu z hry jsou mřížka i kategorie posunuté stejně`, async () => {
       const finger = new FingerMenu(window);
       const before = scrollBoth(finger);
@@ -673,7 +675,7 @@ describe('#69 AC5: menu zůstane, kde dítě bylo', () => {
   });
 
   it('po otočení zůstanou kategorie posunuté nanejvýš na konec', () => {
-    const finger = new FingerMenu(PHONE_PORTRAIT);
+    const finger = new FingerMenu(PHONE_LANDSCAPE);
     const start = categoryPoint(finger);
     const step = categoryStep(finger, -150);
     for (let index = 0; index < 20; index += 1) {
