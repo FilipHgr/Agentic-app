@@ -170,6 +170,27 @@ export const GLITTER_STYLE = {
 } as const;
 
 /**
+ * Velký obrázek z alba (#129, otázka 6): náhled se zvětší na místo velkého
+ * obrázku, při návratu do alba se zmenší zpátky a smazaný obrázek se zmenší
+ * a zmizí. Kroužek podržení je vně koše na pozadí stránky (schválený
+ * prototyp): šedá stopa celého kruhu hned po stisku a bílý postup s jemným
+ * tmavým okrajem jako u „Smazat“ v menu (#108). Rozměry kroužku jsou
+ * v `pickerLayout.ts` (`trashHoldRingFor`).
+ */
+export const BIG_PICTURE_STYLE = {
+  growMs: 260,
+  shrinkMs: 220,
+  deleteMs: 300,
+  /** Velký obrázek je nad náhledy alba, koš nad ním. */
+  pictureDepth: 10,
+  trashDepth: 11,
+  holdRingTrack: '#C7C7CC',
+  holdRing: WHITE,
+  holdRingOutline: TEXT,
+  holdRingOutlineAlpha: 0.35,
+} as const;
+
+/**
  * Dlaždice náhledu na výběru omalovánky (#124): bílá se zaoblením a jemným
  * stínem jako dlaždice v menu, obrázek přes celou dlaždici.
  */

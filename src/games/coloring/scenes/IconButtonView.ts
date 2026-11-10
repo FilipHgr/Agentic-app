@@ -2,19 +2,23 @@
  * Tlačítko s ikonou Noto Emoji (#126): fotoaparát v malování a kniha na
  * výběru. Podklad a okraj jsou jako u tlačítka Zpět (světle modrý čtverec),
  * ikona uprostřed, bez textu. Ťuknutí pozná scéna; tlačítko se umí
- * zhoupnout, stisknout a poskočit.
+ * zhoupnout, stisknout a poskočit. Od #129 umí kolem sebe kreslit bílý
+ * kroužek podržení (koš, šedá stopa a bílý postup jako „Smazat“ v menu, #108).
  */
 
 import Phaser from 'phaser';
 
 import { colorNumber } from '../../../shared/logic/theme';
 import type { LayoutRect } from '../logic/coloringLayout';
-import { CAMERA_PHOTO_STYLE, ICON_BUTTON_STYLE } from '../logic/theme';
+import type { TrashHoldRing } from '../logic/pickerLayout';
+import { BIG_PICTURE_STYLE, CAMERA_PHOTO_STYLE, ICON_BUTTON_STYLE } from '../logic/theme';
 import { iconFileTexture } from './toolIconTextures';
 
 export class IconButtonView {
   private container: Phaser.GameObjects.Container | null = null;
   private rect: LayoutRect | null = null;
+  /** Kroužek podržení nad ikonou; kreslí se jen během podržení. */
+  private holdRing: Phaser.GameObjects.Graphics | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -50,7 +54,41 @@ export class IconButtonView {
       // Bez načteného SVG (výpadek) zůstane tlačítko bez ikony a funguje dál.
       container.add(this.scene.add.image(0, 0, key).setDisplaySize(iconSide, iconSide));
     }
+    this.holdRing = this.scene.add.graphics();
+    container.add(this.holdRing);
     this.container = container;
+  }
+
+  /**
+   * Kroužek podržení `ring` vně tlačítka (#129): šedá stopa celého kruhu
+   * a nad ní bílý postup s jemným tmavým okrajem od horního bodu po směru
+   * hodinových ručiček do `progress` (0 až 1); `null` kroužek schová.
+   */
+  setHoldProgress(progress: number | null, ring?: TrashHoldRing): void {
+    const graphics = this.holdRing;
+    graphics?.clear();
+    if (graphics === null || progress === null || ring === undefined) {
+      return;
+    }
+    const style = BIG_PICTURE_STYLE;
+    graphics.lineStyle(ring.lineWidth, colorNumber(style.holdRingTrack), 1);
+    graphics.strokeCircle(0, 0, ring.radius);
+    if (progress <= 0) {
+      return;
+    }
+    const start = -Math.PI / 2;
+    const end = start + Math.min(1, progress) * 2 * Math.PI;
+    const strokes: ReadonlyArray<readonly [number, string, number]> = [
+      // Tmavý okraj pod bílým postupem, aby byl vidět na světlém pozadí.
+      [ring.lineWidth + 2 * ring.outlineWidth, style.holdRingOutline, style.holdRingOutlineAlpha],
+      [ring.lineWidth, style.holdRing, 1],
+    ];
+    for (const [width, color, alpha] of strokes) {
+      graphics.lineStyle(width, colorNumber(color), alpha);
+      graphics.beginPath();
+      graphics.arc(0, 0, ring.radius, start, end);
+      graphics.strokePath();
+    }
   }
 
   /** Zhoupnutí: na jednu stranu, na druhou a zpět (jako Zpět a domeček). */
@@ -98,6 +136,7 @@ export class IconButtonView {
       this.container.destroy();
     }
     this.container = null;
+    this.holdRing = null;
     this.rect = null;
   }
 

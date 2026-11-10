@@ -17,20 +17,24 @@ import type { AlbumContents, AlbumEntry, AlbumPicture } from '../logic/album';
 import { COLORING_GAME_AREA_FIT } from '../logic/coloringLayout';
 import { startColoringSession } from '../logic/coloringSession';
 import type { ColoringPage } from '../logic/coloringSession';
-import { homeHoldDecision, startPictureChoice } from '../logic/pictureChoice';
-import type { PictureChoice } from '../logic/pictureChoice';
+import { TRASH_HOLD_MS, homeHoldDecision, startPictureChoice } from '../logic/pictureChoice';
+import type { PictureChoice, TrashFeedback, TrashResult } from '../logic/pictureChoice';
 import {
   albumPreviewAt,
+  bigPictureTrashAt,
   bookAt,
   layoutAlbum,
+  layoutBigPicture,
   layoutPicker,
   previewAt,
+  trashHoldRingFor,
 } from '../logic/pickerLayout';
-import type { AlbumLayout, PickerLayout } from '../logic/pickerLayout';
+import type { AlbumLayout, BigPictureLayout, PickerLayout } from '../logic/pickerLayout';
 import { loadPicturePreview, previewOfColors } from '../logic/picturePreview';
 import { COLORING_PICTURES } from '../logic/pictureSet';
 import type { PictureIdentity } from '../logic/savedPicture';
-import { BOOK_ICON_FILE } from '../logic/toolIcons';
+import { BIG_PICTURE_STYLE } from '../logic/theme';
+import { BOOK_ICON_FILE, TRASH_ICON_FILE } from '../logic/toolIcons';
 import { ColoringScene, isGameArea } from './ColoringScene';
 import { IconButtonView } from './IconButtonView';
 import { loadOutlineImage, preparePicture } from './pictureCanvas';
@@ -84,6 +88,14 @@ interface PictureAssets {
  * za snímek; malování dostane stejné přečtené album. Náhledy alba se
  * ukážou hned s obrysem a barvy se dokreslí po jednom za snímek (AC7).
  * Na obrazovkách alba není žádný text.
+ *
+ * Od #129 otevře ťuknutí na náhled v albu velký obrázek: náhled se
+ * zhoupne, zvětší se na místo velkého obrázku (`layoutBigPicture`) a vedle
+ * je koš. Barvy velkého obrázku jsou pixel po pixelu vrstva barev
+ * uloženého obrázku. Koš drží `pictureChoice.ts` (podržení 1 s, kolem
+ * koše se plní bílý kroužek jako u „Smazat“ v menu); scéna mu předává
+ * stisk, sjetí a zvednutí prstu a kreslí odezvu. Držení domečku hlásí
+ * stránka háčkem `GameHost.onHomeHolding`. Tah po velkém obrázku nic nedělá.
  */
 export class PickerScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -100,6 +112,18 @@ export class PickerScene extends Phaser.Scene {
   private albumReadCount = 0;
   private albumLayout: AlbumLayout = layoutAlbum(this.gameArea);
   private albumTiles: PreviewTileView[] = [];
+  private bigLayout: BigPictureLayout = layoutBigPicture(this.gameArea);
+  /** Velký obrázek z alba (#129); `null` mimo velký obrázek. */
+  private bigTile: PreviewTileView | null = null;
+  private readonly trashView = new IconButtonView(this, TRASH_ICON_FILE);
+  /** Plní se kroužek podržení kolem koše? */
+  private trashRingShown = false;
+  /** Kdy se koš začal držet (ms podle `performance.now`). */
+  private trashHoldStartedAt = 0;
+  /** Prst, který stiskl koš a ještě z něj nesjel ani se nezvedl. */
+  private trashPointer: number | null = null;
+  /** Velký obrázek, který se právě zmenšuje zpátky do alba nebo po smazání. */
+  private leavingTile: PreviewTileView | null = null;
   /** Otevřené malování; `null` na výběru. */
   private painting: ColoringScene | null = null;
   /** Číslo další scény malování, každé otevření má vlastní. */
@@ -123,10 +147,14 @@ export class PickerScene extends Phaser.Scene {
     followCanvasResolution(this);
     this.gameArea = this.readGameArea();
     this.layout = layoutPicker(this.gameArea);
-    this.choice = startPictureChoice(COLORING_PICTURES);
     const host = this.readHost();
+    this.choice = startPictureChoice(COLORING_PICTURES, {
+      records: host?.records,
+      onTrash: (feedback) => this.onTrashFeedback(feedback),
+    });
     startColoringSession(host ?? NO_PAGE, () => this.stop());
     host?.onHomeHold?.(() => this.onHomeHold());
+    host?.onHomeHolding?.((holding) => this.choice.homeHolding(holding));
 
     this.assets = this.loadPictures();
     this.album = null;
@@ -344,7 +372,7 @@ export class PickerScene extends Phaser.Scene {
     return this.running && this.albumTiles.includes(tile);
   }
 
-  /** Ťuknutí na obrázek v albu: zatím se jen zhoupne s tónem domečku (AC4). */
+  /** Ťuknutí na obrázek v albu: tón a zhoupnutí, pak se otevře velký obrázek (#129 AC1). */
   private onAlbumPreviewTapped(index: number): void {
     const tile = this.albumTiles[index];
     if (tile === undefined) {
@@ -355,7 +383,238 @@ export class PickerScene extends Phaser.Scene {
       return;
     }
     this.sounds.play(tap.tones);
-    tile.wobble(() => undefined);
+    tile.wobble(() => this.openBigPicture(tap.entry, index));
+  }
+
+  // -------------------------------------------------------------------------
+  // Velký obrázek a koš (#129)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Velký obrázek se zvětší z místa náhledu `index` v albu. Po zvětšení
+   * náhledy alba zmizí a výběr se dozví, že je velký obrázek vidět.
+   */
+  private openBigPicture(entry: AlbumEntry, index: number): void {
+    if (!this.running || this.choice.screen().kind !== 'openingBigPicture') {
+      return;
+    }
+    const tile = this.drawBigPicture(entry);
+    const from = this.albumLayout.previews[index];
+    if (from === undefined) {
+      this.bigPictureShown();
+      return;
+    }
+    tile.growFrom(from, BIG_PICTURE_STYLE.growMs, () => this.bigPictureShown());
+  }
+
+  /** Velký obrázek je vidět: náhledy alba zmizí, ukáže se koš. */
+  private bigPictureShown(): void {
+    if (!this.running || this.bigTile === null) {
+      return;
+    }
+    this.hideAlbum();
+    this.trashView.place(this.bigLayout.trash, this.gameArea.scale, BIG_PICTURE_STYLE.trashDepth);
+    this.choice.bigPictureShown();
+  }
+
+  /**
+   * Nakreslí velký obrázek na jeho místo: obrys hned, barvy obrázku alba
+   * pixel po pixelu (jeden pixel náhledu na pixel vrstvy barev).
+   */
+  private drawBigPicture(entry: AlbumEntry): PreviewTileView {
+    this.bigTile?.destroy();
+    this.bigLayout = layoutBigPicture(this.gameArea);
+    const tile = new PreviewTileView(this, 'coloringBigPicture');
+    tile.setDepth(BIG_PICTURE_STYLE.pictureDepth);
+    tile.setPlace({ rect: this.bigLayout.picture, cornerRadius: 0, cssScale: this.gameArea.scale });
+    this.bigTile = tile;
+    void this.showBigPictureImage(tile, entry);
+    return tile;
+  }
+
+  private async showBigPictureImage(tile: PreviewTileView, entry: AlbumEntry): Promise<void> {
+    const assets = this.assetsOf(entry.picture);
+    if (assets === undefined) {
+      return;
+    }
+    const image = await assets.image;
+    if (this.bigTile !== tile) {
+      return;
+    }
+    tile.show(image, null);
+    const prepared = await assets.prepared;
+    if (this.bigTile !== tile) {
+      return;
+    }
+    const colors = previewOfColors({
+      colors: entry.colors,
+      regions: prepared.regions,
+      width: prepared.regions.width,
+      height: prepared.regions.height,
+    });
+    tile.show(image, colors);
+  }
+
+  /** Zahodí velký obrázek, koš a kroužek. */
+  private hideBigPicture(): void {
+    this.bigTile?.destroy();
+    this.bigTile = null;
+    this.trashView.destroy();
+    this.hideTrashRing();
+    this.trashPointer = null;
+  }
+
+  /** Odezva koše z výběru: kroužek, zhoupnutí, nebo začátek mazání. */
+  private onTrashFeedback(feedback: TrashFeedback): void {
+    if (!this.running) {
+      return;
+    }
+    switch (feedback.kind) {
+      case 'trashHolding':
+        if (feedback.holding) {
+          this.showTrashRing();
+        } else {
+          this.hideTrashRing();
+        }
+        return;
+      case 'trashWobble':
+        this.sounds.play(feedback.tones);
+        this.trashView.wobble();
+        return;
+      case 'deleting': {
+        const { entry } = feedback;
+        void feedback.done.then((result) => this.afterDeleting(result, entry));
+        return;
+      }
+    }
+  }
+
+  /**
+   * Konec mazání: po smazání se velký obrázek zmenší a zmizí a ukáže se
+   * album bez něj (nebo výběr). Po selhání se koš zhoupne s tónem domečku
+   * a velký obrázek zůstane, jen když se mezitím nedržel domeček (#129 AC4).
+   */
+  private afterDeleting(result: TrashResult, entry: AlbumEntry): void {
+    if (!this.running) {
+      return;
+    }
+    if (result.kind === 'deleted') {
+      // Kniha a malování dostanou album bez smazaného obrázku.
+      this.readAlbumAgain();
+      this.leaveBigPicture(null, BIG_PICTURE_STYLE.deleteMs);
+      return;
+    }
+    this.sounds.play(result.tones);
+    if (this.choice.screen().kind === 'album') {
+      // Domeček se podržel během mazání: zpět do alba i s obrázkem.
+      this.leaveBigPicture(entry, BIG_PICTURE_STYLE.shrinkMs);
+      return;
+    }
+    this.trashView.wobble();
+  }
+
+  /**
+   * Z velkého obrázku zpět: pod ním se hned ukáže album (nebo s prázdným
+   * albem výběr) a velký obrázek se zmenší na místo obrázku `entry`
+   * v albu, nebo bez něj (smazaný obrázek) do ztracena.
+   */
+  private leaveBigPicture(entry: AlbumEntry | null, ms: number): void {
+    const tile = this.bigTile;
+    this.bigTile = null;
+    this.hideBigPicture();
+    const screen = this.choice.screen();
+    if (screen.kind === 'album') {
+      this.showAlbum(screen.entries);
+    } else {
+      this.hideAlbum();
+      this.hidePicker();
+      this.drawTiles();
+    }
+    if (tile === null) {
+      return;
+    }
+    const index =
+      entry === null || screen.kind !== 'album'
+        ? -1
+        : screen.entries.findIndex((each) => each.recordId === entry.recordId);
+    this.leavingTile?.destroy();
+    this.leavingTile = tile;
+    tile.shrinkTo(this.albumLayout.previews[index] ?? null, ms, () => {
+      tile.destroy();
+      if (this.leavingTile === tile) {
+        this.leavingTile = null;
+      }
+    });
+  }
+
+  /** Velký obrázek po změně okna: na nové místo bez animace (i během otevírání). */
+  private redrawBigPicture(): void {
+    const screen = this.choice.screen();
+    if (screen.kind !== 'bigPicture' && screen.kind !== 'openingBigPicture') {
+      return;
+    }
+    this.drawBigPicture(screen.entry);
+    if (screen.kind === 'openingBigPicture') {
+      // Zhoupnutí nebo zvětšení se přerušilo: velký obrázek se ukáže hned.
+      this.bigPictureShown();
+      return;
+    }
+    this.trashView.place(this.bigLayout.trash, this.gameArea.scale, BIG_PICTURE_STYLE.trashDepth);
+  }
+
+  /** Prst na koši (#129 AC3): stisk jen dotykem dolů, návrat prstu po sjetí není nový stisk. */
+  private onTrashPointerDown(pointer: Phaser.Input.Pointer): void {
+    if (
+      this.choice.screen().kind !== 'bigPicture' ||
+      !bigPictureTrashAt(this.bigLayout, pointer.worldX, pointer.worldY)
+    ) {
+      return;
+    }
+    this.trashPointer = pointer.id;
+    this.choice.trashButton.press(pointer.id);
+  }
+
+  /** Prst, který koš stiskl, z něj sjel: podržení se zruší. */
+  private onPointerMove(pointer: Phaser.Input.Pointer): void {
+    if (
+      pointer.id === this.trashPointer &&
+      !bigPictureTrashAt(this.bigLayout, pointer.worldX, pointer.worldY)
+    ) {
+      this.trashPointer = null;
+      this.choice.trashButton.leave(pointer.id);
+    }
+  }
+
+  /** Prst, který koš stiskl, se zvedl. */
+  private onPointerUp(pointer: Phaser.Input.Pointer): void {
+    if (pointer.id === this.trashPointer) {
+      this.trashPointer = null;
+      this.choice.trashButton.release(pointer.id);
+    }
+  }
+
+  /** Bílý kroužek kolem koše se začne plnit. */
+  private showTrashRing(): void {
+    this.trashHoldStartedAt = performance.now();
+    this.trashRingShown = true;
+    this.drawTrashRing();
+  }
+
+  private hideTrashRing(): void {
+    this.trashRingShown = false;
+    this.trashView.setHoldProgress(null);
+  }
+
+  /** Kroužek kolem koše podle času od začátku podržení (v každém snímku). */
+  private drawTrashRing(): void {
+    if (!this.trashRingShown) {
+      return;
+    }
+    const elapsed = performance.now() - this.trashHoldStartedAt;
+    this.trashView.setHoldProgress(
+      Math.min(1, elapsed / TRASH_HOLD_MS),
+      trashHoldRingFor(this.bigLayout, this.gameArea),
+    );
   }
 
   /** Zahodí dlaždice alba. */
@@ -403,13 +662,25 @@ export class PickerScene extends Phaser.Scene {
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (pointer: Phaser.Input.Pointer) =>
       this.onPointerDown(pointer),
     );
+    this.input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) =>
+      this.onPointerMove(pointer),
+    );
+    for (const event of [Phaser.Input.Events.POINTER_UP, Phaser.Input.Events.POINTER_UP_OUTSIDE]) {
+      this.input.on(event, (pointer: Phaser.Input.Pointer) => this.onPointerUp(pointer));
+    }
     this.registry.events.on(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
+    this.events.on(Phaser.Scenes.Events.UPDATE, this.drawTrashRing, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.running = false;
       this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
+      this.events.off(Phaser.Scenes.Events.UPDATE, this.drawTrashRing, this);
+      this.choice.trashButton.dispose();
       this.stop();
       this.hidePicker();
       this.hideAlbum();
+      this.hideBigPicture();
+      this.leavingTile?.destroy();
+      this.leavingTile = null;
     });
   }
 
@@ -420,6 +691,11 @@ export class PickerScene extends Phaser.Scene {
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
     const { worldX: x, worldY: y } = pointer;
     const screen = this.choice.screen().kind;
+    if (screen === 'bigPicture' || screen === 'openingBigPicture') {
+      // Na velkém obrázku platí jen koš, tah po obrázku nic nedělá (#129 AC5).
+      this.onTrashPointerDown(pointer);
+      return;
+    }
     if (screen === 'album') {
       const place = albumPreviewAt(this.albumLayout, x, y);
       if (place !== null) {
@@ -471,11 +747,21 @@ export class PickerScene extends Phaser.Scene {
 
   /**
    * Podržení domečku (#124 AC4): v malování návrat na výběr, na výběru
-   * odchod do menu. Podržení z doby otevírání se nepočítá (AC5).
+   * odchod do menu, z velkého obrázku do alba (#129 AC2). Podržení z doby
+   * otevírání se nepočítá (AC5).
    */
   private onHomeHold(): HomeHoldDecision {
-    const fromAlbum = this.choice.screen().kind === 'album';
+    const before = this.choice.screen();
+    const fromAlbum = before.kind === 'album';
     const hold = this.choice.holdHome();
+    if (
+      hold === 'toAlbum' &&
+      before.kind === 'bigPicture' &&
+      this.choice.screen().kind === 'album'
+    ) {
+      // Během mazání se album ukáže až po mazání (afterDeleting).
+      this.leaveBigPicture(before.entry, BIG_PICTURE_STYLE.shrinkMs);
+    }
     if (hold === 'toPicker') {
       if (fromAlbum) {
         this.albumToPicker();
@@ -505,7 +791,12 @@ export class PickerScene extends Phaser.Scene {
   private onGameAreaChanged(): void {
     this.gameArea = this.readGameArea();
     this.layout = layoutPicker(this.gameArea);
-    if (this.choice.screen().kind === 'album') {
+    const screen = this.choice.screen().kind;
+    if (screen === 'bigPicture' || screen === 'openingBigPicture') {
+      this.redrawBigPicture();
+      return;
+    }
+    if (screen === 'album') {
       this.redrawAlbum();
       return;
     }

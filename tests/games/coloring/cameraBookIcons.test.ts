@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { BOOK_ICON_FILE, CAMERA_ICON_FILE } from '../../../src/games/coloring/logic/toolIcons';
+import {
+  BOOK_ICON_FILE,
+  CAMERA_ICON_FILE,
+  TRASH_ICON_FILE,
+} from '../../../src/games/coloring/logic/toolIcons';
 import { ICON_FOLDER, LICENCE_TEXT, externalReferences, iconSvgOfFile } from './toolIconHelpers';
 
 /**
@@ -13,6 +17,8 @@ import { ICON_FOLDER, LICENCE_TEXT, externalReferences, iconSvgOfFile } from './
 const ICONS: ReadonlyArray<readonly [string, string]> = [
   ['fotoaparát', CAMERA_ICON_FILE],
   ['kniha', BOOK_ICON_FILE],
+  // Upraveno k #129: stejné kontroly platí i pro ikonu koše u velkého obrázku z alba.
+  ['koš', TRASH_ICON_FILE],
 ];
 
 /** Plocha ikon Noto v sadě `@iconify-json/noto`. */
@@ -46,6 +52,7 @@ describe('#126: fotoaparát a kniha mají ikony ze sady Noto Emoji', () => {
     const notoPart = LICENCE_TEXT.slice(LICENCE_TEXT.indexOf(ICON_FOLDER));
     expect(notoPart, 'fotoaparát').toMatch(/camera/);
     expect(notoPart, 'kniha').toMatch(/notebook-with-decorative-cover/);
+    expect(notoPart, 'koš (#129)').toMatch(/wastebasket/);
     expect(notoPart, 'sada').toMatch(/Noto Emoji/);
   });
 });

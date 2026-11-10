@@ -179,6 +179,8 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
             isEnabled: () => session.isHomeEnabled(),
             // Hra s háčkem (#124) může podržení domečku převzít, jinak odchod do menu.
             onGoHome: () => session.holdHome(),
+            // Hra se dozví, kdy se domeček drží (#129: Omalovánky pak nepustí koš).
+            onHoldingChange: (holding) => session.homeHoldingChanged(holding),
           })
         : () => undefined;
       /**

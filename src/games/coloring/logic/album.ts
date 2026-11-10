@@ -237,3 +237,28 @@ export async function readAlbum(
   entries.reverse();
   return { status: 'read', entries, recordCount: listed.records.length };
 }
+
+/** Jak skončilo smazání obrázku z alba (#129 AC3, AC4). */
+export type AlbumRemoval = 'removed' | 'failed';
+
+/**
+ * Smaže z alba aktivního profilu jeden obrázek (záznam `recordId`, #129
+ * AC3). Úložiště smaže záznam celý najednou, nic jiného se nepřepíše ani
+ * nezapíše. Záznam, který už v albu není (smazala ho jiná záložka), je
+ * smazaný. Plné nebo nedostupné úložiště, chyba úložiště i chybějící
+ * záznamy skončí „nepovedlo se“; výjimku mazání nikdy nevyhodí (AC4).
+ */
+export async function removeAlbumEntry(
+  records: GameRecords | undefined,
+  recordId: string,
+): Promise<AlbumRemoval> {
+  if (records === undefined) {
+    return 'failed';
+  }
+  try {
+    return (await records.remove(recordId)) === 'saved' ? 'removed' : 'failed';
+  } catch (error) {
+    console.warn('Omalovánky: obrázek z alba nejde smazat', error);
+    return 'failed';
+  }
+}

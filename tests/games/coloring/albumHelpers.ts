@@ -47,6 +47,7 @@ import type {
   MemoryRecordsShelf,
   RecordData,
   RecordsAdd,
+  RecordsWriteStatus,
 } from '../../../src/shared/storage/profileRecords';
 import { CIRCLES, HOUSE, STAR, THREE_PICTURES } from './pictureChoiceHelpers';
 import { paint, twoHalves } from './savedPictureHelpers';
@@ -99,14 +100,30 @@ export interface WatchedRecords extends GameRecords {
   releaseAdds(result?: 'full' | 'unavailable'): Promise<void>;
   /** Každé další ukládání skončí `result` a nic neuloží. */
   failAdds(result: 'full' | 'unavailable'): void;
+  /**
+   * Každé další mazání skončí `result` a nic nesmaže (#129 AC4); `'rejected'`
+   * je zamítnutý slib, který úložiště podle #125 vrátit nemá; `null` mazání
+   * zase pustí.
+   */
+  failRemoves(result: RemoveFailure | null): void;
+  /** Další mazání počkají na `releaseRemoves` (#129 AC4, pomalé úložiště). */
+  holdRemoves(): void;
+  /** Pustí podržená mazání, smažou se teprve teď. */
+  releaseRemoves(): Promise<void>;
 }
+
+/** Jak může skončit nepovedené mazání (#129 AC4). */
+export type RemoveFailure = 'full' | 'unavailable' | 'rejected';
 
 export function watchRecords(inner: GameRecords): WatchedRecords {
   let adds = 0;
   let removes = 0;
   let holding = false;
   let failure: 'full' | 'unavailable' | null = null;
+  let removeFailure: RemoveFailure | null = null;
+  let holdingRemoves = false;
   const waiting: Array<{ data: RecordData; finish: (result: RecordsAdd) => void }> = [];
+  const waitingRemoves: Array<{ id: string; finish: (result: RecordsWriteStatus) => void }> = [];
 
   const addNow = (data: RecordData): Promise<RecordsAdd> =>
     failure === null ? inner.add(data) : Promise.resolve({ status: failure });
@@ -124,7 +141,18 @@ export function watchRecords(inner: GameRecords): WatchedRecords {
     },
     remove: (id) => {
       removes += 1;
-      return inner.remove(id);
+      if (removeFailure === 'rejected') {
+        return Promise.reject(new Error('zkušební chyba úložiště'));
+      }
+      if (removeFailure !== null) {
+        return Promise.resolve(removeFailure);
+      }
+      if (!holdingRemoves) {
+        return inner.remove(id);
+      }
+      return new Promise((finish) => {
+        waitingRemoves.push({ id, finish });
+      });
     },
     adds: () => adds,
     removes: () => removes,
@@ -139,6 +167,18 @@ export function watchRecords(inner: GameRecords): WatchedRecords {
     },
     failAdds: (result) => {
       failure = result;
+    },
+    failRemoves: (result) => {
+      removeFailure = result;
+    },
+    holdRemoves: () => {
+      holdingRemoves = true;
+    },
+    releaseRemoves: async () => {
+      holdingRemoves = false;
+      for (const { id, finish } of waitingRemoves.splice(0)) {
+        finish(await inner.remove(id));
+      }
     },
   };
 }

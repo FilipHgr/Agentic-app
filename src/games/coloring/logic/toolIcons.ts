@@ -53,6 +53,9 @@ const TOOL_EMOJI: Readonly<Record<ToolId, NotoEmojiName>> = {
 export const CAMERA_ICON_FILE = 'camera.svg';
 export const BOOK_ICON_FILE = 'notebook-with-decorative-cover.svg';
 
+/** Koš 🗑️ (U+1F5D1, „wastebasket“) na velkém obrázku z alba (#129) ze stejné sady. */
+export const TRASH_ICON_FILE = 'wastebasket.svg';
+
 /** Ikona nástroje `tool`; nezávisí na vybrané barvě ani velikosti čáry. */
 export function toolIconAsset(tool: ToolId): ToolIconAsset {
   const emoji = TOOL_EMOJI[tool];

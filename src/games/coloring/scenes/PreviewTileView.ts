@@ -4,6 +4,9 @@
  * ho ořežou. Náhled se nejdřív ukáže jen s obrysem a barvy dítěte se
  * dokreslí, až je omalovánka připravená (AC7). Co je v pixelech náhledu,
  * řeší `logic/picturePreview.ts`; tady se jen kreslí.
+ *
+ * Od #129 je stejná dlaždice i velký obrázek z alba: umí se zvětšit
+ * z místa náhledu, zmenšit zpátky a zmenšit a zmizet po smazání.
  */
 
 import Phaser from 'phaser';
@@ -111,7 +114,11 @@ export class PreviewTileView {
     const { rect, cornerRadius, cssScale } = place;
     const unitsPerCss = 1 / cssScale;
     this.scene.tweens.killTweensOf(this.container);
-    this.container.setPosition(rect.left + rect.width / 2, rect.top + rect.height / 2).setAngle(0);
+    this.container
+      .setPosition(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      .setAngle(0)
+      .setScale(1)
+      .setAlpha(1);
     this.shadow.clear();
     for (const spreadCss of PICKER_TILE_STYLE.shadowSpreadsCss) {
       const spread = spreadCss * unitsPerCss;
@@ -164,6 +171,70 @@ export class PreviewTileView {
       context.drawImage(outline, 0, 0, size.width, size.height);
     }
     this.setCanvas(canvas);
+  }
+
+  /** Hloubka dlaždice ve scéně (velký obrázek je nad náhledy alba). */
+  setDepth(depth: number): void {
+    this.container.setDepth(depth);
+  }
+
+  /**
+   * Dlaždice se zvětší z místa `from` (herní jednotky) na své místo za
+   * `ms`; `onDone` se zavolá na konci (#129, otevření velkého obrázku).
+   */
+  growFrom(from: LayoutRect, ms: number, onDone: () => void): void {
+    const place = this.place;
+    if (place === null) {
+      onDone();
+      return;
+    }
+    const { rect } = place;
+    this.scene.tweens.killTweensOf(this.container);
+    this.container
+      .setPosition(from.left + from.width / 2, from.top + from.height / 2)
+      .setScale(from.width / rect.width)
+      .setAngle(0)
+      .setAlpha(1);
+    this.scene.tweens.add({
+      targets: this.container,
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+      scale: 1,
+      duration: ms,
+      ease: 'Sine.easeOut',
+      onComplete: onDone,
+    });
+  }
+
+  /**
+   * Dlaždice se za `ms` zmenší na místo `to` (návrat do alba), nebo bez
+   * místa uprostřed do ztracena (smazaný obrázek, #129); `onDone` na konci.
+   */
+  shrinkTo(to: LayoutRect | null, ms: number, onDone: () => void): void {
+    const place = this.place;
+    if (place === null) {
+      onDone();
+      return;
+    }
+    const { rect } = place;
+    const target = to ?? {
+      left: rect.left + rect.width / 2,
+      top: rect.top + rect.height / 2,
+      width: 0,
+      height: 0,
+    };
+    this.scene.tweens.killTweensOf(this.container);
+    this.scene.tweens.add({
+      targets: this.container,
+      x: target.left + target.width / 2,
+      y: target.top + target.height / 2,
+      scale: target.width / rect.width,
+      alpha: to === null ? 0 : 1,
+      angle: 0,
+      duration: ms,
+      ease: 'Sine.easeIn',
+      onComplete: onDone,
+    });
   }
 
   /** Zhoupnutí po ťuknutí; `onDone` se zavolá, až dlaždice dojde zpátky. */

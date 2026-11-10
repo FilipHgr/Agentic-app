@@ -146,18 +146,20 @@ describe('#126 AC4: kniha na výběru otevře album', () => {
 });
 
 describe('#126 AC4: v albu', () => {
-  it('ťuknutí na náhled v albu ho jen zhoupne se stejným tónem jako domeček', async () => {
+  // Od #129 AC1 otevře ťuknutí na náhled v albu velký obrázek (dřív jen
+  // zhoupnutí s tónem domečku); velký obrázek testuje `bigPicture.test.ts`.
+  it('ťuknutí na náhled v albu otevře velký obrázek s tónem náhledu na výběru (#129)', async () => {
     const { album } = await albumWith(3);
-    const choice = enterPicker();
-    choice.tapBook(album);
 
     for (const index of [0, 1, 2]) {
-      expect(choice.tapAlbumPreview(index), `náhled ${index + 1}`).toEqual({
-        kind: 'wobble',
-        tones: HOME_WOBBLE_TONES,
-      });
+      const choice = enterPicker();
+      choice.tapBook(album);
+      const tap = choice.tapAlbumPreview(index);
+      expect(tap.kind, `náhled ${index + 1}`).toBe('open');
+      expect(tap.kind === 'open' ? tap.tones : [], `náhled ${index + 1}`).toEqual(
+        PREVIEW_TAP_TONES,
+      );
     }
-    expect(choice.screen(), 'album zůstane otevřené').toMatchObject({ kind: 'album' });
   });
 
   it('ťuknutí na náhled alba mimo album nic neudělá', () => {

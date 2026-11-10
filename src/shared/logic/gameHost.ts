@@ -1,7 +1,8 @@
 /**
  * Co stránka nabízí běžící hře (#68): kolečko nastavení, domeček, odchod
  * do menu, úložiště aktivního profilu (#71), značku profilu (#87), háček
- * na podržení domečku (#124) a záznamy her aktivního profilu (#125).
+ * na podržení domečku (#124), záznamy her aktivního profilu (#125)
+ * a háček na držení domečku (#129).
  * Spouštění her (`src/shared/ui/gameRunner.ts`) to hře dá do registru
  * Phaseru pod klíčem `GAME_HOST_KEY`. Čistý TypeScript.
  */
@@ -48,6 +49,13 @@ export interface GameHost {
    */
   onHomeHold?(decide: () => HomeHoldDecision): void;
   /**
+   * Napojí hru na držení domečku (#129 AC5): `listener(true)`, když se kolem
+   * domečku začne plnit kroužek, `listener(false)`, když zmizí (puštění,
+   * sjetí prstu i dokončené podržení). Nové napojení nahradí předchozí.
+   * Starší hostitel háček nemusí mít.
+   */
+  onHomeHolding?(listener: (holding: boolean) => void): void;
+  /**
    * Úložiště této hry pro aktivní profil (#71), `undefined`, když stránka
    * žádné nedala (hra pak ukládá jen do paměti).
    */
@@ -73,6 +81,7 @@ export function isGameHost(value: unknown): value is GameHost {
     typeof host.setHomeAvailable === 'function' &&
     typeof host.onLeave === 'function' &&
     (host.onHomeHold === undefined || typeof host.onHomeHold === 'function') &&
+    (host.onHomeHolding === undefined || typeof host.onHomeHolding === 'function') &&
     (host.storage === undefined || isKeyValueStorage(host.storage)) &&
     (host.profileMarker === undefined || isProfileMarker(host.profileMarker)) &&
     (host.records === undefined || isGameRecords(host.records))

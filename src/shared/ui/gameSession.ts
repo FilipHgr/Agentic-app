@@ -14,6 +14,8 @@
  * a hlášení domečku po odchodu ho už neukáže.
  * Podržení domečku (#124): hra napojená háčkem `onHomeHold` rozhodne, jestli
  * se odejde do menu, nebo zůstane ve hře (Omalovánky se vrátí na výběr).
+ * Držení domečku (#129): hra napojená háčkem `onHomeHolding` se dozví,
+ * kdy se kolem domečku plní kroužek (Omalovánky pak nepustí koš).
  */
 
 import type { GameHost, GameProfileMarker, HomeHoldDecision } from '../logic/gameHost';
@@ -60,6 +62,11 @@ export interface GameSession {
    * `'leave'` odchod jako `leave()`, s `'stay'` nic. Po odchodu nic.
    */
   holdHome(): void;
+  /**
+   * Kroužek kolem domečku se začal plnit (`true`), nebo zmizel (`false`)
+   * (#129): řekne to hře napojené háčkem `onHomeHolding`. Po odchodu nic.
+   */
+  homeHoldingChanged(holding: boolean): void;
 }
 
 export function startGameSession(options: GameSessionOptions): GameSession {
@@ -69,6 +76,8 @@ export function startGameSession(options: GameSessionOptions): GameSession {
   let hasLeft = false;
   /** Kdo rozhoduje o podržení domečku (#124); bez něj se odchází do menu. */
   let homeHoldDecider: (() => HomeHoldDecision) | null = null;
+  /** Kdo poslouchá držení domečku (#129). */
+  let homeHoldingListener: ((holding: boolean) => void) | null = null;
   const leaveHandlers: Array<() => void> = [];
   let cleanUpScenes: (() => void) | null = null;
 
@@ -108,6 +117,9 @@ export function startGameSession(options: GameSessionOptions): GameSession {
     onHomeHold: (decide) => {
       homeHoldDecider = decide;
     },
+    onHomeHolding: (listener) => {
+      homeHoldingListener = listener;
+    },
     storage: options.storage,
     profileMarker: options.profileMarker,
     records: options.records,
@@ -125,6 +137,11 @@ export function startGameSession(options: GameSessionOptions): GameSession {
         return;
       }
       session.leave();
+    },
+    homeHoldingChanged: (holding) => {
+      if (!hasLeft) {
+        homeHoldingListener?.(holding);
+      }
     },
     leave: () => {
       if (hasLeft) {

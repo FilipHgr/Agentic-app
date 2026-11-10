@@ -11,13 +11,16 @@
  * Od #126 je na výběru kniha vpravo nahoře zrcadlově k domečku a stejně
  * velká, mimo mřížku (mřížka se nemění). Album má ve stejném volném místě
  * 12 náhledů: na šířku 4 × 3, na výšku 3 × 4 nebo 2 × 6, podle toho, co
- * dá větší náhledy. Čistý TypeScript bez Phaseru.
+ * dá větší náhledy.
+ *
+ * Od #129 má velký obrázek z alba stejnou velikost jako obrázek v malování
+ * a koš je na místě fotoaparátu z malování. Čistý TypeScript bez Phaseru.
  */
 
 import { homeButtonInFreeArea } from '../../../shared/logic/homeButton';
 import { isPhoneMode } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
-import { PICTURE_ASPECT } from './coloringLayout';
+import { PICTURE_ASPECT, layoutColoring } from './coloringLayout';
 import type { LayoutRect } from './coloringLayout';
 
 /** Míst pro náhledy (#124 AC6, posouvání pro víc omalovánek je mimo rozsah). */
@@ -188,4 +191,94 @@ export function bookAt(layout: PickerLayout, x: number, y: number): boolean {
 /** Místo obrázku alba pod dotykem (herní jednotky), `null` mimo náhledy a v mezerách. */
 export function albumPreviewAt(layout: AlbumLayout, x: number, y: number): number | null {
   return placeAt(layout.previews, x, y);
+}
+
+// ---------------------------------------------------------------------------
+// Velký obrázek a koš (#129 AC6)
+// ---------------------------------------------------------------------------
+
+/** Nejmenší mezera mezi košem a velkým obrázkem v CSS px (#129 AC6). */
+const TRASH_GAP_CSS = 16;
+
+export interface BigPictureLayout {
+  /** Velký obrázek 4 : 3 v herních jednotkách, stejně velký jako obrázek v malování. */
+  readonly picture: LayoutRect;
+  /** Koš na místě fotoaparátu z malování (herní jednotky). */
+  readonly trash: LayoutRect;
+}
+
+/**
+ * Rozložení velkého obrázku pro herní plochu `area` podle schválených
+ * obrázků: koš je tam, kde je v malování fotoaparát (na šířku vlevo dole,
+ * na výšku vpravo nahoře), obrázek je stejně velký jako v malování. Na
+ * šířku se obrázek posune doprava jen tolik, aby byl od koše 16 CSS px
+ * (na iPadu 1180 × 820 o 8 px), na výšku zůstane na stejném místě.
+ */
+export function layoutBigPicture(area: GameArea): BigPictureLayout {
+  const painting = layoutColoring(area);
+  const trash = painting.cameraButton;
+  const picture = painting.picture;
+  if (area.width < area.height) {
+    return { picture, trash };
+  }
+  const gapCss = (picture.left - (trash.left + trash.width)) * area.scale;
+  const shift = Math.max(0, TRASH_GAP_CSS - gapCss) / area.scale;
+  return { picture: { ...picture, left: picture.left + shift }, trash };
+}
+
+/** Trefil dotyk `x`, `y` koš na velkém obrázku (herní jednotky)? */
+export function bigPictureTrashAt(layout: BigPictureLayout, x: number, y: number): boolean {
+  return placeAt([layout.trash], x, y) !== null;
+}
+
+/** Kroužek podržení vně koše (#129, schválený prototyp): odstup od okraje koše a čáry v CSS px. */
+const TRASH_RING_OFFSET_CSS = 8;
+const TRASH_RING_WIDTH_CSS = 6;
+const TRASH_RING_OUTLINE_CSS = 1;
+
+/** Kroužek podržení kolem koše v herních jednotkách: střed, poloměr středu čáry a tloušťky. */
+export interface TrashHoldRing {
+  readonly centerX: number;
+  readonly centerY: number;
+  /** Poloměr středové čáry kroužku. */
+  readonly radius: number;
+  /** Tloušťka kroužku (šedá stopa i bílý postup). */
+  readonly lineWidth: number;
+  /** Tloušťka jemného tmavého okraje kolem bílého postupu. */
+  readonly outlineWidth: number;
+  /** Poloměr vnějšího okraje kroužku i s tmavým okrajem. */
+  readonly outerRadius: number;
+}
+
+/**
+ * Kroužek podržení vně koše na pozadí stránky: kruh se středem ve středu
+ * koše a poloměrem o 8 CSS px větším než polovina strany koše. Kde je koš
+ * blíž okraji plochy (nejmenší telefony), je kroužek těsnější, aby se vešel
+ * celý; vždy ale zůstane vně stran koše.
+ */
+export function trashHoldRingFor(layout: BigPictureLayout, area: GameArea): TrashHoldRing {
+  const { trash } = layout;
+  const unitsPerCss = 1 / area.scale;
+  const side = Math.min(trash.width, trash.height);
+  const lineWidth = TRASH_RING_WIDTH_CSS * unitsPerCss;
+  const outlineWidth = TRASH_RING_OUTLINE_CSS * unitsPerCss;
+  const roomToEdge = Math.min(
+    trash.left,
+    trash.top,
+    area.width - (trash.left + trash.width),
+    area.height - (trash.top + trash.height),
+  );
+  const offset = Math.max(
+    lineWidth / 2 + outlineWidth,
+    Math.min(TRASH_RING_OFFSET_CSS * unitsPerCss, roomToEdge - lineWidth / 2 - outlineWidth),
+  );
+  const radius = side / 2 + offset;
+  return {
+    centerX: trash.left + trash.width / 2,
+    centerY: trash.top + trash.height / 2,
+    radius,
+    lineWidth,
+    outlineWidth,
+    outerRadius: radius + lineWidth / 2 + outlineWidth,
+  };
 }

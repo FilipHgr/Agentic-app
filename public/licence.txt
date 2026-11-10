@@ -35,9 +35,10 @@ nejsou v repozitáři, otisky SHA-256 zdrojů:
   fish: c834c755adad81103b41d56500a0e5f0f8ea3300a7ea27dc666090aa0bf7f8e3
 
 Ikony nástrojů v Omalovánkách (src/games/coloring/icons/: paintbrush, eraser,
-pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter) a ikony
-fotoaparátu a knihy alba (camera, notebook-with-decorative-cover) jsou
-obrázky ze sady Noto Emoji, autor Google Inc.,
+pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter), ikony
+fotoaparátu a knihy alba (camera, notebook-with-decorative-cover) a ikona koše
+u velkého obrázku z alba (wastebasket) jsou obrázky ze sady Noto Emoji, autor
+Google Inc.,
 https://github.com/googlefonts/noto-emoji
 Copyright Google Inc.
 Převzaté z balíčku @iconify-json/noto 1.2.10 (https://github.com/iconify/icon-sets)

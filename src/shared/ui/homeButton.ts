@@ -45,6 +45,8 @@ export interface HomeButtonOptions {
   readonly isEnabled: () => boolean;
   /** Domeček se držel 1 s: dítě se vrací do menu, nebo o úroveň výš ve hře (#124). */
   readonly onGoHome: () => void;
+  /** Kroužek kolem domečku se začal plnit (`true`), nebo zmizel (`false`) (#129). */
+  readonly onHoldingChange?: (holding: boolean) => void;
 }
 
 /** Je bod prstu mimo domeček? */
@@ -85,7 +87,10 @@ export function attachHomeButton(button: HTMLElement, options: HomeButtonOptions
       wobble(button);
       sounds.play(HOME_WOBBLE_TONES);
     },
-    onHoldingChange: (holding) => button.classList.toggle('is-holding', holding),
+    onHoldingChange: (holding) => {
+      button.classList.toggle('is-holding', holding);
+      options.onHoldingChange?.(holding);
+    },
   });
 
   const onPointerDown = (event: PointerEvent): void => {

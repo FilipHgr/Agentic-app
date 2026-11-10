@@ -2,7 +2,9 @@
  * Logika podržení tlačítka bez DOM (#68): domeček odejde do menu až po
  * podržení `holdMs`. Ťuknutí nebo kratší podržení jen zhoupne, sjetí prstu
  * z tlačítka podržení zruší a druhý prst ho nepřeruší ani neprodlouží.
- * Čas běží přes `setTimeout`. Čistý TypeScript bez Phaseru.
+ * Čas běží přes `setTimeout`. Když je stránka vytížená a časovač se
+ * zpozdí, prst zvednutý až po celé době podržení se počítá jako podržení,
+ * ne jako ťuknutí (#129). Čistý TypeScript bez Phaseru.
  */
 
 export interface HoldButtonOptions {
@@ -38,6 +40,8 @@ export function createHoldButton(options: HoldButtonOptions): HoldButton {
   /** Prst, který tlačítko drží (i po dokončení držení, dokud se nezvedne). */
   let activePointer: number | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  /** Kdy začalo rozběhnuté držení (ms podle `Date.now`). */
+  let pressedAt = 0;
   let disposed = false;
 
   function setHolding(holding: boolean): void {
@@ -77,12 +81,24 @@ export function createHoldButton(options: HoldButtonOptions): HoldButton {
         return;
       }
       activePointer = pointerId;
+      pressedAt = Date.now();
       setHolding(true);
       timer = setTimeout(complete, options.holdMs);
     },
 
     release(pointerId: number): void {
-      if (end(pointerId) && isEnabled()) {
+      const heldLongEnough = timer !== undefined && Date.now() - pressedAt >= options.holdMs;
+      if (!end(pointerId)) {
+        return;
+      }
+      if (heldLongEnough) {
+        // Časovač se zpozdil (vytížená stránka), prst se ale držel celou dobu.
+        if (!disposed && isEnabled()) {
+          options.onHoldComplete();
+        }
+        return;
+      }
+      if (isEnabled()) {
         options.onTap();
       }
     },

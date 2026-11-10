@@ -14,22 +14,50 @@
  *   ještě před ním a nepočítá se.
  * - Kniha na výběru (#126 AC4) otevře album aktivního profilu, které scéna
  *   přečetla (`album.ts`). Prázdné, nedostupné nebo ještě nepřečtené album
- *   se neotevře a kniha se jen zhoupne s tónem domečku. V albu se náhledy
- *   zatím jen zhoupnou a domeček vede zpátky na výběr.
+ *   se neotevře a kniha se jen zhoupne s tónem domečku. Domeček z alba
+ *   vede zpátky na výběr.
+ * - Ťuknutí na náhled v albu (#129 AC1) otevře velký obrázek. Během
+ *   otevírání se druhý prst ani dvojí ťuknutí nepočítá a podržení domečku
+ *   se počítá až od chvíle, kdy je velký obrázek vidět (AC5). Domeček
+ *   z velkého obrázku vede do alba (AC2).
+ * - Koš na velkém obrázku (#129 AC3) smaže obrázek podržením 1 s jako
+ *   „Smazat“ u profilu (#108). Ťuknutí koš jen zhoupne s tónem domečku.
+ *   Když se drží koš, domeček nic neudělá, a když se drží domeček, koš
+ *   nic neudělá (AC5). Během mazání koš jen zhoupne a podržení domečku
+ *   přepne obrazovku až po mazání. Po smazání je dítě v albu bez obrázku
+ *   (album vznikne bez nového čtení), s prázdným albem na výběru. Když se
+ *   smazání nepovede, zůstane velký obrázek a koš se zhoupne (AC4).
  */
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
 import type { HomeHoldDecision } from '../../../shared/logic/gameHost';
+import { createHoldButton } from '../../../shared/logic/holdButton';
+import type { HoldButton } from '../../../shared/logic/holdButton';
 import { HOLD_TO_GO_HOME_MS, HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
+import type { GameRecords } from '../../../shared/storage/profileRecords';
+import { removeAlbumEntry } from './album';
 import type { AlbumContents, AlbumEntry } from './album';
 import type { PictureIdentity } from './savedPicture';
 
-/** Co je vidět: výběr, otevírání omalovánky, malování, nebo album (#126). */
+/**
+ * Co je vidět: výběr, otevírání omalovánky, malování, album (#126), nebo
+ * otevírání a zobrazení velkého obrázku `entry` z alba `entries` (#129).
+ */
 export type ColoringScreen =
   | { readonly kind: 'picker' }
   | { readonly kind: 'opening'; readonly picture: PictureIdentity }
   | { readonly kind: 'painting'; readonly picture: PictureIdentity }
-  | { readonly kind: 'album'; readonly entries: readonly AlbumEntry[] };
+  | { readonly kind: 'album'; readonly entries: readonly AlbumEntry[] }
+  | {
+      readonly kind: 'openingBigPicture';
+      readonly entries: readonly AlbumEntry[];
+      readonly entry: AlbumEntry;
+    }
+  | {
+      readonly kind: 'bigPicture';
+      readonly entries: readonly AlbumEntry[];
+      readonly entry: AlbumEntry;
+    };
 
 /** Co udělá ťuknutí na knihu (#126 AC4). */
 export type BookTap =
@@ -44,9 +72,31 @@ export type BookTap =
   /** Mimo výběr kniha nic nedělá. */
   | { readonly kind: 'ignored' };
 
-/** Co udělá ťuknutí na náhled v albu: zatím jen zhoupnutí (velký obrázek je další úkol). */
+/** Co udělá ťuknutí na náhled v albu: otevře velký obrázek s tónem náhledu (#129), nebo nic. */
 export type AlbumPreviewTap =
-  { readonly kind: 'wobble'; readonly tones: readonly Tone[] } | { readonly kind: 'ignored' };
+  | {
+      readonly kind: 'open';
+      readonly index: number;
+      readonly entry: AlbumEntry;
+      readonly tones: readonly Tone[];
+    }
+  | { readonly kind: 'ignored' };
+
+/** Jak skončilo mazání obrázku košem (#129 AC3, AC4). */
+export type TrashResult =
+  /** Obrázek je smazaný, dítě je v albu bez něj, nebo s prázdným albem na výběru. */
+  | { readonly kind: 'deleted' }
+  /** Smazání se nepovedlo: obrázek je dál v albu a koš se zhoupne s tónem domečku. */
+  | { readonly kind: 'failed'; readonly tones: readonly Tone[] };
+
+/** Odezva koše na velkém obrázku, kterou scéna nakreslí (#129). */
+export type TrashFeedback =
+  /** Kroužek kolem koše se začal plnit (`true`), nebo zmizel (`false`). */
+  | { readonly kind: 'trashHolding'; readonly holding: boolean }
+  /** Ťuknutí, kratší podržení nebo koš během mazání: koš se jen zhoupne. */
+  | { readonly kind: 'trashWobble'; readonly tones: readonly Tone[] }
+  /** Podržení 1 s začalo mazat obrázek `entry`; `done` řekne, jak mazání skončilo. */
+  | { readonly kind: 'deleting'; readonly entry: AlbumEntry; readonly done: Promise<TrashResult> };
 
 /** Co udělá ťuknutí na náhled: otevře omalovánku s tónem, nebo nic. */
 export type PreviewTap =
@@ -58,8 +108,11 @@ export type PreviewTap =
     }
   | { readonly kind: 'ignored' };
 
-/** Kam vede podržení domečku: na výběr, do menu, nebo nikam. */
-export type HomeHold = 'toPicker' | 'toMenu' | 'ignored';
+/** Kam vede podržení domečku: na výběr, do menu, do alba (#129), nebo nikam. */
+export type HomeHold = 'toPicker' | 'toMenu' | 'toAlbum' | 'ignored';
+
+/** Jak dlouho se drží koš, aby smazal obrázek (#129 AC3, jako „Smazat“ u profilu). */
+export const TRASH_HOLD_MS = 1000;
 
 /** Tón ťuknutí na náhled: krátký vzestupný dvojtón. */
 export const PREVIEW_TAP_TONES: readonly Tone[] = [
@@ -81,16 +134,32 @@ export interface PictureChoice {
   tapBook(album: AlbumContents | null): BookTap;
   /** Ťuknutí na náhled `index` v albu. */
   tapAlbumPreview(index: number): AlbumPreviewTap;
+  /** Scéna ukázala otevíraný velký obrázek (#129). */
+  bigPictureShown(): void;
+  /** Koš na velkém obrázku: scéna mu předává stisk, zvednutí a sjetí prstu (#129 AC3). */
+  readonly trashButton: HoldButton;
+  /** Stránka hlásí, že se domeček začal (`true`), nebo přestal (`false`) držet (#129 AC5). */
+  homeHolding(holding: boolean): void;
 }
 
 export interface PictureChoiceOptions {
   /** Hodiny v ms (v testech zkušební). */
   readonly now?: () => number;
+  /** Záznamy aktivního profilu, ze kterých koš maže (#129); bez nich se smazání nepovede. */
+  readonly records?: GameRecords | undefined;
+  /** Odezva koše pro scénu (#129). */
+  readonly onTrash?: (feedback: TrashFeedback) => void;
 }
 
 /** Co má stránka udělat po podržení domečku: do menu odejít, jinak zůstat ve hře. */
 export function homeHoldDecision(hold: HomeHold): HomeHoldDecision {
   return hold === 'toMenu' ? 'leave' : 'stay';
+}
+
+/** Album bez obrázku `removed`; prázdné album je výběr (#129 AC3). */
+function screenWithout(entries: readonly AlbumEntry[], removed: AlbumEntry): ColoringScreen {
+  const left = entries.filter((entry) => entry.recordId !== removed.recordId);
+  return left.length === 0 ? { kind: 'picker' } : { kind: 'album', entries: left };
 }
 
 /** Výběr nad sadou `pictures`. */
@@ -99,13 +168,89 @@ export function startPictureChoice(
   options: PictureChoiceOptions = {},
 ): PictureChoice {
   const now = options.now ?? (() => Date.now());
+  const onTrash = options.onTrash ?? (() => undefined);
   const onlyPicture = pictures.length === 1 ? pictures[0] : undefined;
   let screen: ColoringScreen =
     onlyPicture === undefined ? { kind: 'picker' } : { kind: 'opening', picture: onlyPicture };
-  let paintingShownAt = Number.NEGATIVE_INFINITY;
+  /** Kdy se naposledy ukázalo malování nebo velký obrázek. */
+  let shownAt = Number.NEGATIVE_INFINITY;
+  /** Drží teď dítě domeček (hlásí stránka, #129 AC5)? */
+  let homeHeld = false;
+  /** Maže se teď obrázek z alba? */
+  let deleting = false;
+  /** Domeček se podržel během mazání: po mazání se ukáže album (#129 AC3). */
+  let homeAfterDeleting = false;
 
-  /** Začalo podržení až ve chvíli, kdy bylo malování vidět? */
-  const heldSincePaintingShown = (): boolean => now() - paintingShownAt >= HOLD_TO_GO_HOME_MS;
+  /** Začalo podržení až ve chvíli, kdy bylo malování nebo velký obrázek vidět? */
+  const heldSinceShown = (): boolean => now() - shownAt >= HOLD_TO_GO_HOME_MS;
+
+  const wobbleTrash = (): void => onTrash({ kind: 'trashWobble', tones: HOME_WOBBLE_TONES });
+
+  /** Smaže obrázek velkého obrázku a podle výsledku přepne obrazovku. */
+  const startDeleting = (): void => {
+    if (screen.kind !== 'bigPicture') {
+      return;
+    }
+    const shown = screen;
+    deleting = true;
+    homeAfterDeleting = false;
+    const done = removeAlbumEntry(options.records, shown.entry.recordId).then(
+      (removal): TrashResult => {
+        deleting = false;
+        const backToAlbum = homeAfterDeleting;
+        homeAfterDeleting = false;
+        if (removal === 'removed') {
+          screen = screenWithout(shown.entries, shown.entry);
+          return { kind: 'deleted' };
+        }
+        if (backToAlbum) {
+          screen = { kind: 'album', entries: shown.entries };
+        }
+        return { kind: 'failed', tones: HOME_WOBBLE_TONES };
+      },
+    );
+    onTrash({ kind: 'deleting', entry: shown.entry, done });
+  };
+
+  const trashHold = createHoldButton({
+    holdMs: TRASH_HOLD_MS,
+    isEnabled: () => screen.kind === 'bigPicture' && !deleting && !homeHeld,
+    onHoldComplete: startDeleting,
+    onTap: wobbleTrash,
+    onHoldingChange: (holding) => onTrash({ kind: 'trashHolding', holding }),
+  });
+
+  /** Koš: během mazání jen zhoupne, při drženém domečku nic, jinak podržení 1 s. */
+  const trashButton: HoldButton = {
+    press: (pointerId) => {
+      if (screen.kind !== 'bigPicture' || homeHeld) {
+        return;
+      }
+      if (deleting) {
+        wobbleTrash();
+        return;
+      }
+      trashHold.press(pointerId);
+    },
+    release: (pointerId) => trashHold.release(pointerId),
+    cancel: (pointerId) => trashHold.cancel(pointerId),
+    leave: (pointerId) => trashHold.leave(pointerId),
+    isHolding: () => trashHold.isHolding(),
+    dispose: () => trashHold.dispose(),
+  };
+
+  /** Domeček z velkého obrázku: do alba, během mazání až po mazání. */
+  const homeFromBigPicture = (shown: Extract<ColoringScreen, { kind: 'bigPicture' }>): HomeHold => {
+    if (trashHold.isHolding() || !heldSinceShown()) {
+      return 'ignored';
+    }
+    if (deleting) {
+      homeAfterDeleting = true;
+      return 'toAlbum';
+    }
+    screen = { kind: 'album', entries: shown.entries };
+    return 'toAlbum';
+  };
 
   return {
     previews: () => (onlyPicture === undefined ? pictures : []),
@@ -123,7 +268,7 @@ export function startPictureChoice(
         return;
       }
       screen = { kind: 'painting', picture: screen.picture };
-      paintingShownAt = now();
+      shownAt = now();
     },
     tapBook: (album) => {
       if (screen.kind !== 'picker') {
@@ -135,8 +280,28 @@ export function startPictureChoice(
       screen = { kind: 'album', entries: album.entries };
       return { kind: 'open', tones: PREVIEW_TAP_TONES, entries: album.entries };
     },
-    tapAlbumPreview: () =>
-      screen.kind === 'album' ? { kind: 'wobble', tones: HOME_WOBBLE_TONES } : { kind: 'ignored' },
+    tapAlbumPreview: (index) => {
+      if (screen.kind !== 'album' || !Number.isInteger(index)) {
+        return { kind: 'ignored' };
+      }
+      const entry = screen.entries[index];
+      if (entry === undefined) {
+        return { kind: 'ignored' };
+      }
+      screen = { kind: 'openingBigPicture', entries: screen.entries, entry };
+      return { kind: 'open', index, entry, tones: PREVIEW_TAP_TONES };
+    },
+    bigPictureShown: () => {
+      if (screen.kind !== 'openingBigPicture') {
+        return;
+      }
+      screen = { kind: 'bigPicture', entries: screen.entries, entry: screen.entry };
+      shownAt = now();
+    },
+    trashButton,
+    homeHolding: (holding) => {
+      homeHeld = holding;
+    },
     holdHome: () => {
       switch (screen.kind) {
         case 'album':
@@ -145,9 +310,12 @@ export function startPictureChoice(
         case 'picker':
           return 'toMenu';
         case 'opening':
+        case 'openingBigPicture':
           return 'ignored';
+        case 'bigPicture':
+          return homeFromBigPicture(screen);
         case 'painting':
-          if (!heldSincePaintingShown()) {
+          if (!heldSinceShown()) {
             return 'ignored';
           }
           if (onlyPicture !== undefined) {
