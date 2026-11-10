@@ -39,6 +39,7 @@ import { createMenuTouch } from '../logic/menuTouch';
 import { createPageUpdate } from '../logic/pageUpdate';
 import type { PageUpdate } from '../logic/pageUpdate';
 import { createProfileScreens } from '../logic/profileScreens';
+import { createTileImages } from '../logic/tileImages';
 import { MENU_SCENE_KEY, MENU_UNITS_PER_CSS_PX, MenuScene } from '../scenes/MenuScene';
 import { PROFILE_SCENE_KEY, ProfileScene } from '../scenes/ProfileScene';
 import { showPageLanguage } from './pageLanguage';
@@ -86,6 +87,10 @@ function createMenuGame(scenes: readonly Phaser.Scene[]): Phaser.Game {
     backgroundColor: PAGE_BACKGROUND,
     disableContextMenu: true,
     audio: { noAudio: true },
+    // Obrázek dlaždice 512 px se zmenšuje až na 88 jednotek plátna (#122);
+    // s mipmapami zůstane zmenšený obrázek hladký a bez zubů. Platí jen pro
+    // WebGL, při kreslení přes Canvas se nastavení nepoužije.
+    render: { mipmapFilter: 'LINEAR_MIPMAP_LINEAR' },
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -192,9 +197,13 @@ export function startMenuPage(options: MenuPageOptions): void {
   // Posun mřížky a kategorií žije s menu po celé načtení stránky, takže
   // po návratu z hry zůstane, jak ho dítě nechalo (#69 AC5).
   const touch = createMenuTouch({ menu });
+  // Obrázky dlaždic žijí s menu po celé načtení stránky, takže se po
+  // návratu z hry nic nenačítá znovu (#122 AC7).
+  const tileImages = createTileImages(options.games);
   const scene = new MenuScene({
     menu,
     touch,
+    tileImages,
     layout,
     onTapped: () => scene.redrawIfSelectionChanged(),
   });

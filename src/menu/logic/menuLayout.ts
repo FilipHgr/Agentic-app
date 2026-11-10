@@ -130,6 +130,14 @@ export interface MenuCategoryPicker {
   readonly list: MenuScrollArea;
 }
 
+/** Obrázek hry a název pod ním na jedné dlaždici (#122). */
+export interface MenuTileImage {
+  /** Čtverec obrázku vodorovně uprostřed dlaždice. */
+  readonly image: MenuBox;
+  /** Řádek názvu 2 px pod obrázkem, vysoký `TILE_TITLE_LINE` × písmo názvu. */
+  readonly title: MenuBox;
+}
+
 export interface MenuLayout {
   readonly mode: LayoutMode;
   readonly profileSlot: MenuBox;
@@ -150,6 +158,11 @@ export interface MenuLayout {
   readonly tileRadius: number;
   readonly tileSymbolFontSize: number;
   readonly tileTitleFontSize: number;
+  /**
+   * Obrázek a název každé dlaždice z `tiles` ve stejném pořadí (#122),
+   * v CSS px okna bez posunu mřížky jako `tiles`.
+   */
+  readonly tileImages: readonly MenuTileImage[];
   /** Mřížka se posouvá svisle. */
   readonly gridScroll: MenuScrollArea;
   /** Kategorie v řadě se posouvají vodorovně, ve sloupci svisle. */
@@ -707,6 +720,42 @@ function categoryPickerFor(
   };
 }
 
+/** Obrázek je od okrajů dlaždice aspoň tolik px, název od spodního okraje taky (#122). */
+const TILE_IMAGE_EDGE = 8;
+/** Mezera mezi obrázkem a názvem pod ním (#122). */
+const TILE_IMAGE_GAP = 2;
+/** Výška řádku názvu jako násobek velikosti písma (#122). */
+const TILE_TITLE_LINE = 1.2;
+
+/**
+ * Obrázek a název na dlaždici (#122): obrázek je co největší čtverec, který
+ * se s mezerou a názvem vejde do dlaždice s okraji 8 px. Obrázek, mezera
+ * a název tvoří skupinu uprostřed dlaždice.
+ */
+function tileImageFor(tile: MenuBox, titleFontSize: number): MenuTileImage {
+  const width = tile.right - tile.left;
+  const height = tile.bottom - tile.top;
+  const titleHeight = TILE_TITLE_LINE * titleFontSize;
+  const size = Math.max(
+    0,
+    Math.min(
+      width - 2 * TILE_IMAGE_EDGE,
+      height - TILE_IMAGE_EDGE - TILE_IMAGE_GAP - titleHeight - TILE_IMAGE_EDGE,
+    ),
+  );
+  const groupHeight = size + TILE_IMAGE_GAP + titleHeight;
+  const imageTop = tile.top + (height - groupHeight) / 2;
+  const centerX = (tile.left + tile.right) / 2;
+  const image = boxAt(centerX - size / 2, imageTop, size, size);
+  const title = boxAt(
+    tile.left + TILE_IMAGE_EDGE,
+    image.bottom + TILE_IMAGE_GAP,
+    width - 2 * TILE_IMAGE_EDGE,
+    titleHeight,
+  );
+  return { image, title };
+}
+
 export function menuLayoutFor(viewport: Viewport | undefined, content: MenuContent): MenuLayout {
   const mode = chooseLayoutMode(viewport);
   const metrics = metricsFor(mode);
@@ -856,6 +905,7 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     tileRadius: metrics.tileRadius,
     tileSymbolFontSize: tileSymbolFontSize(mode, tileHeight),
     tileTitleFontSize: metrics.tileTitleFontSize,
+    tileImages: tiles.map((tile) => tileImageFor(tile, metrics.tileTitleFontSize)),
     gridScroll: { viewport: gridViewport, clip: gridClip, maxOffset: gridMaxOffset },
     categoryScroll: {
       viewport: categoryViewport,

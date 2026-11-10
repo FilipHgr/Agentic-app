@@ -14,6 +14,7 @@ import type {
 import { MENU_SOUNDS, menuSoundFor } from '../logic/menuSounds';
 import type { MenuTouch, TouchPoint } from '../logic/menuTouch';
 import { MENU_STYLE, PLACEHOLDER_BORDER_WIDTH } from '../logic/menuTheme';
+import type { TileImages } from '../logic/tileImages';
 import {
   LANGUAGE_PANEL_SHADOW,
   languageButtonArt,
@@ -27,6 +28,11 @@ export const MENU_UNITS_PER_CSS_PX = 2;
 
 /** Klíč scény menu ve hře Phaseru. */
 export const MENU_SCENE_KEY = 'menu';
+
+/** Klíč textury obrázku dlaždice hry (#122). */
+function tileTextureKey(gameId: string): string {
+  return `menu-tile-${gameId}`;
+}
 
 /** Symbol zástupného tlačítka (není to text jazyka). */
 const PLACEHOLDER_SYMBOL = '…';
@@ -47,6 +53,8 @@ export interface MenuSceneHost {
   readonly menu: Menu;
   /** Dotyky prstem: posouvání a ťuknutí (#69). */
   readonly touch: MenuTouch;
+  /** Obrázky dlaždic (#122); žijí po celou dobu stránky, ne se scénou. */
+  readonly tileImages: TileImages;
   /** Rozložení pro současné okno a obsah menu. */
   layout(): MenuLayout;
   /** Po každém zvednutí prstu. */
@@ -78,6 +86,10 @@ interface Tappable {
  * kategorií stejně jako nabídka jazyků ve dvou kamerách nad mřížkou
  * (karta a posouvané řádky). Otevření a zavření seznamu překreslí jen
  * tlačítko a seznam, výběr jiné kategorie celé menu.
+ *
+ * Obrázky dlaždic (#122) načte scéna loaderem Phaseru a výsledek každého
+ * hlásí do `TileImages`. Menu se nakreslí, až jsou obrázky vyřízené, nebo
+ * nejdéle po limitu čekání; do té doby je vidět jen pozadí stránky.
  */
 export class MenuScene extends Phaser.Scene {
   private readonly sounds = createTonePlayer(sharedToneContext);
@@ -119,6 +131,8 @@ export class MenuScene extends Phaser.Scene {
   private pickerRedrawWanted = false;
   /** Kategorie vybraná při posledním kreslení. */
   private drawnSelection: string | undefined;
+  /** Menu je nakreslené: obrázky dlaždic jsou vyřízené nebo uplynul limit (#122). */
+  private menuShown = false;
 
   constructor(private readonly host: MenuSceneHost) {
     super(MENU_SCENE_KEY);
@@ -162,10 +176,14 @@ export class MenuScene extends Phaser.Scene {
     this.pickerListCamera = this.cameras.add(0, 0, 1, 1);
     onlyLayer(this.pickerListCamera, this.pickerListLayer);
     this.listenToFingers();
-    this.redraw();
+    this.loadTileImages();
+    this.showMenuWhenReady();
   }
 
   override update(): void {
+    if (!this.showMenuWhenReady()) {
+      return;
+    }
     this.host.touch.frame(performance.now());
     if (this.redrawWanted) {
       this.redrawWanted = false;
@@ -216,19 +234,90 @@ export class MenuScene extends Phaser.Scene {
     this.held = item;
   }
 
-  /** Dotyky prstů v CSS px okna jdou do logiky dotyků. */
+  /**
+   * Načte obrázky dlaždic, které se ještě nikdy nenačítaly (#122), a výsledek
+   * každého ohlásí. Po návratu z hry už není co načítat.
+   */
+  private loadTileImages(): void {
+    const requests = this.host.tileImages.startShowing(performance.now());
+    if (requests.length === 0) {
+      return;
+    }
+    const gameIdByKey = new Map<string, string>();
+    for (const request of requests) {
+      const key = tileTextureKey(request.gameId);
+      gameIdByKey.set(key, request.gameId);
+      this.load.image(key, request.url);
+    }
+    const onFileComplete = (key: string): void => {
+      const gameId = gameIdByKey.get(key);
+      if (gameId !== undefined) {
+        this.host.tileImages.settle(gameId, true, performance.now());
+      }
+    };
+    const onFileError = (file: Phaser.Loader.File): void => {
+      const gameId = gameIdByKey.get(file.key);
+      if (gameId !== undefined) {
+        this.host.tileImages.settle(gameId, false, performance.now());
+      }
+    };
+    this.load.on(Phaser.Loader.Events.FILE_COMPLETE, onFileComplete);
+    this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, onFileError);
+    // Soubor, který se stáhne, ale nejde dekódovat (třeba HTML místo obrázku),
+    // chybu načtení nehlásí. Po konci načítání se proto všechno, co se
+    // nenačetlo, bere jako nenačtené, aby menu nečekalo celý limit. Už
+    // vyřízené obrázky `settle` přeskočí.
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      this.load.off(Phaser.Loader.Events.FILE_COMPLETE, onFileComplete);
+      this.load.off(Phaser.Loader.Events.FILE_LOAD_ERROR, onFileError);
+      for (const gameId of gameIdByKey.values()) {
+        this.host.tileImages.settle(gameId, false, performance.now());
+      }
+    });
+    this.load.start();
+  }
+
+  /**
+   * Nakreslí menu, jakmile smí (#122 AC3). Vrací, jestli je menu nakreslené.
+   * Do té doby kamery nic nekreslí a je vidět jen pozadí plátna.
+   */
+  private showMenuWhenReady(): boolean {
+    if (this.menuShown) {
+      return true;
+    }
+    if (!this.host.tileImages.isReady(performance.now())) {
+      return false;
+    }
+    this.menuShown = true;
+    this.redrawWanted = false;
+    this.panelRedrawWanted = false;
+    this.pickerRedrawWanted = false;
+    this.redraw();
+    return true;
+  }
+
+  /** Dotyky prstů v CSS px okna jdou do logiky dotyků; před nakreslením menu nic. */
   private listenToFingers(): void {
     const pointOf = (pointer: Phaser.Input.Pointer): TouchPoint => ({
       x: pointer.x / MENU_UNITS_PER_CSS_PX,
       y: pointer.y / MENU_UNITS_PER_CSS_PX,
     });
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (!this.menuShown) {
+        return;
+      }
       this.host.touch.pointerDown(pointer.id, pointOf(pointer), performance.now());
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (!this.menuShown) {
+        return;
+      }
       this.host.touch.pointerMove(pointer.id, pointOf(pointer), performance.now());
     });
     const release = (pointer: Phaser.Input.Pointer): void => {
+      if (!this.menuShown) {
+        return;
+      }
       if (pointer.wasCanceled) {
         this.host.touch.pointerCancel(pointer.id);
         return;
@@ -345,7 +434,7 @@ export class MenuScene extends Phaser.Scene {
     tiles.forEach((tile, index) => {
       const box = layout.tiles[index];
       if (box !== undefined) {
-        this.drawTile(layout, box, tile.gameId, tile.symbol, tile.title);
+        this.drawTile(layout, index, box, tile.gameId, tile.symbol, tile.title);
       }
     });
     this.redrawLanguagePanel();
@@ -697,6 +786,7 @@ export class MenuScene extends Phaser.Scene {
 
   private drawTile(
     layout: MenuLayout,
+    index: number,
     box: MenuBox,
     gameId: string,
     symbolText: string,
@@ -726,24 +816,55 @@ export class MenuScene extends Phaser.Scene {
       .fillStyle(colorNumber(MENU_STYLE.tileBackground), 1)
       .fillRoundedRect(-width / 2, -height / 2, width, height, radius);
 
-    const symbol = this.text(
-      symbolText,
-      layout.tileSymbolFontSize,
-      MENU_STYLE.tileSymbolColor,
-      '300',
-    ).setOrigin(0.5);
     const title = this.text(
       titleText,
       layout.tileTitleFontSize,
       MENU_STYLE.tileTitleColor,
     ).setOrigin(0.5);
-    // Symbol nad názvem, oba dohromady uprostřed dlaždice.
-    const gap = 6 * unit;
-    const total = symbol.height + gap + title.height;
-    symbol.y = -total / 2 + symbol.height / 2;
-    title.y = total / 2 - title.height / 2;
-    item.container.add([shadow, background, symbol, title]);
+    const face = layout.tileImages[index];
+    const key = tileTextureKey(gameId);
+    // Obrázek jen s opravdu načtenou texturou, jinak by Phaser nakreslil
+    // zástupný obrázek pro chybějící texturu (#122 AC2).
+    if (
+      face !== undefined &&
+      this.host.tileImages.faceOf(gameId) === 'image' &&
+      this.textures.exists(key)
+    ) {
+      const image = this.tileImage(key, box, face.image);
+      const titleCenter = this.relativeCenter(box, face.title);
+      title.setPosition(titleCenter.x, titleCenter.y);
+      item.container.add([shadow, background, image, title]);
+    } else {
+      const symbol = this.text(
+        symbolText,
+        layout.tileSymbolFontSize,
+        MENU_STYLE.tileSymbolColor,
+        '300',
+      ).setOrigin(0.5);
+      // Symbol nad názvem, oba dohromady uprostřed dlaždice.
+      const gap = 6 * unit;
+      const total = symbol.height + gap + title.height;
+      symbol.y = -total / 2 + symbol.height / 2;
+      title.y = total / 2 - title.height / 2;
+      item.container.add([shadow, background, symbol, title]);
+    }
     this.tiles.set(gameId, item);
+  }
+
+  /** Obrázek dlaždice ve čtverci z rozložení (#122 AC4). */
+  private tileImage(key: string, tile: MenuBox, square: MenuBox): Phaser.GameObjects.Image {
+    const center = this.relativeCenter(tile, square);
+    const size = (square.right - square.left) * MENU_UNITS_PER_CSS_PX;
+    return this.add.image(center.x, center.y, key).setDisplaySize(size, size);
+  }
+
+  /** Střed obdélníku v jednotkách plátna vzhledem ke středu dlaždice. */
+  private relativeCenter(tile: MenuBox, box: MenuBox): { x: number; y: number } {
+    const unit = MENU_UNITS_PER_CSS_PX;
+    return {
+      x: ((box.left + box.right) / 2 - (tile.left + tile.right) / 2) * unit,
+      y: ((box.top + box.bottom) / 2 - (tile.top + tile.bottom) / 2) * unit,
+    };
   }
 
   // ---------------------------------------------------------------------------

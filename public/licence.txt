@@ -11,6 +11,12 @@ Hlas v průvodci nastavením (public/voice/cs/counting/guide/) je vytvořený sl
 ElevenLabs (https://elevenlabs.io), hlas ID 7JbZPqJGWUfXXBim0T8U, model
 eleven_multilingual_v2. Použito v rámci komerčního tarifu vlastníka hry.
 
+Obrázky na dlaždicích her v menu (src/games/counting/tile.webp,
+src/games/coloring/tile.webp) jsou vytvořené službou ElevenLabs
+(https://elevenlabs.io), model GPT Image 2.5. Použito v rámci komerčního
+tarifu vlastníka hry. Úprava: zmenšeno na 512 px, pozadí #F5F5F7 vybělené
+do bílé, převedeno na WebP.
+
 Testovací omalovánka (src/games/coloring/pictures/house.svg, domeček, strom
 a slunce) je vlastní dílo vytvořené pro tuto hru, bez cizích zdrojů.
 

@@ -13,7 +13,7 @@
     "test:coloring": "vitest run tests/games/coloring/ tests/shared/boundaries.test.ts",
     "test:recognition": "vitest run .slow.test.ts",
     "test:menu": "vitest run tests/menu/ tests/shared/boundaries.test.ts",
-    "test:whole": "vitest run tests/shared/boundaries.test.ts tests/shared/hardcodedTexts.test.ts",
+    "test:whole": "vitest run tests/shared/boundaries.test.ts tests/shared/hardcodedTexts.test.ts tests/menu/tileImageFiles.test.ts",
     "test:changed": "node tools/test/runChangedTests.ts",
     "lint": "eslint . && prettier --check .",
     "deploy": "npm run build && wrangler deploy",

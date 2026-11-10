@@ -24,6 +24,10 @@ import { describe, expect, it } from 'vitest';
  * a místní zdroj stavu předplatného (`src/shared/logic/subscriptionSource.ts`)
  * nesmějí používat síť, úložiště ani adresu stránky a smějí importovat jen
  * sdílenou část (žádnou hru, menu, stránku ani balíček).
+ *
+ * #122: `meta.ts` smí navíc importovat obrázek dlaždice své hry
+ * `./tile.webp`, bez dotazu. Jiný obrázek hry, obrázek s dotazem, obrázek
+ * jiné hry ani přímý import `tile.webp` z menu nebo seznamu her se nesmí.
  */
 
 /** Zdrojové texty všech `.ts` souborů v `src/` podle cesty od kořene repa. */
@@ -107,6 +111,21 @@ function isPhaser(specifier: string): boolean {
   return specifier === 'phaser' || specifier.startsWith('phaser/');
 }
 
+/** Pravidlo pro `meta.ts` hry (#67, #122). */
+const META_RULE = 'meta.ts hry importuje z hry víc než texty a obrázek dlaždice';
+
+/**
+ * Co smí `meta.ts` importovat ze své hry: texty jazyků (#67) a obrázek
+ * dlaždice `tile.webp` (#122), ten jen bez dotazu (`?raw`, `?url`…),
+ * protože dotaz mění, co se do startovního souboru dostane.
+ */
+function isAllowedInMeta(target: string, specifier: string, game: string): boolean {
+  if (target.startsWith(`src/games/${game}/texts/`)) {
+    return true;
+  }
+  return target === `src/games/${game}/tile.webp` && !specifier.includes('?');
+}
+
 /** Které pravidlo import porušuje, nebo `null`, když je v pořádku. */
 function brokenRule(file: string, specifier: string, target: string | null): string | null {
   if (file.split('/').includes('logic') && isPhaser(specifier)) {
@@ -120,8 +139,8 @@ function brokenRule(file: string, specifier: string, target: string | null): str
   }
   const game = gameOf(file);
   const targetGame = gameOf(target);
-  if (isGameMeta(file) && targetGame === game && !target.startsWith(`src/games/${game}/texts/`)) {
-    return 'meta.ts hry importuje z hry víc než texty';
+  if (isGameMeta(file) && game !== null && targetGame === game) {
+    return isAllowedInMeta(target, specifier, game) ? null : META_RULE;
   }
   if (game !== null) {
     if (targetGame !== null && targetGame !== game) {
@@ -321,8 +340,67 @@ describe('AC2: hranice mezi částmi hlídá test', () => {
       ['vstup hry index.ts', "import { GameScene } from './index';"],
     ])('meta.ts hry nesmí importovat %s', (_name, code) => {
       expect(violationsWith('src/games/counting/meta.ts', code)).toEqual([
-        expect.objectContaining({ rule: 'meta.ts hry importuje z hry víc než texty' }),
+        expect.objectContaining({ rule: META_RULE }),
       ]);
+    });
+
+    it('#122: meta.ts hry smí importovat obrázek dlaždice své hry ./tile.webp', () => {
+      expect(
+        violationsWith('src/games/counting/meta.ts', "import tile from './tile.webp';"),
+      ).toEqual([]);
+    });
+
+    it.each([
+      ['obrázek ze složky pictures', "import cat from './pictures/cat.svg';"],
+      ['ikonu ze složky icons', "import brush from './icons/brush.svg';"],
+      ['obrázek dlaždice v jiném formátu', "import tile from './tile.png';"],
+      ['tile.webp v podsložce', "import tile from './assets/tile.webp';"],
+    ])('#122: meta.ts hry nesmí importovat jiný obrázek hry (%s)', (_name, code) => {
+      expect(violationsWith('src/games/counting/meta.ts', code)).toEqual([
+        expect.objectContaining({ rule: META_RULE }),
+      ]);
+    });
+
+    it.each([
+      ['?raw', "import tile from './tile.webp?raw';"],
+      ['?url', "import tile from './tile.webp?url';"],
+      ['?inline', "import tile from './tile.webp?inline';"],
+      ['prázdný dotaz', "import tile from './tile.webp?';"],
+    ])('#122: meta.ts hry nesmí importovat obrázek dlaždice s dotazem %s', (_name, code) => {
+      expect(violationsWith('src/games/counting/meta.ts', code)).toEqual([
+        expect.objectContaining({ rule: META_RULE }),
+      ]);
+    });
+
+    it.each([
+      ['meta.ts', 'src/games/counting/meta.ts', "import tile from '../jina/tile.webp';"],
+      [
+        'scéna',
+        'src/games/counting/scenes/GameScene.ts',
+        "import tile from '../../jina/tile.webp';",
+      ],
+    ])('#122: hra nesmí importovat obrázek dlaždice jiné hry (%s)', (_name, file, code) => {
+      expect(violationsWith(file, code)).toEqual([
+        expect.objectContaining({ rule: 'hra importuje jinou hru' }),
+      ]);
+    });
+
+    it.each([
+      ['menu', 'src/menu/logic/menu.ts', "import tile from '../../games/counting/tile.webp';"],
+      ['seznam her', 'src/gameList.ts', "import tile from './games/counting/tile.webp';"],
+      ['src/main.ts', 'src/main.ts', "import tile from './games/counting/tile.webp';"],
+    ])('#122: %s nesmí importovat tile.webp hry přímo, jen přes meta.ts', (_name, file, code) => {
+      expect(violationsWith(file, code)).toEqual([
+        expect.objectContaining({ rule: 'z hry se importuje jen její index.ts nebo meta.ts' }),
+      ]);
+    });
+
+    it('#122: kontrola vidí, že meta.ts každé hry v src/ importuje obrázek dlaždice ./tile.webp', () => {
+      const metas = Object.keys(SOURCES).filter(isGameMeta);
+      expect(metas.length).toBeGreaterThan(0);
+      for (const file of metas) {
+        expect(importsOf(SOURCES[file] ?? ''), file).toContain('./tile.webp');
+      }
     });
 
     it('meta.ts hry nesmí importovat Phaser', () => {

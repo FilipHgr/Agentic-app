@@ -41,8 +41,8 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
     nastavení, společné barvy, úložiště, přehrávač tónů),
   - `src/games/<hra>/` jednotlivé hry (dnes `counting` = Počítání) se
     vstupem `index.ts` (scény hry, stahuje se až po ťuknutí v menu)
-    a `meta.ts` (id, kategorie, symbol dlaždice a název z textů hry, nic
-    dalšího, žádný Phaser),
+    a `meta.ts` (id, kategorie, symbol dlaždice, název z textů hry
+    a obrázek dlaždice z importu `./tile.webp`, nic dalšího, žádný Phaser),
   - `src/menu/` úvodní menu s výběrem her (logika, scéna, texty).
   `src/main.ts` je vstup stránky a startuje menu. Seznam her je
   `src/gameList.ts`, registr (tvar záznamu, kategorie) je
@@ -58,7 +58,9 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
      v `src/menu/texts/<jazyk>.ts` a vlastní symbol bez emoji podoby,
   3. záznam v `src/gameList.ts` (`gameEntry(meta, () => import('./games/<id>'))`),
   4. název hry `title` v textech hry ve všech jazycích,
-  5. testy v `tests/games/<id>/` a skript `test:<id>` v `package.json`.
+  5. obrázek dlaždice `tile.webp` ve složce hry (čtverec 512 px, bílé
+     pozadí, nejvýš 8 192 B, původ v `public/licence.txt`),
+  6. testy v `tests/games/<id>/` a skript `test:<id>` v `package.json`.
 - Ve složkách `logic/` (`src/shared/logic/`, `src/games/<hra>/logic/`) je čistý
   TypeScript bez Phaseru (příklady, vyhodnocení, obtížnost, body), ve
   `scenes/` hry Phaser scény, které logiku jen volají. Testy jsou
@@ -96,7 +98,8 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
   `*.slow.test.ts`, `test:counting` je vynechává). Pouští se při změně
   rozpoznávání, jeho vzorů, sady vzorků nebo testů skupiny (`test:changed`
   ji pustí sám) a vždy v `npm test`, a tedy i v CI.
-- `npm run test:whole` kontroly celku (test hranic a natvrdo napsaných textů).
+- `npm run test:whole` kontroly celku (test hranic, natvrdo napsaných textů
+  a souborů obrázků dlaždic her).
 - `npm run test:changed` testy částí změněných od posledního commitu
   a kontroly celku; změna mimo části pustí všechny testy. Při práci se
   pouští `npm run test:changed`, celé `npm test` běží před PR a v CI.

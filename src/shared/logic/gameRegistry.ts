@@ -43,6 +43,11 @@ export interface GameMeta {
   readonly access: GameAccess;
   /** Název hry v každém jazyce, z textů hry. */
   readonly titles: Readonly<Record<Language, string>>;
+  /**
+   * Adresa obrázku dlaždice (#122) z importu `./tile.webp` v `meta.ts`:
+   * `data:` adresa, nebo soubor na stejné stránce (rozhodne Vite).
+   */
+  readonly tile: string;
 }
 
 /** Záznam hry v registru. */
@@ -54,6 +59,11 @@ export interface GameEntry {
   readonly symbol: string;
   /** Zdarma, nebo v předplatném (#74). */
   readonly access: GameAccess;
+  /**
+   * Adresa obrázku dlaždice (#122). Bez ní (zkušební seznamy her) ukáže
+   * dlaždice symbol.
+   */
+  readonly tile?: string;
   /** Stáhne hru (vstup `src/games/<hra>/index.ts`). */
   readonly load: () => Promise<unknown>;
 }
@@ -71,6 +81,7 @@ export function gameEntry(meta: GameMeta, load: () => Promise<unknown>): GameEnt
     categoryId: meta.categoryId,
     symbol: meta.symbol,
     access: meta.access,
+    tile: meta.tile,
     load,
   };
 }

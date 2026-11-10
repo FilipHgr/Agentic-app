@@ -11,6 +11,9 @@ import { GAMES } from '../../src/gameList';
  * buildu. Velikosti souborů a samostatný soubor každé hry se kontrolují
  * z výstupu `npm run build` (AC7). Rozpoznávání psaní hlídá
  * `tests/games/counting/startupImports.test.ts`.
+ *
+ * #122 AC6: řetěz sleduje kromě `.ts` i obrázky `.webp` (obrázek dlaždice
+ * hry z jejího `meta.ts`), aby bylo vidět, které obrázky menu stáhne hned.
  */
 
 const SOURCES: Record<string, string> = Object.fromEntries(
@@ -21,6 +24,11 @@ const SOURCES: Record<string, string> = Object.fromEntries(
       eager: true,
     }),
   ).map(([path, text]) => [path.replace('../../', ''), text]),
+);
+
+/** Obrázky WebP v `src/` (jen cesty, obsah test nepotřebuje). */
+const WEBP_FILES: ReadonlySet<string> = new Set(
+  Object.keys(import.meta.glob('../../src/**/*.webp')).map((path) => path.replace('../../', '')),
 );
 
 const ENTRY = 'src/main.ts';
@@ -82,6 +90,9 @@ function resolve(fromFile: string, specifier: string): string | null {
     }
   }
   const base = parts.join('/');
+  if (WEBP_FILES.has(base)) {
+    return base;
+  }
   for (const candidate of [base, `${base}.ts`, `${base}/index.ts`]) {
     if (SOURCES[candidate] !== undefined) {
       return candidate;
@@ -135,14 +146,28 @@ describe('#67 AC4: po otevření stránky se stáhne jen menu', () => {
 
   // Rozhodnutí o meta.ts (#67): menu potřebuje název, kategorii a symbol hry
   // dřív, než se hra stáhne, proto je z hry ve startovním souboru jen její
-  // meta.ts a texty jazyků, ze kterých se bere název.
-  it('ve startovním souboru není z žádné hry nic kromě meta.ts a textů s názvem', () => {
+  // meta.ts a texty jazyků, ze kterých se bere název. #122 AC6: a obrázek
+  // dlaždice tile.webp.
+  it('ve startovním souboru není z žádné hry nic kromě meta.ts, textů s názvem a obrázku dlaždice', () => {
     const gameFiles = [...startupFiles()].filter((file) => file.startsWith('src/games/'));
-    const allowed = /^src\/games\/[^/]+\/(?:meta\.ts|texts\/[a-z]{2,3}(?:-[A-Z]{2})?\.ts)$/;
+    const allowed =
+      /^src\/games\/[^/]+\/(?:meta\.ts|tile\.webp|texts\/[a-z]{2,3}(?:-[A-Z]{2})?\.ts)$/;
     expect(gameFiles.filter((file) => !allowed.test(file))).toEqual([]);
     for (const game of GAMES) {
       expect(gameFiles, game.id).toContain(`src/games/${game.id}/meta.ts`);
     }
+  });
+
+  it('#122 AC6: menu zná obrázek dlaždice každé hry hned po otevření stránky, bez stažení hry', () => {
+    const files = [...startupFiles()];
+    for (const game of GAMES) {
+      expect(files, game.id).toContain(`src/games/${game.id}/tile.webp`);
+    }
+  });
+
+  it('#122 AC6: z obrázků ve startovním souboru jsou jen obrázky dlaždic her', () => {
+    const images = [...startupFiles()].filter((file) => file.endsWith('.webp'));
+    expect(images.filter((file) => !/^src\/games\/[^/]+\/tile\.webp$/.test(file))).toEqual([]);
   });
 
   it('každá hra ze seznamu se dá stáhnout až později přes vstup své složky', () => {
