@@ -284,3 +284,5 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   jen nástrojem `tools/design/fetch-image.mjs` (HTTPS, jen
   elevenlabsusercontent.com, jen obrázky). Osobní cloudové prostředí
   „Agentic-app“ povoluje jen tento server navíc.
+- 2026-11-10 Dlaždice her: vybrána sada 2 (C2 „+ −“, D2 pastelka s delší
+  čárou), pozadí obrázků vybělené do bílé dlaždice. Připravit úkol.
