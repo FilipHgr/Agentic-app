@@ -276,3 +276,8 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   mají být malé soubory, aby se rychle stahovaly.
 - 2026-11-10 Zákaz postaviček z 2026-11-05 neplatí pro nový design obrázků
   (dlaždice her atd.), postavičky na obrázcích smí být.
+- 2026-11-10 Claude smí stahovat vygenerované obrázky z ElevenLabs (do
+  dočasné složky, do hry jen vybrané a zmenšené). Návrhy ukazovat rovnou tak,
+  jak by vypadaly ve hře. Styl dlaždic minimalistický a čistý, model GPT
+  Image 2.5 (první zkouška Recraft byla nepřehledná). Stahování zatím brání
+  zákaz `curl`/`wget` v `.claude/settings.json`, úzká výjimka čeká na souhlas.
