@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="768" viewBox="0 0 1024 768">
+  <!-- Testovací omalovánka (#88): domeček, strom a slunce, vlastní dílo.
+       Jen obrys na průhledném pozadí, oblasti spočítá hra při startu. -->
+  <g fill="none" stroke="#1D1D1F" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Zem přes celou šířku dělí nebe a trávu. -->
+    <path d="M0 600 L1024 600" />
+    <!-- Domeček: stěna, střecha, komín, dveře, malé okno a kulaté okno ve střeše. -->
+    <rect x="200" y="380" width="320" height="220" />
+    <path d="M180 380 L360 240 L540 380 Z" />
+    <path d="M440 302 L440 250 L480 250 L480 333" />
+    <rect x="290" y="470" width="70" height="130" />
+    <rect x="410" y="440" width="50" height="50" />
+    <circle cx="360" cy="320" r="24" />
+    <!-- Strom: koruna a tenký kmen až k zemi. -->
+    <circle cx="800" cy="380" r="90" />
+    <path d="M790 469 L790 600 M812 469 L812 600" />
+    <!-- Slunce s paprsky a mrak. -->
+    <circle cx="150" cy="130" r="55" />
+    <path
+      d="M150 55 L150 35 M150 205 L150 225 M75 130 L55 130 M225 130 L245 130 M97 77 L83 63 M203 183 L217 197 M97 183 L83 197 M203 77 L217 63"
+    />
+    <path d="M520 160 A40 40 0 0 1 560 90 A55 55 0 0 1 660 85 A40 40 0 0 1 690 160 Z" />
+  </g>
+</svg>

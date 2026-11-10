@@ -6,6 +6,9 @@
  * Spuštění z kořene repa (po `npm run build`):
  *   node tools/screenshots/take.mjs [složka]
  *
+ * Stránka začíná v menu (#67): nástroj nejdřív ťukne na dlaždici Počítání
+ * a teprve pak fotí hru.
+ *
  * Udělá snímky na iPadu na šířku, na telefonu na výšku a na telefonu na šířku
  * (#54: 844×340 iPhone s výřezem, 800×300 Samsung) v těchto stavech:
  * průvodce nastavením při prvním spuštění (všechny kroky), začátek hry, nápověda po dvou chybách, počítání teček ťukáním,
@@ -14,7 +17,8 @@
  * šířku navíc otočení na výšku a zpět a oslava po deseti hvězdičkách.
  * Výřez iPhonu Playwright neumí, nasimuluje se přes `#safe-area-probe`
  * a na snímku je černě. Místa pro ťuknutí na telefonu se berou ze
- * skutečného rozložení (`src/logic/deviceLayout.ts` přes Vite).
+ * skutečného rozložení (`src/shared/logic/viewportLayout.ts`
+ * a `src/games/counting/logic/deviceLayout.ts` přes Vite).
  * Použije WebKit (jako Safari), když je k dispozici, jinak Chromium a řekne to.
  * Playwright není závislost projektu, musí být nainstalovaný v systému.
  */
@@ -27,6 +31,13 @@ import { createServer, preview } from 'vite';
 
 const require = createRequire(import.meta.url);
 const outputDir = process.argv[2] ?? 'snimky';
+
+/**
+ * Postup Počítání výchozího profilu (#71). Nástroj začíná s prázdným
+ * úložištěm, takže hra ukládá do výchozího profilu s označením `default`
+ * (`DEFAULT_PROFILE_ID` v `src/shared/logic/profiles.ts`).
+ */
+const PROGRESS_KEY = 'agentic-app.profile.default.counting.agentic-app.progress';
 
 /** Herní plocha má pevně 1024 × 768 a na obrazovce se jen zmenší nebo zvětší. */
 const GAME_WIDTH = 1024;
@@ -124,7 +135,7 @@ async function launchBrowser(playwright) {
 
 /** Převede herní souřadnice na souřadnice stránky. */
 async function toPage(page, point) {
-  const box = await page.locator('canvas').boundingBox();
+  const box = await page.locator('#game canvas').boundingBox();
   return {
     x: box.x + (point.x / GAME_WIDTH) * box.width,
     y: box.y + (point.y / GAME_HEIGHT) * box.height,
@@ -160,6 +171,8 @@ async function shootDevice(browser, url, device, layoutModule) {
   page.on('pageerror', (error) => errors.push(error.message));
 
   await page.goto(url);
+  await page.waitForTimeout(1000);
+  await openCounting(page, layoutModule, device.viewport, NO_NOTCH);
   await page.waitForTimeout(1500);
   // Nový prohlížeč nemá uložené nastavení: průvodce nastavením (#49).
   const guideRight = guideRightTarget(layoutModule, device.viewport, NO_NOTCH);
@@ -267,6 +280,29 @@ async function tapAt(page, point) {
   await page.mouse.click(point.x, point.y);
 }
 
+/**
+ * Menu (#67): ťukne na dlaždici Počítání a počká, až hra naběhne. Místo
+ * dlaždice se bere ze skutečného rozložení menu (`src/menu/logic/menuLayout.ts`).
+ */
+async function openCounting(page, layoutModule, viewport, safeArea) {
+  const titles = layoutModule
+    .visibleCategories(layoutModule.GAMES, layoutModule.GAME_CATEGORIES)
+    .map((id) =>
+      [layoutModule.ALL_CATEGORY, ...layoutModule.GAME_CATEGORIES].find(
+        (category) => category.id === id,
+      ),
+    )
+    .map((category) => layoutModule.menuText(category.titleKey, 'cs'));
+  const layout = layoutModule.menuLayoutFor(
+    { ...viewport, safeArea },
+    { categoryTitles: titles, tileCount: layoutModule.GAMES.length },
+  );
+  const index = layoutModule.GAMES.findIndex((game) => game.id === 'counting');
+  const tile = layout.tiles[index];
+  await tapAt(page, { x: (tile.left + tile.right) / 2, y: (tile.top + tile.bottom) / 2 });
+  await page.waitForFunction(() => document.getElementById('menu')?.hidden === true);
+}
+
 async function drawAt(page, points) {
   const [first, ...rest] = points;
   await page.mouse.move(first.x, first.y);
@@ -306,6 +342,8 @@ async function shootPhone(browser, url, device, layoutModule) {
 
   const guideRight = guideRightTarget(layoutModule, device.viewport, device.safeArea);
   await page.goto(url);
+  await page.waitForTimeout(1000);
+  await openCounting(page, layoutModule, device.viewport, device.safeArea);
   await page.waitForTimeout(1500);
   await shot('0b-pruvodce-rozsah');
   for (let step = 0; step < 3; step += 1) {
@@ -322,10 +360,10 @@ async function shootPhone(browser, url, device, layoutModule) {
   const keypad = layoutModule.layoutPhoneScreen(map.area, 11, 10);
   const wrong = map.game(keypad.answerButtons[10]);
   const earnedStar = () =>
-    page.evaluate(() => {
-      const saved = localStorage.getItem('agentic-app.progress');
+    page.evaluate((key) => {
+      const saved = localStorage.getItem(key);
       return saved !== null && !saved.includes('"earned":0');
-    });
+    }, PROGRESS_KEY);
   // Když 10 náhodou správná odpověď byla, přijde další příklad a zkusí se znovu.
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await tapAt(page, wrong);
@@ -333,7 +371,7 @@ async function shootPhone(browser, url, device, layoutModule) {
     if (!(await earnedStar())) {
       break;
     }
-    await page.evaluate(() => localStorage.removeItem('agentic-app.progress'));
+    await page.evaluate((key) => localStorage.removeItem(key), PROGRESS_KEY);
     await page.waitForTimeout(1000);
   }
   await tapAt(page, wrong);
@@ -426,18 +464,18 @@ async function shootPhoneCelebration(browser, url, device, layoutModule) {
       'agentic-app.settings',
       JSON.stringify({ maxNumber: 10, operations: 'plus', answerInput: 'keypad' }),
     );
-    localStorage.setItem('agentic-app.progress', JSON.stringify({ earned: 9, character: 'robik' }));
+    localStorage.setItem('agentic-app.progress', JSON.stringify({ earned: 9 }));
   });
   const map = phoneMapper(layoutModule, device);
   const keypad = layoutModule.layoutPhoneScreen(map.area, 11, 10);
   const five = map.game(keypad.answerButtons[5]);
   const starEarned = () =>
-    page.evaluate(() =>
-      (localStorage.getItem('agentic-app.progress') ?? '').includes('"earned":10'),
-    );
+    page.evaluate((key) => (localStorage.getItem(key) ?? '').includes('"earned":10'), PROGRESS_KEY);
 
   for (let attempt = 0; attempt < 40; attempt += 1) {
     await page.goto(url);
+    await page.waitForTimeout(800);
+    await openCounting(page, layoutModule, device.viewport, device.safeArea);
     await page.waitForTimeout(1200);
     await tapAt(page, five);
     await page.waitForTimeout(300);
@@ -457,7 +495,17 @@ async function loadLayoutModule() {
   try {
     return {
       server,
-      module: await server.ssrLoadModule('/src/logic/deviceLayout.ts'),
+      // Herní plocha podle okna je ve sdílené části, rozložení hry v Počítání (#64).
+      module: {
+        ...(await server.ssrLoadModule('/src/shared/logic/viewportLayout.ts')),
+        ...(await server.ssrLoadModule('/src/games/counting/logic/deviceLayout.ts')),
+        // Dlaždice Počítání v menu (#67).
+        ...(await server.ssrLoadModule('/src/menu/logic/menuLayout.ts')),
+        ...(await server.ssrLoadModule('/src/menu/logic/menuCategories.ts')),
+        ...(await server.ssrLoadModule('/src/menu/logic/menuTexts.ts')),
+        ...(await server.ssrLoadModule('/src/gameList.ts')),
+        ...(await server.ssrLoadModule('/src/shared/logic/gameRegistry.ts')),
+      },
     };
   } catch (error) {
     await server.close();

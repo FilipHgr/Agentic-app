@@ -5,12 +5,12 @@
  * Testovací část (pendigits.tes) se tu záměrně nepoužívá.
  *
  * Spuštění: node tools/recognition/make_templates.mjs
- * Výstup: src/logic/digitTemplates.ts
+ * Výstup: src/games/counting/logic/digitTemplates.ts
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const SOURCE = 'data/pendigits/pendigits.tra';
-const TARGET = 'src/logic/digitTemplates.ts';
+const TARGET = 'src/games/counting/logic/digitTemplates.ts';
 /** Kolik vzorů od každé číslice. Víc = přesnější, ale větší soubor ve hře. */
 const TEMPLATES_PER_DIGIT = 200;
 

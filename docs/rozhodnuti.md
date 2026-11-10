@@ -30,7 +30,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-02 Hvězdička se dává za každý vyřešený příklad, i s nápovědou. Po
   deseti přijde oslava (#31).
 - 2026-11-02 Sovička se ruší. Hlavní postavičky jsou Hvězdík, Robík
-  a Plamínek, střídají se po každé oslavě a začíná Hvězdík (#33).
+  a Plamínek, střídají se po každé oslavě a začíná Hvězdík (#33). (nahrazeno)
 - 2026-11-03 Hra na celou obrazovku a rozložení na výšku: implementace se
   vlastníkovi nelíbila, vráceno a odloženo (#34). Znovu nenavrhovat bez
   upřesnění od vlastníka. (nahrazeno)
@@ -113,3 +113,157 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-05 Vlastník nechává: na telefonu na výšku vyhrazené místo pro
   nápovědu i bez nápovědy (#56), čísla ve volbách nastavení netučná (#59)
   a okénko na psaní po výpadku stahování až od dalšího příkladu (#58).
+- 2026-11-05 Rozšíření projektu: úvodní menu s výběrem her. Hry jsou
+  samostatné části (vlastní kód i testy, navzájem se neovlivňují), společné
+  věci ve sdílené části. Práce na menu nebo nové hře pouští jen její testy.
+- 2026-11-05 Nastavení pro rodiče (kolečko) má každá hra vlastní, menu
+  nastavení nemá. Dnešní hra se jmenuje „Počítání“. Rozšíření se dělá
+  v novém sprintu 3, který se založí až po sloučení PR sprintu 2.
+- 2026-11-05 Postavičky (Hvězdík, Robík, Plamínek) se z celého projektu
+  odstraní. V Počítání místo nich nic, příklad se zvětší, oslava jen
+  s konfetami. Nahrazuje rozhodnutí z #33 a pravidlo o postavičkách v CLAUDE.md.
+- 2026-11-05 Úvodní menu bude robustní a her bude hodně: výběr her, profily,
+  jazyk a zatím neurčené další volby (v menu jen jako zástupné prvky).
+- 2026-11-05 Profil dítěte: přezdívka (nemusí být skutečné jméno) a barva
+  nebo obrázek, uložené jen v zařízení. Každý profil má vlastní postup
+  a nastavení her.
+- 2026-11-05 Víc jazyků: připravit prostředí, aby šlo snadno přidávat texty
+  i nahrávky dalších jazyků. Výjimka z „texty ve hře česky“ v CLAUDE.md.
+- 2026-11-05 Vlastník plánuje paywall a předplatné. Projekt se má připravit,
+  aby šlo předplatné spravovat (které hry jsou odemčené). Skutečné placení
+  zatím ne: potřebuje cizí službu a změnu pravidel o soukromí v CLAUDE.md,
+  rozhodne se samostatně.
+- 2026-11-05 Vzhled menu podle návrhu B: nahoře profil (barevné kolečko
+  s písmenem a přezdívkou), vpravo jazyk a zástupná tlačítka, vlevo kategorie
+  (na telefonu nahoře v řadě), vedle mřížka dlaždic her. Při startu výběr
+  profilu (návrh P: velká barevná kolečka a +). (výběr při startu nahrazen) (řada na telefonu na výšku nahrazena)
+- 2026-11-05 Z hry do menu se dítě vrátí domečkem vlevo nahoře podržením
+  1 s, ťuknutí domeček jen zhoupne.
+- 2026-11-05 (nahrazeno) Profil zakládá rodič: formulář se otevře podržením „+“ 1 s,
+  přezdívka se píše systémovou klávesnicí jen v tomto poli. Výjimka
+  z „žádná klávesnice“ v CLAUDE.md. (klávesnice nahrazena)
+- 2026-11-05 Výběr profilu (P) se při startu ukáže jen při dvou a více
+  profilech, s jedním se jde rovnou do menu.
+- 2026-11-05 Počítání je v kategorii „Sčítání a odčítání“, první kategorie
+  je „Vše“, název stránky v menu „Matematika“, ve hře název hry.
+- 2026-11-05 Systémová klávesnice se nepoužívá vůbec, všechno dotykem.
+  Přezdívka profilu se ťuká vlastní mřížkou velkých písmen A–Ž (64 px)
+  se smazáním. Na PC jde psát i fyzickou klávesnicí.
+- 2026-11-05 Obrázky k menu schválené podle doporučení (#67–#73): hvězdičky
+  na telefonu na výšku ve 2 řadách po 5 mezi domečkem a kolečkem, menu na
+  šířku s kategoriemi vlevo, paleta 8 barev s kontrastem aspoň 3 : 1,
+  výběr profilu na šířku v 1 řadě a na výšku ve 2 sloupcích, mřížka písmen
+  ve 2 vrstvách, 2. krok formuláře barva s košem jen při úpravě, plné „CS“
+  i na výběru profilu, potvrzení smazání se „Zpět“ na místě ✓.
+- 2026-11-05 Telefon na šířku s domečkem podle návrhu C (#68): nahoře pás
+  s příkladem, tečkami nápovědy hned vedle a hvězdičkami 2 × 5 u kolečka,
+  dole číselník přes celou šířku (do 20 ve 3 řadách po 7, do 10 jako 6 + 5).
+  Tečky jdou souvisle po pěti v řadě (druhé číslo pokračuje v řadě prvního).
+  Dřívější rozložení s tečkami nahoře daleko od příkladu vlastník zamítl.
+- 2026-11-06 Zrychlení testů rozpoznávání psaní zamítnuto: bez zmenšení
+  vzorků jde ušetřit jen pár procent. Neopakovat bez nového nápadu.
+- 2026-11-06 Návrhy z review kódu (#75–#78) podle doporučení: u dvou panelů
+  jen bez ztráty dat (zobrazení víc než 6 profilů samostatně), u přidání na
+  plochu bez iPadu na výšku, obnovení stránky jen při nestažené hře
+  s odpovídajícím serverem.
+- 2026-11-06 Testování se zjednoduší: při práci se pouští jen testy dotčené
+  části (sdílená část, menu, hra) a vždy kontroly celku, celé `npm test` jen
+  v CI a před PR. Pomalé testy rozpoznávání psaní do vlastní skupiny, testy
+  rozložení jako pravidla v cyklu místo snapshotů a testy zdrojového textu
+  přepsat na chování. Ochrany se nesnižují, žádný test chování se nesmaže bez
+  náhrady. Hooky v `.claude/` mění vlastník sám (nahrazeno). Úkoly #79–#83 před #78.
+- 2026-11-06 Ikona aplikace na plochu: varianta A, modré „+ −“ na #F5F5F7 (#78).
+- 2026-11-06 Testy sharpCanvas z #77 patří do #81. Všechny nové testy rovnou
+  jako pravidla v cyklu (jeden test na pravidlo, popis případu v `expect`),
+  ne parametry po jednom oknu.
+- 2026-11-07 Testy rozložení menu: posouvaný obsah se smí dotknout lišty,
+  druhé posouvané plochy a spodního okraje (0 px, nic se nepřekrývá), jak je
+  v dnešním rozložení. Úprava rozložení na 8 px se nedělá (#82, varianta A).
+- 2026-11-07 Zrcadlově napsané číslo hra jen přijme, ukázání správného tvaru
+  je samostatný úkol (#85, #86).
+- 2026-11-07 Tlačítko nápovědy (#84) schváleno, symbol je modrý otazník „?“
+  v tlačítku místo barevných teček. Na telefonu na šířku rozložení
+  s nápovědou hned od začátku (menší příklad), po ťuknutí se nic neposune.
+  (symbol nahrazen)
+- 2026-11-07 iPad z plochy (#78): vlastník nechal na Claudovi, zvolena
+  varianta A, malá úprava rozložení nastavení a průvodce na iPadu tak, aby
+  respektovalo stavový řádek a lištu domů.
+- 2026-11-07 Tlačítko nápovědy (#84) nesmí vypadat jako tlačítka čísel: kulaté
+  se žárovkou (varianta C). Výjimka z 64 px: v okně iPadu 932 × 500 u číselníku
+  do 20 smí mít tlačítko asi 60 px (59,8 px), mezera 8 px od číselníku zůstává.
+- 2026-11-07 Hra Omalovánky: prototyp s jednou testovací omalovánkou a sadou
+  kreslicích nástrojů, rozdělený na víc úkolů. Barví se jen tahy prstem nebo
+  tužkou, žádná automatická výplň. Tah je ořezaný do oblasti, kde začal,
+  přetažení mimo ni nic nezabarví.
+- 2026-11-07 Kategorie v menu na telefonu na výšku: když se nevejdou (od 3.
+  kategorie Kreslení, #88), řada se dočasně posouvá prstem. Vlastník chce
+  místo toho rozbalovací výběr kategorií, navrhne se jako samostatný úkol
+  s obrázky.
+- 2026-11-07 Omalovánky si po návratu pamatují naposledy vybranou barvu
+  v paletě, i když se jí ještě nemalovalo (#92).
+- 2026-11-07 Noční úkoly Omalovánek schváleny podle doporučení (#96–#104 a
+  úpravy #90, #91, #93 kvůli panelu): obrázek přes celou obrazovku, panel
+  L-A (pruh vlevo) a na výšku P-A (úchyt dole uprostřed), paleta 12 barev
+  varianta A (navíc růžová, tělová, šedá, světle modrá). Pořadí #96, #90,
+  #93, #91, #97, #98, #99, #100, #101, #102, #103, #104.
+- 2026-11-08 Omalovánky: panel nejdřív ukáže jen nástroje, barvy až po
+  ťuknutí na nástroj. Každý nástroj má vlastní sadu barev, i vícebarevné,
+  tříštivé a duhové. Navrhne se jako nové úkoly.
+- 2026-11-08 Kroužek podržení 1 s je jen ve hře u kolečka nastavení
+  a domečku. V hlavním menu tlačítka reagují hned (oprava jako nový úkol).
+- 2026-11-08 Ikony nástrojů v Omalovánkách jsou nesrozumitelné a složité.
+  Musí být na první pohled jasné, co je to za nástroj (nový úkol s obrázky).
+- 2026-11-08 Schváleno podle doporučení: #106 ikony ve stylu B „Stopa
+  nástroje“, #105 panel ve dvou krocích. Pořadí #106, #105.
+- 2026-11-08 Výběr profilu bez podržení: úprava profilu tužkou, „+“
+  a kolečko profilu reagují ťuknutím. Smazání profilu zůstane za podržením
+  1 s u „Smazat“ v potvrzení (výjimka z kroužku jen ve hře). Tím je
+  nahrazeno „Profil zakládá rodič“ z 2026-11-05.
+- 2026-11-08 Panel ve dvou krocích podle obrázků schválen (#105). Ikony
+  stylu B (#106) se vlastníkovi nelíbí: převzít osvědčené řešení z jiných
+  kreslicích aplikací pro děti, nový návrh ukázat na obrázcích.
+- 2026-11-08 Ikony nástrojů ve stylu D „skutečné nástroje šikmo“ (podle
+  dětských kreslicích aplikací), vybraná barva na hrotu, fixy se liší
+  hrotem (#106).
+- 2026-11-08 Tužka u profilu (#107) vpravo od kolečka. 6 profilů na iPadu
+  a telefonu na šířku ve 2 řadách po 3, na menších telefonech se kolečka
+  zmenší. Kroužek podržení u „Smazat“ je bílý (#108).
+- 2026-11-08 Hranice testů ikon pro styl D (#106): ikony se stejným tělem
+  (fixy, štětec a duhový štětec) se liší aspoň o 10 % včetně barvy, ostatní
+  o 25 %. Ikona má kromě obrysu nejvýš 3 barvy a 10 částí.
+- 2026-11-08 Ikony stylu D se vlastníkovi pořád nelíbí. Ikony nekreslit
+  vlastní, převzít hotovou sadu (s licencí, uloženou v repozitáři) a vybrat
+  ji podle obrázků (#106).
+- 2026-11-08 Každý nástroj v Omalovánkách si pamatuje vlastní naposledy
+  zvolenou barvu (nový úkol).
+- 2026-11-08 Ikony nástrojů z hotové sady Google Noto Emoji (Apache-2.0),
+  vybraná barva jako barevné kolečko v rohu úchytu místo tečky velikosti.
+  Puntíkový fix bubliny, proužkový fix sloupek s pruhy, sprej skvrna (#106).
+- 2026-11-08 #110 (každý nástroj si pamatuje svou barvu) schválen podle
+  doporučení.
+- 2026-11-08 Barvu nástroje v kroku nástrojů panelu ukazuje stejné barevné
+  kolečko vpravo dole u ikony jako v úchytu (#110).
+- 2026-11-08 Vlastník: „Udělej tvoje doporučení“. #95 (rozbalovací výběr
+  kategorií na telefonu na výšku) schválen podle doporučení, obrázky D1–D5
+  ukázat. Navrhnout úkoly: větší mezera mezi kolečkem profilu a tužkou,
+  kolečko barvy nepřekrývá okraj vybraného nástroje a duhu, vlastní sady
+  barev nástrojů a vícebarevné barvy.
+- 2026-11-08 Přepínač tloušťky čáry (#91) vlastník vůbec nepoznal. Udělat
+  ho jinak, aby bylo na první pohled jasné, že jde o tloušťku (nový úkol
+  s obrázky).
+- 2026-11-08 Omalovánka má být přes celou výšku mezi horní a spodní lištou.
+  Na výšku se obrázek otočí o 90°, aby vyplnil výšku (nový úkol s obrázky).
+- 2026-11-09 Výběr kategorií na telefonu na výšku je rozbalovací seznam
+  (#95): symboly Vše ▦, Sčítání a odčítání „+ −“, Kreslení ✎, bez ztmavení.
+- 2026-11-09 Vlastní sady barev: každý z 8 nástrojů má vlastní sadu
+  (varianta B, 44 barev). Nejdřív samostatný úkol na úspornější ukládání
+  obrázku, pak sady.
+- 2026-11-09 Postup práce zrychlit (#117): Claude smí upravit hooky
+  v `.claude/` sám („klidně oprav hooky“). Testy při konci odpovědi se
+  nepouští, před commitem jen `test:changed`, dokumentace testy nespouští.
+  Celé `npm test` dál v CI a před PR.
+- 2026-11-09 Sady barev (#116): podle doporučení výraznější odstíny puntíkového
+  fixu a fixu (víc odlišné od štětce) a modřejší stříbrná třpytek. Nové
+  obrázky ukázat před implementací.
+- 2026-11-09 Odstíny sad v2 schváleny (#116): fix tmavé inkoustové, puntíkový
+  6 jasných vlastních barev (výchozí #FF039F), stříbrná #8D9FC3. Celkem 46 barev.

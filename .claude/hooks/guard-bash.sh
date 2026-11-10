@@ -37,11 +37,13 @@ if echo "$command" | grep -Eq "(^|[[:space:]/=\"'])\\.env"; then
   block "práce se soubory .env je zakázaná."
 fi
 
-# 5) Před každým commitem musí projít testy a lint
+# 5) Před každým commitem musí projít testy změněných částí a lint (#117).
+#    Všechny testy běží v CI a před PR (CLAUDE.md), tady jen to, co změna
+#    může ovlivnit; změna mimo části nebo v hoocích pustí všechny.
 if echo "$command" | grep -Eq 'git[[:space:]]+commit'; then
   cd "$CLAUDE_PROJECT_DIR" || exit 0
 
-  if ! output=$(npm test --silent 2>&1); then
+  if ! output=$(npm run test:changed --silent 2>&1); then
     echo "Commit zablokován, testy neprošly:" >&2
     echo "$output" | tail -n 40 >&2
     exit 2
