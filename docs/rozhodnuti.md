@@ -254,6 +254,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   s obrázky).
 - 2026-11-08 Omalovánka má být přes celou výšku mezi horní a spodní lištou.
   Na výšku se obrázek otočí o 90°, aby vyplnil výšku (nový úkol s obrázky).
+  (otočení nahrazeno)
 - 2026-11-09 Výběr kategorií na telefonu na výšku je rozbalovací seznam
   (#95): symboly Vše ▦, Sčítání a odčítání „+ −“, Kreslení ✎, bez ztmavení.
 - 2026-11-09 Vlastní sady barev: každý z 8 nástrojů má vlastní sadu
@@ -301,3 +302,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-10 Skutečné omalovánky: kočka, pejsek, auto, motýl, rybka (plus
   domek), GPT Image 2.5, každý obrázek jen v 1 variantě, generuje se po 5
   obrázcích (asi 73 kreditů za obrázek).
+- 2026-11-10 Sada 5 omalovánek (kočka, pejsek, auto, motýl, rybka) schválena
+  tak, jak je. Na telefonu na výšku se omalovánky s postavičkami neotáčí
+  (menší obrázek přes šířku). Nahrazuje otočení o 90° z 2026-11-08.
+- 2026-11-10 #125 schváleno podle doporučení (vývojová závislost
+  `fake-indexeddb` jen pro testy). Úkol B (fotoaparát a kniha) založit
+  s upřesněním „cvaku“ podle doporučení.
