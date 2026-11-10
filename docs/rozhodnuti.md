@@ -292,3 +292,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-10 #118 obrázky schváleny („ok 118“): třpytky u nejtenčí malují
   stejně jako u malé (jako puntíkový a proužkový fix), nejtenčí vlnka na
   tlačítku má 1,5 px.
+- 2026-11-10 Backend zatím ne. Album Omalovánek v IndexedDB jen v zařízení,
+  doporučit přidání hry na plochu (Safari maže data webu po 7 dnech bez
+  návštěvy). Backend až s předplatným jako samostatné rozhodnutí.
