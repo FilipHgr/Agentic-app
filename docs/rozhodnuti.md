@@ -270,3 +270,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-10 Sprint 3 sloučen do staging a main, sprint 4 založen ze staging.
   Design se bude dělat přes napojení na ElevenLabs. Hotové soubory budou
   uložené v repozitáři a hra nic nestahuje z cizích serverů.
+- 2026-11-10 Design přes ElevenLabs začíná obrázky (dlaždice her atd.). Před
+  každým generováním Claude vlastníkovi napíše cenu v kreditech. Obrázky ve hře
+  mají být malé soubory, aby se rychle stahovaly.
