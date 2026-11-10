@@ -116,3 +116,18 @@ export const GLITTER_STYLE = {
   /** Jemný okraj bílého lesku, aby byl vidět i na bílé ploše. */
   shineOutline: '#C7C7CC',
 } as const;
+
+/**
+ * Dlaždice náhledu na výběru omalovánky (#124): bílá se zaoblením a jemným
+ * stínem jako dlaždice v menu, obrázek přes celou dlaždici.
+ */
+export const PICKER_TILE_STYLE = {
+  background: WHITE,
+  /** Stín: dvě větší průsvitné plochy posunuté dolů (jako v menu). */
+  shadowSpreadsCss: [4, 1.5],
+  shadowOffsetCss: 2,
+  shadowAlpha: 0.03,
+  /** Zhoupnutí po ťuknutí jako u tlačítek v menu. */
+  wobbleAngle: 4,
+  wobbleMs: 90,
+} as const;

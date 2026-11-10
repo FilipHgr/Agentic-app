@@ -43,7 +43,7 @@ export function applyHomeButton(button: HTMLElement, home: HomeButton): void {
 export interface HomeButtonOptions {
   /** Jde teď domečkem odejít (ne při otevřeném nastavení nebo průvodci)? */
   readonly isEnabled: () => boolean;
-  /** Domeček se držel 1 s: dítě se vrací do menu. */
+  /** Domeček se držel 1 s: dítě se vrací do menu, nebo o úroveň výš ve hře (#124). */
   readonly onGoHome: () => void;
 }
 

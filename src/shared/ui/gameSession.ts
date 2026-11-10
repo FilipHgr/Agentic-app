@@ -12,9 +12,11 @@
  * pak se zavolá úklid ze spuštění scén (odpojení tlačítek a hlídání okna,
  * zničení hry) a nakonec se ohlásí `onLeft`. Druhý odchod nic neudělá
  * a hlášení domečku po odchodu ho už neukáže.
+ * Podržení domečku (#124): hra napojená háčkem `onHomeHold` rozhodne, jestli
+ * se odejde do menu, nebo zůstane ve hře (Omalovánky se vrátí na výběr).
  */
 
-import type { GameHost, GameProfileMarker } from '../logic/gameHost';
+import type { GameHost, GameProfileMarker, HomeHoldDecision } from '../logic/gameHost';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
 
 /** Tlačítko v rohu stránky (domeček, kolečko); hra u něj přepíná jen `hidden`. */
@@ -50,6 +52,11 @@ export interface GameSession {
   openSettings(): void;
   /** Odchod z hry domečkem. */
   leave(): void;
+  /**
+   * Domeček se držel 1 s (#124 AC4): bez háčku hry nebo s odpovědí
+   * `'leave'` odchod jako `leave()`, s `'stay'` nic. Po odchodu nic.
+   */
+  holdHome(): void;
 }
 
 export function startGameSession(options: GameSessionOptions): GameSession {
@@ -57,6 +64,8 @@ export function startGameSession(options: GameSessionOptions): GameSession {
   let settingsOpener: (() => void) | null = null;
   let homeAvailable = false;
   let hasLeft = false;
+  /** Kdo rozhoduje o podržení domečku (#124); bez něj se odchází do menu. */
+  let homeHoldDecider: (() => HomeHoldDecision) | null = null;
   const leaveHandlers: Array<() => void> = [];
   let cleanUpScenes: (() => void) | null = null;
 
@@ -93,6 +102,9 @@ export function startGameSession(options: GameSessionOptions): GameSession {
     onLeave: (handler) => {
       leaveHandlers.push(handler);
     },
+    onHomeHold: (decide) => {
+      homeHoldDecider = decide;
+    },
     storage: options.storage,
     profileMarker: options.profileMarker,
   };
@@ -101,6 +113,15 @@ export function startGameSession(options: GameSessionOptions): GameSession {
     host,
     isHomeEnabled: () => homeAvailable && !hasLeft,
     openSettings: () => settingsOpener?.(),
+    holdHome: () => {
+      if (hasLeft) {
+        return;
+      }
+      if (homeHoldDecider?.() === 'stay') {
+        return;
+      }
+      session.leave();
+    },
     leave: () => {
       if (hasLeft) {
         return;

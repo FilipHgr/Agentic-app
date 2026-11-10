@@ -173,7 +173,8 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
       const detachHome = page.homeButton
         ? attachHomeButton(page.homeButton, {
             isEnabled: () => session.isHomeEnabled(),
-            onGoHome: () => session.leave(),
+            // Hra s háčkem (#124) může podržení domečku převzít, jinak odchod do menu.
+            onGoHome: () => session.holdHome(),
           })
         : () => undefined;
       /**

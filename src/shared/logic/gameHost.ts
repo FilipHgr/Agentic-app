@@ -1,6 +1,7 @@
 /**
  * Co stránka nabízí běžící hře (#68): kolečko nastavení, domeček, odchod
- * do menu, úložiště aktivního profilu (#71) a značku profilu (#87). Spouštění her (`src/shared/ui/gameRunner.ts`) to hře dá do
+ * do menu, úložiště aktivního profilu (#71), značku profilu (#87) a háček
+ * na podržení domečku (#124). Spouštění her (`src/shared/ui/gameRunner.ts`) to hře dá do
  * registru Phaseru pod klíčem `GAME_HOST_KEY`. Čistý TypeScript.
  */
 
@@ -24,6 +25,12 @@ export function profileMarkerOf(profile: Pick<Profile, 'nickname' | 'color'>): G
   return letter === undefined ? { color: profile.color } : { color: profile.color, letter };
 }
 
+/**
+ * Co hra odpoví na podržení domečku (#124 AC4): `'leave'` odejde do menu
+ * jako dřív, `'stay'` nechá dítě ve hře (hra se vrátí o úroveň výš sama).
+ */
+export type HomeHoldDecision = 'leave' | 'stay';
+
 export interface GameHost {
   /** Napojí podržení kolečka na otevření nastavení hry. Vrátí odpojení. */
   attachSettingsGear(open: () => void): () => void;
@@ -31,6 +38,13 @@ export interface GameHost {
   setHomeAvailable(available: boolean): void;
   /** Co hra udělá při odchodu domečkem, než se zničí (ztiší zvuky, zastaví časovače). */
   onLeave(handler: () => void): void;
+  /**
+   * Napojí hru na podržení domečku (#124): po podržení 1 s se stránka zeptá
+   * `decide`, jestli odejít do menu. Nové napojení nahradí předchozí. Hra
+   * bez napojení odchází domečkem do menu jako dřív. Starší hostitel háček
+   * nemusí mít.
+   */
+  onHomeHold?(decide: () => HomeHoldDecision): void;
   /**
    * Úložiště této hry pro aktivní profil (#71), `undefined`, když stránka
    * žádné nedala (hra pak ukládá jen do paměti).
@@ -50,6 +64,7 @@ export function isGameHost(value: unknown): value is GameHost {
     typeof host.attachSettingsGear === 'function' &&
     typeof host.setHomeAvailable === 'function' &&
     typeof host.onLeave === 'function' &&
+    (host.onHomeHold === undefined || typeof host.onHomeHold === 'function') &&
     (host.storage === undefined || isKeyValueStorage(host.storage)) &&
     (host.profileMarker === undefined || isProfileMarker(host.profileMarker))
   );

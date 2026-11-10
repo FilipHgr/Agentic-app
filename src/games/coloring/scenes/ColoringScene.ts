@@ -24,14 +24,16 @@ import {
   touchTargetAt,
 } from '../logic/coloringLayout';
 import type { ColoringLayout } from '../logic/coloringLayout';
-import { startColoringSession } from '../logic/coloringSession';
-import type { ColoringPage } from '../logic/coloringSession';
 import { tapColor } from '../logic/palette';
 import type { PaletteState } from '../logic/palette';
-import { buildRegionMap, outlineFromImage } from '../logic/regionMap';
 import { noRecentColors } from '../logic/recentColors';
 import { RECENT_COLOR_WOBBLE_TONES, UNDO_WOBBLE_TONES, openColoring } from '../logic/savedPicture';
-import type { RecentColorTap, SavedColoring, UndoResult } from '../logic/savedPicture';
+import type {
+  PictureIdentity,
+  RecentColorTap,
+  SavedColoring,
+  UndoResult,
+} from '../logic/savedPicture';
 import { PICTURE_STYLE } from '../logic/theme';
 import { ALL_COLOR_COUNT, TOOL_COLOR_SETS, placeInSet } from '../logic/toolColorSets';
 import { DEFAULT_TOOL_COLORS, isColorTool, toolReceivingColor } from '../logic/toolColors';
@@ -50,7 +52,7 @@ import { GlitterShineView } from './GlitterShineView';
 import { HandleButtonView } from './HandleButtonView';
 import { PaintLayer } from './PaintLayer';
 import { RecentColorsView } from './RecentColorsView';
-import { PICTURE, drawPictureOutline, snapshotOf } from './pictureCanvas';
+import type { PreparedPicture } from './pictureCanvas';
 import { preloadToolIcons } from './toolIconTextures';
 import { ToolPanelView } from './ToolPanelView';
 import type { PanelSelection } from './ToolPanelView';
@@ -73,18 +75,19 @@ const SHINE_DEPTH = 4;
 const PANEL_DEPTH = 10;
 const STRIP_DEPTH = 20;
 
-const PAINT_TEXTURE_KEY = 'coloringPaint';
-const OUTLINE_TEXTURE_KEY = 'coloringOutline';
-
 /** Kolik dotyků Phaser sleduje: první prst maluje, další (dlaň, druhý prst) se jen přeskočí. */
 const TRACKED_TOUCHES = 4;
 
-/** Bez stránky (hra spuštěná jinak než z menu) domeček ani odchod nejsou. */
-const NO_PAGE: ColoringPage = {
-  setHomeAvailable: () => undefined,
-  attachSettingsGear: () => () => undefined,
-  onLeave: () => undefined,
-};
+/** Co scéna malování dostane od výběru omalovánky (#124). */
+export interface ColoringSceneOptions {
+  /** Klíč scény; každé otevření omalovánky má novou scénu. */
+  readonly key: string;
+  readonly picture: PictureIdentity;
+  /** Obrys a mapa oblastí omalovánky, které výběr připravuje i pro náhled. */
+  readonly prepared: Promise<PreparedPicture>;
+  /** Malování je vidět: od teď se počítá podržení domečku (#124 AC5). */
+  readonly onShown: () => void;
+}
 
 /**
  * Omalovánky (#88): jedna testovací omalovánka a paleta 12 barev (#100). Scéna
@@ -112,6 +115,10 @@ const NO_PAGE: ColoringPage = {
  * Od #111 je obrázek na výšku otočený o 90° po směru hodinových ručiček.
  * Otáčí se jen zobrazení vrstvy barev a obrysu; dotyk převede na bod
  * vrstvy `pictureLayerPoint`, takže logika i uložený obrázek se nemění.
+ *
+ * Od #124 scénu spouští výběr omalovánky (`PickerScene.ts`) s vybranou
+ * omalovánkou, každé otevření novou scénou. Domeček a odchod z hry řídí
+ * výběr; při návratu na výběr nebo do menu se tah ukončí a obrázek uloží.
  */
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -152,8 +159,18 @@ export class ColoringScene extends Phaser.Scene {
   /** Zavíraná nebo obnovovaná stránka obrázek uloží (#92). */
   private readonly onPageHide = (): void => this.coloring?.suspend();
 
-  constructor() {
-    super('coloring');
+  private readonly paintTextureKey: string;
+  private readonly outlineTextureKey: string;
+
+  constructor(private readonly options: ColoringSceneOptions) {
+    super(options.key);
+    this.paintTextureKey = `${options.key}:paint`;
+    this.outlineTextureKey = `${options.key}:outline`;
+  }
+
+  /** Návrat na výběr nebo odchod z hry: tah skončí, kam došel, obrázek se uloží. */
+  finishPainting(): void {
+    this.stop();
   }
 
   /** Ikony nástrojů (#106) jsou SVG přibalená ke hře, načtou se před startem scény. */
@@ -166,7 +183,6 @@ export class ColoringScene extends Phaser.Scene {
     followCanvasResolution(this);
     this.gameArea = this.readGameArea();
     this.layout = layoutColoring(this.gameArea);
-    startColoringSession(this.readHost() ?? NO_PAGE, () => this.stop());
 
     this.drawScreen();
     this.listenForTouches();
@@ -195,29 +211,28 @@ export class ColoringScene extends Phaser.Scene {
     return isGameArea(stored) ? stored : gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
   }
 
-  /** Vykreslí obrys, spočítá z něj mapu oblastí a připraví vrstvu barev. */
+  /** Počká na obrys a mapu oblastí od výběru a připraví vrstvu barev. */
   private async preparePicture(): Promise<void> {
-    const outline = await drawPictureOutline(PICTURE_PIXEL_WIDTH, PICTURE_PIXEL_HEIGHT);
+    const { outline, regions } = await this.options.prepared;
     if (!this.sys.isActive()) {
       // Dítě odešlo dřív, než se obrázek připravil.
       return;
     }
-    const outlineCanvas = outline.canvas;
-    const regions = buildRegionMap(outlineFromImage(snapshotOf(outlineCanvas)));
     this.coloring = openColoring({
       regions,
-      picture: PICTURE,
+      picture: this.options.picture,
       // Bez obrysu se maluje jen v paměti, aby se uložený obrázek nepřepsal prázdnou plochou.
       storage: outline.drawn ? this.readHost()?.storage : undefined,
     });
     this.showSelection();
     this.showPanel();
-    this.paintLayer = new PaintLayer(this, PAINT_TEXTURE_KEY, regions);
+    this.paintLayer = new PaintLayer(this, this.paintTextureKey, regions);
     this.paintLayer.paintAll(this.coloring);
-    this.textures.addCanvas(OUTLINE_TEXTURE_KEY, outlineCanvas);
-    this.paintImage = this.add.image(0, 0, PAINT_TEXTURE_KEY);
-    this.outlineImage = this.add.image(0, 0, OUTLINE_TEXTURE_KEY);
+    this.textures.addCanvas(this.outlineTextureKey, outline.canvas);
+    this.paintImage = this.add.image(0, 0, this.paintTextureKey);
+    this.outlineImage = this.add.image(0, 0, this.outlineTextureKey);
     this.placePicture();
+    this.options.onShown();
   }
 
   // -------------------------------------------------------------------------
@@ -695,6 +710,11 @@ export class ColoringScene extends Phaser.Scene {
       this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
       this.stop();
     });
+    // Textury patří jen této scéně; další otevření omalovánky má vlastní.
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => {
+      this.textures.remove(this.paintTextureKey);
+      this.textures.remove(this.outlineTextureKey);
+    });
   }
 
   /** Odchod z hry: tah skončí tam, kam došel, obrázek se uloží (#92) a zvuky ztichnou. */
@@ -706,7 +726,7 @@ export class ColoringScene extends Phaser.Scene {
 }
 
 /** Je hodnota z registru herní plocha? */
-function isGameArea(value: unknown): value is GameArea {
+export function isGameArea(value: unknown): value is GameArea {
   if (typeof value !== 'object' || value === null) {
     return false;
   }

@@ -1,0 +1,219 @@
+/**
+ * Dlaždice náhledu omalovánky na výběru (#124): bílá se zaoblením a jemným
+ * stínem jako dlaždice v menu, obrázek přes celou dlaždici a zaoblené rohy
+ * ho ořežou. Náhled se nejdřív ukáže jen s obrysem a barvy dítěte se
+ * dokreslí, až je omalovánka připravená (AC7). Co je v pixelech náhledu,
+ * řeší `logic/picturePreview.ts`; tady se jen kreslí.
+ */
+
+import Phaser from 'phaser';
+
+import { CANVAS_PIXELS_PER_CSS_PX } from '../../../shared/logic/canvasResolution';
+import type { LayoutRect } from '../logic/coloringLayout';
+import { previewCellHex } from '../logic/picturePreview';
+import type { PicturePreview, PreviewCell } from '../logic/picturePreview';
+import { PICKER_TILE_STYLE, rgbOf } from '../logic/theme';
+
+/** Kde a jak velká je dlaždice: obdélník a zaoblení v herních jednotkách, CSS px na jednotku. */
+export interface PreviewTilePlace {
+  readonly rect: LayoutRect;
+  readonly cornerRadius: number;
+  readonly cssScale: number;
+}
+
+/** Barva pixelu náhledu jako RGB; barvy se převádějí jen jednou. */
+const rgbByHex = new Map<string, readonly [number, number, number]>();
+
+function rgbOfCell(cell: PreviewCell): readonly [number, number, number] {
+  const hex = previewCellHex(cell);
+  let rgb = rgbByHex.get(hex);
+  if (rgb === undefined) {
+    rgb = rgbOf(hex);
+    rgbByHex.set(hex, rgb);
+  }
+  return rgb;
+}
+
+/** Cesta obdélníku se zaoblenými rohy (bez `roundRect`, který starší Safari nemá). */
+function roundedRectPath(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  radius: number,
+): void {
+  const r = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(r, 0);
+  context.arcTo(width, 0, width, height, r);
+  context.arcTo(width, height, 0, height, r);
+  context.arcTo(0, height, 0, 0, r);
+  context.arcTo(0, 0, width, 0, r);
+  context.closePath();
+}
+
+/** Plátno s barvami náhledu (pozadí, obrys a barvy dítěte bez míchání). */
+function colorsCanvasOf(preview: PicturePreview): HTMLCanvasElement | null {
+  const canvas = document.createElement('canvas');
+  canvas.width = preview.width;
+  canvas.height = preview.height;
+  const context = canvas.getContext('2d');
+  if (context === null) {
+    return null;
+  }
+  const pixels = context.createImageData(preview.width, preview.height);
+  const data = pixels.data;
+  for (let y = 0; y < preview.height; y += 1) {
+    for (let x = 0; x < preview.width; x += 1) {
+      const [red, green, blue] = rgbOfCell(preview.cellAt(x, y));
+      const offset = (y * preview.width + x) * 4;
+      data[offset] = red;
+      data[offset + 1] = green;
+      data[offset + 2] = blue;
+      data[offset + 3] = 255;
+    }
+  }
+  context.putImageData(pixels, 0, 0);
+  return canvas;
+}
+
+export class PreviewTileView {
+  private readonly container: Phaser.GameObjects.Container;
+  private readonly shadow: Phaser.GameObjects.Graphics;
+  private image: Phaser.GameObjects.Image | null = null;
+  private textureKey: string | null = null;
+  private place: PreviewTilePlace | null = null;
+  /** Číslo další textury, aby nová textura nikdy nepřepsala tu, která je vidět. */
+  private textureCount = 0;
+
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly name: string,
+  ) {
+    this.shadow = scene.add.graphics();
+    this.container = scene.add.container(0, 0, [this.shadow]);
+  }
+
+  /** Velikost obrázku náhledu v pixelech plátna. */
+  pixelSize(): { readonly width: number; readonly height: number } | null {
+    if (this.place === null) {
+      return null;
+    }
+    const { rect, cssScale } = this.place;
+    return {
+      width: Math.max(1, Math.round(rect.width * cssScale * CANVAS_PIXELS_PER_CSS_PX)),
+      height: Math.max(1, Math.round(rect.height * cssScale * CANVAS_PIXELS_PER_CSS_PX)),
+    };
+  }
+
+  /** Postaví dlaždici na místo a nakreslí stín. Obrázek je potřeba nakreslit znovu (`show`). */
+  setPlace(place: PreviewTilePlace): void {
+    this.place = place;
+    const { rect, cornerRadius, cssScale } = place;
+    const unitsPerCss = 1 / cssScale;
+    this.scene.tweens.killTweensOf(this.container);
+    this.container.setPosition(rect.left + rect.width / 2, rect.top + rect.height / 2).setAngle(0);
+    this.shadow.clear();
+    for (const spreadCss of PICKER_TILE_STYLE.shadowSpreadsCss) {
+      const spread = spreadCss * unitsPerCss;
+      this.shadow
+        .fillStyle(0x000000, PICKER_TILE_STYLE.shadowAlpha)
+        .fillRoundedRect(
+          -rect.width / 2 - spread,
+          -rect.height / 2 - spread + PICKER_TILE_STYLE.shadowOffsetCss * unitsPerCss,
+          rect.width + 2 * spread,
+          rect.height + 2 * spread,
+          cornerRadius + spread,
+        );
+    }
+    // Bílá plocha hned, aby dlaždice byla vidět ještě před načtením obrysu (#124 AC7).
+    this.shadow
+      .fillStyle(Phaser.Display.Color.HexStringToColor(PICKER_TILE_STYLE.background).color, 1)
+      .fillRoundedRect(-rect.width / 2, -rect.height / 2, rect.width, rect.height, cornerRadius);
+  }
+
+  /**
+   * Nakreslí obrázek dlaždice: bílá plocha, barvy náhledu (když jsou)
+   * a nad nimi ostře zmenšený obrys. Bez obrysu zůstane bílá dlaždice.
+   */
+  show(outline: HTMLImageElement | null, colors: PicturePreview | null): void {
+    const size = this.pixelSize();
+    if (this.place === null || size === null) {
+      return;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const context = canvas.getContext('2d');
+    if (context === null) {
+      return;
+    }
+    const radiusPx = this.place.cornerRadius * this.place.cssScale * CANVAS_PIXELS_PER_CSS_PX;
+    roundedRectPath(context, size.width, size.height, radiusPx);
+    context.clip();
+    context.fillStyle = PICKER_TILE_STYLE.background;
+    context.fillRect(0, 0, size.width, size.height);
+    const colorsCanvas = colors === null ? null : colorsCanvasOf(colors);
+    if (colorsCanvas !== null) {
+      // Barvy dítěte bez míchání: každý pixel náhledu má barvu pixelu obrázku (AC3).
+      context.imageSmoothingEnabled = false;
+      context.drawImage(colorsCanvas, 0, 0, size.width, size.height);
+    }
+    if (outline !== null) {
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = 'high';
+      context.drawImage(outline, 0, 0, size.width, size.height);
+    }
+    this.setCanvas(canvas);
+  }
+
+  /** Zhoupnutí po ťuknutí; `onDone` se zavolá, až dlaždice dojde zpátky. */
+  wobble(onDone: () => void): void {
+    const { wobbleAngle: angle, wobbleMs: ms } = PICKER_TILE_STYLE;
+    this.scene.tweens.killTweensOf(this.container);
+    this.container.setAngle(0);
+    this.scene.tweens.chain({
+      targets: this.container,
+      tweens: [
+        { angle, duration: ms, ease: 'Sine.easeOut' },
+        { angle: -angle, duration: 2 * ms, ease: 'Sine.easeInOut' },
+        { angle: 0, duration: ms, ease: 'Sine.easeIn' },
+      ],
+      onComplete: onDone,
+    });
+  }
+
+  destroy(): void {
+    this.scene.tweens.killTweensOf(this.container);
+    this.container.destroy();
+    this.removeTexture();
+  }
+
+  /** Vymění obrázek dlaždice za nové plátno. */
+  private setCanvas(canvas: HTMLCanvasElement): void {
+    if (this.place === null) {
+      return;
+    }
+    this.textureCount += 1;
+    const key = `${this.name}:${this.textureCount}`;
+    if (this.scene.textures.addCanvas(key, canvas) === null) {
+      return;
+    }
+    const { rect } = this.place;
+    if (this.image === null) {
+      this.image = this.scene.add.image(0, 0, key);
+      this.container.add(this.image);
+    } else {
+      this.image.setTexture(key);
+    }
+    this.image.setDisplaySize(rect.width, rect.height);
+    this.removeTexture();
+    this.textureKey = key;
+  }
+
+  private removeTexture(): void {
+    if (this.textureKey !== null && this.scene.textures.exists(this.textureKey)) {
+      this.scene.textures.remove(this.textureKey);
+    }
+    this.textureKey = null;
+  }
+}

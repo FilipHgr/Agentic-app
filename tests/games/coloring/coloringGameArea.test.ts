@@ -6,12 +6,16 @@ import { IPAD_WINDOWS, freeAreaOf, viewportOf } from '../../shared/viewportFixtu
 /**
  * Test k #96 AC1 (technické rozhodnutí 1): Omalovánky si ve vstupu hry
  * řeknou o herní plochu přes celé okno, takže na iPadu dostanou celou
- * volnou plochu. Scéna potřebuje Phaser a prohlížeč, v testu ji nahradí
- * prázdná třída; zkouší se jen to, co vstup hry vydává stránce.
+ * volnou plochu. Scény potřebují Phaser a prohlížeč, v testu je nahradí
+ * prázdné třídy; zkouší se jen to, co vstup hry vydává stránce. Od #124 je
+ * první scénou výběr omalovánky.
  */
 
 vi.mock('../../../src/games/coloring/scenes/ColoringScene', () => ({
   ColoringScene: class {},
+}));
+vi.mock('../../../src/games/coloring/scenes/PickerScene', () => ({
+  PickerScene: class {},
 }));
 
 describe('#96 AC1: Omalovánky mají herní plochu přes celé okno', () => {
