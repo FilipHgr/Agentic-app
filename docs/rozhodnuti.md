@@ -298,3 +298,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-10 Obrázky výběru omalovánky schváleny („ok 124“): bez prázdných
   míst (jen skutečné omalovánky), na telefonu na výšku náhledy asi 171 px,
   obrázek vyplní celou dlaždici a zaoblené rohy ho ořežou.
+- 2026-11-10 Skutečné omalovánky: kočka, pejsek, auto, motýl, rybka (plus
+  domek), GPT Image 2.5, každý obrázek jen v 1 variantě, generuje se po 5
+  obrázcích (asi 73 kreditů za obrázek).
