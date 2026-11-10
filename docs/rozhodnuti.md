@@ -317,3 +317,4 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   nevejde), animace cvak, zmenšení a odlet do fotoaparátu.
 - 2026-11-10 Obrázky #127 schváleny („Ok 127“): na výšku obrázek rovně přes šířku (390 × 844 → 374 × 280,5 px, 360 × 620 → 344 × 258 px).
 - 2026-11-10 Obrázky #128 schváleny („Ok 128“): výběr se 6 omalovánkami a malování kočky, obrysy PNG s 16 úrovněmi průhlednosti podle doporučení.
+- 2026-11-10 #129 (velký obrázek z alba a smazání) schválen podle doporučení: koš s kroužkem podržení 1 s je nová výjimka z pravidla o kroužku jen u kolečka a domečku. Malovat dál bude samostatný úkol B ve sprintu 4.
