@@ -20,6 +20,20 @@ do bílé, převedeno na WebP.
 Testovací omalovánka (src/games/coloring/pictures/house.svg, domeček, strom
 a slunce) je vlastní dílo vytvořené pro tuto hru, bez cizích zdrojů.
 
+Obrysy omalovánek kočka, pejsek, auto, motýl a rybka
+(src/games/coloring/pictures/cat.png, dog.png, car.png, butterfly.png,
+fish.png) jsou vytvořené službou ElevenLabs (https://elevenlabs.io), model
+GPT Image 2.5. Použito v rámci komerčního tarifu vlastníka hry, stejně jako
+dlaždice her. Úprava: převedeno na obrys nástrojem v repozitáři
+tools/design/outline-from-image.mjs (šedá na průhlednost, čára #1D1D1F,
+oblasti pod 50 px zaplněné čarou, 16 úrovní průhlednosti). Zdrojové PNG
+nejsou v repozitáři, otisky SHA-256 zdrojů:
+  cat: 90e221e0c365276a7ab04b80623c2be42b4f53bd17d0d5b54e9c9980638c1df5
+  dog: 0b8c1480f5478f9d9e88d8ecd0a7c33d73adbbc63e491185b89593e2d53c118f
+  car: b5b8599c28b62225014cfe35359c349cb9c578f5ec968d3f291557493f52232d
+  butterfly: c38213d6043c873f56aa805975de5af3ca55761d1753ca41f7bcece33a0b1034
+  fish: c834c755adad81103b41d56500a0e5f0f8ea3300a7ea27dc666090aa0bf7f8e3
+
 Ikony nástrojů v Omalovánkách (src/games/coloring/icons/: paintbrush, eraser,
 pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter) a ikony
 fotoaparátu a knihy alba (camera, notebook-with-decorative-cover) jsou

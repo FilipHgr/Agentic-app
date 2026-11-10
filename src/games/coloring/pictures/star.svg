@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="768" viewBox="0 0 1024 768">
-  <!-- Zástupná omalovánka (#124): hvězda, dočasná do příchodu skutečných obrázků.
-       Jen obrys na průhledném pozadí, oblasti spočítá hra při startu. -->
-  <g fill="none" stroke="#1D1D1F" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M512 74 L591 295 L826 302 L640 446 L706 671 L512 539 L318 671 L384 446 L198 302 L433 295 Z" />
-  </g>
-</svg>

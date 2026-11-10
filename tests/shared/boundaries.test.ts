@@ -506,6 +506,126 @@ describe('AC2: hranice mezi částmi hlídá test', () => {
   });
 });
 
+/**
+ * #128 AC3: obrysy omalovánek (`src/games/coloring/pictures/`) se stahují až
+ * s hrou, ne s menu. Startovní soubor stránky tvoří všechno, co `src/main.ts`
+ * importuje staticky (bez `import()`), a to včetně `meta.ts` her, menu
+ * a sdílené části. Obrys v něm nesmí být; kód hry stažený po ťuknutí
+ * (`index.ts` a jeho statické importy) ho importovat smí a musí.
+ */
+const PICTURES_RULE_PATTERN = /^src\/games\/[^/]+\/pictures\//;
+
+/** Statické importy souboru (bez dynamického `import()`). */
+function staticImportsOf(text: string): string[] {
+  const code = withoutComments(text);
+  const patterns = [
+    /^\s*(?:import|export)\s[^;]*?\sfrom\s*['"]([^'"]+)['"]/gm,
+    /^\s*import\s*['"]([^'"]+)['"]/gm,
+  ];
+  return patterns.flatMap((pattern) => [...code.matchAll(pattern)].map((match) => match[1] ?? ''));
+}
+
+/** Všechny soubory, které `entry` načte statickými importy (i soubory mimo `.ts`, např. obrázky). */
+function staticallyLoaded(entry: string, files: Record<string, string>): Set<string> {
+  const loaded = new Set<string>([entry]);
+  const pending = [entry];
+  while (pending.length > 0) {
+    const file = pending.pop() ?? '';
+    for (const specifier of staticImportsOf(files[file] ?? '')) {
+      const target = targetOf(file, specifier, files);
+      if (target !== null && !loaded.has(target)) {
+        loaded.add(target);
+        pending.push(target);
+      }
+    }
+  }
+  return loaded;
+}
+
+/** Obrysy omalovánek, které se načtou se souborem `entry`. */
+function picturesLoadedWith(entry: string, files: Record<string, string>): string[] {
+  return [...staticallyLoaded(entry, files)].filter((file) => PICTURES_RULE_PATTERN.test(file));
+}
+
+describe('#128 AC3: obrysy omalovánek se stahují až s hrou, ne s menu', () => {
+  const NEW_OUTLINES = ['cat', 'dog', 'car', 'butterfly', 'fish'].map(
+    (id) => `src/games/coloring/pictures/${id}.png`,
+  );
+
+  it('se stránkou a menu se nenačte žádný obrys omalovánky (meta.ts her, menu ani sdílená část ho neimportují)', () => {
+    expect(SOURCES['src/main.ts']).toBeDefined();
+    expect(picturesLoadedWith('src/main.ts', SOURCES)).toEqual([]);
+  });
+
+  it('kontrola startovního souboru vidí menu, seznam her, meta.ts Omalovánek a jejich dlaždici', () => {
+    const loaded = staticallyLoaded('src/main.ts', SOURCES);
+    expect(loaded).toContain('src/gameList.ts');
+    expect(loaded).toContain('src/games/coloring/meta.ts');
+    expect(loaded).toContain('src/games/coloring/tile.webp');
+    expect(loaded, 'hra sama se stahuje až po ťuknutí').not.toContain(
+      'src/games/coloring/index.ts',
+    );
+  });
+
+  it('obrys každé z 5 nových omalovánek se načte až s kódem Omalovánek (index.ts hry)', () => {
+    const loaded = staticallyLoaded('src/games/coloring/index.ts', SOURCES);
+    for (const outline of NEW_OUTLINES) {
+      expect(loaded, outline).toContain(outline);
+    }
+  });
+
+  it('kontrola najde obrys, který by meta.ts hry importovala do startovního souboru (seznam her importuje meta.ts staticky)', () => {
+    const files = {
+      ...FAKE_PROJECT,
+      'src/games/counting/meta.ts': `${FAKE_PROJECT['src/games/counting/meta.ts'] ?? ''}\nimport cat from './pictures/cat.png';`,
+    };
+    expect(picturesLoadedWith('src/gameList.ts', files)).toEqual([
+      'src/games/counting/pictures/cat.png',
+    ]);
+  });
+
+  it('obrys načtený dynamickým import() ze seznamu her se do startovního souboru nepočítá', () => {
+    const files = {
+      ...FAKE_PROJECT,
+      'src/games/counting/index.ts': `${FAKE_PROJECT['src/games/counting/index.ts'] ?? ''}\nimport cat from './pictures/cat.png';`,
+    };
+    expect(picturesLoadedWith('src/gameList.ts', files)).toEqual([]);
+    expect(picturesLoadedWith('src/games/counting/index.ts', files)).toEqual([
+      'src/games/counting/pictures/cat.png',
+    ]);
+  });
+
+  it.each([
+    ['obrys', "import cat from './pictures/cat.png';"],
+    ['obrys jako adresa', "import cat from './pictures/cat.png?url';"],
+  ])('meta.ts hry nesmí importovat %s omalovánky', (_name, code) => {
+    expect(violationsWith('src/games/counting/meta.ts', code)).toEqual([
+      expect.objectContaining({ rule: META_RULE }),
+    ]);
+  });
+
+  it.each([
+    ['menu', 'src/menu/logic/menu.ts', "import cat from '../../games/counting/pictures/cat.png';"],
+    ['seznam her', 'src/gameList.ts', "import cat from './games/counting/pictures/cat.png';"],
+    ['src/main.ts', 'src/main.ts', "import cat from './games/counting/pictures/cat.png';"],
+  ])('%s nesmí importovat obrys omalovánky', (_name, file, code) => {
+    expect(violationsWith(file, code)).toEqual([
+      expect.objectContaining({ rule: 'z hry se importuje jen její index.ts nebo meta.ts' }),
+    ]);
+  });
+
+  it('sdílená část nesmí importovat obrys omalovánky', () => {
+    expect(
+      violationsWith(
+        'src/shared/logic/theme.ts',
+        "import cat from '../../games/counting/pictures/cat.png';",
+      ),
+    ).toEqual([
+      expect.objectContaining({ rule: 'sdílená část importuje hru, menu nebo src/main.ts' }),
+    ]);
+  });
+});
+
 /** Soubory, které rozhodují o odemčení her a dodávají stav předplatného (#74). */
 const ACCESS_FILES = ['src/shared/logic/gameAccess.ts', 'src/shared/logic/subscriptionSource.ts'];
 

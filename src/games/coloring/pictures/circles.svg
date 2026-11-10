@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="768" viewBox="0 0 1024 768">
-  <!-- Zástupná omalovánka (#124): tři velké kruhy, dočasná do příchodu skutečných obrázků.
-       Jen obrys na průhledném pozadí, oblasti spočítá hra při startu. -->
-  <g fill="none" stroke="#1D1D1F" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="300" cy="400" r="210" />
-    <circle cx="724" cy="400" r="210" />
-    <circle cx="512" cy="300" r="170" />
-  </g>
-</svg>

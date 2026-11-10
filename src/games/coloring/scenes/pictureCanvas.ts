@@ -3,22 +3,34 @@
  * Obrysy omalovánek sady (#88, #124) vykreslené do plátna. Ze stejného
  * plátna se spočítá mapa oblastí (`getImageData`) a nakreslí obrys nad
  * vrstvou barev, takže obrys na obrazovce přesně sedí s hranicemi oblastí.
- * SVG jsou v repozitáři a přibalí se ke hře, nic se nestahuje z cizích serverů.
+ * Obrys domku je SVG, obrysy skutečných omalovánek (#128) jsou PNG z nástroje
+ * `tools/design/outline-from-image.mjs`. Všechny jsou v repozitáři a stáhnou
+ * se až s hrou z vlastního serveru, nic se nestahuje z cizích serverů.
  * Při změně obrysu se v `logic/pictureSet.ts` zvýší verze omalovánky (#92).
  */
 
 import { buildRegionMap, outlineFromImage } from '../logic/regionMap';
 import type { RegionMap } from '../logic/regionMap';
 import type { PictureIdentity } from '../logic/savedPicture';
-import circlesSvg from '../pictures/circles.svg?raw';
+import butterflyUrl from '../pictures/butterfly.png';
+import carUrl from '../pictures/car.png';
+import catUrl from '../pictures/cat.png';
+import dogUrl from '../pictures/dog.png';
+import fishUrl from '../pictures/fish.png';
 import houseSvg from '../pictures/house.svg?raw';
-import starSvg from '../pictures/star.svg?raw';
 
-/** SVG obrysu podle označení omalovánky ze sady. */
+/** SVG obrysu podle označení omalovánky ze sady (domek). */
 const OUTLINE_SVGS: Readonly<Record<string, string>> = {
   house: houseSvg,
-  circles: circlesSvg,
-  star: starSvg,
+};
+
+/** Adresa PNG obrysu podle označení omalovánky ze sady (#128). */
+const OUTLINE_PNG_URLS: Readonly<Record<string, string>> = {
+  cat: catUrl,
+  dog: dogUrl,
+  car: carUrl,
+  butterfly: butterflyUrl,
+  fish: fishUrl,
 };
 
 /** Plátno s obrysem a jestli se obrys opravdu vykreslil. */
@@ -39,11 +51,29 @@ export interface PreparedPicture {
 /** Načte obrázek obrysu omalovánky; `null`, když nejde načíst. */
 export async function loadOutlineImage(picture: PictureIdentity): Promise<HTMLImageElement | null> {
   const svg = OUTLINE_SVGS[picture.id];
-  if (svg === undefined) {
-    console.warn('omalovánka nemá obrys', picture.id);
-    return null;
+  if (svg !== undefined) {
+    return loadSvgOutline(svg);
   }
+  const pngUrl = OUTLINE_PNG_URLS[picture.id];
+  if (pngUrl !== undefined) {
+    return loadImageFrom(pngUrl);
+  }
+  console.warn('omalovánka nemá obrys', picture.id);
+  return null;
+}
+
+/** SVG obrysu se načte z dočasné adresy v paměti, která se pak hned uvolní. */
+async function loadSvgOutline(svg: string): Promise<HTMLImageElement | null> {
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  try {
+    return await loadImageFrom(url);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** Obrázek z adresy; `null`, když se nenačte. */
+async function loadImageFrom(url: string): Promise<HTMLImageElement | null> {
   try {
     const image = new Image();
     image.src = url;
@@ -53,8 +83,6 @@ export async function loadOutlineImage(picture: PictureIdentity): Promise<HTMLIm
     // Obrázek se nenačetl: plocha zůstane bez obrysu jako jedna oblast, hrát jde dál.
     console.warn('obrys omalovánky se nenačetl', error);
     return null;
-  } finally {
-    URL.revokeObjectURL(url);
   }
 }
 
