@@ -584,3 +584,154 @@ describe('#117 AC4: změna hooků pustí všechny testy', () => {
     );
   });
 });
+
+/**
+ * #119 (otázka 3): pomalé testy Omalovánek (matice těsných tahů,
+ * `tests/games/coloring/*.slow.test.ts`) jsou ve vlastní skupině se
+ * skriptem `test:coloring:slow`. `test:coloring` je vynechává, kontrola
+ * změn je pustí hned za testy Omalovánek jen při změně ukládání obrázku
+ * (`colorLayerCode.ts`, `savedPicture.ts`), pomůcek matice nebo testů
+ * skupiny. V prvním řádku je skupina „ukládání obrázku“.
+ */
+const SCRIPTS_WITH_COLORING: Readonly<Record<string, string>> = {
+  ...SCRIPTS,
+  'test:coloring':
+    "vitest run tests/games/coloring/ tests/shared/boundaries.test.ts --exclude '**/*.slow.test.ts'",
+  'test:coloring:slow': "vitest run tests/games/coloring/ --exclude '**/!(*.slow).test.ts'",
+};
+
+const COLORING_WITH_SAVING: ChangedTestsPlan = {
+  headline: 'Testy: coloring, ukládání obrázku, celek',
+  scripts: ['test:coloring', 'test:coloring:slow', 'test:whole'],
+};
+
+const COLORING_ONLY: ChangedTestsPlan = {
+  headline: 'Testy: coloring, celek',
+  scripts: ['test:coloring', 'test:whole'],
+};
+
+describe('#119: změna ukládání obrázku pustí pomalé testy Omalovánek', () => {
+  it('změna ukládání obrázku, pomůcek matice nebo testů skupiny pustí testy Omalovánek a skupinu', () => {
+    expectEachPlan(
+      [
+        { label: 'kódování vrstvy barev', paths: ['src/games/coloring/logic/colorLayerCode.ts'] },
+        { label: 'záznam obrázku', paths: ['src/games/coloring/logic/savedPicture.ts'] },
+        {
+          label: 'pomůcka matice těsných tahů',
+          paths: ['tests/games/coloring/tightStrokesHelpers.ts'],
+        },
+        {
+          label: 'kontroly matice těsných tahů',
+          paths: ['tests/games/coloring/tightStrokesChecks.ts'],
+        },
+        {
+          label: 'test skupiny vodorovných tahů',
+          paths: ['tests/games/coloring/tightStrokesHorizontal.slow.test.ts'],
+        },
+        {
+          label: 'test skupiny svislých tahů',
+          paths: ['tests/games/coloring/tightStrokesVertical.slow.test.ts'],
+        },
+        {
+          label: 'nový pomalý soubor Omalovánek i v podsložce',
+          paths: ['tests/games/coloring/saving/brandNew.slow.test.ts'],
+        },
+        {
+          label: 'víc souborů ukládání naráz pustí skupinu jen jednou',
+          paths: [
+            'src/games/coloring/logic/colorLayerCode.ts',
+            'src/games/coloring/logic/savedPicture.ts',
+            'tests/games/coloring/tightStrokesHelpers.ts',
+          ],
+        },
+        {
+          label: 'jiná změna Omalovánek spolu s ukládáním',
+          paths: [
+            'src/games/coloring/logic/palette.ts',
+            'src/games/coloring/logic/colorLayerCode.ts',
+          ],
+        },
+      ],
+      COLORING_WITH_SAVING,
+      SCRIPTS_WITH_COLORING,
+    );
+  });
+
+  it('jiná změna v Omalovánkách pomalé testy Omalovánek nepustí', () => {
+    expectEachPlan(
+      [
+        { label: 'malování', paths: ['src/games/coloring/logic/coloring.ts'] },
+        { label: 'paleta', paths: ['src/games/coloring/logic/palette.ts'] },
+        { label: 'scéna', paths: ['src/games/coloring/scenes/ColoringScene.ts'] },
+        {
+          label: 'rychlý test záznamu',
+          paths: ['tests/games/coloring/tightStrokesRecord.test.ts'],
+        },
+        {
+          label: 'pevný záznam p4',
+          paths: ['tests/games/coloring/legacyP4RecordFixture.ts'],
+        },
+      ],
+      COLORING_ONLY,
+      SCRIPTS_WITH_COLORING,
+    );
+  });
+
+  it('pomalé testy Omalovánek nepustí skupinu rozpoznávání a rozpoznávání nepustí pomalé testy Omalovánek', () => {
+    const cases: readonly (PlanCase & { readonly expected: ChangedTestsPlan })[] = [
+      {
+        label: 'pomalý soubor Omalovánek',
+        paths: ['tests/games/coloring/tightStrokesVertical.slow.test.ts'],
+        expected: COLORING_WITH_SAVING,
+      },
+      {
+        label: 'rozpoznávání psaní',
+        paths: ['src/games/counting/logic/digitRecognition.ts'],
+        expected: COUNTING_WITH_RECOGNITION,
+      },
+      {
+        label: 'ukládání obrázku i rozpoznávání: každá skupina hned za svou hrou',
+        paths: [
+          'src/games/counting/logic/digitRecognition.ts',
+          'src/games/coloring/logic/savedPicture.ts',
+        ],
+        expected: {
+          headline: 'Testy: coloring, ukládání obrázku, counting, rozpoznávání, celek',
+          scripts: [
+            'test:coloring',
+            'test:coloring:slow',
+            'test:counting',
+            'test:recognition',
+            'test:whole',
+          ],
+        },
+      },
+    ];
+    for (const { label, paths, expected } of cases) {
+      expect(planChangedTests(paths, SCRIPTS_WITH_COLORING), label).toEqual(expected);
+    }
+  });
+
+  it('bez skriptu pomalých testů Omalovánek pustí změna ukládání obrázku všechny testy', () => {
+    const withoutSlow: Record<string, string> = { ...SCRIPTS_WITH_COLORING };
+    delete withoutSlow['test:coloring:slow'];
+    expectEachPlan(
+      [{ label: 'kódování vrstvy barev', paths: ['src/games/coloring/logic/colorLayerCode.ts'] }],
+      ALL_TESTS,
+      withoutSlow,
+    );
+  });
+
+  it('změna ukládání obrázku spolu s dokumentací pustí stejné testy jako samotná', () => {
+    expectEachPlan(
+      [
+        {
+          label: 'ukládání obrázku a deník',
+          paths: ['docs/rozhodnuti.md', 'src/games/coloring/logic/savedPicture.ts'],
+        },
+      ],
+      COLORING_WITH_SAVING,
+      SCRIPTS_WITH_COLORING,
+    );
+  });
+});

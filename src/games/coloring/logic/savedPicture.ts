@@ -15,7 +15,7 @@
  *
  * Velikost palety (#115) je volba `paletteSize`, bez ní všech 46 barev
  * ze sad nástrojů (`ALL_COLORS`, #116).
- * Formát p4 zná nejvýš 64 barev (`MAX_PALETTE_SIZE`); barvy 0 až
+ * Formáty p4 a p5 znají nejvýš 64 barev (`MAX_PALETTE_SIZE`); barvy 0 až
  * `paletteSize − 1` jde vybrat, malovat, uložit a obnovit, včetně barev
  * nástrojů a nedávných barev. Selhání úložiště
  * hra nikdy nevyhodí (AC5); co se nepodaří uložit, drží v paměti úložiště
@@ -115,10 +115,11 @@ export const MAX_PALETTE_SIZE: number = MAX_LAYER_COLOR_COUNT;
 
 /**
  * Označení formátu záznamu je verze kódování vrstvy barev; při změně
- * kódování se zvýší. Ukládá se v nejnovější (p4 s 64 barvami, #115), číst
- * jde i starší s 8 barvami (p1 z #92, p2 z #93) a s 12 barvami (p3 z #100).
+ * kódování se zvýší. Ukládá se v nejnovější (p5 s 64 barvami a aritmetickým
+ * kódováním, #119), číst jde i starší s 8 barvami (p1 z #92, p2 z #93),
+ * s 12 barvami (p3 z #100) a s 64 barvami (p4 z #115).
  */
-const READABLE_FORMATS: readonly LayerCodeVersion[] = ['p1', 'p2', 'p3', 'p4'];
+const READABLE_FORMATS: readonly LayerCodeVersion[] = ['p1', 'p2', 'p3', 'p4', 'p5'];
 
 function isReadableFormat(format: string | undefined): format is LayerCodeVersion {
   return READABLE_FORMATS.some((readable) => readable === format);

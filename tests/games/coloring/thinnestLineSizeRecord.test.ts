@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import {
+  decodeColorLayer,
+  encodeColorLayer,
+} from '../../../src/games/coloring/logic/colorLayerCode';
 import { brushWidthFor, createColoring } from '../../../src/games/coloring/logic/coloring';
 import type { Coloring } from '../../../src/games/coloring/logic/coloring';
 import { PALETTE } from '../../../src/games/coloring/logic/palette';
@@ -53,7 +57,13 @@ import {
 } from './legacyP3StripesRecordFixture';
 import { LEGACY_P1_RECORD, legacyPixels, legacyRegions } from './legacyRecordFixture';
 import { TOOL_NAMES } from './lineSizeHelpers';
-import { RECORD_LIMIT, colorsOf, pixelsFrom } from './manyColorsHelpers';
+import {
+  DATA_FIELD,
+  RECORD_LIMIT,
+  colorsOf,
+  pixelsFrom,
+  rewrittenRecord,
+} from './manyColorsHelpers';
 import {
   PICTURE,
   RecordingStorage,
@@ -491,9 +501,31 @@ function storageWithP1(): RecordingStorage {
 }
 
 /**
- * Obrázek ve formátu p4, jak ho uloží dnešní hra (před #118) po tazích
- * všemi nástroji a velkou velikostí. Pixely si pamatuje hra, která ho
- * namalovala.
+ * Záznam obrázku `record` přepsaný do formátu p4 (stejné pixely, kódování
+ * p4). Od #119 hra ukládá formátem p5, obrázek „uložený před #118“ proto
+ * vznikne přepsáním. Jiné záznamy úložiště zůstanou, jak jsou.
+ */
+function asP4Record(record: string, regions: RegionMap): string {
+  const fields = record.split('|');
+  if (fields[0] !== 'p5') {
+    return record;
+  }
+  const layer = decodeColorLayer(regions, fields[DATA_FIELD] ?? '', 'p5');
+  if (layer === null) {
+    return record;
+  }
+  return (
+    rewrittenRecord(record, (body) => {
+      body[0] = 'p4';
+      body[DATA_FIELD] = encodeColorLayer(regions, layer, 'p4');
+    }) ?? record
+  );
+}
+
+/**
+ * Obrázek ve formátu p4, jak ho uložila hra před #118 po tazích všemi
+ * nástroji a velkou velikostí (od #119 přepsaný z formátu p5, viz
+ * `asP4Record`). Pixely si pamatuje hra, která ho namalovala.
  */
 function savedP4(): { storage: RecordingStorage; pixels: Array<number | null> } {
   const regions = twoHalves();
@@ -517,6 +549,7 @@ function savedP4(): { storage: RecordingStorage; pixels: Array<number | null> } 
     drawWith(game, tool, index % PALETTE.length, [at(10, y), at(290, y + 6)]);
   });
   game.suspend();
+  storage.rewriteAll((value) => asP4Record(value, regions));
   return { storage, pixels: pixelsOf(game, regions) };
 }
 
@@ -582,7 +615,7 @@ const SAVED_BEFORE: readonly SavedBefore[] = [
     lineSize: LEGACY_BEFORE_111_LINE_SIZE,
   },
   {
-    name: 'p4 z dnešní hry',
+    name: 'p4 přepsaný z obrázku hry',
     storage: () => copyOf(p4Saved().storage),
     regions: twoHalves,
     pixels: () => p4Saved().pixels,
@@ -591,7 +624,7 @@ const SAVED_BEFORE: readonly SavedBefore[] = [
 ];
 
 describe('#118 AC5: obrázky a velikosti uložené před #118', () => {
-  it('kontrola: obrázek dnešní hry je uložený ve formátu p4', () => {
+  it('kontrola: obrázek hry přepsaný do p4 je uložený ve formátu p4', () => {
     const formats = [...p4Saved().storage.data.values()]
       .filter((value) => decodePicture(value, PICTURE, twoHalves()) !== null)
       .map((value) => value.split('|')[0]);

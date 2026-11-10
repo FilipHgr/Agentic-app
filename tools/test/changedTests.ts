@@ -4,8 +4,9 @@
  * Pouštějí se testy dotčených částí (sdílená část, menu, jednotlivé hry)
  * a vždy kontroly celku (`test:whole`). Změna mimo všechny části nebo ve
  * hře bez vlastního skriptu `test:<hra>` pustí všechny testy (`test`).
- * Skupina pomalých testů hry (dnes rozpoznávání psaní v Počítání, #80) se
- * pustí jen při změně souborů, kterých se týká.
+ * Skupina pomalých testů hry (rozpoznávání psaní v Počítání, #80,
+ * a ukládání obrázku v Omalovánkách, #119) se pustí jen při změně souborů,
+ * kterých se týká.
  *
  * Čistá logika bez Node API, aby ji kontroloval `tsc`. Změny z gitu zjistí
  * a skripty spustí `runChangedTests.ts`.
@@ -76,12 +77,33 @@ const RECOGNITION_PATHS: ReadonlySet<string> = new Set([
 /** Pomalý soubor testů Počítání, i v podsložce. */
 const COUNTING_SLOW_TEST = /^tests\/games\/counting\/.+\.slow\.test\.ts$/;
 
+/**
+ * Soubory, na kterých závisí pomalé testy ukládání obrázku Omalovánek
+ * (matice těsných tahů, #119): kódování vrstvy barev, záznam obrázku
+ * a pomůcky matice.
+ */
+const PICTURE_SAVING_PATHS: ReadonlySet<string> = new Set([
+  'src/games/coloring/logic/colorLayerCode.ts',
+  'src/games/coloring/logic/savedPicture.ts',
+  'tests/games/coloring/tightStrokesHelpers.ts',
+  'tests/games/coloring/tightStrokesChecks.ts',
+]);
+
+/** Pomalý soubor testů Omalovánek, i v podsložce. */
+const COLORING_SLOW_TEST = /^tests\/games\/coloring\/.+\.slow\.test\.ts$/;
+
 const SLOW_TEST_GROUPS: readonly SlowTestGroup[] = [
   {
     gameId: 'counting',
     label: 'rozpoznávání',
     script: 'test:recognition',
     matches: (path) => RECOGNITION_PATHS.has(path) || COUNTING_SLOW_TEST.test(path),
+  },
+  {
+    gameId: 'coloring',
+    label: 'ukládání obrázku',
+    script: 'test:coloring:slow',
+    matches: (path) => PICTURE_SAVING_PATHS.has(path) || COLORING_SLOW_TEST.test(path),
   },
 ];
 

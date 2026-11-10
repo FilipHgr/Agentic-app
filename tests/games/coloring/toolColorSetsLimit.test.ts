@@ -11,6 +11,7 @@ import { pixelDifferences, usedColors, worstCaseOutlines } from './extendedPalet
 import { glitterPixels } from './glitterHelpers';
 import {
   RECORD_LIMIT,
+  RESERVED_RECORD_LIMIT,
   colorsOf,
   crayonPlaces,
   patternOverStripes,
@@ -30,6 +31,8 @@ import { ALL_COLOR_COUNT, SET_SIZE, allSetColors, giveToolPlace } from './toolCo
  * #97–#104, jak je staví `manyColorsHelpers.ts` z #115) se střídáním přes
  * všechny barvy tabulky se s dnešní hrou (bez volby `paletteSize`, tedy
  * se všemi 46 barvami sad) vejdou do 50 000 znaků a přečtou se beze ztráty.
+ * Od #119 AC2 je hranice přísnější: 45 000 znaků (rezerva 10 % pod limitem
+ * 50 000, který se nemění).
  *
  * Barvy se střídají ve dvou pořadích: po sloupcích tabulky (štětec, fix,
  * …, sprej, každá barva jednou) a střídáním vzdálených barev tohoto
@@ -75,7 +78,7 @@ function inTableOrder(
   );
 }
 
-/** Obrázek s pixely `pixels` se s dnešní hrou vejde do 50 000 znaků a přečte se beze ztráty. */
+/** Obrázek s pixely `pixels` se s dnešní hrou vejde do 45 000 znaků (#119 AC2) a přečte se beze ztráty. */
 function expectWithinLimit(
   what: string,
   regions: RegionMap,
@@ -88,7 +91,7 @@ function expectWithinLimit(
     colors: colorsOf(pixels, regions),
     selectedColor,
   });
-  expect(record.length, `${what}: délka záznamu`).toBeLessThanOrEqual(RECORD_LIMIT);
+  expect(record.length, `${what}: délka záznamu`).toBeLessThanOrEqual(RESERVED_RECORD_LIMIT);
 
   const decoded = decodePicture(record, PICTURE, regions);
   expect(decoded, `${what}: záznam jde přečíst`).not.toBeNull();
@@ -125,7 +128,7 @@ function expectPatternWithinLimit(
 /** Kolik pruhů W stř má vzor V na šířce 1024 px (#96: W stř = šířka / 30). */
 const STRIPE_COUNT = 30;
 
-describe('#116 AC6: nejhorší vzory se střídáním přes všechny barvy tabulky se vejdou do 50 000 znaků', () => {
+describe('#116 AC6, zpřísněno #119 AC2: nejhorší vzory se střídáním přes všechny barvy tabulky se vejdou do 45 000 znaků', () => {
   it(
     'vzor V (#92, #100) se vejde a přečte se beze ztráty',
     () => {
@@ -225,7 +228,9 @@ describe('#116 AC6: nejhorší vzory se střídáním přes všechny barvy tabul
         .map((record) => ({ record, decoded: decodePicture(record, PICTURE, regions) }))
         .find(({ decoded }) => decoded !== null);
       expect(saved, 'hra uložila obrázek, který jde přečíst').toBeDefined();
-      expect(saved?.record.length, 'délka uloženého záznamu').toBeLessThanOrEqual(RECORD_LIMIT);
+      expect(saved?.record.length, 'délka uloženého záznamu').toBeLessThanOrEqual(
+        RESERVED_RECORD_LIMIT,
+      );
       expect(
         pixelDifferences(
           saved?.decoded === null || saved === undefined

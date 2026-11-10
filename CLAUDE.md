@@ -93,11 +93,18 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
 - `npm test` všechny testy
 - `npm run test:shared` testy sdílené části, `npm run test:menu` testy menu
   a test hranic, `npm run test:<hra>` (např. `test:counting`) testy jedné
-  hry a test hranic.
+  hry a test hranic. Pomalé testy hry (soubory `*.slow.test.ts`)
+  `test:<hra>` vynechává, mají vlastní skupinu níž.
 - `npm run test:recognition` pomalé testy rozpoznávání psaní (soubory
-  `*.slow.test.ts`, `test:counting` je vynechává). Pouští se při změně
+  `*.slow.test.ts` v `tests/games/counting/`). Pouští se při změně
   rozpoznávání, jeho vzorů, sady vzorků nebo testů skupiny (`test:changed`
   ji pustí sám) a vždy v `npm test`, a tedy i v CI.
+- `npm run test:coloring:slow` pomalé testy ukládání obrázku Omalovánek
+  (matice těsných tahů, soubory `*.slow.test.ts` v `tests/games/coloring/`).
+  Pouští se při změně kódování vrstvy barev (`colorLayerCode.ts`), záznamu
+  obrázku (`savedPicture.ts`), pomůcek matice (`tightStrokesHelpers.ts`,
+  `tightStrokesChecks.ts`) nebo testů skupiny (`test:changed` ji pustí sám)
+  a vždy v `npm test`, a tedy i v CI.
 - `npm run test:whole` kontroly celku (test hranic, natvrdo napsaných textů
   a souborů obrázků dlaždic her).
 - `npm run test:changed` testy částí změněných od posledního commitu
