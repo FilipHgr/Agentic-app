@@ -17,6 +17,11 @@
  * Míry se nesmí přegenerovat z nové verze hry, jinak by test nic nehlídal.
  * Až úkol mimo #126 velikost obrázku záměrně změní (třeba obrázek na výšku
  * bez otočení, #127, #128), upraví se tabulka v tom úkolu s odkazem na něj.
+ *
+ * #127 (na výšku se omalovánka neotáčí) změnil řádky oken na výšku: šířka
+ * volné plochy bez bočních okrajů 8 px a výška 3/4 šířky (#127 AC1), spočtené
+ * ze zadání, ne z hry (schválené obrázky: 390 × 844 → 374 × 280,5 px,
+ * 360 × 620 → 344 × 258 px). Řádky na šířku jsou beze změny.
  */
 
 /** Okno, šířka a výška plochy omalovánky v CSS px. */
@@ -30,18 +35,18 @@ export const PICTURE_SIZE_BEFORE_126: ReadonlyArray<readonly [string, number, nu
   ['932×430 iPhone Pro Max', 545.333, 409],
   ['932×499 těsně pod hranicí', 665.333, 499],
   ['932×499 těsně pod hranicí s výřezem', 637.333, 478],
-  ['390×844 iPhone 13–15 (výřez 47, lišta 34)', 374, 498.667],
-  ['390×664 iPhone v Safari s lištou', 374, 498.667],
-  ['360×780 Samsung s Chromem', 344, 458.667],
-  ['375×667 iPhone SE', 359, 478.667],
-  ['430×932 iPhone Pro Max (výřez 59, lišta 34)', 414, 552],
-  ['360×620 nejmenší telefon na výšku', 344, 458.667],
-  ['414×622 iPhone 8 Plus v Safari s lištami', 346.5, 462],
-  ['499×932 těsně pod hranicí šířky', 483, 644],
-  ['375×1180 úzký iPad (Split View)', 359, 478.667],
+  ['390×844 iPhone 13–15 (výřez 47, lišta 34)', 374, 280.5], // #127, dřív 374 × 498.667
+  ['390×664 iPhone v Safari s lištou', 374, 280.5], // #127, dřív 374 × 498.667
+  ['360×780 Samsung s Chromem', 344, 258], // #127, dřív 344 × 458.667
+  ['375×667 iPhone SE', 359, 269.25], // #127, dřív 359 × 478.667
+  ['430×932 iPhone Pro Max (výřez 59, lišta 34)', 414, 310.5], // #127, dřív 414 × 552
+  ['360×620 nejmenší telefon na výšku', 344, 258], // #127, dřív 344 × 458.667
+  ['414×622 iPhone 8 Plus v Safari s lištami', 398, 298.5], // #127, dřív 346.5 × 462
+  ['499×932 těsně pod hranicí šířky', 483, 362.25], // #127, dřív 483 × 644
+  ['375×1180 úzký iPad (Split View)', 359, 269.25], // #127, dřív 359 × 478.667
   ['iPad na šířku z plochy (stavový řádek 24, lišta 20)', 1034.667, 776],
-  ['iPhone 430×932 na výšku z plochy (výřez 59, lišta 34)', 414, 552],
-  ['iPhone 393×852 na výšku z plochy (výřez 59, lišta 34)', 377, 502.667],
+  ['iPhone 430×932 na výšku z plochy (výřez 59, lišta 34)', 414, 310.5], // #127, dřív 414 × 552
+  ['iPhone 393×852 na výšku z plochy (výřez 59, lišta 34)', 377, 282.75], // #127, dřív 377 × 502.667
   ['iPhone 932×430 na šířku z plochy (výřez 59, lišta 21)', 545.333, 409],
 ];
 

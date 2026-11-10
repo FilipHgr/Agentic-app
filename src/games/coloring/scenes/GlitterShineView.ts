@@ -28,8 +28,8 @@ const OUTLINE_ALPHA = 0.9;
 const NOTCH_SHARE = 0.3;
 
 /**
- * Kam se vrstva barev kreslí: převod bodu vrstvy na obrazovku (i na
- * otočený obrázek, #111) a zvětšení vrstvy na obrazovce.
+ * Kam se vrstva barev kreslí: převod bodu vrstvy na obrazovku a zvětšení
+ * vrstvy na obrazovce.
  */
 export interface ShinePlacement {
   /** Bod vrstvy barev (pixely) na obrazovce v herních jednotkách. */

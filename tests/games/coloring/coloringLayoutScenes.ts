@@ -29,9 +29,9 @@
  * (#111 AC4). Je to schválená výjimka z pravidla „aspoň 4 px od okraje“
  * (rozhodnutí 2026-11-08), proto má plocha omalovánky na šířku odstup od
  * okraje 0 px (`PICTURE_EDGE_EXCEPTION`). Výjimka platí jen pro obrázek
- * a jen na šířku, ostatní prvky mají dál aspoň 4 px. Na výšku je obrázek
- * otočený o 90° po směru hodinových ručiček (#111 AC1), `picture` je
- * obdélník, který zabírá na obrazovce (šířka 3, výška 4).
+ * a jen na šířku, ostatní prvky mají dál aspoň 4 px. Na výšku se obrázek
+ * od #127 neotáčí (#111 ho otáčel o 90°): leží rovně přes šířku okna
+ * bez bočních okrajů 8 px, `picture` má i tam poměr stran 4 : 3.
  *
  * Navržené rozhraní `src/games/coloring/logic/coloringLayout.ts`
  * (v herních jednotkách, jedno rozložení pro oba stavy panelu, aby se
@@ -90,8 +90,9 @@ import type { Box, TestWindow } from '../../shared/viewportFixtures';
 
 /**
  * iPhone 8 Plus na výšku v Safari s lištami (#111): nízké okno, kde se
- * otočený obrázek přes šířku okna nevejde mezi domeček a lištu a musí se
- * zmenšit na volnou výšku.
+ * otočený obrázek přes šířku okna nevešel mezi domeček a lištu. Od #127
+ * (bez otočení) se tam obrázek přes šířku vejde (398 × 298,5 px), okno
+ * zůstává jako nejnižší telefon na výšku s širším oknem.
  */
 export const LOW_PORTRAIT_PHONE: TestWindow = {
   name: '414×622 iPhone 8 Plus v Safari s lištami',

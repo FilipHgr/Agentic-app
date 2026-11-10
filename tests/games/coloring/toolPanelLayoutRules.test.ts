@@ -42,8 +42,8 @@ import type { ColoringCase } from './coloringLayoutScenes';
  *
  * Test AC1 „obrázek je největší 4 : 3 v prostoru mimo pruh: od dvou
  * protilehlých hranic nejvýš 8 px“ nahrazují od #111 přesnější testy
- * v `pictureRotationLayoutRules.test.ts`: na výšku otočený obrázek přes
- * šířku bez okrajů 8 px na středu mezi domečkem a lištou (#111 AC1), na
+ * v `pictureRotationLayoutRules.test.ts`: na výšku obrázek (od #127 bez
+ * otočení) přes šířku bez okrajů 8 px na středu mezi domečkem a lištou (#127 AC1), na
  * šířku obrázek přes celou výšku, nebo co nejširší, na středu (#111 AC4).
  * Zde zůstává, že obrázek leží celý v prostoru mimo pruh.
  */

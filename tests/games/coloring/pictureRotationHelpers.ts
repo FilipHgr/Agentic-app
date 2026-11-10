@@ -1,15 +1,14 @@
 /**
- * Pomůcky pro testy otočeného obrázku v Omalovánkách (#111). Dotyk na
- * obrazovce (herní jednotky) se převádí na bod vrstvy barev navrženou
- * čistou funkcí `pictureLayerPoint(layout, layer, x, y)` z `coloringLayout.ts`.
+ * Pomůcky pro testy obrázku v Omalovánkách na výšku i na šířku (#111,
+ * od #127 bez otočení). Dotyk na obrazovce (herní jednotky) se převádí na
+ * bod vrstvy barev čistou funkcí `pictureLayerPoint(layout, layer, x, y)`
+ * z `coloringLayout.ts`.
  *
- * Co je „přesně pod prstem“, říká zadání (#111 AC1, AC2) a testy to
- * počítají samy, nezávisle na implementaci:
- * - na šířku obrázek otočený není: levý horní roh obrázku na obrazovce je
- *   levý horní roh omalovánky, doprava roste x, dolů y,
- * - na výšku je otočený o 90° po směru hodinových ručiček (vršek vpravo):
- *   pravý horní roh obrázku na obrazovce je levý horní roh omalovánky,
- *   dolů po obrazovce roste x omalovánky, doleva po obrazovce y.
+ * Co je „přesně pod prstem“, říká zadání (#127 AC2) a testy to počítají
+ * samy, nezávisle na implementaci: obrázek není otočený v žádném okně
+ * (#127 AC1, ani na výšku). Levý horní roh obrázku na obrazovce je levý
+ * horní roh omalovánky, doprava roste x, dolů y. Do #127 byl obrázek na
+ * výšku otočený o 90° po směru hodinových ručiček (#111 AC1).
  *
  * Vrstva barev hry má 1024 × 768 pixelů (poměr 4 : 3).
  */
@@ -18,20 +17,11 @@ import { pictureLayerPoint } from '../../../src/games/coloring/logic/coloringLay
 import type { ColoringLayout, LayerSize } from '../../../src/games/coloring/logic/coloringLayout';
 import type { SavedColoring } from '../../../src/games/coloring/logic/savedPicture';
 import type { Box } from '../../shared/viewportFixtures';
-import { isLandscapeArea } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
 import type { Point } from './outlineFixtures';
 
 /** Vrstva barev hry (`ColoringScene`): 1024 × 768 pixelů. */
 export const LAYER = { width: 1024, height: 768 } as const;
-
-/**
- * Je obrázek v rozložení na obrazovce otočený? Podle tvaru herní plochy
- * (na výšku), jako rozhoduje hra.
- */
-function isTurned(testCase: ColoringCase): boolean {
-  return !isLandscapeArea(testCase.area);
-}
 
 /**
  * Bod omalovánky pod prstem podle zadání (viz úvod souboru), z bodu
@@ -45,9 +35,6 @@ export function expectedLayerPoint(
   const { picture } = testCase.layout;
   const across = (screen.x - picture.left) / picture.width;
   const down = (screen.y - picture.top) / picture.height;
-  if (isTurned(testCase)) {
-    return { x: down * layer.width, y: (1 - across) * layer.height };
-  }
   return { x: across * layer.width, y: down * layer.height };
 }
 
@@ -63,12 +50,6 @@ export function screenPointOf(
   const { picture } = testCase.layout;
   const alongWidth = point.x / layer.width;
   const alongHeight = point.y / layer.height;
-  if (isTurned(testCase)) {
-    return {
-      x: picture.left + (1 - alongHeight) * picture.width,
-      y: picture.top + alongWidth * picture.height,
-    };
-  }
   return {
     x: picture.left + alongWidth * picture.width,
     y: picture.top + alongHeight * picture.height,

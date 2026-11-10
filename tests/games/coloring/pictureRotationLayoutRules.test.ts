@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { layoutColoring } from '../../../src/games/coloring/logic/coloringLayout';
+import type { ColoringLayout } from '../../../src/games/coloring/logic/coloringLayout';
+import { homeButtonInFreeArea } from '../../../src/shared/logic/homeButton';
+import type { GameArea } from '../../../src/shared/logic/viewportLayout';
 import { MIN_EDGE_DISTANCE, MIN_TAP_GAP } from '../../shared/layoutRules';
-import { boundsOf, gapBetween, heightOf, widthOf } from '../../shared/viewportFixtures';
+import { boundsOf, gapBetween, heightOf, toCss, widthOf } from '../../shared/viewportFixtures';
 import type { Box } from '../../shared/viewportFixtures';
 import {
   HANDLE_NAME,
@@ -9,6 +13,7 @@ import {
   PICTURE_EDGE_EXCEPTION,
   PICTURE_NAME,
   UNDO_NAME,
+  boxOfRect,
   coloringCases,
   isLandscapeArea,
   recentColorName,
@@ -16,32 +21,46 @@ import {
 import type { ColoringCase } from './coloringLayoutScenes';
 
 /**
- * Testy k #111 (obrázek v Omalovánkách přes celou výšku, na výšku otočený
- * bokem): AC1 na výšku otočený a větší obrázek, AC3 obrázek mezi lištami
- * a AC4 na šířku obrázek až k hornímu a dolnímu okraji. Každé pravidlo má
- * jeden test, který v cyklu projde všechna okna (`COLORING_WINDOWS`) se
- * zavřeným panelem i v obou krocích panelu, případ je popsaný ve zprávě
- * `expect`. Obrazovku skládá `coloringLayoutScenes.ts`, společná pravidla
- * (64 px, 8 px, nic se nepřekrývá, vejde se, aspoň 4 px od okraje se
- * schválenou výjimkou 0 px jen pro obrázek na šířku) běží
- * v `coloringLayoutRules.test.ts`.
+ * Testy k #127 (na výšku se omalovánka neotáčí) a k #111 AC3, AC4, které
+ * platí dál: #127 AC1 na výšku obrázek rovně přes šířku okna, #127 AC3
+ * (= #111 AC3) obrázek mezi lištami a #111 AC4 na šířku obrázek až
+ * k hornímu a dolnímu okraji (beze změny). Každé pravidlo má jeden test,
+ * který v cyklu projde všechna okna (`COLORING_WINDOWS`) se zavřeným
+ * panelem i v obou krocích panelu, případ je popsaný ve zprávě `expect`.
+ * Obrazovku skládá `coloringLayoutScenes.ts`, společná pravidla (64 px,
+ * 8 px, nic se nepřekrývá, vejde se, aspoň 4 px od okraje se schválenou
+ * výjimkou 0 px jen pro obrázek na šířku) běží v `coloringLayoutRules.test.ts`.
  *
- * Nahrazují test #96 AC1 „obrázek je největší 4 : 3 v prostoru mimo pruh:
- * od dvou protilehlých hranic nejvýš 8 px“ (`toolPanelLayoutRules.test.ts`)
- * přesnými pravidly: na výšku šířka okna bez 8 px po stranách a na středu
- * mezi domečkem a lištou, na šířku celá výška volné plochy, nebo celá šířka
- * vedle pruhu bez 8 px, a na středu.
+ * Šířka obrázku na výšku se měří jako v #111: šířka volné plochy okna, kde
+ * je hra vidět (`visible`), bez bočních okrajů 8 px (komentář k #127).
  *
- * Navržené rozhraní (`coloringLayout.ts`): `ColoringLayout` má navíc pole
- * `pictureTurn: PictureTurn` s `PictureTurn = 0 | 90`, otočení obrázku na
- * obrazovce ve stupních po směru hodinových ručiček. `picture` zůstává
- * obdélník, který obrázek zabírá na obrazovce.
+ * Zmenšovací pravidlo #127 AC1 (výška 3/4 šířky se nevejde mezi domeček
+ * a lištu) se v žádném okně z `COLORING_WINDOWS` neuplatní: rozložení P-A
+ * dostane jen telefon na výšku (okno užší než 500 px s volnou výškou
+ * aspoň 620 px) a tam je volná výška vždy aspoň 460 px, obrázek přes
+ * šířku nejvýš 362,25 px. Pravidlo je pojistka pro neznámá okna (otázka 2)
+ * a ověří se na jedné přidané téměř čtvercové herní ploše na výšku
+ * 480 × 500 CSS px (`NEARLY_SQUARE_PORTRAIT_AREA`), kterou dostane přímo
+ * `layoutColoring`. Že má jistě rozložení P-A, hlídá vlastní test.
+ *
+ * Nahrazené testy #111 na výšku (otočený obrázek, AC5 v #127):
+ * - „na výšku otočený o 90°“ a „na šířku nikdy otočený není“ (pole
+ *   `pictureTurn`) nahrazuje „na výšku i na šířku leží obrázek naležato“
+ *   a v `pictureRotationTouch.test.ts` „levý horní roh obrázku je levý
+ *   horní roh omalovánky“ ve všech oknech (chování, ne pole rozložení),
+ * - „výška 4/3 šířky“ nahrazuje „výška 3/4 šířky“,
+ * - „390 × 844 má 374 × 498,7 px“ nahrazuje „390 × 844 má 374 × 280,5 px
+ *   a 360 × 620 má 344 × 258 px“,
+ * - „okna, kde se vejde i kde ne (414 × 622)“ a „zmenší se na volnou výšku“
+ *   nahrazují testy zmenšovacího pravidla na přidané téměř čtvercové ploše,
+ * - šířka bez okrajů 8 px, svisle na středu a aspoň 8 px od domečku i lišty
+ *   zůstávají a běží navíc i na přidané ploše.
  */
 
 /** Poměr stran obrázku (1024 × 768). */
 const PICTURE_ASPECT = 4 / 3;
 
-/** Boční okraje obrázku na výšku a odstup od pruhu na šířku v CSS px (AC1, AC4). */
+/** Boční okraje obrázku na výšku a odstup od pruhu na šířku v CSS px (AC1, #111 AC4). */
 const PICTURE_SIDE_MARGIN = 8;
 
 /** Tolerance na zaokrouhlení v CSS px. */
@@ -66,20 +85,85 @@ function landscapeCases(): ColoringCase[] {
   return cases().filter((testCase) => isLandscapeArea(testCase.area));
 }
 
+/**
+ * Přidaná téměř čtvercová herní plocha telefonu na výšku (#127, otázka 2):
+ * 480 × 500 CSS px bez výřezu, 2 herní jednotky na CSS px jako u telefonu.
+ * Mezi domečkem a lištou zbývá tak málo místa, že se obrázek přes šířku
+ * nevejde.
+ */
+const NEARLY_SQUARE_PORTRAIT_AREA: GameArea = {
+  mode: 'phonePortrait',
+  width: 960,
+  height: 1000,
+  scale: 0.5,
+  offsetX: 0,
+  offsetY: 0,
+};
+
+/** Co pravidla obrázku na výšku potřebují, v CSS px okna. */
+interface PortraitPicture {
+  readonly label: string;
+  readonly layout: ColoringLayout;
+  /** Volná plocha, kde je hra vidět. */
+  readonly visible: Box;
+  readonly picture: Box;
+  /** Plocha domečku pro prst. */
+  readonly home: Box;
+  readonly handle: Box;
+  readonly undo: Box;
+  readonly recentColors: readonly Box[];
+}
+
+function portraitPictureOf(testCase: ColoringCase): PortraitPicture {
+  return { ...testCase, label: testCase.scene.label };
+}
+
+/** Přidaná plocha jako obrazovka pro pravidla (vidět je celá herní plocha). */
+function nearlySquarePicture(): PortraitPicture {
+  const area = NEARLY_SQUARE_PORTRAIT_AREA;
+  const layout = layoutColoring(area);
+  const css = (box: Box): Box => toCss(box, area);
+  const home = homeButtonInFreeArea(area);
+  return {
+    label: 'přidaná téměř čtvercová plocha na výšku 480 × 500',
+    layout,
+    visible: css({ left: 0, right: area.width, top: 0, bottom: area.height }),
+    picture: css(boxOfRect(layout.picture)),
+    home: css({
+      left: home.left,
+      right: home.left + home.size,
+      top: home.top,
+      bottom: home.top + home.size,
+    }),
+    handle: css(boxOfRect(layout.handle)),
+    undo: css(boxOfRect(layout.undoButton)),
+    recentColors: layout.recentColors.map((rect) => css(boxOfRect(rect))),
+  };
+}
+
+/** Všechna okna na výšku a přidaná plocha. */
+function allPortraitPictures(): PortraitPicture[] {
+  return [...portraitCases().map(portraitPictureOf), nearlySquarePicture()];
+}
+
 /** Vršek spodní lišty na výšku: nedávné barvy, úchyt a Zpět. */
-function stripTopOf(testCase: ColoringCase): number {
-  return Math.min(...[testCase.handle, testCase.undo, ...testCase.recentColors].map((b) => b.top));
+function stripTopOf(portrait: PortraitPicture): number {
+  return Math.min(...[portrait.handle, portrait.undo, ...portrait.recentColors].map((b) => b.top));
 }
 
 /** Volná výška pro obrázek na výšku: mezi domečkem a lištou bez 8 px z obou stran (AC1). */
-function freePortraitHeightOf(testCase: ColoringCase): number {
-  return stripTopOf(testCase) - testCase.home.bottom - 2 * MIN_TAP_GAP;
+function freePortraitHeightOf(portrait: PortraitPicture): number {
+  return stripTopOf(portrait) - portrait.home.bottom - 2 * MIN_TAP_GAP;
 }
 
-/** Vejde se na výšku obrázek přes šířku okna bez 8 px po stranách (AC1)? */
-function fullWidthFits(testCase: ColoringCase): boolean {
-  const fullWidth = widthOf(testCase.visible) - 2 * PICTURE_SIDE_MARGIN;
-  return fullWidth * PICTURE_ASPECT <= freePortraitHeightOf(testCase) + TOLERANCE;
+/** Šířka obrázku přes šířku okna bez bočních okrajů 8 px (měřeno jako v #111). */
+function fullWidthOf(portrait: PortraitPicture): number {
+  return widthOf(portrait.visible) - 2 * PICTURE_SIDE_MARGIN;
+}
+
+/** Vejde se na výšku obrázek přes šířku okna s výškou 3/4 šířky (AC1)? */
+function fullWidthFits(portrait: PortraitPicture): boolean {
+  return fullWidthOf(portrait) / PICTURE_ASPECT <= freePortraitHeightOf(portrait) + TOLERANCE;
 }
 
 /** Pravý okraj pruhu na šířku: domeček, úchyt, Zpět a nedávné barvy. */
@@ -107,7 +191,7 @@ function px(value: number): string {
   return `${String(Math.round(value * 100) / 100).replace('.', ',')} px`;
 }
 
-describe('#111 AC1: na výšku je obrázek otočený a větší', () => {
+describe('#127 AC1: na výšku je obrázek rovně přes šířku okna', () => {
   it('zkouší se okna na výšku i na šířku, zavřený panel i oba kroky', () => {
     expect(portraitCases().length, 'okna na výšku').toBeGreaterThan(0);
     expect(landscapeCases().length, 'okna na šířku').toBeGreaterThan(0);
@@ -115,34 +199,48 @@ describe('#111 AC1: na výšku je obrázek otočený a větší', () => {
     expect([...panels].sort()).toEqual(['closed', 'colors', 'tools']);
   });
 
-  it('na výšku je obrázek v každém okně otočený o 90° po směru hodinových ručiček', () => {
-    for (const testCase of portraitCases()) {
-      expect(testCase.layout.pictureTurn, `${testCase.scene.label}: otočení obrázku`).toBe(90);
-    }
-  });
-
-  it('na šířku obrázek nikdy otočený není', () => {
-    for (const testCase of landscapeCases()) {
-      expect(testCase.layout.pictureTurn, `${testCase.scene.label}: otočení obrázku`).toBe(0);
-    }
-  });
-
-  it('zkouší se okna na výšku, kde se obrázek přes šířku okna vejde, i okna, kde ne', () => {
-    const kinds = new Set(portraitCases().map(fullWidthFits));
-    expect([...kinds].sort(), 'obě situace').toEqual([false, true]);
-    const lowPhone = portraitCases().filter(
-      (testCase) => testCase.window.width === 414 && testCase.window.height === 622,
+  it('přidaná téměř čtvercová plocha má jistě rozložení na výšku (P-A): pruh dole, panel zdola', () => {
+    const area = NEARLY_SQUARE_PORTRAIT_AREA;
+    const portrait = nearlySquarePicture();
+    const { label } = portrait;
+    expect(area.width < area.height, `${label}: plocha je na výšku`).toBe(true);
+    expect(area.mode, `${label}: telefon na výšku`).toBe('phonePortrait');
+    expect(portrait.layout.panelSlidesFrom, `${label}: panel vyjíždí`).toBe('bottom');
+    expect(stripTopOf(portrait), `${label}: lišta leží pod obrázkem`).toBeGreaterThanOrEqual(
+      portrait.picture.bottom,
     );
-    expect(lowPhone.length, 'okno 414 × 622 se zkouší').toBeGreaterThan(0);
-    for (const testCase of lowPhone) {
-      expect(fullWidthFits(testCase), `${testCase.scene.label}: přes šířku se nevejde`).toBe(false);
+    expect(portrait.handle.left, `${label}: úchyt je vpravo od nedávných barev`).toBeGreaterThan(
+      Math.max(...portrait.recentColors.map((box) => box.left)),
+    );
+    expect(portrait.undo.left, `${label}: Zpět je vpravo od úchytu`).toBeGreaterThan(
+      portrait.handle.left,
+    );
+  });
+
+  it('zkouší se plochy na výšku, kde se obrázek přes šířku okna vejde, i plocha, kde ne', () => {
+    const kinds = new Set(allPortraitPictures().map(fullWidthFits));
+    expect([...kinds].sort(), 'obě situace').toEqual([false, true]);
+    expect(fullWidthFits(nearlySquarePicture()), 'přidaná plocha: přes šířku se nevejde').toBe(
+      false,
+    );
+  });
+
+  it('na výšku i na šířku leží obrázek naležato a nezdeformovaný: šířka je 4/3 výšky', () => {
+    const all = [...cases().map(portraitPictureOf), nearlySquarePicture()];
+    for (const each of all) {
+      const { picture } = each;
+      expect(
+        widthOf(picture) / heightOf(picture),
+        `${each.label}: šířka ${px(widthOf(picture))}, výška ${px(heightOf(picture))}`,
+      ).toBeCloseTo(PICTURE_ASPECT, 3);
     }
   });
 
   it('na výšku má obrázek šířku okna bez bočních okrajů 8 px, když se tak vejde mezi domeček a lištu', () => {
-    for (const testCase of portraitCases().filter(fullWidthFits)) {
-      const { label } = testCase.scene;
-      const { picture, visible } = testCase;
+    const fitting = allPortraitPictures().filter(fullWidthFits);
+    expect(fitting.length, 'takových oken je víc').toBeGreaterThan(0);
+    for (const portrait of fitting) {
+      const { label, picture, visible } = portrait;
       expect(picture.left - visible.left, `${label}: okraj vlevo`).toBeCloseTo(
         PICTURE_SIDE_MARGIN,
         2,
@@ -151,38 +249,43 @@ describe('#111 AC1: na výšku je obrázek otočený a větší', () => {
         PICTURE_SIDE_MARGIN,
         2,
       );
-    }
-  });
-
-  it('na výšku je obrázek celý a nezdeformovaný: výška je 4/3 šířky', () => {
-    for (const testCase of portraitCases()) {
-      const { picture } = testCase;
-      expect(heightOf(picture), `${testCase.scene.label}: výška obrázku`).toBeCloseTo(
-        (widthOf(picture) * 4) / 3,
+      expect(heightOf(picture), `${label}: výška 3/4 šířky`).toBeCloseTo(
+        fullWidthOf(portrait) / PICTURE_ASPECT,
         2,
       );
     }
   });
 
-  it('v okně 390 × 844 má obrázek 374 × 498,7 px místo dnešních 374 × 281', () => {
-    const phoneCases = portraitCases().filter(
-      (testCase) => testCase.window.width === 390 && testCase.window.height === 844,
-    );
-    expect(phoneCases.length, 'okno 390 × 844 se zkouší').toBeGreaterThan(0);
-    for (const testCase of phoneCases) {
-      const { label } = testCase.scene;
-      expect(widthOf(testCase.picture), `${label}: šířka obrázku`).toBeCloseTo(374, 2);
-      expect(heightOf(testCase.picture), `${label}: výška obrázku`).toBeCloseTo(498.67, 1);
+  /** Okna ze schválených obrázků (komentář k #127): šířka a výška obrázku v CSS px. */
+  const AC1_TABLE: ReadonlyArray<readonly [number, number, number, number]> = [
+    [390, 844, 374, 280.5],
+    [360, 620, 344, 258],
+  ];
+
+  it('v okně 390 × 844 má obrázek 374 × 280,5 px a v okně 360 × 620 má 344 × 258 px', () => {
+    for (const [windowWidth, windowHeight, width, height] of AC1_TABLE) {
+      const rowCases = portraitCases().filter(
+        (testCase) =>
+          testCase.window.width === windowWidth && testCase.window.height === windowHeight,
+      );
+      const what = `${String(windowWidth)} × ${String(windowHeight)}`;
+      expect(rowCases.length, `okno ${what} se zkouší`).toBeGreaterThan(0);
+      for (const testCase of rowCases) {
+        const { label } = testCase.scene;
+        expect(widthOf(testCase.picture), `${label}: šířka obrázku`).toBeCloseTo(width, 2);
+        expect(heightOf(testCase.picture), `${label}: výška obrázku`).toBeCloseTo(height, 2);
+      }
     }
   });
 
-  it('když se obrázek přes šířku okna nevejde, zmenší se na volnou výšku mezi domečkem a lištou a je vodorovně na středu', () => {
-    for (const testCase of portraitCases().filter((each) => !fullWidthFits(each))) {
-      const { label } = testCase.scene;
-      const { picture, visible } = testCase;
-      const height = freePortraitHeightOf(testCase);
+  it('když se obrázek přes šířku okna nevejde, má volnou výšku mezi domečkem a lištou, šířku 4/3 výšky a je vodorovně na středu', () => {
+    const shrunk = allPortraitPictures().filter((each) => !fullWidthFits(each));
+    expect(shrunk.length, 'aspoň přidaná plocha').toBeGreaterThan(0);
+    for (const portrait of shrunk) {
+      const { label, picture, visible } = portrait;
+      const height = freePortraitHeightOf(portrait);
       expect(heightOf(picture), `${label}: výška obrázku`).toBeCloseTo(height, 2);
-      expect(widthOf(picture), `${label}: šířka obrázku`).toBeCloseTo((height * 3) / 4, 2);
+      expect(widthOf(picture), `${label}: šířka obrázku`).toBeCloseTo(height * PICTURE_ASPECT, 2);
       const left = picture.left - visible.left;
       const right = visible.right - picture.right;
       expect(
@@ -194,28 +297,28 @@ describe('#111 AC1: na výšku je obrázek otočený a větší', () => {
   });
 
   it('na výšku leží obrázek svisle na středu mezi spodkem domečku a vrškem spodní lišty', () => {
-    for (const testCase of portraitCases()) {
-      const above = testCase.picture.top - testCase.home.bottom;
-      const below = stripTopOf(testCase) - testCase.picture.bottom;
+    for (const portrait of allPortraitPictures()) {
+      const above = portrait.picture.top - portrait.home.bottom;
+      const below = stripTopOf(portrait) - portrait.picture.bottom;
       expect(
         Math.abs(above - below),
-        `${testCase.scene.label}: nad obrázkem ${px(above)}, pod ním ${px(below)}`,
+        `${portrait.label}: nad obrázkem ${px(above)}, pod ním ${px(below)}`,
       ).toBeLessThanOrEqual(TOLERANCE);
     }
   });
 
   it('na výšku je obrázek od domečku i od spodní lišty aspoň 8 px', () => {
-    for (const testCase of portraitCases()) {
-      const { label } = testCase.scene;
-      const above = testCase.picture.top - testCase.home.bottom;
-      const below = stripTopOf(testCase) - testCase.picture.bottom;
+    for (const portrait of allPortraitPictures()) {
+      const { label } = portrait;
+      const above = portrait.picture.top - portrait.home.bottom;
+      const below = stripTopOf(portrait) - portrait.picture.bottom;
       expect(above, `${label}: od domečku`).toBeGreaterThanOrEqual(MIN_TAP_GAP - TOLERANCE);
       expect(below, `${label}: od lišty`).toBeGreaterThanOrEqual(MIN_TAP_GAP - TOLERANCE);
     }
   });
 });
 
-describe('#111 AC3: obrázek leží mezi lištami, ne pod nimi', () => {
+describe('#127 AC3 (#111 AC3 beze změny): obrázek leží mezi lištami, ne pod nimi', () => {
   it('domeček, úchyt, Zpět a obě nedávné barvy leží ve všech oknech mimo obrázek s mezerou aspoň 8 px', () => {
     for (const testCase of cases()) {
       const controls: Array<[string, Box]> = [
@@ -236,16 +339,17 @@ describe('#111 AC3: obrázek leží mezi lištami, ne pod nimi', () => {
   });
 
   it('kratší strana obrázku má ve všech oknech dál aspoň 240 px', () => {
-    for (const testCase of cases()) {
-      const shorter = Math.min(widthOf(testCase.picture), heightOf(testCase.picture));
-      expect(shorter, `${testCase.scene.label}: kratší strana obrázku`).toBeGreaterThanOrEqual(
+    const all = [...cases().map(portraitPictureOf), nearlySquarePicture()];
+    for (const each of all) {
+      const shorter = Math.min(widthOf(each.picture), heightOf(each.picture));
+      expect(shorter, `${each.label}: kratší strana obrázku`).toBeGreaterThanOrEqual(
         MIN_PICTURE_SIDE,
       );
     }
   });
 });
 
-describe('#111 AC4: na šířku sahá obrázek až k hornímu a dolnímu okraji', () => {
+describe('#111 AC4 (#127 AC1 na šířku beze změny): na šířku sahá obrázek až k hornímu a dolnímu okraji', () => {
   it('zkouší se okna, kde šířka obrázek přes celou výšku dovolí, i okna, kde nedovolí', () => {
     const kinds = new Set(landscapeCases().map(fullHeightFits));
     expect([...kinds].sort(), 'obě situace').toEqual([false, true]);

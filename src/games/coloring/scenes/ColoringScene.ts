@@ -132,9 +132,8 @@ export interface ColoringSceneOptions {
  * nově ukázaný krok tentýž dotyk nedostane a jedno ťuknutí udělá jen
  * jednu věc.
  *
- * Od #111 je obrázek na výšku otočený o 90° po směru hodinových ručiček.
- * Otáčí se jen zobrazení vrstvy barev a obrysu; dotyk převede na bod
- * vrstvy `pictureLayerPoint`, takže logika i uložený obrázek se nemění.
+ * Od #127 se obrázek na výšku neotáčí (dřív #111 o 90°). Dotyk převede
+ * na bod vrstvy `pictureLayerPoint`, logika i uložený obrázek se nemění.
  *
  * Od #124 scénu spouští výběr omalovánky (`PickerScene.ts`) s vybranou
  * omalovánkou, každé otevření novou scénou. Domeček a odchod z hry řídí
@@ -316,14 +315,14 @@ export class ColoringScene extends Phaser.Scene {
 
   /**
    * Bílá plocha, vrstva barev, obrys a rámeček přesně na místo omalovánky.
-   * Bílá plocha leží neotočená na obdélníku obrázku na obrazovce. Rámeček
+   * Bílá plocha leží na obdélníku obrázku na obrazovce. Rámeček
    * je nad obrysem celý uvnitř obdélníku (obrázek na šířku sahá k okraji
    * plochy a rámeček na hraně by byl vidět jen napůl). Vrstva barev a obrys
-   * se otočí kolem středu obrázku (#111), jejich rozměr před otočením dává
-   * `pictureLayerSize`.
+   * leží přes celý obrázek (od #127 se neotáčí ani na výšku), jejich rozměr
+   * dává `pictureLayerSize`.
    */
   private placePicture(): void {
-    const { picture, pictureTurn } = this.layout;
+    const { picture } = this.layout;
     const frameInset = PICTURE_STYLE.frameWidthCss / this.gameArea.scale / 2;
     this.pictureBackground
       ?.setPosition(picture.left, picture.top)
@@ -341,7 +340,6 @@ export class ColoringScene extends Phaser.Scene {
     ] as const) {
       image
         ?.setPosition(centerX, centerY)
-        .setAngle(pictureTurn)
         .setDisplaySize(layerSize.width, layerSize.height)
         .setDepth(depth);
     }
@@ -653,7 +651,6 @@ export class ColoringScene extends Phaser.Scene {
     }
     this.photoView.start({
       picture: this.layout.picture,
-      pictureTurn: this.layout.pictureTurn,
       layerSize: pictureLayerSize(this.layout),
       snapshot,
       outlineTextureKey: this.outlineTextureKey,
@@ -781,8 +778,8 @@ export class ColoringScene extends Phaser.Scene {
   }
 
   /**
-   * Dotyk v pixelech vrstvy barev, i na otočeném obrázku přesně pod prstem
-   * (#111 AC2); bod mimo omalovánku je mimo plochu.
+   * Dotyk v pixelech vrstvy barev přesně pod prstem
+   * (#111 AC2, #127 AC2); bod mimo omalovánku je mimo plochu.
    */
   private sampleOf(pointer: Phaser.Input.Pointer): PointerSample {
     const point = pictureLayerPoint(this.layout, PICTURE_LAYER, pointer.worldX, pointer.worldY);

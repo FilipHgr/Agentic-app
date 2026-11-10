@@ -58,7 +58,7 @@ describe('#88 AC1, AC6: obrazovka Omalovánek dodrží společná pravidla rozlo
   }
 });
 
-describe('#88 AC1: plocha omalovánky je celá vidět a dost velká', () => {
+describe('#88 AC1, #127 AC1: plocha omalovánky je celá vidět a dost velká', () => {
   it('kratší strana plochy omalovánky má ve všech oknech aspoň 240 px', () => {
     for (const testCase of cases()) {
       const shorter = Math.min(widthOf(testCase.picture), heightOf(testCase.picture));
@@ -68,17 +68,14 @@ describe('#88 AC1: plocha omalovánky je celá vidět a dost velká', () => {
     }
   });
 
-  it('obrázek se nezdeformuje: na šířku má plocha poměr stran 4 : 3, otočená na výšku 3 : 4', () => {
-    // Od #111 AC1 je obrázek na výšku otočený o 90°: na obrazovce je
-    // výška 4/3 šířky. Na šířku otočený není (dřív 4 : 3 ve všech oknech).
+  it('obrázek se nezdeformuje: plocha má ve všech oknech poměr stran 4 : 3, i na výšku', () => {
+    // Od #127 AC1 se obrázek na výšku neotáčí (#111 ho otáčel o 90°), poměr
+    // 4 : 3 platí zase ve všech oknech.
     for (const testCase of cases()) {
-      const turned = !testCase.landscape;
-      const long = turned ? heightOf(testCase.picture) : widthOf(testCase.picture);
-      const short = turned ? widthOf(testCase.picture) : heightOf(testCase.picture);
-      expect(long / short, `${testCase.scene.label}: poměr stran plochy`).toBeCloseTo(
-        PICTURE_ASPECT,
-        2,
-      );
+      expect(
+        widthOf(testCase.picture) / heightOf(testCase.picture),
+        `${testCase.scene.label}: poměr stran plochy`,
+      ).toBeCloseTo(PICTURE_ASPECT, 2);
     }
   });
 });

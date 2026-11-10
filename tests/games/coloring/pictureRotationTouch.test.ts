@@ -34,21 +34,28 @@ import {
 import { openOn, pixelsOf } from './savedPictureHelpers';
 
 /**
- * Testy k #111 AC2 (tah jde přesně pod prstem): na výšku je obrázek
- * otočený o 90° po směru hodinových ručiček, a přesto barví tah místo pod
- * prstem. Převod dotyku je čistá logika:
+ * Testy k #127 AC2 (tah jde přesně pod prstem, #111 AC2 na výšku beze
+ * změny, jen bez otočení): obrázek není otočený v žádném okně a tah barví
+ * místo pod prstem. Převod dotyku je čistá logika:
  *
  * - `pictureLayerPoint(layout, layer, x, y): { x, y }` vrátí z bodu
  *   obrazovky v herních jednotkách bod vrstvy barev velikosti
- *   `layer.width × layer.height` podle `layout.picture` a otočení
- *   `layout.pictureTurn`. Bod mimo obrázek vrátí bod mimo vrstvu (logika
- *   malování ho pak bere jako „mimo plochu“).
+ *   `layer.width × layer.height` podle `layout.picture`. Bod mimo obrázek
+ *   vrátí bod mimo vrstvu (logika malování ho pak bere jako „mimo plochu“).
  * - `pictureScreenPoint(layout, layer, x, y): { x, y }` je obrácený
  *   převod (bod vrstvy na obrazovku), např. pro lesk třpytek.
  *
  * Co je „pod prstem“, počítají testy podle zadání samy
  * (`pictureRotationHelpers.ts`). Pravidla běží v cyklu přes všechna okna
  * (`COLORING_WINDOWS`), u ovládání i v obou krocích panelu.
+ *
+ * Nahrazené testy #111 na výšku (#127 AC5): „pravý horní roh obrázku je
+ * levý horní roh omalovánky“ nahrazuje „levý horní roh obrázku je levý
+ * horní roh omalovánky ve všech oknech“, „sluníčko je na výšku vpravo
+ * nahoře“ nahrazuje „sluníčko je na výšku vlevo nahoře“, tah přetažený
+ * ven vlevo (dřív spodní okraj omalovánky) nahrazují tahy přetažené ven
+ * dolů a doleva. Ořez tahu, sluníčko a ovládání zůstávají se stejnou
+ * ochranou, jen s neotočeným obrázkem.
  *
  * Ruční kontrola (není tu): lesk třpytek běží pod prstem. Lesk je jen
  * animace ve scéně, logika ho neukládá.
@@ -91,23 +98,23 @@ function expectSamePoint(actual: Point, expected: Point, what: string): void {
 function cornersOf(testCase: ColoringCase): Array<{ name: string; screen: Point; layer: Point }> {
   const picture = pictureBoxOf(testCase.layout);
   const { width, height } = LAYER;
-  const topLeft = { x: picture.left, y: picture.top };
-  const topRight = { x: picture.right, y: picture.top };
-  const bottomLeft = { x: picture.left, y: picture.bottom };
-  const bottomRight = { x: picture.right, y: picture.bottom };
-  if (testCase.landscape) {
-    return [
-      { name: 'levý horní roh', screen: topLeft, layer: { x: 0, y: 0 } },
-      { name: 'pravý horní roh', screen: topRight, layer: { x: width, y: 0 } },
-      { name: 'levý dolní roh', screen: bottomLeft, layer: { x: 0, y: height } },
-      { name: 'pravý dolní roh', screen: bottomRight, layer: { x: width, y: height } },
-    ];
-  }
   return [
-    { name: 'pravý horní roh', screen: topRight, layer: { x: 0, y: 0 } },
-    { name: 'pravý dolní roh', screen: bottomRight, layer: { x: width, y: 0 } },
-    { name: 'levý horní roh', screen: topLeft, layer: { x: 0, y: height } },
-    { name: 'levý dolní roh', screen: bottomLeft, layer: { x: width, y: height } },
+    { name: 'levý horní roh', screen: { x: picture.left, y: picture.top }, layer: { x: 0, y: 0 } },
+    {
+      name: 'pravý horní roh',
+      screen: { x: picture.right, y: picture.top },
+      layer: { x: width, y: 0 },
+    },
+    {
+      name: 'levý dolní roh',
+      screen: { x: picture.left, y: picture.bottom },
+      layer: { x: 0, y: height },
+    },
+    {
+      name: 'pravý dolní roh',
+      screen: { x: picture.right, y: picture.bottom },
+      layer: { x: width, y: height },
+    },
   ];
 }
 
@@ -149,18 +156,16 @@ function coloredOutside(
   return count;
 }
 
-describe('#111 AC2: dotyk se převede na místo omalovánky přesně pod prstem', () => {
-  it('na výšku je pravý horní roh obrázku levý horní roh omalovánky a ostatní rohy podle otočení', () => {
-    for (const testCase of portraitClosedCases()) {
-      for (const corner of cornersOf(testCase)) {
-        const actual = pictureLayerPoint(testCase.layout, LAYER, corner.screen.x, corner.screen.y);
-        expectSamePoint(actual, corner.layer, `${testCase.scene.label}, ${corner.name}`);
-      }
-    }
+describe('#127 AC2: dotyk se převede na místo omalovánky přesně pod prstem', () => {
+  it('zkouší se okna na výšku i na šířku', () => {
+    expect(portraitClosedCases().length, 'okna na výšku').toBeGreaterThan(0);
+    expect(closedCases().filter((each) => each.landscape).length, 'okna na šířku').toBeGreaterThan(
+      0,
+    );
   });
 
-  it('na šířku je levý horní roh obrázku levý horní roh omalovánky (bez otočení)', () => {
-    for (const testCase of closedCases().filter((each) => each.landscape)) {
+  it('na výšku i na šířku je levý horní roh obrázku levý horní roh omalovánky, omalovánka není otočená', () => {
+    for (const testCase of closedCases()) {
       for (const corner of cornersOf(testCase)) {
         const actual = pictureLayerPoint(testCase.layout, LAYER, corner.screen.x, corner.screen.y);
         expectSamePoint(actual, corner.layer, `${testCase.scene.label}, ${corner.name}`);
@@ -214,7 +219,7 @@ describe('#111 AC2: dotyk se převede na místo omalovánky přesně pod prstem'
   });
 });
 
-describe('#111 AC2: na výšku barví tah přesně místo pod prstem', () => {
+describe('#127 AC2: na výšku barví tah přesně místo pod prstem', () => {
   it('tah začatý na sluníčku vybarví sluníčko a nic jiného ve všech oknech na výšku', () => {
     const regions = sunPicture();
     const sun = regionAt(regions, SUN_CENTER.x, SUN_CENTER.y);
@@ -235,12 +240,12 @@ describe('#111 AC2: na výšku barví tah přesně místo pod prstem', () => {
     }
   });
 
-  it('sluníčko (vršek obrázku) je na výšku vpravo nahoře u pravého okraje obrázku', () => {
+  it('sluníčko (levý horní roh omalovánky) je na výšku vlevo nahoře, jako na papíře', () => {
     for (const testCase of portraitClosedCases()) {
       const picture = pictureBoxOf(testCase.layout);
       const sunOnScreen = pictureScreenPoint(testCase.layout, LAYER, SUN_CENTER.x, SUN_CENTER.y);
       const label = `${testCase.scene.label}: sluníčko na ${describePoint(sunOnScreen)}`;
-      expect(sunOnScreen.x > (picture.left + picture.right) / 2, `${label} je vpravo`).toBe(true);
+      expect(sunOnScreen.x < (picture.left + picture.right) / 2, `${label} je vlevo`).toBe(true);
       expect(sunOnScreen.y < (picture.top + picture.bottom) / 2, `${label} je nahoře`).toBe(true);
     }
   });
@@ -250,7 +255,7 @@ describe('#111 AC2: na výšku barví tah přesně místo pod prstem', () => {
     const leftHalf = regionAt(regions, 300, 384);
     for (const testCase of portraitClosedCases()) {
       const game = openOn(undefined, regions);
-      // Levá půlka omalovánky je na výšku nahoře, prst jede po obrazovce dolů přes čáru.
+      // Levá půlka omalovánky je i na výšku vlevo, prst jede po obrazovce doprava přes čáru.
       const start = screenPointOf(testCase, { x: 300, y: 384 });
       const end = screenPointOf(testCase, { x: 760, y: 384 });
       fingerStroke(game, testCase, lineOf(start, end, 20));
@@ -264,14 +269,14 @@ describe('#111 AC2: na výšku barví tah přesně místo pod prstem', () => {
     }
   });
 
-  it('tah přetažený přes okraj ven z obrázku nezabarví nic na druhém konci omalovánky', () => {
+  it('tah přetažený přes spodní okraj ven z obrázku nezabarví nic u horního okraje omalovánky', () => {
     const regions = halvesPicture();
     for (const testCase of portraitClosedCases()) {
       const game = openOn(undefined, regions);
-      // Spodní okraj omalovánky (y 768) je na výšku vlevo, prst vyjede doleva ven.
+      // Spodní okraj omalovánky (y 768) je spodní okraj obrázku, prst vyjede dolů ven.
       const start = screenPointOf(testCase, { x: 300, y: 700 });
       const picture = pictureBoxOf(testCase.layout);
-      const beyond = { x: picture.left - 40, y: start.y };
+      const beyond = { x: start.x, y: picture.bottom + 40 };
       fingerStroke(game, testCase, lineOf(start, beyond, 20));
       const pixels = pixelsOf(game, regions);
       expect(game.colorAt(300, 700), `${testCase.scene.label}: začátek tahu`).not.toBeNull();
@@ -279,9 +284,27 @@ describe('#111 AC2: na výšku barví tah přesně místo pod prstem', () => {
       expect(farRows.length, `${testCase.scene.label}: zabarveno daleko od tahu`).toBe(0);
     }
   });
+
+  it('tah přetažený přes levý okraj ven z obrázku nezabarví nic u pravého okraje omalovánky', () => {
+    const regions = halvesPicture();
+    for (const testCase of portraitClosedCases()) {
+      const game = openOn(undefined, regions);
+      // Levý okraj omalovánky (x 0) je levý okraj obrázku, prst vyjede doleva ven.
+      const start = screenPointOf(testCase, { x: 120, y: 384 });
+      const picture = pictureBoxOf(testCase.layout);
+      const beyond = { x: picture.left - 40, y: start.y };
+      fingerStroke(game, testCase, lineOf(start, beyond, 20));
+      const pixels = pixelsOf(game, regions);
+      expect(game.colorAt(120, 384), `${testCase.scene.label}: začátek tahu`).not.toBeNull();
+      const farColumns = pixels.filter(
+        (color, index) => color !== null && index % LAYER.width >= 400,
+      );
+      expect(farColumns.length, `${testCase.scene.label}: zabarveno daleko od tahu`).toBe(0);
+    }
+  });
 });
 
-describe('#111 AC2: dotyk na ovládání nikdy nemaluje', () => {
+describe('#127 AC2 (#111 AC2 beze změny): dotyk na ovládání nikdy nemaluje', () => {
   /** Ovládání pruhu v herních jednotkách: domeček, úchyt, Zpět a nedávné barvy. */
   function controlsOf(testCase: ColoringCase): Array<[string, Box]> {
     const units = (box: Box): Box => unitsOf(testCase, box);
@@ -307,7 +330,7 @@ describe('#111 AC2: dotyk na ovládání nikdy nemaluje', () => {
     }
   });
 
-  it('dotyk kdekoli na otevřeném panelu nemaluje ani přes otočený obrázek', () => {
+  it('dotyk kdekoli na otevřeném panelu nemaluje, ani když panel leží přes obrázek', () => {
     for (const testCase of cases().filter(isOpen)) {
       const panel = unitsOf(testCase, testCase.panelBox);
       for (const point of pointsInside(panel, 12)) {

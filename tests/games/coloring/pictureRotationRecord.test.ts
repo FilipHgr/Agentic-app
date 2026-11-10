@@ -41,15 +41,17 @@ import {
 } from './toolColorsHelpers';
 
 /**
- * Testy k #111 AC2 (vzorek tahu je v uloženém obrázku stejný na výšku i na
- * šířku) a AC5 (uložení a otočení zařízení). Logika malování pracuje jen
- * v pixelech vrstvy barev, dotyk na obrazovce do nich převádí
- * `pictureLayerPoint` (`pictureRotationHelpers.ts`). Na výšku se kreslí
- * v okně 390 × 844 (obrázek otočený o 90°), na šířku v okně iPadu
- * 1180 × 820. Stejný tah po stejném místě omalovánky musí dát stejný
- * uložený obrázek pixel po pixelu i stejný záznam v úložišti, jako kdyby se
- * kreslilo přímo v pixelech vrstvy (vzory se otáčejí s obrázkem, otevřená
- * otázka 4).
+ * Testy k #127 AC2 (vzorek tahu je v uloženém obrázku stejný na výšku i na
+ * šířku) a #127 AC4 (uložení a otočení zařízení), dřív #111 AC2 a AC5.
+ * Logika malování pracuje jen v pixelech vrstvy barev, dotyk na obrazovce
+ * do nich převádí `pictureLayerPoint` (`pictureRotationHelpers.ts`). Na
+ * výšku se kreslí v okně 390 × 844 (od #127 obrázek rovně, bez otočení), na
+ * šířku v okně iPadu 1180 × 820. Stejný tah po stejném místě omalovánky
+ * musí dát stejný uložený obrázek pixel po pixelu i stejný záznam
+ * v úložišti, jako kdyby se kreslilo přímo v pixelech vrstvy.
+ *
+ * Testy jsou stejné jako u #111 (stejná ochrana, #127 AC5), jen prst na
+ * výšku míří na neotočený obrázek (`screenPointOf` v pomůckách).
  *
  * Otočení zařízení hlásí scéna logice jako přerušení tahu
  * (`SavedColoring.interrupt()`, stejně jako #88 AC5) a pak přepočítá
@@ -144,7 +146,7 @@ function picturePixels(storage: RecordingStorage): Array<number | null> {
   return pixelsOf(openOn(storage, halves()), halves());
 }
 
-describe('#111 AC2, AC5: vzorek tahu je v uloženém obrázku stejný na výšku i na šířku', () => {
+describe('#127 AC2, AC4: vzorek tahu je v uloženém obrázku stejný na výšku i na šířku', () => {
   for (const { tool, color } of PATTERN_TOOLS) {
     it(`${tool}: tah na výšku i na šířku uloží stejný obrázek pixel po pixelu jako tah po omalovánce`, () => {
       const reference = picturePixels(drawOnce(tool, color, 'vrstva'));
@@ -200,7 +202,7 @@ describe('#111 AC2, AC5: vzorek tahu je v uloženém obrázku stejný na výšku
   });
 });
 
-describe('#111 AC5: otočení zařízení během malování', () => {
+describe('#127 AC4: otočení zařízení během malování', () => {
   it('otočení telefonu během tahu ukončí tah tam, kam došel, a namalované zůstane', () => {
     const regions = halves();
     const game = openOn(new RecordingStorage(), regions);
@@ -297,7 +299,7 @@ describe('#111 AC5: otočení zařízení během malování', () => {
   });
 });
 
-describe('#111 AC5: obrázek uložený před #111 se otevře beze změny', () => {
+describe('#127 AC4: obrázek uložený před #111 se otevře beze změny', () => {
   function legacyStorage(): RecordingStorage {
     const storage = new RecordingStorage();
     for (const [key, value] of LEGACY_BEFORE_111_STORAGE) {

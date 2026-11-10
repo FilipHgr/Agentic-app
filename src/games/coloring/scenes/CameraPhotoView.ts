@@ -10,7 +10,7 @@
 import Phaser from 'phaser';
 
 import { colorNumber } from '../../../shared/logic/theme';
-import type { LayoutRect, PictureTurn } from '../logic/coloringLayout';
+import type { LayoutRect } from '../logic/coloringLayout';
 import { CAMERA_PHOTO_STYLE, PICTURE_STYLE } from '../logic/theme';
 import type { IconButtonView } from './IconButtonView';
 
@@ -18,8 +18,7 @@ import type { IconButtonView } from './IconButtonView';
 export interface CameraPhotoStart {
   /** Obrázek na obrazovce (herní jednotky). */
   readonly picture: LayoutRect;
-  readonly pictureTurn: PictureTurn;
-  /** Rozměr vrstvy barev a obrysu před otočením (herní jednotky). */
+  /** Rozměr vrstvy barev a obrysu (herní jednotky). */
   readonly layerSize: { readonly width: number; readonly height: number };
   /** Kopie obrázku ve chvíli cvaku a textura obrysu. */
   readonly snapshot: HTMLCanvasElement;
@@ -102,7 +101,7 @@ export class CameraPhotoView {
 
   /** Fotka: stín, bílá karta s okrajem, kopie obrázku, obrys a rámeček. */
   private buildPhoto(start: CameraPhotoStart, snapshotKey: string): Phaser.GameObjects.Container {
-    const { picture, pictureTurn, layerSize, cssScale } = start;
+    const { picture, layerSize, cssScale } = start;
     const unitsPerCss = 1 / cssScale;
     const border = style.borderCss * unitsPerCss;
     const corner = style.cornerCss * unitsPerCss;
@@ -131,10 +130,7 @@ export class CameraPhotoView {
         corner,
       );
     const layer = (key: string): Phaser.GameObjects.Image =>
-      this.scene.add
-        .image(0, 0, key)
-        .setAngle(pictureTurn)
-        .setDisplaySize(layerSize.width, layerSize.height);
+      this.scene.add.image(0, 0, key).setDisplaySize(layerSize.width, layerSize.height);
     const frame = this.scene.add
       .rectangle(0, 0, picture.width, picture.height)
       .setStrokeStyle(

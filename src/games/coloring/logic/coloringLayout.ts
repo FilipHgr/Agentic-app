@@ -22,9 +22,9 @@
  * vpravo nahoře zrcadlově k domečku. Obrázek má stejnou velikost jako
  * před #126, jen se může posunout.
  *
- * Od #111 sahá obrázek na šířku k hornímu a dolnímu okraji, na výšku je
- * otočený o 90° po směru hodinových ručiček (vršek vpravo) přes šířku
- * okna bez bočních okrajů 8 px. Dotyk na omalovánku převádí
+ * Od #111 sahá obrázek na šířku k hornímu a dolnímu okraji, na výšku leží
+ * rovně (#127, neotáčí se žádná omalovánka) přes šířku okna bez bočních
+ * okrajů 8 px. Dotyk na omalovánku převádí
  * `pictureLayerPoint`, obráceně `pictureScreenPoint`.
  * Čistý TypeScript bez Phaseru.
  */
@@ -47,14 +47,8 @@ export interface LayoutRect {
   readonly height: number;
 }
 
-/**
- * Otočení obrázku na obrazovce ve stupních po směru hodinových ručiček
- * (#111): na šířku 0, na výšku 90 (vršek obrázku vpravo).
- */
-export type PictureTurn = 0 | 90;
-
 export interface ColoringLayout {
-  /** Plocha, kterou omalovánka zabírá na obrazovce (otočená na výšku 3 : 4). */
+  /** Plocha, kterou omalovánka zabírá na obrazovce (vždy 4 : 3, nikdy otočená, #127). */
   readonly picture: LayoutRect;
   /** Úchyt panelu nástrojů (#96 AC2). */
   readonly handle: LayoutRect;
@@ -81,8 +75,6 @@ export interface ColoringLayout {
   readonly panelDivider: LayoutRect;
   /** Odkud panel vyjíždí: zleva (na šířku), nebo zdola (na výšku). */
   readonly panelSlidesFrom: 'left' | 'bottom';
-  /** Otočení obrázku na obrazovce (#111). */
-  readonly pictureTurn: PictureTurn;
 }
 
 /** Kruh v herních jednotkách (kolečko barvy, #106). */
@@ -182,8 +174,8 @@ function bottomOf(place: LayoutRect): number {
 }
 
 /**
- * Největší obdélník 4 : 3 na středu `box` (L-A, na výšku je obrázek
- * otočený, viz `turnedPicture`). Na šířku je tak i na nejnižším telefonu
+ * Největší obdélník 4 : 3 na středu `box` (L-A, na výšku viz
+ * `portraitPicture`). Na šířku je tak i na nejnižším telefonu
  * vedle otevřeného panelu kus obrázku vidět.
  */
 function fitPicture(box: Box): LayoutRect {
@@ -383,7 +375,6 @@ function landscapeLayout(
     ...strip,
     ...landscapePanel(besideStrip, height, home.width, phone),
     panelSlidesFrom: 'left',
-    pictureTurn: 0,
   };
 }
 
@@ -431,17 +422,18 @@ function portraitPanel(width: number, bottom: number, home: LayoutRect): PanelPl
 }
 
 /**
- * Obrázek otočený o 90° (#111 AC1): přes šířku okna bez bočních okrajů,
- * výška 4/3 šířky, svisle na středu mezi spodkem domečku a vrškem lišty.
+ * Obrázek na výšku (#127 AC1, rovně, bez otočení): přes šířku okna bez
+ * bočních okrajů, výška 3/4 šířky, svisle na středu mezi spodkem domečku
+ * a vrškem lišty.
  * Když se tak nevejde s odstupem 8 px od domečku i lišty (nízké okno),
  * zmenší se na volnou výšku a leží vodorovně na středu.
  */
-function turnedPicture(width: number, homeBottom: number, stripTop: number): LayoutRect {
+function portraitPicture(width: number, homeBottom: number, stripTop: number): LayoutRect {
   const fullWidth = width - 2 * PICTURE_EDGE_CSS;
   const freeHeight = Math.max(0, stripTop - homeBottom - 2 * GAP_CSS);
-  const fitsFullWidth = fullWidth * PICTURE_ASPECT <= freeHeight;
-  const pictureHeight = fitsFullWidth ? fullWidth * PICTURE_ASPECT : freeHeight;
-  const pictureWidth = fitsFullWidth ? fullWidth : freeHeight / PICTURE_ASPECT;
+  const fitsFullWidth = fullWidth / PICTURE_ASPECT <= freeHeight;
+  const pictureHeight = fitsFullWidth ? fullWidth / PICTURE_ASPECT : freeHeight;
+  const pictureWidth = fitsFullWidth ? fullWidth : freeHeight * PICTURE_ASPECT;
   const middle = (homeBottom + stripTop) / 2;
   return rect((width - pictureWidth) / 2, middle - pictureHeight / 2, pictureWidth, pictureHeight);
 }
@@ -450,11 +442,10 @@ function portraitLayout(width: number, height: number, home: LayoutRect): CssLay
   const strip = portraitStrip(width, height, home);
   const aboveStrip = strip.handle.top - GAP_CSS;
   return {
-    picture: turnedPicture(width, bottomOf(home), strip.handle.top),
+    picture: portraitPicture(width, bottomOf(home), strip.handle.top),
     ...strip,
     ...portraitPanel(width, aboveStrip, home),
     panelSlidesFrom: 'bottom',
-    pictureTurn: 90,
   };
 }
 
@@ -489,7 +480,6 @@ function layoutInUnits(css: CssLayout, unitsPerCss: number): ColoringLayout {
     colorStepTool: units(css.colorStepTool),
     panelDivider: units(css.panelDivider),
     panelSlidesFrom: css.panelSlidesFrom,
-    pictureTurn: css.pictureTurn,
   };
 }
 
@@ -851,21 +841,15 @@ export interface LayerSize {
   readonly height: number;
 }
 
-/**
- * Rozměr vrstvy barev na obrazovce před otočením (herní jednotky): na
- * výšku je vrstva otočená o 90°, její šířka je proto výška obrázku.
- */
+/** Rozměr vrstvy barev na obrazovce (herní jednotky), obrázek se neotáčí (#127). */
 export function pictureLayerSize(layout: ColoringLayout): LayerSize {
   const { picture } = layout;
-  return layout.pictureTurn === 90
-    ? { width: picture.height, height: picture.width }
-    : { width: picture.width, height: picture.height };
+  return { width: picture.width, height: picture.height };
 }
 
 /**
- * Bod vrstvy barev pod bodem obrazovky `x`, `y` (herní jednotky). Na
- * výšku je pravý horní roh obrázku levý horní roh vrstvy, dolů po
- * obrazovce roste x vrstvy a doleva y. Bod mimo obrázek je mimo vrstvu.
+ * Bod vrstvy barev pod bodem obrazovky `x`, `y` (herní jednotky). Levý
+ * horní roh obrázku je levý horní roh vrstvy. Bod mimo obrázek je mimo vrstvu.
  */
 export function pictureLayerPoint(
   layout: ColoringLayout,
@@ -876,9 +860,6 @@ export function pictureLayerPoint(
   const { picture } = layout;
   const across = (x - picture.left) / picture.width;
   const down = (y - picture.top) / picture.height;
-  if (layout.pictureTurn === 90) {
-    return { x: down * layer.width, y: (1 - across) * layer.height };
-  }
   return { x: across * layer.width, y: down * layer.height };
 }
 
@@ -892,12 +873,6 @@ export function pictureScreenPoint(
   const { picture } = layout;
   const alongWidth = x / layer.width;
   const alongHeight = y / layer.height;
-  if (layout.pictureTurn === 90) {
-    return {
-      x: picture.left + (1 - alongHeight) * picture.width,
-      y: picture.top + alongWidth * picture.height,
-    };
-  }
   return {
     x: picture.left + alongWidth * picture.width,
     y: picture.top + alongHeight * picture.height,
