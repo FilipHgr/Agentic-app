@@ -308,3 +308,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-10 #125 schváleno podle doporučení (vývojová závislost
   `fake-indexeddb` jen pro testy). Úkol B (fotoaparát a kniha) založit
   s upřesněním „cvaku“ podle doporučení.
+- 2026-11-10 #126, #127 a #128 schváleny podle doporučení. Na výšku se
+  neotáčí žádná omalovánka, ani domek (rozšíření rozhodnutí o postavičkách,
+  domek bude na výšku asi o 44 % menší). Obrysy omalovánek jako PNG, limit
+  sady 131 072 B. Pořadí: #125, #126, #127, #128.
