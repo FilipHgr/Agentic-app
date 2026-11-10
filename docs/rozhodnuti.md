@@ -122,6 +122,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-05 Postavičky (Hvězdík, Robík, Plamínek) se z celého projektu
   odstraní. V Počítání místo nich nic, příklad se zvětší, oslava jen
   s konfetami. Nahrazuje rozhodnutí z #33 a pravidlo o postavičkách v CLAUDE.md.
+  (zákaz postaviček v obrázcích nahrazen)
 - 2026-11-05 Úvodní menu bude robustní a her bude hodně: výběr her, profily,
   jazyk a zatím neurčené další volby (v menu jen jako zástupné prvky).
 - 2026-11-05 Profil dítěte: přezdívka (nemusí být skutečné jméno) a barva
@@ -273,3 +274,5 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-10 Design přes ElevenLabs začíná obrázky (dlaždice her atd.). Před
   každým generováním Claude vlastníkovi napíše cenu v kreditech. Obrázky ve hře
   mají být malé soubory, aby se rychle stahovaly.
+- 2026-11-10 Zákaz postaviček z 2026-11-05 neplatí pro nový design obrázků
+  (dlaždice her atd.), postavičky na obrázcích smí být.
