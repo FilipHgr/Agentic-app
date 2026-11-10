@@ -267,3 +267,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   obrázky ukázat před implementací.
 - 2026-11-09 Odstíny sad v2 schváleny (#116): fix tmavé inkoustové, puntíkový
   6 jasných vlastních barev (výchozí #FF039F), stříbrná #8D9FC3. Celkem 46 barev.
+- 2026-11-10 Sprint 3 sloučen do staging a main, sprint 4 založen ze staging.
+  Design se bude dělat přes napojení na ElevenLabs. Hotové soubory budou
+  uložené v repozitáři a hra nic nestahuje z cizích serverů.
