@@ -1,12 +1,15 @@
 /**
- * Pomůcky pro testy velikosti čáry v Omalovánkách (#91, #112). Velikost
- * (tloušťka) se od #112 vybírá ťuknutím přímo na jedno ze tří tlačítek
+ * Pomůcky pro testy velikosti čáry v Omalovánkách (#91, #112, #118). Velikost
+ * (tloušťka) se od #112 vybírá ťuknutím přímo na jedno z tlačítek
  * tloušťky v hlavičce kroku nástrojů, které scéna hlásí jako
  * `game.tapLineSize(size)`; dřív přepínač dokola (`tapSizeToggle`).
  * Vybraná velikost je `game.lineSize()`.
  *
+ * Od #118 jsou tlačítka čtyři: nejtenčí, malá, střední a velká.
+ *
  * Šířka stopy se měří na větším zkušebním obrázku 900 × 600
- * z `drawingToolHelpers.ts`: W je 900 / 50 = 18 px (malá), 900 / 30 = 30 px
+ * z `drawingToolHelpers.ts`: W je 900 / 100 = 9 px (nejtenčí, #118),
+ * 900 / 50 = 18 px (malá), 900 / 30 = 30 px
  * (střední) a 900 / 15 = 60 px (velká). Vodorovný tah na řádku y 300 leží
  * celý v oblasti A, měří se jen ve sloupcích uprostřed tahu (daleko od
  * konců), takže kulatá i čtvercová stopa mají stejnou polovinu šířky.
@@ -21,10 +24,23 @@ import type { Point } from './outlineFixtures';
 import { at } from './strokeHelpers';
 import { paint } from './savedPictureHelpers';
 
-/** Velikosti od nejtenčí, v pořadí tlačítek tloušťky (#91 AC1, #112 AC1). */
+/**
+ * Tři velikosti z #91 od nejtenčí (malá, střední, velká). Od #118 je před
+ * nimi ještě nejtenčí; testy jednotlivých nástrojů z #91–#116 dál měří tyto
+ * tři (#118 AC2: „zůstávají 1/50, 1/30 a 1/15“), nejtenčí měří testy #118.
+ */
 export const SIZES = ['small', 'medium', 'large'] as const satisfies readonly LineSize[];
 
+/** Všechny čtyři tloušťky od nejtenčí, v pořadí tlačítek tloušťky (#118 AC1). */
+export const ALL_SIZES = [
+  'tiny',
+  'small',
+  'medium',
+  'large',
+] as const satisfies readonly LineSize[];
+
 export const SIZE_NAMES: Record<LineSize, string> = {
+  tiny: 'nejtenčí',
   small: 'malá',
   medium: 'střední',
   large: 'velká',
@@ -43,8 +59,9 @@ export const TOOL_NAMES: Record<ToolId, string> = {
   spray: 'sprej',
 };
 
-/** W jako díl šířky plochy omalovánky (AC2), schválně ne konstanty z kódu. */
+/** W jako díl šířky plochy omalovánky (AC2, nejtenčí z #118 AC2), schválně ne konstanty z kódu. */
 export const WIDTH_SHARE: Record<LineSize, number> = {
+  tiny: 1 / 100,
   small: 1 / 50,
   medium: 1 / 30,
   large: 1 / 15,

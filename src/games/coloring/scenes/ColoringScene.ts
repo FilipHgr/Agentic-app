@@ -13,7 +13,7 @@ import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { colorNumber } from '../../../shared/logic/theme';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
-import { brushWidthFor } from '../logic/coloring';
+import { strokeWidthFor } from '../logic/coloring';
 import type { PointerSample } from '../logic/coloring';
 import {
   COLORING_GAME_AREA_FIT,
@@ -647,7 +647,8 @@ export class ColoringScene extends Phaser.Scene {
     if (this.selectedTool() !== 'glitter') {
       return;
     }
-    const brushWidth = brushWidthFor(PICTURE_PIXEL_WIDTH, this.lineSize());
+    // Třpytky malují u nejtenčí stejně široce jako u malé (#118 AC2), lesk taky.
+    const brushWidth = strokeWidthFor('glitter', PICTURE_PIXEL_WIDTH, this.lineSize());
     this.shineView.start(sample.id, brushWidth, sample);
   }
 

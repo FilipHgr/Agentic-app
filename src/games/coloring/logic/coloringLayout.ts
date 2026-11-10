@@ -11,7 +11,7 @@
  *   nad pruhem.
  *
  * Panel je od #105 ve dvou krocích se stejným rozměrem: hlavička
- * (v kroku nástrojů tři tlačítka tloušťky od #112, v kroku barev vybraný
+ * (v kroku nástrojů tlačítka tloušťky od #112, od #118 čtyři, v kroku barev vybraný
  * nástroj na místě prvního z nich), čára a tělo (10 nástrojů, nebo 12 barev na stejných
  * místech). Na iPadu a na výšku je hlavička řada nahoře, na telefonu na
  * šířku sloupec vlevo (schválené obrázky k #105). Jedno rozložení platí
@@ -65,8 +65,8 @@ export interface ColoringLayout {
   /** 10 míst pro nástroje v těle kroku nástrojů, štětec na prvním. */
   readonly toolSlots: readonly LayoutRect[];
   /**
-   * Tři tlačítka tloušťky čáry (#112) v hlavičce kroku nástrojů v pořadí
-   * `LINE_SIZES` (od nejtenčí), na prvních třech místech hlavičky.
+   * Čtyři tlačítka tloušťky čáry (#112, #118) v hlavičce kroku nástrojů
+   * v pořadí `LINE_SIZES` (od nejtenčí), na všech místech hlavičky.
    */
   readonly sizeButtons: readonly LayoutRect[];
   /** Vybraný nástroj v hlavičce kroku barev (#105), stejné místo jako `sizeButtons[0]`. */
@@ -142,12 +142,13 @@ const DIVIDER_CSS = 2;
 const BODY_PLACES = Math.max(PANEL_COLOR_PLACES, PANEL_TOOL_PLACES);
 
 /**
- * Sloupce těla panelu (#105): na iPadu na šířku 3, na výšku 4, na
- * telefonu na šířku 4 (3 řady, aby se panel vešel do nízkého okna).
+ * Sloupce těla panelu (#105, #118 AC4): na iPadu na šířku i na výšku 4,
+ * aby se nad tělo vešla řada 4 tlačítek tloušťky; na telefonu na šířku 3
+ * (4 řady stejně vysoké jako sloupec 4 tlačítek tloušťky vlevo).
  */
-const LANDSCAPE_BODY_COLUMNS = 3;
+const LANDSCAPE_BODY_COLUMNS = 4;
 const PORTRAIT_BODY_COLUMNS = 4;
-const PHONE_LANDSCAPE_BODY_COLUMNS = 4;
+const PHONE_LANDSCAPE_BODY_COLUMNS = 3;
 
 /** Ve výpočtu se pracuje v CSS px od levého horního rohu herní plochy. */
 interface Box {
@@ -249,8 +250,8 @@ interface PanelPlaces {
   readonly panelDivider: LayoutRect;
 }
 
-/** Tlačítek tloušťky v hlavičce (#112): malá, střední, velká. */
-const LINE_SIZE_BUTTONS = 3;
+/** Tlačítek tloušťky v hlavičce (#112, #118): nejtenčí, malá, střední, velká. */
+const LINE_SIZE_BUTTONS = LINE_SIZES.length;
 
 /**
  * Panel s mřížkou `grid` a okrajem `padding`, levý horní roh `left`, `top`.
@@ -333,7 +334,7 @@ function landscapeStrip(home: LayoutRect, height: number): Strip {
 
 /**
  * Panel vedle pruhu na středu výšky: na telefonu na šířku hlavička vlevo
- * a tělo 4 × 3, jinde hlavička nahoře a tělo 3 × 4.
+ * a tělo 3 × 4, jinde hlavička nahoře a tělo 4 × 3 (#118 AC4).
  */
 function landscapePanel(left: number, height: number, side: number, phone: boolean): PanelPlaces {
   const space = height - 2 * MIN_EDGE_CSS;
@@ -557,6 +558,8 @@ export function touchTargetAt(
  * na každé straně) nejvýš 0,32 strany jako v maketě `sada-1.png`.
  */
 const HANDLE_COLOR_DOT_SHARES: Readonly<Record<LineSize, number>> = {
+  // U nejtenčí stejně velké jako u malé (#118 AC3), velikosti se nemění.
+  tiny: 12 / 64,
   small: 12 / 64,
   medium: 12.8 / 64,
   large: 13.6 / 64,
@@ -625,10 +628,12 @@ export interface LineSizeWave {
 }
 
 /**
- * Tloušťka čáry vlnky jako díl strany tlačítka v poměru 3 : 5 : 10
- * (#112 AC3): na tlačítku 64 CSS px je to 3, 5 a 10 CSS px.
+ * Tloušťka čáry vlnky jako díl strany tlačítka v poměru 1,5 : 3 : 5 : 10
+ * (#112 AC3, nejtenčí podle schválení obrázků k #118): na tlačítku
+ * 64 CSS px je to 1,5, 3, 5 a 10 CSS px.
  */
 const WAVE_LINE_SHARES: Readonly<Record<LineSize, number>> = {
+  tiny: 1.5 / 64,
   small: 3 / 64,
   medium: 5 / 64,
   large: 10 / 64,

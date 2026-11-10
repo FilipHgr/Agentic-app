@@ -20,7 +20,7 @@ import {
 import type { Box, TestWindow } from '../../shared/viewportFixtures';
 import { PLANNED_LINE_SIZES, coloringCase, coloringCases } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
-import { SIZES, SIZE_NAMES, TOOL_NAMES } from './lineSizeHelpers';
+import { ALL_SIZES, SIZE_NAMES, TOOL_NAMES } from './lineSizeHelpers';
 
 /**
  * Testy rozložení a vzhledu k #112 (tři tlačítka tloušťky čáry
@@ -41,15 +41,23 @@ import { SIZES, SIZE_NAMES, TOOL_NAMES } from './lineSizeHelpers';
  * barev ťuknutí na místo přepínače velikost nepřepne“, „tečka leží celá
  * v přepínači“ a „tečka je u malé nejmenší a u velké největší“.
  *
+ * Od #118 jsou tlačítka čtyři (nejtenčí, malá, střední, velká) a pravidla
+ * běží pro všechna čtyři: poměr vlnek je 1,5 : 3 : 5 : 10 (schválení
+ * obrázků vlastníkem 2026-11-10), na výšku zabírají tlačítka všechna
+ * 4 místa hlavičky. Nová pravidla #118 (vlnka aspoň 1,5× předchozí,
+ * nejtenčí aspoň 1,5 CSS px, rozměr panelu) jsou
+ * v `thinnestLineSizeLayoutRules.test.ts`.
+ *
  * Ze schválených obrázků W1–W4: tlačítko 76 px na iPadu a 64 px na
  * telefonu, mezera 8 px, na telefonu na výšku tlačítka na prvních 3 ze
- * 4 míst hlavičky, vybraná tloušťka s modrým okrajem 5 px jako vybraný
+ * 4 míst hlavičky (od #118 na všech 4 místech), vybraná tloušťka s modrým okrajem 5 px jako vybraný
  * nástroj, obrys #1D1D1F u barev pod 3 : 1 vůči #E5F0FF (7 z 12 barev).
  *
  * Navržené rozhraní:
  * - `coloringLayout.ts`:
- *   - `ColoringLayout.sizeButtons: readonly LayoutRect[]` tři tlačítka
- *     tloušťky v pořadí `LINE_SIZES` (malá, střední, velká), místo
+ *   - `ColoringLayout.sizeButtons: readonly LayoutRect[]` tlačítka
+ *     tloušťky (od #118 čtyři) v pořadí `LINE_SIZES` (nejtenčí, malá,
+ *     střední, velká), místo
  *     `sizeToggle`; `colorStepTool` je stejný obdélník jako `sizeButtons[0]`,
  *   - `TouchTarget` `{ kind: 'lineSize'; size: LineSize }` místo
  *     `{ kind: 'sizeToggle' }`, jen v kroku nástrojů,
@@ -69,11 +77,19 @@ import { SIZES, SIZE_NAMES, TOOL_NAMES } from './lineSizeHelpers';
 /** Tolerance na zaokrouhlení v herních jednotkách i CSS px. */
 const TOLERANCE = 1e-6;
 
-/** Poměr tlouštěk vlnek malá : střední : velká (#112 AC3) a tolerance 10 %. */
-const WAVE_RATIO: Readonly<Record<LineSize, number>> = { small: 3, medium: 5, large: 10 };
+/**
+ * Poměr tlouštěk vlnek nejtenčí : malá : střední : velká (#112 AC3, od #118
+ * s nejtenčí 1,5 podle schválení obrázků) a tolerance 10 %.
+ */
+const WAVE_RATIO: Readonly<Record<LineSize, number>> = {
+  tiny: 1.5,
+  small: 3,
+  medium: 5,
+  large: 10,
+};
 const WAVE_RATIO_TOLERANCE = 0.1;
 
-/** Nejtenčí vlnka je silná aspoň tolik CSS px (#112 AC3). */
+/** Vlnka malé tloušťky je silná aspoň tolik CSS px (#112 AC3; od #118 nejtenčí 1,5 CSS px). */
 const MIN_WAVE_CSS = 3;
 
 /** Odstup vlnky od vnitřní hrany okraje tlačítka jako díl strany (#112 AC3). */
@@ -133,7 +149,7 @@ function casesIn(panel: ColoringCase['panel']): ColoringCase[] {
 }
 
 /**
- * Okna v kroku nástrojů; každé musí mít tři tlačítka tloušťky, aby
+ * Okna v kroku nástrojů; každé musí mít všechna tlačítka tloušťky (od #118 čtyři), aby
  * pravidla nad nimi neprošla naprázdno.
  */
 function toolStepCases(): ColoringCase[] {
@@ -167,7 +183,7 @@ function buttonCases(): Array<{
   name: string;
 }> {
   return toolStepCases().flatMap((testCase) =>
-    SIZES.map((size, index) => ({
+    ALL_SIZES.map((size, index) => ({
       testCase,
       size,
       button: testCase.layout.sizeButtons[index] as LayoutRect,
@@ -205,8 +221,9 @@ function goesUpAndDown(values: readonly number[]): boolean {
   return peak && valley;
 }
 
-describe('#112 AC1: tři tlačítka tloušťky v hlavičce kroku nástrojů', () => {
-  it('ve všech oknech jsou v hlavičce tři tlačítka tloušťky na místě přepínače', () => {
+describe('#112 AC1: tlačítka tloušťky v hlavičce kroku nástrojů', () => {
+  // Upraveno k #118 AC1: tlačítek je od #118 čtyři (`PLANNED_LINE_SIZES`).
+  it('ve všech oknech jsou v hlavičce 4 tlačítka tloušťky na místě přepínače', () => {
     for (const testCase of toolStepCases()) {
       const { label } = testCase.scene;
       expect(testCase.layout.sizeButtons.length, `${label}: tlačítek tloušťky`).toBe(
@@ -261,7 +278,8 @@ describe('#112 AC1: tři tlačítka tloušťky v hlavičce kroku nástrojů', ()
     }
   });
 
-  it('tlačítka stojí na prvních třech místech hlavičky nad sloupci (vedle řádků) nástrojů', () => {
+  // Upraveno k #118 AC1: 4 tlačítka na všech 4 místech hlavičky.
+  it('tlačítka stojí na místech hlavičky nad sloupci (vedle řádků) nástrojů', () => {
     for (const testCase of toolStepCases()) {
       const { layout } = testCase;
       const columns = new Set(layout.toolSlots.map((slot) => slot.left)).size;
@@ -285,7 +303,7 @@ describe('#112 AC1: tři tlačítka tloušťky v hlavičce kroku nástrojů', ()
     }
   });
 
-  it('ťuknutí na tlačítko v kroku nástrojů jde na jeho tloušťku: malá, střední, velká', () => {
+  it('ťuknutí na tlačítko v kroku nástrojů jde na jeho tloušťku: nejtenčí, malá, střední, velká', () => {
     for (const { testCase, button, size, name } of buttonCases()) {
       const { x, y } = center(button);
       expect(touchTargetAt(testCase.layout, 'tools', x, y), name).toEqual({
@@ -295,8 +313,9 @@ describe('#112 AC1: tři tlačítka tloušťky v hlavičce kroku nástrojů', ()
     }
   });
 
+  // Upraveno k #118 AC1: před malou je nejtenčí.
   it('pořadí tlačítek v rozložení je stejné jako pořadí tlouštěk od nejtenčí', () => {
-    expect(LINE_SIZES).toEqual(['small', 'medium', 'large']);
+    expect(LINE_SIZES).toEqual(['tiny', 'small', 'medium', 'large']);
   });
 
   it('se zavřeným panelem ťuknutí na místo tlačítek tloušťku nezmění', () => {
@@ -311,7 +330,8 @@ describe('#112 AC1: tři tlačítka tloušťky v hlavičce kroku nástrojů', ()
     }
   });
 
-  it('v kroku barev je na 1. místě vybraný nástroj a ťuknutí na místa 2 a 3 nic nevybere', () => {
+  // Upraveno k #118: míst hlavičky jsou 4.
+  it('v kroku barev je na 1. místě vybraný nástroj a ťuknutí na místa 2 až 4 nic nevybere', () => {
     for (const testCase of casesIn('colors')) {
       const { layout } = testCase;
       layout.sizeButtons.forEach((button, index) => {
@@ -342,15 +362,16 @@ describe('#112 AC3: vlnka ukazuje tloušťku', () => {
     }
   });
 
-  it('tloušťky čar vlnek jsou ve všech oknech v poměru 3 : 5 : 10 s tolerancí 10 %', () => {
+  // Upraveno k #118 AC3 (schválení obrázků): poměr 1,5 : 3 : 5 : 10 se 4 vlnkami.
+  it('tloušťky čar vlnek jsou ve všech oknech v poměru 1,5 : 3 : 5 : 10 s tolerancí 10 %', () => {
     for (const testCase of toolStepCases()) {
-      const widths = SIZES.map((size, index) => {
+      const widths = ALL_SIZES.map((size, index) => {
         const button = testCase.layout.sizeButtons[index] as LayoutRect;
         return lineSizeWave(button, size).lineWidth;
       });
-      const large = widths[2] ?? 0;
+      const large = widths[ALL_SIZES.indexOf('large')] ?? 0;
       expect(large, `${testCase.scene.label}: velká vlnka je vidět`).toBeGreaterThan(0);
-      SIZES.forEach((size, index) => {
+      ALL_SIZES.forEach((size, index) => {
         const expected = WAVE_RATIO[size] / WAVE_RATIO.large;
         const actual = (widths[index] ?? 0) / large;
         expect(
@@ -361,13 +382,15 @@ describe('#112 AC3: vlnka ukazuje tloušťku', () => {
     }
   });
 
-  it('čára nejtenčí vlnky je ve všech oknech silná aspoň 3 CSS px', () => {
+  // Upraveno k #118 AC3: nejtenčí je od #118 nová vlnka (aspoň 1,5 CSS px
+  // v `thinnestLineSizeLayoutRules.test.ts`), malá zůstává aspoň 3 CSS px.
+  it('čára vlnky malé tloušťky je ve všech oknech silná aspoň 3 CSS px', () => {
     for (const testCase of toolStepCases()) {
-      const button = testCase.layout.sizeButtons[0] as LayoutRect;
+      const button = testCase.layout.sizeButtons[ALL_SIZES.indexOf('small')] as LayoutRect;
       const css = lineSizeWave(button, 'small').lineWidth * testCase.area.scale;
       expect(
         css,
-        `${testCase.scene.label}: tenká vlnka ${css.toFixed(2)} px`,
+        `${testCase.scene.label}: vlnka malé ${css.toFixed(2)} px`,
       ).toBeGreaterThanOrEqual(MIN_WAVE_CSS - TOLERANCE);
     }
   });
@@ -550,11 +573,13 @@ describe('#112 AC5: dotyk mimo tlačítka tloušťky', () => {
     }
   });
 
-  it('dotyk na prázdné 4. místo hlavičky na výšku nic nevybere a nemaluje', () => {
+  // Nahrazuje „dotyk na prázdné 4. místo hlavičky na výšku nic nevybere“
+  // (#112 AC5): od #118 AC1 je na 4. místě tlačítko velké tloušťky.
+  it('na výšku je na 4. místě hlavičky tlačítko velké tloušťky, prázdné místo v hlavičce není', () => {
     const portrait = toolStepCases().filter(
       (testCase) =>
         headerKind(testCase) === 'row' &&
-        new Set(testCase.layout.toolSlots.map((slot) => slot.left)).size > PLANNED_LINE_SIZES,
+        new Set(testCase.layout.toolSlots.map((slot) => slot.left)).size === PLANNED_LINE_SIZES,
     );
     expect(portrait.length, 'okna se 4 místy v hlavičce').toBeGreaterThan(0);
     for (const testCase of portrait) {
@@ -565,7 +590,7 @@ describe('#112 AC5: dotyk mimo tlačítka tloušťky', () => {
       expect(
         touchTargetAt(layout, 'tools', point.x, point.y),
         `${testCase.scene.label}: 4. místo hlavičky`,
-      ).toEqual({ kind: 'panel' });
+      ).toEqual({ kind: 'lineSize', size: 'large' });
     }
   });
 });

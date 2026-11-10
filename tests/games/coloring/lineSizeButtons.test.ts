@@ -8,7 +8,7 @@ import {
   lineSizeWaveLook,
   markedLineSizes,
 } from '../../../src/games/coloring/logic/toolPanel';
-import type { LineSize, ToolId } from '../../../src/games/coloring/logic/toolPanel';
+import type { ToolId } from '../../../src/games/coloring/logic/toolPanel';
 import { choose, endOf } from './drawingToolHelpers';
 import { SIZES, SIZE_NAMES, TOOL_NAMES } from './lineSizeHelpers';
 import { at } from './strokeHelpers';
@@ -33,9 +33,10 @@ import {
 
 /**
  * Testy chování k #112 (tři tlačítka tloušťky čáry v Omalovánkách místo
- * přepínače): AC1 (označená je právě jedna tloušťka, barva vlnky podle
- * nástroje), AC2 (výběr jedním ťuknutím, tón té tloušťky, panel zůstane
- * na kroku nástrojů), AC3 (vlnky mají hned novou barvu) a AC5 (ťuknutí na
+ * přepínače, od #118 čtyři s nejtenčí, ta v `thinnestLineSize.test.ts`):
+ * AC1 (označená je právě jedna tloušťka, barva vlnky podle nástroje),
+ * AC2 (výběr jedním ťuknutím, tón té tloušťky, panel zůstane na kroku
+ * nástrojů), AC3 (vlnky mají hned novou barvu) a AC5 (ťuknutí na
  * už vybranou tloušťku, druhý prst během tahu, Zpět). Rozložení, kam patří
  * dotyk, tvar vlnky a kontrast jsou v `lineSizeButtonsLayoutRules.test.ts`.
  * Šířky W, platnost pro všechny nástroje, paměť podle profilu a staré
@@ -65,7 +66,10 @@ import {
 const DARK = '#1D1D1F';
 
 /** Dnešní tóny tlouštěk z #91 (AC2 „zazní dnešní tón té tloušťky“, tóny se nemění). */
-const TODAY_TONES: Readonly<Record<LineSize, { frequencyHz: number; durationSeconds: number }>> = {
+// Upraveno k #118: nejtenčí má nový tón, dnešní tři tóny se nemění.
+const TODAY_TONES: Readonly<
+  Record<(typeof SIZES)[number], { frequencyHz: number; durationSeconds: number }>
+> = {
   small: { frequencyHz: 880, durationSeconds: 0.14 },
   medium: { frequencyHz: 659.25, durationSeconds: 0.14 },
   large: { frequencyHz: 493.88, durationSeconds: 0.14 },
@@ -94,8 +98,9 @@ function everythingButSize(game: SavedColoring): unknown {
 }
 
 describe('#112 AC1: označená je vždy právě jedna tloušťka', () => {
+  // Upraveno k #118 AC1: tlačítka jsou čtyři, střední je třetí.
   it('na začátku je označená střední tloušťka', () => {
-    expect(markedLineSizes(fresh().lineSize())).toEqual([false, true, false]);
+    expect(markedLineSizes(fresh().lineSize())).toEqual([false, false, true, false]);
   });
 
   it('po každém ťuknutí je označené právě to tlačítko, na které dítě ťuklo', () => {
@@ -274,7 +279,9 @@ describe('#112 AC5: okrajové případy', () => {
     for (const size of SIZES) {
       expect(game.tapLineSize(size), `${SIZE_NAMES[size]}: žádný tón`).toEqual([]);
       expect(game.lineSize(), `${SIZE_NAMES[size]}: tloušťka`).toBe('small');
+      // Upraveno k #118 AC1: tlačítka jsou čtyři, malá je druhá.
       expect(markedLineSizes(game.lineSize()), `${SIZE_NAMES[size]}: označená`).toEqual([
+        false,
         true,
         false,
         false,

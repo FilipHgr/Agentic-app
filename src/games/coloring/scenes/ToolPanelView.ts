@@ -1,7 +1,7 @@
 /**
  * Vysouvací panel nástrojů (#96) se zástupným vzhledem A3: bílá karta se
  * stínem. Od #105 je ve dvou krocích se stejným rozměrem karty: hlavička,
- * čára a tělo. Krok nástrojů má v hlavičce tři tlačítka tloušťky (#112,
+ * čára a tělo. Krok nástrojů má v hlavičce čtyři tlačítka tloušťky (#112, #118,
  * vlnka tloušťky `lineSizeWave` v barvě vybraného nástroje) a v těle
  * štětec, gumu, fix, pastelku, duhu, razítkový, puntíkový a proužkový
  * fix, třpytky a sprej (`PANEL_TOOLS`, #90, #93, #97, #98, #101–#104).

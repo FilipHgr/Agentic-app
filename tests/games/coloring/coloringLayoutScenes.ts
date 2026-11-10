@@ -11,9 +11,9 @@
  * zdola (P-A). Domeček na výšku zůstává vlevo nahoře.
  *
  * Od #105 je panel ve dvou krocích se stejným rozměrem panelu: krok
- * nástrojů (od #112 tři tlačítka tloušťky v hlavičce a 10 nástrojů v těle)
+ * nástrojů (od #112 tlačítka tloušťky v hlavičce, od #118 čtyři, a 10 nástrojů v těle)
  * a krok barev (vybraný nástroj na 1. místě hlavičky a 12 barev v těle),
- * každý nejvýš 13 ploch. Každé okno se zkouší se zavřeným panelem a v obou
+ * každý nejvýš 14 ploch (#118). Každé okno se zkouší se zavřeným panelem a v obou
  * krocích. Otevřený panel leží přes obrázek, proto se s ním smí překrývat
  * (a plochy kroku s pozadím panelu). Plochy druhého kroku na obrazovce
  * nejsou, proto se s plochami zobrazeného kroku nesrovnávají.
@@ -45,12 +45,13 @@
  * - `paletteColors: readonly LayoutRect[]` 12 míst pro barvy v panelu
  *   (barvy `PALETTE` na prvních místech, ostatní zatím prázdné),
  * - `toolSlots: readonly LayoutRect[]` 10 míst pro nástroje,
- * - `sizeButtons: readonly LayoutRect[]` tři tlačítka tloušťky (#112,
- *   nahrazují přepínač `sizeToggle` z #91).
+ * - `sizeButtons: readonly LayoutRect[]` tlačítka tloušťky (#112,
+ *   nahrazují přepínač `sizeToggle` z #91; od #118 čtyři).
  *
- * Od #112 jsou v hlavičce kroku nástrojů místo přepínače tři tlačítka
- * tloušťky (malá, střední, velká, `sizeButtons`), krok nástrojů má tedy
- * 13 ploch. Vybraný nástroj v kroku barev je na místě prvního z nich.
+ * Od #112 jsou v hlavičce kroku nástrojů místo přepínače tlačítka
+ * tloušťky (`sizeButtons`), od #118 čtyři (nejtenčí, malá, střední, velká),
+ * krok nástrojů má tedy 14 ploch. Vybraný nástroj v kroku barev je na místě
+ * prvního z nich.
  *
  * Navržené rozšíření (#105):
  * - `paletteColors` a `toolSlots` jsou tělo kroku barev a kroku nástrojů
@@ -128,13 +129,16 @@ export function isOpen(testCase: { readonly panel: PanelState }): boolean {
   return testCase.panel !== 'closed';
 }
 
-/** Obsah panelu (#96 AC3, #112): 12 barev, 10 nástrojů a 3 tlačítka tloušťky. */
+/** Obsah panelu (#96 AC3, #112, #118 AC1): 12 barev, 10 nástrojů a 4 tlačítka tloušťky. */
 export const PLANNED_COLORS = 12;
 export const PLANNED_TOOLS = 10;
-export const PLANNED_LINE_SIZES = 3;
+export const PLANNED_LINE_SIZES = 4;
 
-/** Krok panelu má nejvýš tolik ploch (#105, schválené obrázky). */
-export const MAX_STEP_PLACES = 13;
+/**
+ * Krok panelu má nejvýš tolik ploch: 13 podle schválených obrázků #105,
+ * od #118 krok nástrojů 4 tlačítka tloušťky a 10 nástrojů.
+ */
+export const MAX_STEP_PLACES = 14;
 
 /** Místa pro nedávné barvy v pruhu (#96 AC1). */
 export const RECENT_COLOR_PLACES = 2;
@@ -154,7 +158,7 @@ export function toolName(index: number): string {
   return `nástroj ${index + 1}`;
 }
 
-/** Tlačítko tloušťky na místě `index` hlavičky (0 malá, 1 střední, 2 velká, #112). */
+/** Tlačítko tloušťky na místě `index` hlavičky (0 nejtenčí, 1 malá, 2 střední, 3 velká, #118). */
 export function lineSizeName(index: number): string {
   return `tloušťka ${index + 1}`;
 }
@@ -257,7 +261,7 @@ export interface ColoringCase {
   readonly colors: readonly Box[];
   /** Místa pro nástroje v kroku nástrojů v CSS px okna. */
   readonly tools: readonly Box[];
-  /** Tři tlačítka tloušťky v hlavičce kroku nástrojů (#112), od nejtenčí. */
+  /** Tlačítka tloušťky v hlavičce kroku nástrojů (#112, od #118 čtyři), od nejtenčí. */
   readonly sizeButtons: readonly Box[];
   /** Vybraný nástroj v hlavičce kroku barev (#105). */
   readonly colorStepTool: Box;
@@ -277,7 +281,7 @@ function stripItems(home: Box, handle: Box, undo: Box, recentColors: readonly Bo
   ];
 }
 
-/** Krok nástrojů: 3 tlačítka tloušťky a 10 nástrojů, žádné barvy (#105 AC1, #112 AC1). */
+/** Krok nástrojů: 4 tlačítka tloušťky a 10 nástrojů, žádné barvy (#105 AC1, #118 AC1). */
 function toolStepItems(sizeButtons: readonly Box[], tools: readonly Box[]): LayoutItem[] {
   return [
     ...sizeButtons.map((box, index) => ({ name: lineSizeName(index), box, tappable: true })),

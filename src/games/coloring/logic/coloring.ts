@@ -78,8 +78,12 @@ import { createStrokeJournal } from './strokeHistory';
 import type { StrokeChange } from './strokeHistory';
 import type { LineSize, ToolId } from './toolPanel';
 
-/** W jako díl šířky plochy podle velikosti čáry (#91 AC2); střední je W z #88. */
+/**
+ * W jako díl šířky plochy podle velikosti čáry (#91 AC2); střední je W z #88,
+ * nejtenčí (#118 AC2) polovina malé.
+ */
 const BRUSH_WIDTH_SHARE: Readonly<Record<LineSize, number>> = {
+  tiny: 1 / 100,
   small: 1 / 50,
   medium: 1 / 30,
   large: 1 / 15,
@@ -265,6 +269,23 @@ interface Stroke {
 /** Šířka stopy štětce W velikosti `size` pro plochu široké `pictureWidth` pixelů. */
 export function brushWidthFor(pictureWidth: number, size: LineSize = 'medium'): number {
   return pictureWidth * BRUSH_WIDTH_SHARE[size];
+}
+
+/**
+ * Nástroje, které u nejtenčí tloušťky malují stejně široce jako u malé
+ * (#118 AC2, schválení obrázků): jejich vzor by se tenčí stopou rozpadl
+ * na útržky.
+ */
+const LIKE_SMALL_AT_TINY: readonly ToolId[] = ['dots', 'stripes', 'glitter'];
+
+/**
+ * Šířka W, kterou maluje nástroj `tool` velikostí `size` na ploše široké
+ * `pictureWidth` pixelů: W štětce té velikosti, jen u nejtenčí mají
+ * puntíkový a proužkový fix a třpytky W malé (#118 AC2).
+ */
+export function strokeWidthFor(tool: ToolId, pictureWidth: number, size: LineSize): number {
+  const likeSmall = size === 'tiny' && LIKE_SMALL_AT_TINY.includes(tool);
+  return brushWidthFor(pictureWidth, likeSmall ? 'small' : size);
 }
 
 /** Střed hvězdičky zaokrouhlený na `STAR_CENTER_GRID`, aby stejný tah dal stejné pixely. */

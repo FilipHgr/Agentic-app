@@ -63,7 +63,7 @@
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import type { Tone } from '../../../shared/audio/tonePlayer';
 import { HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
-import { NO_COLOR, brushWidthFor, createColoring, emptyColorLayer } from './coloring';
+import { NO_COLOR, createColoring, emptyColorLayer, strokeWidthFor } from './coloring';
 import type { ChangedArea, PointerSample } from './coloring';
 import { isPaletteIndex, tapColor } from './palette';
 import type { PaletteState } from './palette';
@@ -609,7 +609,7 @@ export function openColoring(options: {
       if (strokePointer === null) {
         strokePointer = pointer.id;
       }
-      const width = brushWidthFor(regions.width, lineSize);
+      const width = strokeWidthFor(tool, regions.width, lineSize);
       return noteChange(coloring.pointerDown(pointer, paintColor(), tool, width));
     },
 

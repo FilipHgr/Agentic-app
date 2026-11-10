@@ -72,8 +72,8 @@ export function toolForColor(paintingTool: ToolId): ToolId {
 }
 
 /**
- * Krok panelu (#105): zavřený, krok nástrojů (tři tlačítka tloušťky od
- * #112 a 10 nástrojů), nebo krok barev (vybraný nástroj a 12 barev).
+ * Krok panelu (#105): zavřený, krok nástrojů (tlačítka tloušťky od #112,
+ * od #118 čtyři, a 10 nástrojů), nebo krok barev (vybraný nástroj a 12 barev).
  */
 export type PanelView = 'closed' | 'tools' | 'colors';
 
@@ -108,11 +108,11 @@ export function toolAtSlot(index: number): ToolId | null {
   return PANEL_TOOLS[index] ?? null;
 }
 
-/** Velikost čáry (#91): platí pro všechny nástroje naráz. */
-export type LineSize = 'small' | 'medium' | 'large';
+/** Velikost čáry (#91, nejtenčí od #118): platí pro všechny nástroje naráz. */
+export type LineSize = 'tiny' | 'small' | 'medium' | 'large';
 
-/** Tloušťky od nejtenčí, v pořadí tlačítek tloušťky v panelu (#91, #112 AC1). */
-export const LINE_SIZES: readonly LineSize[] = ['small', 'medium', 'large'];
+/** Tloušťky od nejtenčí, v pořadí tlačítek tloušťky v panelu (#91, #112 AC1, #118 AC1). */
+export const LINE_SIZES: readonly LineSize[] = ['tiny', 'small', 'medium', 'large'];
 
 /** Velikost na začátku a po chybějícím nebo nesmyslném záznamu (#91 AC2, AC5). */
 export const INITIAL_LINE_SIZE: LineSize = 'medium';
@@ -124,9 +124,10 @@ export function markedLineSizes(selected: LineSize): readonly boolean[] {
 
 /**
  * Krátký tón při ťuknutí na tlačítko tloušťky (#91, #112 AC2), dozní za
- * 0,14 s. Tenká čára zní výš, tlustá níž.
+ * 0,14 s. Tenká čára zní výš, tlustá níž, nejtenčí (#118 AC1) nejvýš.
  */
 export const LINE_SIZE_TONES: Readonly<Record<LineSize, readonly Tone[]>> = {
+  tiny: [{ frequencyHz: 1046.5, startSeconds: 0, durationSeconds: 0.14, volume: 0.14 }],
   small: [{ frequencyHz: 880, startSeconds: 0, durationSeconds: 0.14, volume: 0.14 }],
   medium: [{ frequencyHz: 659.25, startSeconds: 0, durationSeconds: 0.14, volume: 0.14 }],
   large: [{ frequencyHz: 493.88, startSeconds: 0, durationSeconds: 0.14, volume: 0.14 }],

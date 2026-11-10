@@ -7,6 +7,7 @@ import { MIN_TAP_GAP, MIN_TAP_SIDE } from '../../shared/layoutRules';
 import {
   IPAD_WINDOWS,
   PHONE_PORTRAIT_WINDOWS,
+  SMALLEST_PHONE,
   boundsOf,
   gapBetween,
   heightOf,
@@ -35,8 +36,8 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * nástroj, pak barva). AC6: pravidla z #96 AC6 platí pro oba kroky ve všech
  * oknech, krok se vejde, nic nepřekryje a panel má v obou krocích stejný
  * rozměr. K tomu rozložení ze schválených obrázků (komentář vlastníka
- * k issue): krok má nejvýš 13 ploch, v hlavičce je v kroku nástrojů
- * od #112 trojice tlačítek tloušťky (dřív přepínač velikosti) a v kroku
+ * k issue): krok má nejvýš 13 ploch (od #118 14), v hlavičce je v kroku nástrojů
+ * od #112 řada tlačítek tloušťky (dřív přepínač velikosti, od #118 čtyři) a v kroku
  * barev vybraný nástroj na místě prvního z nich. Na iPadu a na výšku je hlavička řada nahoře, na telefonu na šířku
  * sloupec vlevo, od těla ji dělí čára. A část AC1, AC2, AC4 a AC5, která
  * patří rozložení: kam v kterém kroku patří dotyk.
@@ -77,10 +78,16 @@ const IPHONE_LANDSCAPE_MOCKUP: TestWindow = {
   safeArea: { top: 0, right: 47, bottom: 21, left: 47 },
 };
 
-/** Schválené obrázky: okno a rozměr panelu (šířka × výška) v obou krocích. */
+/**
+ * Schválené obrázky: okno a rozměr panelu (šířka × výška) v obou krocích.
+ * Upraveno k #118 AC4 (4 tlačítka tloušťky): iPad z 268 × 444 na 352 × 360
+ * (tělo 4 × 3), telefon na šířku z 384 × 232 na 312 × 304 (tělo 3 × 4),
+ * v okně 744×296 296 × 288; na výšku beze změny.
+ */
 const APPROVED_PANELS: ReadonlyArray<{ window: TestWindow; width: number; height: number }> = [
-  { window: IPAD_WINDOWS[0] as TestWindow, width: 268, height: 444 },
-  { window: IPHONE_LANDSCAPE_MOCKUP, width: 384, height: 232 },
+  { window: IPAD_WINDOWS[0] as TestWindow, width: 352, height: 360 },
+  { window: IPHONE_LANDSCAPE_MOCKUP, width: 312, height: 304 },
+  { window: SMALLEST_PHONE, width: 296, height: 288 },
   { window: PHONE_PORTRAIT_WINDOWS[0] as TestWindow, width: 304, height: 312 },
 ];
 
@@ -192,7 +199,8 @@ describe('#105 AC1, AC2: co je v kterém kroku panelu', () => {
     }
   });
 
-  it('krok nástrojů ukazuje tři tlačítka tloušťky a 10 nástrojů, žádnou barvu', () => {
+  // Upraveno k #118 AC1: tlačítka tloušťky jsou čtyři.
+  it('krok nástrojů ukazuje 4 tlačítka tloušťky a 10 nástrojů, žádnou barvu', () => {
     const expected = [
       ...Array.from({ length: PLANNED_LINE_SIZES }, (_, index) => lineSizeName(index)),
       ...Array.from({ length: PLANNED_TOOLS }, (_, index) => toolName(index)),
@@ -218,7 +226,8 @@ describe('#105 AC1, AC2: co je v kterém kroku panelu', () => {
     }
   });
 
-  it('každý krok má ve všech oknech nejvýš 13 ploch', () => {
+  // Upraveno k #118 AC1: krok nástrojů má 4 tlačítka tloušťky a 10 nástrojů.
+  it('každý krok má ve všech oknech nejvýš 14 ploch', () => {
     for (const testCase of stepCases()) {
       expect(testCase.stepPlaces.length, `${testCase.scene.label}: plochy kroku`).toBeGreaterThan(
         0,
@@ -310,7 +319,7 @@ describe('#105 AC6: pravidla rozložení z #96 platí pro oba kroky ve všech ok
     }
   });
 
-  it('panel má rozměr ze schválených obrázků: iPad 268 × 444, telefon na šířku 384 × 232, na výšku 304 × 312 px', () => {
+  it('panel má rozměr ze schválených obrázků: iPad 352 × 360, telefon na šířku 312 × 304 (v okně 744×296 296 × 288), na výšku 304 × 312 px', () => {
     for (const { window, width, height } of APPROVED_PANELS) {
       for (const panel of ['tools', 'colors'] as const) {
         const testCase = coloringCase(window, panel);

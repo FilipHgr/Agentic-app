@@ -16,8 +16,8 @@ import { SIZES, SIZE_NAMES, TOOL_FACTOR } from './lineSizeHelpers';
 
 /**
  * Testy rozložení k #91 v upraveném znění AC1 (v úchytu tečku velikosti
- * podle #106 nahradilo kolečko barvy) a AC3 (nejtenčí
- * stopa aspoň 3 CSS px na obrazovce). Společná pravidla rozložení z #96
+ * podle #106 nahradilo kolečko barvy) a AC3 (stopa malé tloušťky
+ * aspoň 3 CSS px na obrazovce, nejtenčí z #118 je vědomě tenčí). Společná pravidla rozložení z #96
  * (64 px, 8 px, nic se nepřekrývá, vejde se) platí pro tlačítka tloušťky
  * v `toolPanelLayoutRules.test.ts`. Každé pravidlo projde v cyklu všechna
  * okna z `coloringLayoutScenes.ts` (zavřený i otevřený panel) a všechny
@@ -41,7 +41,7 @@ import { SIZES, SIZE_NAMES, TOOL_FACTOR } from './lineSizeHelpers';
 /** Tolerance na zaokrouhlení v herních jednotkách. */
 const TOLERANCE = 1e-6;
 
-/** Nejtenčí stopa na obrazovce (AC3) v CSS px. */
+/** Stopa malé tloušťky na obrazovce (AC3) v CSS px. */
 const MIN_TRACE_CSS = 3;
 
 /** Nejmenší plocha omalovánky z AC3: kratší strana 240 CSS px, poměr 4 : 3. */
@@ -204,7 +204,8 @@ describe('#91 AC1 a #106: úchyt ukazuje ikonu nástroje a kolečko barvy velké
   });
 });
 
-describe('#91 AC3: nejtenčí stopa je na obrazovce aspoň 3 CSS px', () => {
+// Upraveno k #118: nejtenčí z #118 je vědomě tenčí.
+describe('#91 AC3: stopa malé tloušťky je na obrazovce aspoň 3 CSS px', () => {
   /** Šířka stopy pastelky malé velikosti na obrazovce pro plochu široké `pictureCss` CSS px. */
   function thinnestTraceCss(pictureCss: number): number {
     // Šířka W je díl šířky plochy, proto stačí počítat rovnou v CSS px plochy.
