@@ -57,12 +57,33 @@
  * dostal, a označí místo jeho barvy. Barvu mimo sadu (starší záznam,
  * nedávná barva) nástroj má a maluje jí dál, v kroku barev pak není
  * označené nic (#116 AC5).
+ *
+ * Fotoaparát (#126) uloží hotový obrázek do alba aktivního profilu
+ * (`album.ts`). Album dostane malování přečtené při otevření omalovánky,
+ * takže po ťuknutí hned ví, jestli se obrázek uloží (AC2 a). Prázdný
+ * obrázek, obrázek stejný jako obrázek té omalovánky v albu, plné album,
+ * nedostupné nebo ještě nepřečtené album a dočasný profil fotoaparát jen
+ * zhoupnou. Jinak hned cvak a ukládání; během ukládání se nemaluje
+ * a další ťuknutí fotoaparát jen zhoupne. Teprve po potvrzeném uložení je
+ * omalovánka čistá a zapíše se do úložiště; barvy nástrojů, nedávné barvy
+ * a tloušťka zůstanou a historie Zpět se vyprázdní. Ukládání doběhne
+ * i po odchodu z malování.
  * Čistý TypeScript bez Phaseru.
  */
 
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
+import type { GameRecords, RecordData, RecordsAdd } from '../../../shared/storage/profileRecords';
 import type { Tone } from '../../../shared/audio/tonePlayer';
 import { HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
+import {
+  ALBUM_PICTURE_LIMIT,
+  ALBUM_RECORD_LIMIT,
+  CAMERA_CLICK_TONES,
+  albumEntryOf,
+  albumRecordOf,
+  sameLayers,
+} from './album';
+import type { AlbumContents } from './album';
 import { NO_COLOR, createColoring, emptyColorLayer, strokeWidthFor } from './coloring';
 import type { ChangedArea, PointerSample } from './coloring';
 import { isPaletteIndex, tapColor } from './palette';
@@ -177,6 +198,35 @@ export type RecentColorTap =
   /** Ťuknutí druhým prstem během tahu: nic se nestane, tah pokračuje. */
   | { readonly kind: 'ignored' };
 
+/** Jak skončilo ukládání do alba po cvaku (#126 AC1, AC2 b). */
+export type CameraSaveResult =
+  /** Uloženo: omalovánka je čistá, scéna překreslí `changed`. */
+  | { readonly kind: 'saved'; readonly changed: ChangedArea }
+  /** Úložiště vrátilo „plné“ nebo „nedostupné“: obrázek zůstal, fotoaparát se zhoupne. */
+  | { readonly kind: 'failed'; readonly tones: readonly Tone[] };
+
+/** Co udělalo ťuknutí na fotoaparát (#126). */
+export type CameraTap =
+  /** Hned cvak a animace; `done` skončí, až úložiště uložení potvrdí nebo odmítne. */
+  | {
+      readonly kind: 'saving';
+      readonly tones: readonly Tone[];
+      readonly done: Promise<CameraSaveResult>;
+    }
+  /** Obrázek se neuloží (AC2 a, c): fotoaparát se jen zhoupne s tónem domečku. */
+  | { readonly kind: 'wobble'; readonly tones: readonly Tone[] }
+  /** Ťuknutí, když jiný prst maluje (AC3): nic, ani zhoupnutí. */
+  | { readonly kind: 'ignored' };
+
+/** Album aktivního profilu pro malování: záznamy a jejich obsah přečtený při otevření. */
+export interface ColoringAlbum {
+  readonly records: GameRecords | undefined;
+  readonly contents: AlbumContents;
+}
+
+/** Tón, když se fotoaparát jen zhoupne (#126 AC2), stejný jako u domečku. */
+export const CAMERA_WOBBLE_TONES: readonly Tone[] = HOME_WOBBLE_TONES;
+
 export interface SavedColoring {
   /**
    * Prst se dotkl obrázku; malovací nástroj maluje svou barvou (#110 AC1),
@@ -274,6 +324,19 @@ export interface SavedColoring {
    * a ťuknutí během tahu nic nezmění a vrátí `[]`.
    */
   tapTool(index: number): readonly Tone[];
+  /**
+   * Ťuknutí na fotoaparát (#126): uloží hotový obrázek do alba, nebo se
+   * jen zhoupne, když se obrázek neuloží. Během tahu jiného prstu nic.
+   */
+  tapCamera(): CameraTap;
+  /** Ukládá se právě obrázek do alba (od cvaku po potvrzení)? Mezitím se nemaluje. */
+  savingToAlbum(): boolean;
+  /**
+   * Album se dočetlo až po otevření malování: malování se otevře hned
+   * a fotoaparát se do přečtení alba jen zhoupne (jako u ťuknutí na knihu
+   * před přečtením, rozhodnutí koordinátora 2 k #126).
+   */
+  albumRead(contents: AlbumContents): void;
   /** Index barvy v pixelu; `null` bez barvy, na obrysu a mimo plochu. */
   colorAt(x: number, y: number): number | null;
 }
@@ -458,6 +521,19 @@ function storeRecord(storage: KeyValueStorage, key: string, record: string): boo
   }
 }
 
+/**
+ * Zapíše záznam alba. Záznamy hry podle #125 nikdy neskončí zamítnutým
+ * slibem; kdyby přece, je to jako „nedostupné“ a hra se nezasekne v ukládání.
+ */
+async function addRecord(records: GameRecords, data: RecordData): Promise<RecordsAdd> {
+  try {
+    return await records.add(data);
+  } catch (error) {
+    console.warn('Omalovánky: obrázek nejde uložit do alba', error);
+    return { status: 'unavailable' };
+  }
+}
+
 /** Úložiště jen v paměti, když hra žádné nedostala. */
 function memoryStorage(): KeyValueStorage {
   const memory = new Map<string, string>();
@@ -494,6 +570,8 @@ export function openColoring(options: {
   readonly picture: PictureIdentity;
   readonly storage: KeyValueStorage | undefined;
   readonly paletteSize?: number;
+  /** Album aktivního profilu (#126); bez něj fotoaparát nic neuloží. */
+  readonly album?: ColoringAlbum;
 }): SavedColoring {
   const { regions, picture } = options;
   const paletteSize = paletteSizeOf(options.paletteSize);
@@ -502,7 +580,12 @@ export function openColoring(options: {
   const stored = loadRecord(storage, key);
   const restored = stored === null ? null : readRecord(stored, picture, regions, paletteSize);
 
-  const coloring = createColoring(regions, restored === null ? {} : { colors: restored.layer });
+  let coloring = createColoring(regions, restored === null ? {} : { colors: restored.layer });
+  /** Album přečtené při otevření; po každém uložení se doplní nový obrázek. */
+  let album: AlbumContents = options.album?.contents ?? { status: 'unavailable' };
+  const albumRecords = options.album?.records;
+  /** Ukládá se do alba (od cvaku po potvrzení)? */
+  let savingToAlbum = false;
   /** Barva každého malovacího nástroje, pamatuje se podle profilu (#110 AC5). */
   let toolColors: ToolColors = openingToolColors(
     loadToolColors(storage, picture.id, paletteSize),
@@ -515,7 +598,7 @@ export function openColoring(options: {
   /** Je od posledního úspěšného uložení něco nového? */
   let unsaved = false;
   /** Vratné tahy od otevření omalovánky (#89); nové otevření začne bez historie. */
-  const history = createUndoHistory();
+  let history = createUndoHistory();
   /** Je v úložišti záznam, že profil hru už otevřel? */
   let openingRemembered = wasOpenedBefore(storage);
   /**
@@ -604,8 +687,70 @@ export function openColoring(options: {
     return tones;
   };
 
+  /**
+   * Uloží se vrstva `layer` do alba (#126 AC2 a)? Ne u prázdného obrázku,
+   * u obrázku stejného jako obrázek té omalovánky v albu, u plného alba
+   * a u alba, které nejde přečíst (rozhodnutí koordinátora 1 a 2 k #126).
+   */
+  const albumAccepts = (layer: Uint8Array): boolean => {
+    if (album.status !== 'read' || albumRecords === undefined) {
+      return false;
+    }
+    if (album.entries.length >= ALBUM_PICTURE_LIMIT || album.recordCount >= ALBUM_RECORD_LIMIT) {
+      return false;
+    }
+    if (layer.every((value) => value === NO_COLOR)) {
+      return false;
+    }
+    return !album.entries.some(
+      (entry) =>
+        entry.picture.id === picture.id &&
+        entry.picture.version === picture.version &&
+        sameLayers(regions, entry.layer, layer),
+    );
+  };
+
+  /** Po potvrzeném uložení: obrázek je v albu a omalovánka čistá jako nová stránka. */
+  const afterAlbumSaved = (recordId: string, layer: Uint8Array): CameraSaveResult => {
+    if (album.status === 'read') {
+      const entry = albumEntryOf(recordId, { identity: picture, regions }, layer);
+      album = {
+        status: 'read',
+        entries: [entry, ...album.entries],
+        recordCount: album.recordCount + 1,
+      };
+    }
+    coloring = createColoring(regions, {});
+    history = createUndoHistory();
+    unsaved = true;
+    save();
+    return {
+      kind: 'saved',
+      changed: { left: 0, top: 0, right: regions.width, bottom: regions.height },
+    };
+  };
+
+  /** Zapíše záznam do alba; obrázek se vyčistí až po potvrzení (AC1). */
+  const saveToAlbum = async (
+    records: GameRecords,
+    data: RecordData,
+    layer: Uint8Array,
+  ): Promise<CameraSaveResult> => {
+    const result = await addRecord(records, data);
+    savingToAlbum = false;
+    if (result.status !== 'saved') {
+      return { kind: 'failed', tones: CAMERA_WOBBLE_TONES };
+    }
+    return afterAlbumSaved(result.id, layer);
+  };
+
   return {
     pointerDown(pointer) {
+      if (savingToAlbum) {
+        // Během ukládání do alba se nemaluje (rozhodnutí koordinátora 3 k #126):
+        // tah by se po uložení ztratil spolu se stránkou.
+        return null;
+      }
       panelView = 'closed';
       if (strokePointer === null) {
         strokePointer = pointer.id;
@@ -732,6 +877,32 @@ export function openColoring(options: {
       }
       panelView = hasColorStep(tapped) ? 'colors' : 'closed';
       return TOOL_PICK_TONES;
+    },
+
+    tapCamera() {
+      if (strokePointer !== null) {
+        return { kind: 'ignored' };
+      }
+      const layer = coloring.colorLayer().slice();
+      const data =
+        savingToAlbum || !albumAccepts(layer) ? null : albumRecordOf(picture, regions, layer);
+      if (data === null || albumRecords === undefined) {
+        return { kind: 'wobble', tones: CAMERA_WOBBLE_TONES };
+      }
+      savingToAlbum = true;
+      return {
+        kind: 'saving',
+        tones: CAMERA_CLICK_TONES,
+        done: saveToAlbum(albumRecords, data, layer),
+      };
+    },
+
+    savingToAlbum: () => savingToAlbum,
+
+    albumRead(contents) {
+      if (!savingToAlbum) {
+        album = contents;
+      }
     },
 
     colorAt: (x, y) => coloring.colorAt(x, y),

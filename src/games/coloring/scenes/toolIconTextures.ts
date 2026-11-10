@@ -1,5 +1,5 @@
 /**
- * Ikony nástrojů (#106): hotová SVG z Google Noto Emoji ze složky
+ * Ikony nástrojů (#106), fotoaparátu a knihy (#126): hotová SVG z Google Noto Emoji ze složky
  * `src/games/coloring/icons/`. Vite je přibalí ke hře jako samostatné
  * soubory (`?no-inline`, nikdy ne z cizího serveru) a scéna je načte
  * v `preload`. Pro každou zobrazenou velikost se SVG vykreslí do vlastní
@@ -44,7 +44,15 @@ export function preloadToolIcons(scene: Phaser.Scene): void {
  * pak fungují dál, jen bez obrázku.
  */
 export function toolIconTexture(scene: Phaser.Scene, tool: ToolId, sideCss: number): string | null {
-  const { file } = toolIconAsset(tool);
+  return iconFileTexture(scene, toolIconAsset(tool).file, sideCss);
+}
+
+/**
+ * Klíč ostré textury ikony ze souboru `file` ve složce `icons/` (nástroje,
+ * fotoaparát a kniha z #126) pro čtverec o straně `sideCss` CSS px, nebo
+ * `null`, když se SVG nenačetlo.
+ */
+export function iconFileTexture(scene: Phaser.Scene, file: string, sideCss: number): string | null {
   const source = sourceKey(file);
   if (!scene.textures.exists(source)) {
     return null;

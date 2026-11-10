@@ -12,18 +12,41 @@
  *   počítá až od chvíle, kdy je malování vidět (AC5): podržení dokončené
  *   během otevírání nebo dřív než za 1 s po zobrazení malování začalo
  *   ještě před ním a nepočítá se.
+ * - Kniha na výběru (#126 AC4) otevře album aktivního profilu, které scéna
+ *   přečetla (`album.ts`). Prázdné, nedostupné nebo ještě nepřečtené album
+ *   se neotevře a kniha se jen zhoupne s tónem domečku. V albu se náhledy
+ *   zatím jen zhoupnou a domeček vede zpátky na výběr.
  */
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
 import type { HomeHoldDecision } from '../../../shared/logic/gameHost';
-import { HOLD_TO_GO_HOME_MS } from '../../../shared/logic/homeButton';
+import { HOLD_TO_GO_HOME_MS, HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
+import type { AlbumContents, AlbumEntry } from './album';
 import type { PictureIdentity } from './savedPicture';
 
-/** Co je vidět: výběr, otevírání omalovánky, nebo malování. */
+/** Co je vidět: výběr, otevírání omalovánky, malování, nebo album (#126). */
 export type ColoringScreen =
   | { readonly kind: 'picker' }
   | { readonly kind: 'opening'; readonly picture: PictureIdentity }
-  | { readonly kind: 'painting'; readonly picture: PictureIdentity };
+  | { readonly kind: 'painting'; readonly picture: PictureIdentity }
+  | { readonly kind: 'album'; readonly entries: readonly AlbumEntry[] };
+
+/** Co udělá ťuknutí na knihu (#126 AC4). */
+export type BookTap =
+  /** Album se otevře s obrázky od nejnovějšího; kniha se zhoupne s tónem náhledu. */
+  | {
+      readonly kind: 'open';
+      readonly tones: readonly Tone[];
+      readonly entries: readonly AlbumEntry[];
+    }
+  /** Prázdné, nedostupné nebo nepřečtené album: kniha se jen zhoupne s tónem domečku. */
+  | { readonly kind: 'wobble'; readonly tones: readonly Tone[] }
+  /** Mimo výběr kniha nic nedělá. */
+  | { readonly kind: 'ignored' };
+
+/** Co udělá ťuknutí na náhled v albu: zatím jen zhoupnutí (velký obrázek je další úkol). */
+export type AlbumPreviewTap =
+  { readonly kind: 'wobble'; readonly tones: readonly Tone[] } | { readonly kind: 'ignored' };
 
 /** Co udělá ťuknutí na náhled: otevře omalovánku s tónem, nebo nic. */
 export type PreviewTap =
@@ -54,6 +77,10 @@ export interface PictureChoice {
   paintingShown(): void;
   /** Domeček se držel 1 s. */
   holdHome(): HomeHold;
+  /** Ťuknutí na knihu s albem, jak ho scéna přečetla; `null`, když ještě není přečtené. */
+  tapBook(album: AlbumContents | null): BookTap;
+  /** Ťuknutí na náhled `index` v albu. */
+  tapAlbumPreview(index: number): AlbumPreviewTap;
 }
 
 export interface PictureChoiceOptions {
@@ -98,8 +125,23 @@ export function startPictureChoice(
       screen = { kind: 'painting', picture: screen.picture };
       paintingShownAt = now();
     },
+    tapBook: (album) => {
+      if (screen.kind !== 'picker') {
+        return { kind: 'ignored' };
+      }
+      if (album === null || album.status !== 'read' || album.entries.length === 0) {
+        return { kind: 'wobble', tones: HOME_WOBBLE_TONES };
+      }
+      screen = { kind: 'album', entries: album.entries };
+      return { kind: 'open', tones: PREVIEW_TAP_TONES, entries: album.entries };
+    },
+    tapAlbumPreview: () =>
+      screen.kind === 'album' ? { kind: 'wobble', tones: HOME_WOBBLE_TONES } : { kind: 'ignored' },
     holdHome: () => {
       switch (screen.kind) {
+        case 'album':
+          screen = { kind: 'picker' };
+          return 'toPicker';
         case 'picker':
           return 'toMenu';
         case 'opening':

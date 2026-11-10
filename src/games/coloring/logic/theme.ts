@@ -48,6 +48,58 @@ export const UNDO_BUTTON_STYLE = {
 } as const;
 
 /**
+ * Tlačítka s ikonou Noto Emoji (#126): fotoaparát v malování a kniha na
+ * výběru mají podklad a okraj jako Zpět a ikonu uprostřed.
+ */
+export const ICON_BUTTON_STYLE = {
+  ...UNDO_BUTTON_STYLE,
+  /** Ikona zabere tento díl strany tlačítka (jako ikona nástroje v panelu). */
+  iconShare: 0.66,
+  /** Zhoupnutí jako u Zpět: úhel ve stupních a čas jedné čtvrtiny v ms. */
+  wobbleAngle: 8,
+  wobbleMs: 90,
+} as const;
+
+/**
+ * Animace uložení do alba (#126, schválené obrázky): bílý záblesk přes
+ * obrázek a stisknutí fotoaparátu, pak se fotka s bílým okrajem zmenší
+ * a odletí po oblouku do fotoaparátu, který poskočí. Časy jsou díly
+ * celé animace.
+ */
+export const CAMERA_PHOTO_STYLE = {
+  durationMs: 950,
+  flashColor: '#FFFFFF',
+  flashAlpha: 0.9,
+  /** Záblesk dohasne do tohoto dílu animace. */
+  flashEnd: 0.14,
+  /** Fotoaparát je stisknutý do tohoto dílu animace. */
+  pressEnd: 0.1,
+  pressScale: 0.9,
+  /** Zmenšování fotky trvá od `shrinkStart` do `flyStart`, pak fotka letí. */
+  shrinkStart: 0.12,
+  flyStart: 0.55,
+  /** Fotka po zmenšení: díl velikosti obrázku a natočení ve stupních. */
+  shrunkScale: 0.42,
+  shrunkAngle: -6,
+  /** Natočení fotky u fotoaparátu. */
+  landedAngle: -14,
+  /** Výška oblouku letu jako díl výšky obrázku. */
+  arcShare: 0.12,
+  /** Fotka zmizí v posledním dílu letu. */
+  fadeShare: 0.15,
+  /** Bílý okraj fotky a zaoblení v CSS px. */
+  borderCss: 6,
+  cornerCss: 10,
+  /** Stín fotky: rozptyl v CSS px, posun dolů a průhlednost. */
+  shadowSpreadsCss: [2, 6, 12],
+  shadowOffsetCss: 4,
+  shadowAlpha: 0.06,
+  /** Poskočení fotoaparátu po doletu. */
+  bounceScale: 1.1,
+  bounceMs: 120,
+} as const;
+
+/**
  * Panel nástrojů (#96): bílá karta se stínem a zaoblenými rohy, mezi
  * oddílem barev a nástrojů jemná čára. Zástupný vzhled, konečný přijde
  * s ikonami (mimo rozsah #96).

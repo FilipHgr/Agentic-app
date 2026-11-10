@@ -21,7 +21,8 @@ Testovací omalovánka (src/games/coloring/pictures/house.svg, domeček, strom
 a slunce) je vlastní dílo vytvořené pro tuto hru, bez cizích zdrojů.
 
 Ikony nástrojů v Omalovánkách (src/games/coloring/icons/: paintbrush, eraser,
-pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter) jsou
+pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter) a ikony
+fotoaparátu a knihy alba (camera, notebook-with-decorative-cover) jsou
 obrázky ze sady Noto Emoji, autor Google Inc.,
 https://github.com/googlefonts/noto-emoji
 Copyright Google Inc.

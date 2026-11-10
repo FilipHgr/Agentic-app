@@ -141,6 +141,11 @@ export function iconSvgOf(tool: ToolId): string {
   return ICON_FILES[iconPathOf(tool)] ?? '';
 }
 
+/** Obsah SVG ikony podle jména souboru ve složce ikon (prázdný, když soubor chybí). */
+export function iconSvgOfFile(file: string): string {
+  return ICON_FILES[`${ICON_FOLDER}/${file}`] ?? '';
+}
+
 /** Všechny SVG soubory ve složce ikon (cesty od kořene repozitáře). */
 export function iconFolderFiles(): string[] {
   return Object.keys(ICON_FILES).sort();

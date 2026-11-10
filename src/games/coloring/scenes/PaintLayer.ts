@@ -93,6 +93,23 @@ export class PaintLayer {
     );
   }
 
+  /**
+   * Kopie obrázku tak, jak je teď v pixelech (i s tím, co ještě není
+   * v textuře), pro fotku při uložení do alba (#126). `null`, když
+   * plátno nejde vytvořit.
+   */
+  snapshot(): HTMLCanvasElement | null {
+    const canvas = document.createElement('canvas');
+    canvas.width = this.regions.width;
+    canvas.height = this.regions.height;
+    const context = canvas.getContext('2d');
+    if (context === null) {
+      return null;
+    }
+    context.putImageData(this.pixels, 0, 0);
+    return canvas;
+  }
+
   /** Pošle změněný obdélník do textury. Volá se jednou za snímek. */
   flush(): void {
     const area = this.pending;

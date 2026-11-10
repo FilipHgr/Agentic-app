@@ -7,14 +7,15 @@
  *
  * Každý pixel náhledu vezme pixel obrázku ze středu plochy, která na něj
  * po zmenšení připadne: pozadí, obrys, nebo barvu dítěte. Barvy se
- * nemíchají. Čistý TypeScript bez Phaseru.
+ * nemíchají. Stejně se kreslí náhledy obrázků v albu (#126).
+ * Čistý TypeScript bez Phaseru.
  */
 
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import { OUTLINE_REGION, regionAt } from './regionMap';
 import type { RegionMap } from './regionMap';
 import { openColoring } from './savedPicture';
-import type { PictureIdentity } from './savedPicture';
+import type { PictureColors, PictureIdentity } from './savedPicture';
 import { PICTURE_STYLE } from './theme';
 import { colorHex } from './toolColorSets';
 
@@ -60,9 +61,23 @@ export function loadPicturePreview(options: {
   readonly width: number;
   readonly height: number;
 }): PicturePreview {
-  const { regions, width, height } = options;
   // Samotné otevření nic nezapíše (#92 AC1), náhled tedy úložiště nemění.
-  const saved = openColoring({ regions, picture: options.picture, storage: options.storage });
+  const saved = openColoring({
+    regions: options.regions,
+    picture: options.picture,
+    storage: options.storage,
+  });
+  return previewOfColors({ ...options, colors: saved });
+}
+
+/** Náhled obrázku s barvami `colors` (i obrázku z alba, #126) v rozměru `width` × `height`. */
+export function previewOfColors(options: {
+  readonly colors: PictureColors;
+  readonly regions: RegionMap;
+  readonly width: number;
+  readonly height: number;
+}): PicturePreview {
+  const { colors, regions, width, height } = options;
   return {
     width,
     height,
@@ -72,7 +87,7 @@ export function loadPicturePreview(options: {
       if (regionAt(regions, sourceX, sourceY) === OUTLINE_REGION) {
         return OUTLINE;
       }
-      const color = saved.colorAt(sourceX, sourceY);
+      const color = colors.colorAt(sourceX, sourceY);
       return color === null ? BACKGROUND : { kind: 'color', color };
     },
   };

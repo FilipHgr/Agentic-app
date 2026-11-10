@@ -55,6 +55,9 @@
  * - Výstupní bajty se skládají po 15 bitech do stejné znakové sady.
  *   Dekodér musí přečíst přesně celý text: zkrácený nebo prodloužený
  *   záznam odmítne (`null`).
+ * - Album (#126) ukládá vrstvu p5 binárně: stejné bajty aritmetického
+ *   kódu bez skládání do znaků (`encodeColorLayerBytes`). I tady dekodér
+ *   musí přečíst přesně všechny bajty.
  *
  * Kódování i čtení projde vrstvu jednou (lineární čas) a kromě výsledku
  * alokuje jen pole sousedů (16 řádků, u p5 navíc 2 řádky podle zrna),
@@ -564,11 +567,22 @@ const FLUSH_BYTES = 5;
 /** Kolik bajtů přečte dekodér na začátku (první bajt LZMA je vždy 0 a nezapisuje se). */
 const START_BYTES = 4;
 
+/** Kam aritmetický kodér zapisuje bajty: do znaků textu, nebo do pole bajtů (#126). */
+interface ByteSink {
+  writeByte(byte: number): void;
+}
+
+/** Odkud dekodér čte bajty; po konci nebo neplatném vstupu vrací 0 a nastaví `failed`. */
+interface ByteSource {
+  readonly failed: boolean;
+  readByte(): number;
+}
+
 /**
  * Zápis bajtů do znaků po 15 bitech (stejná znaková sada jako p1 až p4).
  * Poslední znak se doplní nulami.
  */
-class ByteCharWriter {
+class ByteCharWriter implements ByteSink {
   private readonly codes: number[] = [];
   private bits = 0;
   private bitCount = 0;
@@ -608,7 +622,7 @@ function textOfCharCodes(codes: readonly number[]): string {
  * Čtení bajtů ze znaků. Po konci textu nebo neplatném znaku vrací 0
  * a nastaví `failed`, dekodér pak záznam odmítne.
  */
-class ByteCharReader {
+class ByteCharReader implements ByteSource {
   failed = false;
   private position = 0;
   private bits = 0;
@@ -647,6 +661,52 @@ class ByteCharReader {
   }
 }
 
+/** Počáteční velikost pole bajtů; při zaplnění se zdvojnásobí. */
+const BYTE_ARRAY_START_SIZE = 4096;
+
+/** Zápis bajtů rovnou do pole bajtů (vrstva barev v albu, #126). */
+class ByteArrayWriter implements ByteSink {
+  private bytes = new Uint8Array(BYTE_ARRAY_START_SIZE);
+  private length = 0;
+
+  writeByte(byte: number): void {
+    if (this.length === this.bytes.length) {
+      const bigger = new Uint8Array(this.bytes.length * 2);
+      bigger.set(this.bytes);
+      this.bytes = bigger;
+    }
+    this.bytes[this.length] = byte;
+    this.length += 1;
+  }
+
+  finish(): Uint8Array {
+    return this.bytes.slice(0, this.length);
+  }
+}
+
+/** Čtení bajtů z pole; po konci pole vrací 0 a nastaví `failed`. */
+class ByteArrayReader implements ByteSource {
+  failed = false;
+  private position = 0;
+
+  constructor(private readonly bytes: Uint8Array) {}
+
+  readByte(): number {
+    const byte = this.bytes[this.position];
+    if (byte === undefined) {
+      this.failed = true;
+      return 0;
+    }
+    this.position += 1;
+    return byte;
+  }
+
+  /** Přečetl dekodér přesně celé pole? Zkrácené ani prodloužené pole neprojde. */
+  isAtEnd(): boolean {
+    return !this.failed && this.position === this.bytes.length;
+  }
+}
+
 /** Nové pole adaptivních pravděpodobností, všechny na začátku 1/2. */
 function newProbabilities(count: number): Uint16Array {
   return new Uint16Array(count).fill(PROBABILITY_ONE >>> 1);
@@ -665,7 +725,7 @@ class RangeEncoder {
   /** První bajt je vždy 0 (interval nikdy nepřeteče přes začátek), nezapisuje se. */
   private skipFirstByte = true;
 
-  constructor(private readonly output: ByteCharWriter) {}
+  constructor(private readonly output: ByteSink) {}
 
   encodeBit(probabilities: Uint16Array, index: number, bit: number): void {
     const probability = probabilities[index] ?? 0;
@@ -684,12 +744,11 @@ class RangeEncoder {
     }
   }
 
-  /** Celý zápis: vysune zbytek intervalu a vrátí text. */
-  finish(): string {
+  /** Konec zápisu: vysune zbytek intervalu do výstupu. */
+  flush(): void {
     for (let byte = 0; byte < FLUSH_BYTES; byte += 1) {
       this.shiftLow();
     }
-    return this.output.finish();
   }
 
   /** Vysune horní bajt intervalu; bajty 0xFF čekají, dokud není jasný přenos. */
@@ -721,7 +780,7 @@ class RangeDecoder {
   private range = FULL_RANGE;
   private code = 0;
 
-  constructor(private readonly input: ByteCharReader) {
+  constructor(private readonly input: ByteSource) {
     for (let byte = 0; byte < START_BYTES; byte += 1) {
       this.code = this.code * 256 + input.readByte();
     }
@@ -1001,12 +1060,35 @@ const HIT = 0;
 const MISS = 1;
 
 function encodeP5Layer(regions: RegionMap, layer: Uint8Array): string {
+  const writer = new ByteCharWriter();
+  writeP5Layer(regions, layer, writer);
+  return writer.finish();
+}
+
+/** Vrstva barev formátu p5 jako bajty aritmetického kódu, bez znaků textu (#126). */
+export function encodeColorLayerBytes(regions: RegionMap, layer: Uint8Array): Uint8Array {
+  const writer = new ByteArrayWriter();
+  writeP5Layer(regions, layer, writer);
+  return writer.finish();
+}
+
+/**
+ * Vrstva barev z bajtů `encodeColorLayerBytes`; `null`, když bajty nesedí
+ * na obrys omalovánky (zkrácené, prodloužené nebo poškozené).
+ */
+export function decodeColorLayerBytes(regions: RegionMap, bytes: Uint8Array): Uint8Array | null {
+  const reader = new ByteArrayReader(bytes);
+  const layer = readP5Layer(regions, reader);
+  return layer !== null && reader.isAtEnd() ? layer : null;
+}
+
+function writeP5Layer(regions: RegionMap, layer: Uint8Array, output: ByteSink): void {
   const { width, height, regionIds } = regions;
   const colorCount = LAYER_COLOR_COUNT.p5;
   const predictor = new CandidatePredictor(width, colorCount);
   const recent = new RecentValues(colorCount);
   const probabilities = newP5Probabilities();
-  const encoder = new RangeEncoder(new ByteCharWriter());
+  const encoder = new RangeEncoder(output);
   for (let row = 0; row < height; row += 1) {
     predictor.startRow(row);
     const rowStart = row * width;
@@ -1033,17 +1115,23 @@ function encodeP5Layer(regions: RegionMap, layer: Uint8Array): string {
       }
     }
   }
-  return encoder.finish();
+  encoder.flush();
 }
 
 function decodeP5Layer(regions: RegionMap, text: string): Uint8Array | null {
+  const reader = new ByteCharReader(text);
+  const layer = readP5Layer(regions, reader);
+  return layer !== null && reader.isAtPaddedEnd() ? layer : null;
+}
+
+/** Přečte všechny pixely vrstvy p5; jestli vstup skončil přesně, ověří volající. */
+function readP5Layer(regions: RegionMap, reader: ByteSource): Uint8Array | null {
   const { width, height, regionIds } = regions;
   const layer = emptyColorLayer(regions);
   const colorCount = LAYER_COLOR_COUNT.p5;
   const predictor = new CandidatePredictor(width, colorCount);
   const recent = new RecentValues(colorCount);
   const probabilities = newP5Probabilities();
-  const reader = new ByteCharReader(text);
   const decoder = new RangeDecoder(reader);
   if (!decoder.isValid()) {
     return null;
@@ -1076,5 +1164,5 @@ function decodeP5Layer(regions: RegionMap, text: string): Uint8Array | null {
       }
     }
   }
-  return reader.isAtPaddedEnd() ? layer : null;
+  return reader.failed ? null : layer;
 }

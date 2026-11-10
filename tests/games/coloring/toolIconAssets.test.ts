@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { toolIconAsset } from '../../../src/games/coloring/logic/toolIcons';
+import {
+  BOOK_ICON_FILE,
+  CAMERA_ICON_FILE,
+  toolIconAsset,
+} from '../../../src/games/coloring/logic/toolIcons';
 import {
   ICON_FOLDER,
   LICENCE_TEXT,
@@ -74,8 +78,10 @@ describe('#106 AC1: každý nástroj má ikonu z hotové sady Google Noto Emoji'
       (tool) => `${TOOL_NAMES[tool]}: chybí ${iconPathOf(tool)}`,
     );
     expect(limited(missing)).toEqual([]);
+    // Upraveno k #126: ve složce jsou navíc ikony fotoaparátu a knihy (cameraBookIcons.test.ts).
+    const buttonIcons = [CAMERA_ICON_FILE, BOOK_ICON_FILE].map((file) => `${ICON_FOLDER}/${file}`);
     expect(iconFolderFiles(), `soubory ve složce ${ICON_FOLDER}`).toEqual(
-      TOOLS.map((tool) => iconPathOf(tool)).sort(),
+      [...TOOLS.map((tool) => iconPathOf(tool)), ...buttonIcons].sort(),
     );
   });
 

@@ -45,6 +45,14 @@ const TOOL_EMOJI: Readonly<Record<ToolId, NotoEmojiName>> = {
   spray: 'splatter',
 };
 
+/**
+ * Ikony tlačítek mimo nástroje (#126) ze stejné sady Noto Emoji: fotoaparát
+ * 📷 (U+1F4F7, „camera“) v malování a kniha 📔 (U+1F4D4, „notebook with
+ * decorative cover“) na výběru omalovánky.
+ */
+export const CAMERA_ICON_FILE = 'camera.svg';
+export const BOOK_ICON_FILE = 'notebook-with-decorative-cover.svg';
+
 /** Ikona nástroje `tool`; nezávisí na vybrané barvě ani velikosti čáry. */
 export function toolIconAsset(tool: ToolId): ToolIconAsset {
   const emoji = TOOL_EMOJI[tool];

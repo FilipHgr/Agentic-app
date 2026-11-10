@@ -9,10 +9,11 @@ import {
   heightOf,
   isInside,
   overlaps,
+  toCss,
   widthOf,
 } from '../../shared/viewportFixtures';
 import type { Box } from '../../shared/viewportFixtures';
-import { RECENT_COLOR_PLACES, coloringCases, isOpen } from './coloringLayoutScenes';
+import { RECENT_COLOR_PLACES, boxOfRect, coloringCases, isOpen } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
 
 /**
@@ -74,10 +75,18 @@ function openCases(): ColoringCase[] {
   return cases().filter(isOpen);
 }
 
-/** Ťukací plochy pruhu (na šířku i s domečkem, na výšku je domeček nahoře). */
+/**
+ * Ťukací plochy pruhu (na šířku i s domečkem, na výšku je domeček nahoře).
+ * Upraveno k #126: na šířku je v pruhu i fotoaparát, na výšku je vpravo
+ * nahoře zrcadlově k domečku, mimo pruh.
+ */
 function stripControls(testCase: ColoringCase): Box[] {
   const controls = [testCase.handle, testCase.undo, ...testCase.recentColors];
-  return testCase.landscape ? [testCase.home, ...controls] : controls;
+  if (!testCase.landscape) {
+    return controls;
+  }
+  const camera = toCss(boxOfRect(testCase.layout.cameraButton), testCase.area);
+  return [testCase.home, ...controls, camera];
 }
 
 /**

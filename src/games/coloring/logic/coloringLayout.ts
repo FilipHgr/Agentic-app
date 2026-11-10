@@ -18,6 +18,10 @@
  * pro zavřený panel i oba kroky, obrázek se tedy nikdy neposune. Kam
  * patří dotyk, rozhoduje `touchTargetAt` podle kroku panelu.
  *
+ * Fotoaparát (#126) je na šířku v pruhu pod nedávnými barvami, na výšku
+ * vpravo nahoře zrcadlově k domečku. Obrázek má stejnou velikost jako
+ * před #126, jen se může posunout.
+ *
  * Od #111 sahá obrázek na šířku k hornímu a dolnímu okraji, na výšku je
  * otočený o 90° po směru hodinových ručiček (vršek vpravo) přes šířku
  * okna bez bočních okrajů 8 px. Dotyk na omalovánku převádí
@@ -58,6 +62,8 @@ export interface ColoringLayout {
   readonly undoButton: LayoutRect;
   /** Místa pro 2 nedávné barvy (zatím prázdná). */
   readonly recentColors: readonly LayoutRect[];
+  /** Fotoaparát, uloží hotový obrázek do alba (#126). */
+  readonly cameraButton: LayoutRect;
   /** Pozadí otevřeného panelu. */
   readonly panel: LayoutRect;
   /** 12 míst pro barvy v těle kroku barev, barvy `PALETTE` na prvních místech. */
@@ -91,6 +97,7 @@ export type TouchTarget =
   | { readonly kind: 'picture' }
   | { readonly kind: 'handle' }
   | { readonly kind: 'undo' }
+  | { readonly kind: 'camera' }
   | { readonly kind: 'recentColor'; readonly index: number }
   | { readonly kind: 'color'; readonly index: number }
   | { readonly kind: 'tool'; readonly index: number }
@@ -110,8 +117,8 @@ export const PANEL_COLOR_PLACES = 12;
 export const PANEL_TOOL_PLACES = 10;
 const RECENT_COLOR_PLACES = 2;
 
-/** Plochy pruhu na šířku: domeček, úchyt, Zpět a 2 nedávné barvy. */
-const LANDSCAPE_STRIP_CONTROLS = 3 + RECENT_COLOR_PLACES;
+/** Plochy pruhu na šířku: domeček, úchyt, Zpět, 2 nedávné barvy a fotoaparát (#126). */
+const LANDSCAPE_STRIP_CONTROLS = 4 + RECENT_COLOR_PLACES;
 
 /** Mezera mezi plochami a mezi pruhem a obrázkem v CSS px. */
 const GAP_CSS = 8;
@@ -303,6 +310,7 @@ interface Strip {
   readonly handle: LayoutRect;
   readonly undoButton: LayoutRect;
   readonly recentColors: LayoutRect[];
+  readonly cameraButton: LayoutRect;
 }
 
 /** Pruh vlevo pod domečkem: jeden sloupec, když se vejde, jinak dva. */
@@ -320,15 +328,19 @@ function landscapeStrip(home: LayoutRect, height: number): Strip {
         square(home.left, below + 2 * step, side),
         square(home.left, below + 3 * step, side),
       ],
+      cameraButton: square(home.left, below + 4 * step, side),
     };
   }
-  // Dva sloupce (L-A na telefonu): úchyt a Zpět vedle sebe, nedávné barvy dole.
+  // Dva sloupce (L-A na telefonu): úchyt a Zpět vedle sebe, pod nimi nedávné
+  // barvy a úplně dole fotoaparát (#126), obrázek se jen posune.
   const secondColumn = home.left + side + GAP_CSS;
-  const recentTop = Math.max(below + side + GAP_CSS, height - home.top - side);
+  const cameraTop = Math.max(below + 2 * (side + GAP_CSS), height - home.top - side);
+  const recentTop = cameraTop - side - GAP_CSS;
   return {
     handle: square(home.left, below, side),
     undoButton: square(secondColumn, below, side),
     recentColors: [square(home.left, recentTop, side), square(secondColumn, recentTop, side)],
+    cameraButton: square(home.left, cameraTop, side),
   };
 }
 
@@ -355,7 +367,9 @@ function landscapeLayout(
 ): CssLayout {
   const strip = landscapeStrip(home, height);
   const stripRight = Math.max(
-    ...[home, strip.handle, strip.undoButton, ...strip.recentColors].map(rightOf),
+    ...[home, strip.handle, strip.undoButton, ...strip.recentColors, strip.cameraButton].map(
+      rightOf,
+    ),
   );
   const besideStrip = stripRight + GAP_CSS;
   const picture = fitPicture({
@@ -377,7 +391,10 @@ function landscapeLayout(
 // Na výšku (P-A)
 // ---------------------------------------------------------------------------
 
-/** Pruh dole: nedávné barvy vlevo, úchyt uprostřed, Zpět vpravo u palce. */
+/**
+ * Pruh dole: nedávné barvy vlevo, úchyt uprostřed, Zpět vpravo u palce.
+ * Fotoaparát je vpravo nahoře zrcadlově k domečku (#126).
+ */
 function portraitStrip(width: number, height: number, home: LayoutRect): Strip {
   const side = home.width;
   const top = height - home.top - side;
@@ -391,6 +408,7 @@ function portraitStrip(width: number, height: number, home: LayoutRect): Strip {
     handle: square(handleLeft, top, side),
     undoButton: square(width - home.left - side, top, side),
     recentColors: [square(recentLeft, top, side), square(recentLeft + side + GAP_CSS, top, side)],
+    cameraButton: square(width - home.left - side, home.top, side),
   };
 }
 
@@ -463,6 +481,7 @@ function layoutInUnits(css: CssLayout, unitsPerCss: number): ColoringLayout {
     handle: units(css.handle),
     undoButton: units(css.undoButton),
     recentColors: css.recentColors.map(units),
+    cameraButton: units(css.cameraButton),
     panel: units(css.panel),
     paletteColors: css.paletteColors.map(units),
     toolSlots: css.toolSlots.map(units),
@@ -536,6 +555,9 @@ export function touchTargetAt(
   }
   if (contains(layout.undoButton, x, y)) {
     return { kind: 'undo' };
+  }
+  if (contains(layout.cameraButton, x, y)) {
+    return { kind: 'camera' };
   }
   const recent = indexContaining(layout.recentColors, x, y);
   if (recent >= 0) {

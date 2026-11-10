@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { sharedToneContext } from '../../../shared/audio/sharedAudio';
 import { createTonePlayer } from '../../../shared/audio/tonePlayer';
 import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
+import type { GameRecords } from '../../../shared/storage/profileRecords';
 import type { GameHost } from '../../../shared/logic/gameHost';
 import {
   TABLET_GAME_HEIGHT,
@@ -13,6 +14,7 @@ import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { colorNumber } from '../../../shared/logic/theme';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
+import type { AlbumContents } from '../logic/album';
 import { strokeWidthFor } from '../logic/coloring';
 import type { PointerSample } from '../logic/coloring';
 import {
@@ -27,8 +29,15 @@ import type { ColoringLayout } from '../logic/coloringLayout';
 import { tapColor } from '../logic/palette';
 import type { PaletteState } from '../logic/palette';
 import { noRecentColors } from '../logic/recentColors';
-import { RECENT_COLOR_WOBBLE_TONES, UNDO_WOBBLE_TONES, openColoring } from '../logic/savedPicture';
+import {
+  CAMERA_WOBBLE_TONES,
+  RECENT_COLOR_WOBBLE_TONES,
+  UNDO_WOBBLE_TONES,
+  openColoring,
+} from '../logic/savedPicture';
 import type {
+  CameraSaveResult,
+  CameraTap,
   PictureIdentity,
   RecentColorTap,
   SavedColoring,
@@ -37,7 +46,7 @@ import type {
 import { PICTURE_STYLE } from '../logic/theme';
 import { ALL_COLOR_COUNT, TOOL_COLOR_SETS, placeInSet } from '../logic/toolColorSets';
 import { DEFAULT_TOOL_COLORS, isColorTool, toolReceivingColor } from '../logic/toolColors';
-import { handleColorDotFill } from '../logic/toolIcons';
+import { CAMERA_ICON_FILE, handleColorDotFill } from '../logic/toolIcons';
 import {
   INITIAL_LINE_SIZE,
   INITIAL_TOOL,
@@ -48,8 +57,10 @@ import {
   markedTools,
 } from '../logic/toolPanel';
 import type { HandleView, LineSize, PanelView, ToolId } from '../logic/toolPanel';
+import { CameraPhotoView } from './CameraPhotoView';
 import { GlitterShineView } from './GlitterShineView';
 import { HandleButtonView } from './HandleButtonView';
+import { IconButtonView } from './IconButtonView';
 import { PaintLayer } from './PaintLayer';
 import { RecentColorsView } from './RecentColorsView';
 import type { PreparedPicture } from './pictureCanvas';
@@ -73,6 +84,8 @@ const PICTURE_LAYER = { width: PICTURE_PIXEL_WIDTH, height: PICTURE_PIXEL_HEIGHT
 const PICTURE_FRAME_DEPTH = 3;
 const SHINE_DEPTH = 4;
 const PANEL_DEPTH = 10;
+/** Fotka při uložení do alba (#126) letí nad panelem i nad pruhem. */
+const PHOTO_DEPTH = 30;
 const STRIP_DEPTH = 20;
 
 /** Kolik dotyků Phaser sleduje: první prst maluje, další (dlaň, druhý prst) se jen přeskočí. */
@@ -87,6 +100,13 @@ export interface ColoringSceneOptions {
   readonly prepared: Promise<PreparedPicture>;
   /** Malování je vidět: od teď se počítá podržení domečku (#124 AC5). */
   readonly onShown: () => void;
+  /**
+   * Album aktivního profilu, jak ho výběr přečetl (#126); malování ho
+   * počká spolu s obrysem, aby fotoaparát hned věděl, jestli obrázek uloží.
+   */
+  readonly album: () => Promise<AlbumContents>;
+  /** Obrázek se uložil do alba (#126); výběr album přečte znovu. Platí i po odchodu z malování. */
+  readonly onAlbumSaved: () => void;
 }
 
 /**
@@ -119,6 +139,12 @@ export interface ColoringSceneOptions {
  * Od #124 scénu spouští výběr omalovánky (`PickerScene.ts`) s vybranou
  * omalovánkou, každé otevření novou scénou. Domeček a odchod z hry řídí
  * výběr; při návratu na výběr nebo do menu se tah ukončí a obrázek uloží.
+ *
+ * Od #126 je v pruhu fotoaparát. Jestli se obrázek uloží do alba, řeší
+ * `savedPicture.ts`; scéna zahraje cvak a animaci (`CameraPhotoView`),
+ * po potvrzeném uložení překreslí čistou stránku a po selhání fotoaparát
+ * zhoupne. Ukládání doběhne i po odchodu z malování, scéna pak už nic
+ * nekreslí a jen dá výběru vědět.
  */
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -144,6 +170,8 @@ export class ColoringScene extends Phaser.Scene {
   private readonly handleView = new HandleButtonView(this);
   private readonly undoView = new UndoButtonView(this);
   private readonly recentView = new RecentColorsView(this);
+  private readonly cameraView = new IconButtonView(this, CAMERA_ICON_FILE);
+  private readonly photoView: CameraPhotoView;
   /** Lesk během tahu třpytkami (#103 AC3), do obrázku se nezapíše. */
   private readonly shineView = new GlitterShineView(this, SHINE_DEPTH);
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu (#67 AC6).
@@ -166,6 +194,7 @@ export class ColoringScene extends Phaser.Scene {
     super(options.key);
     this.paintTextureKey = `${options.key}:paint`;
     this.outlineTextureKey = `${options.key}:outline`;
+    this.photoView = new CameraPhotoView(this, `${options.key}:photo`);
   }
 
   /** Návrat na výběr nebo odchod z hry: tah skončí, kam došel, obrázek se uloží. */
@@ -213,17 +242,26 @@ export class ColoringScene extends Phaser.Scene {
 
   /** Počká na obrys a mapu oblastí od výběru a připraví vrstvu barev. */
   private async preparePicture(): Promise<void> {
+    const albumReading = this.options.album();
     const { outline, regions } = await this.options.prepared;
     if (!this.sys.isActive()) {
       // Dítě odešlo dřív, než se obrázek připravil.
       return;
     }
+    const host = this.readHost();
+    // Bez obrysu se maluje jen v paměti, aby se uložený obrázek nepřepsal
+    // prázdnou plochou, a do alba se nic neukládá.
+    const records: GameRecords | undefined = outline.drawn ? host?.records : undefined;
     this.coloring = openColoring({
       regions,
       picture: this.options.picture,
-      // Bez obrysu se maluje jen v paměti, aby se uložený obrázek nepřepsal prázdnou plochou.
-      storage: outline.drawn ? this.readHost()?.storage : undefined,
+      storage: outline.drawn ? host?.storage : undefined,
+      // Album se dočte až potom; malování na něj nečeká (do přečtení se
+      // fotoaparát jen zhoupne).
+      album: { records, contents: { status: 'unavailable' } },
     });
+    const coloring = this.coloring;
+    void albumReading.then((contents) => coloring.albumRead(contents));
     this.showSelection();
     this.showPanel();
     this.paintLayer = new PaintLayer(this, this.paintTextureKey, regions);
@@ -271,6 +309,9 @@ export class ColoringScene extends Phaser.Scene {
     this.undoView.place(this.layout.undoButton, this.gameArea.scale, STRIP_DEPTH);
     this.recentView.place(this.layout.recentColors, this.gameArea.scale, STRIP_DEPTH);
     this.showRecentColors();
+    // Po otočení by fotka letěla na staré místo: animace skončí, ukládání doběhne.
+    this.photoView.cancel();
+    this.cameraView.place(this.layout.cameraButton, this.gameArea.scale, STRIP_DEPTH);
   }
 
   /**
@@ -575,6 +616,75 @@ export class ColoringScene extends Phaser.Scene {
   }
 
   // -------------------------------------------------------------------------
+  // Fotoaparát (#126)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Ťuknutí na fotoaparát: obrázek, který se uloží, hned cvakne a odletí
+   * do fotoaparátu; jinak se fotoaparát jen zhoupne s tónem domečku.
+   * Během tahu jiného prstu nic. Dokud se obrázek připravuje, není co uložit.
+   */
+  private onCameraTapped(): void {
+    const tap: CameraTap = this.coloring?.tapCamera() ?? {
+      kind: 'wobble',
+      tones: CAMERA_WOBBLE_TONES,
+    };
+    switch (tap.kind) {
+      case 'saving':
+        this.sounds.play(tap.tones);
+        this.startPhoto();
+        void tap.done.then((result) => this.onAlbumSaveDone(result));
+        return;
+      case 'wobble':
+        this.cameraView.wobble();
+        this.sounds.play(tap.tones);
+        return;
+      case 'ignored':
+        return;
+    }
+  }
+
+  /** Záblesk, stisknutí a odlet fotky z obrázku, jak vypadal při cvaku. */
+  private startPhoto(): void {
+    this.paintLayer?.flush();
+    const snapshot = this.paintLayer?.snapshot() ?? null;
+    if (snapshot === null) {
+      return;
+    }
+    this.photoView.start({
+      picture: this.layout.picture,
+      pictureTurn: this.layout.pictureTurn,
+      layerSize: pictureLayerSize(this.layout),
+      snapshot,
+      outlineTextureKey: this.outlineTextureKey,
+      camera: this.cameraView,
+      cssScale: this.gameArea.scale,
+      depth: PHOTO_DEPTH,
+    });
+  }
+
+  /**
+   * Ukládání skončilo: po úspěchu čistá stránka (fotka už letí z kopie),
+   * po selhání fotka zmizí a fotoaparát se zhoupne. Po odchodu z malování
+   * se nic nekreslí, výběr se jen dozví o uloženém obrázku (AC3).
+   */
+  private onAlbumSaveDone(result: CameraSaveResult): void {
+    if (result.kind === 'saved') {
+      this.options.onAlbumSaved();
+    }
+    if (!this.sys.isActive() || this.coloring === null) {
+      return;
+    }
+    if (result.kind === 'saved') {
+      this.paintLayer?.paint(result.changed, this.coloring);
+      return;
+    }
+    this.photoView.cancel();
+    this.cameraView.wobble();
+    this.sounds.play(result.tones);
+  }
+
+  // -------------------------------------------------------------------------
   // Malování
   // -------------------------------------------------------------------------
 
@@ -619,6 +729,9 @@ export class ColoringScene extends Phaser.Scene {
         return;
       case 'undo':
         this.onUndoTapped();
+        return;
+      case 'camera':
+        this.onCameraTapped();
         return;
       case 'color':
         this.onColorTapped(target.index);
@@ -708,6 +821,7 @@ export class ColoringScene extends Phaser.Scene {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
       window.removeEventListener('pagehide', this.onPageHide);
       this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
+      this.photoView.destroy();
       this.stop();
     });
     // Textury patří jen této scéně; další otevření omalovánky má vlastní.
