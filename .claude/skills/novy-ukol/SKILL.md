@@ -28,7 +28,7 @@ Návrh vzniká a kontroluje se v subagentech, ty ho jen předáváš a zakládá
    `.github/ISSUE_TEMPLATE/user-story.md` se štítkem „ke schválení“.
    Obsah vezmi z návrhu beze změn. Nevyřešená DOPORUČENÍ od
    `story-reviewer` přidej do issue jako komentář.
-4. Najednou navrhni jeden úkol, pokud vlastník nechce víc.
+4. Najednou navrhni 2–3 úkoly (vlastník je schválí jedním „ok“ a Claude je pak udělá za sebou bez čekání). Obrázky před schválením jen u úkolů, které mění vzhled; drobné úpravy vzhledu ukaž až po implementaci.
 5. Pošli vlastníkovi odkaz na issue, v jedné větě o čem je a proč teď.
 
 ## 2. Schválení
