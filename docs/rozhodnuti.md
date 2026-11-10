@@ -295,3 +295,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-10 Backend zatím ne. Album Omalovánek v IndexedDB jen v zařízení,
   doporučit přidání hry na plochu (Safari maže data webu po 7 dnech bez
   návštěvy). Backend až s předplatným jako samostatné rozhodnutí.
+- 2026-11-10 Obrázky výběru omalovánky schváleny („ok 124“): bez prázdných
+  míst (jen skutečné omalovánky), na telefonu na výšku náhledy asi 171 px,
+  obrázek vyplní celou dlaždici a zaoblené rohy ho ořežou.
