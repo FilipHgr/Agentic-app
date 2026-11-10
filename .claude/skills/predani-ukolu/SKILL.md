@@ -1,40 +1,62 @@
 ---
 name: predani-ukolu
-description: Předání hotového úkolu vlastníkovi – kontroly, push, odkaz na náhled na Cloudflare a PR na konci sprintu. Použij vždy, když je úkol ze sprintu hotový, nebo když se sprint uzavírá.
+description: Předání hotového úkolu vlastníkovi – push, odkaz na náhled na Cloudflare a PR na konci sprintu. Použij vždy, když je úkol ze sprintu hotový a commitnutý, nebo když se sprint uzavírá.
 ---
 
 # Předání úkolu
 
-## 1. Kontroly před pushem
+Kontroly kódu (testy, review, bezpečnost, UX) proběhly už před commitem
+ve skillu `novy-ukol`. Tady se jen předává. Výsledky agentů ber vždy
+z komentářů v issue (`gh issue view <číslo> --comments`), ne z paměti.
+Když `gh` nefunguje (cloud), použij místo něj GitHub nástroje.
 
-1. Spusť `npm test`, `npm run lint` a `npm run build`. Všechno musí projít.
-2. Přečti si vlastní diff: žádné ladicí výpisy, nepoužité importy ani
-   změny mimo úkol.
-3. Spusť `npm audit` a poznamenej si vysoké a kritické nálezy.
+## 1. Push a náhled
 
-## 2. Push a náhled
-
-1. Pushni větev sprintu: `git push -u origin sprint-<číslo>`.
-2. Cloudflare Workers Builds po pushi postaví náhled sám. Nikdy nespouštěj
+1. Ověř `npm run build`. Musí projít.
+2. Pushni větev sprintu: `git push -u origin sprint-<číslo>`.
+3. Cloudflare Workers Builds po pushi postaví náhled sám. Nikdy nespouštěj
    `npm run deploy`, `wrangler deploy` ani `wrangler preview`.
-3. Pošli vlastníkovi:
+4. Pošli vlastníkovi:
    - odkaz na náhled
      `https://sprint-<číslo>-agentic-app.hegerfilip027.workers.dev`
      (název větve malými písmeny),
    - co je hotové (číslo a název issue),
-   - co má ve hře zkontrolovat, hlavně to, co testy neověřují
-     (animace, vzhled, chování na iPadu),
-   - tabulku: akceptační kritérium → test.
-4. Pokud kontrola „Workers Builds“ selže nebo náhled nejde ověřit, řekni
+   - tabulku: akceptační kritérium → test (z výstupu `test-writer`),
+   - co má zkontrolovat na iPadu: RUČNÍ KONTROLA od `test-writer`
+     a RUČNĚ OVĚŘIT NA IPADU od `ux-checker`,
+   - nevyřešená DOPORUČENÍ od kontrolních agentů, každé jednou větou,
+   - snímky obrazovky ze složky `snimky/` (iPad na šířku, telefon na
+     výšku), když se měnil vzhled. Pokud nevznikly ve WebKitu, napiš to.
+5. Pokud kontrola „Workers Builds“ selže nebo náhled nejde ověřit, řekni
    to na rovinu.
+6. Změň štítek issue z „rozpracováno“ na „předáno“
+   (`gh issue edit <číslo> --remove-label rozpracováno --add-label předáno`).
 
-## 3. Konec sprintu a PR
+## 2. Konec sprintu a PR
 
-Sprint končí, když jsou hotové všechny schválené úkoly, nebo když to
-řekne vlastník. Pak hned otevři PR:
+Sprint končí jen tehdy, když to výslovně řekne vlastník. Uzavření sprintu
+ani PR sám nenavrhuj, ani když jsou všechny úkoly hotové. Po pokynu
+vlastníka:
 
-1. Z `sprint-<číslo>` do `staging`, nikdy do `main`.
-2. Vyplň šablonu `.github/pull_request_template.md`: `Closes #…` pro každý
+1. Zavolej subagenta `security-auditor` nad celým sprintem
+   (`git diff origin/staging...HEAD`). Blokující nálezy oprav jako
+   samostatný commit ve větvi sprintu, nebo je vlastníkovi nahlas.
+2. Pusť celé `npm test`. Musí projít, jinak chyby oprav jako samostatný
+   commit ve větvi sprintu a PR zatím neotevírej.
+3. Otevři PR z `sprint-<číslo>` do `staging`, nikdy do `main`.
+   Build před otevřením PR kontroluje hook.
+4. Vyplň šablonu `.github/pull_request_template.md`: `Closes #…` pro každý
    úkol, co se změnilo, odkaz na náhled, tabulka kritérií a testů, nové
-   závislosti, výsledek `npm audit` a drobnosti mimo úkoly.
-3. Pošli vlastníkovi odkaz na PR. Slučuje vlastník.
+   závislosti a výsledek `npm audit` (z výstupu `security-auditor`)
+   a drobnosti mimo úkoly.
+5. Pošli vlastníkovi odkaz na PR. Slučuje vlastník.
+6. Po otevření PR přidá bot Cloudflare do PR komentář s výsledkem
+   nasazení náhledu. Zkontroluj, že je tam „Success“, a jinak to řekni.
+
+## 3. Po sloučení
+
+`Closes #…` zavírá issue jen při sloučení do `main`, ne do `staging`.
+Až vlastník napíše, že PR sloučil:
+
+1. Ověř, že PR je opravdu sloučený.
+2. Zavři issues sprintu ručně jako dokončené.
