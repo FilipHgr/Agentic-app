@@ -286,3 +286,9 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   „Agentic-app“ povoluje jen tento server navíc.
 - 2026-11-10 Dlaždice her: vybrána sada 2 (C2 „+ −“, D2 pastelka s delší
   čárou), pozadí obrázků vybělené do bílé dlaždice. Připravit úkol.
+- 2026-11-10 Omalovánky: sada obrázků na výběr a ukládání hotových obrázků
+  do alba. Nejdřív funkce (s dnešní testovací omalovánkou), obrázky se
+  vytvoří společně potom.
+- 2026-11-10 #118 obrázky schváleny („ok 118“): třpytky u nejtenčí malují
+  stejně jako u malé (jako puntíkový a proužkový fix), nejtenčí vlnka na
+  tlačítku má 1,5 px.
