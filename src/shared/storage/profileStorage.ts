@@ -41,6 +41,14 @@
  *   nepovedlo celé), se smažou jen po úspěšném smazání jiného profilu,
  *   a jen pod předponou dat profilů; staré záznamy z doby před profily
  *   nikdy. Data profilů, které panel drží jen v paměti, úklid nesmaže.
+ * - Záznamy her (#125, album Omalovánek): velká data her v úložišti
+ *   záznamů (`ProfileRecords`, ve hře IndexedDB) podle vnitřního označení
+ *   profilu, nikdy s přezdívkou. Hra dostane `gameRecords(gameId)` jen pro
+ *   aktivní profil. Dočasný profil a stránka bez úložiště záznamů dostanou
+ *   u každé operace „nedostupné“. Po úspěšném smazání profilu se jeho
+ *   záznamy smažou asynchronně (`whenRecordsCleaned`) a pak se uklidí
+ *   zbytky jako u dat her: seznam se znovu načte těsně před úklidem,
+ *   profily panelu zůstanou a s nečitelným seznamem se neuklízí nic.
  * - Přijaté riziko: `localStorage` nemá transakce. Mezi čtením seznamu
  *   a úklidem po smazání zůstává malé okno; profil, který jiný panel
  *   založí přesně v tu chvíli, může přijít o svá první data.
@@ -55,6 +63,8 @@ import {
 } from '../logic/profiles';
 import type { Profile, ProfileColor } from '../logic/profiles';
 import type { KeyValueStorage } from './keyValueStorage';
+import { UNAVAILABLE_GAME_RECORDS } from './profileRecords';
+import type { GameRecords, ProfileRecords } from './profileRecords';
 
 /** Seznam profilů (JSON pole profilů). */
 export const PROFILE_LIST_KEY = 'agentic-app.profiles';
@@ -114,6 +124,14 @@ export interface ProfileStore {
   deleteProfile(id: string): boolean;
   /** Úložiště hry `gameId` pro profil, který je teď aktivní. */
   gameStorage(gameId: string): KeyValueStorage;
+  /**
+   * Záznamy hry `gameId` (#125) pro profil, který je teď aktivní; zůstanou
+   * mu, i když se potom vybere jiný. Bez úložiště záznamů a v dočasném
+   * profilu skončí každá operace „nedostupné“.
+   */
+  gameRecords(gameId: string): GameRecords;
+  /** Počká, až doběhne mazání záznamů po smazání profilů (#125). */
+  whenRecordsCleaned(): Promise<void>;
 }
 
 /** Výsledek čtení: hodnota (i `null` bez záznamu), nebo `undefined`, když číst nejde. */
@@ -288,6 +306,10 @@ interface StoreState {
   readonly unsaved: Map<string, UnsavedProfile>;
   /** Změny bez čitelného seznamu: platí jen v paměti, nikdy se nezapíšou. */
   readonly memoryOnly: Map<string, UnsavedProfile>;
+  /** Úložiště záznamů her (#125); dočasný profil ho nemá. */
+  readonly records: ProfileRecords | undefined;
+  /** Mazání záznamů po smazání profilů, jedno po druhém. */
+  recordsCleaning: Promise<void>;
 }
 
 /** Neuložená změna panelu: nový profil, nebo úprava profilu ze seznamu. */
@@ -437,6 +459,11 @@ function storeOf(state: StoreState): ProfileStore {
     },
     deleteProfile: (id) => deleteFrom(state, id),
     gameStorage: (gameId) => gameStorageOf(state, activeProfile().id, gameId),
+    gameRecords: (gameId) =>
+      state.records === undefined
+        ? UNAVAILABLE_GAME_RECORDS
+        : state.records.forGame(activeProfile().id, gameId),
+    whenRecordsCleaned: () => state.recordsCleaning,
   };
 }
 
@@ -530,7 +557,34 @@ function deleteFrom(state: StoreState, id: string): boolean {
   forgetProfileMemory(state, id);
   removeProfileData(storage, id);
   removeLeftovers(state, storage);
+  removeRecordsLater(state, id);
   return true;
+}
+
+/**
+ * Po úspěšném smazání profilu (#125 AC3, AC4) smaže jeho záznamy her a pak
+ * zbytky záznamů profilů mimo seznam. Seznam se načte až těsně před
+ * úklidem, aby o záznamy nepřišel profil, který mezitím založil jiný panel;
+ * profily panelu (i ty jen v paměti) zůstanou. Když seznam přečíst nejde,
+ * je poškozený nebo chybí, neuklízí se. Smazání profilu na výsledku
+ * nezávisí: záznamy, které se nesmažou, už žádný profil neuvidí.
+ */
+function removeRecordsLater(state: StoreState, profileId: string): void {
+  const records = state.records;
+  if (records === undefined) {
+    return;
+  }
+  const step = async (): Promise<void> => {
+    await records.removeProfile(profileId);
+    const saved = savedProfiles(state);
+    if (saved !== undefined) {
+      const kept = [...saved, ...state.profiles].map((profile) => profile.id);
+      await records.removeAllExcept([...new Set(kept)]);
+    }
+  };
+  // Úložiště záznamů slib nezamítá; kdyby předchozí krok přesto skončil
+  // zamítnutím, další mazání se pustí stejně a fronta se nezasekne.
+  state.recordsCleaning = state.recordsCleaning.then(step, step);
 }
 
 /** Zapomene neuložená data her profilu `profileId`. */
@@ -558,6 +612,7 @@ function removeLeftovers(state: StoreState, storage: ProfileDeviceStorage): void
 
 /** Dočasný výchozí profil jen v paměti; úložiště se jen čte (staré záznamy). */
 function temporaryStore(storage: ProfileDeviceStorage | undefined): ProfileStore {
+  // Dočasný profil nemá záznamy her: hra u každé operace dostane „nedostupné“.
   return storeOf({
     storage,
     profiles: [makeProfile(TEMPORARY_PROFILE_ID, DEFAULT_PROFILE_COLOR)],
@@ -567,6 +622,8 @@ function temporaryStore(storage: ProfileDeviceStorage | undefined): ProfileStore
     memory: new Map(),
     unsaved: new Map(),
     memoryOnly: new Map(),
+    records: undefined,
+    recordsCleaning: Promise.resolve(),
   });
 }
 
@@ -599,7 +656,10 @@ function copyLegacyData(storage: ProfileDeviceStorage, memory: Map<string, strin
 }
 
 /** Bez profilů vznikne výchozí profil s dnešními daty; seznam se uloží až po datech. */
-function storeWithDefaultProfile(storage: ProfileDeviceStorage): ProfileStore {
+function storeWithDefaultProfile(
+  storage: ProfileDeviceStorage,
+  records: ProfileRecords | undefined,
+): ProfileStore {
   const memory = new Map<string, string>();
   const profiles = [makeProfile(DEFAULT_PROFILE_ID, DEFAULT_PROFILE_COLOR)];
   const dataSaved = copyLegacyData(storage, memory);
@@ -616,11 +676,19 @@ function storeWithDefaultProfile(storage: ProfileDeviceStorage): ProfileStore {
     memory,
     unsaved: new Map(),
     memoryOnly: new Map(),
+    records,
+    recordsCleaning: Promise.resolve(),
   });
 }
 
-/** Otevře profily zařízení; `undefined` = prohlížeč úložiště nepovolil. */
-export function openProfiles(storage: ProfileDeviceStorage | undefined): ProfileStore {
+/**
+ * Otevře profily zařízení; `undefined` = prohlížeč úložiště nepovolil.
+ * `records` je úložiště záznamů her (#125); načtení stránky v něm nic nemaže.
+ */
+export function openProfiles(
+  storage: ProfileDeviceStorage | undefined,
+  records?: ProfileRecords,
+): ProfileStore {
   const savedList = read(storage, PROFILE_LIST_KEY);
   if (storage === undefined || savedList === undefined) {
     return temporaryStore(storage);
@@ -630,7 +698,7 @@ export function openProfiles(storage: ProfileDeviceStorage | undefined): Profile
     case 'corrupt':
       return temporaryStore(storage);
     case 'none':
-      return storeWithDefaultProfile(storage);
+      return storeWithDefaultProfile(storage, records);
     case 'profiles': {
       const savedActive = read(storage, ACTIVE_PROFILE_KEY)?.value;
       const active = list.profiles.find((profile) => profile.id === savedActive);
@@ -643,6 +711,8 @@ export function openProfiles(storage: ProfileDeviceStorage | undefined): Profile
         memory: new Map(),
         unsaved: new Map(),
         memoryOnly: new Map(),
+        records,
+        recordsCleaning: Promise.resolve(),
       });
     }
   }

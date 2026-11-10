@@ -28,6 +28,8 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
 - Nastavení ukládej jen lokálně (`localStorage`), bez osobních údajů.
 - Přezdívka profilu (nemusí být skutečné jméno) a barva jsou jen v zařízení
   a každá hra ukládá podle profilu.
+- Velká data her (album Omalovánek) se ukládají jen v zařízení v IndexedDB
+  podle vnitřního označení profilu, nikdy s přezdívkou, a smazáním profilu zmizí.
 - O odemčení her rozhoduje jen sdílená logika přístupu
   (`src/shared/logic/gameAccess.ts`), budoucí nákup bude jen za rodičovskou
   bránou a skutečné placení vyžaduje samostatné rozhodnutí vlastníka a změnu

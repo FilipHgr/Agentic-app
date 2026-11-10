@@ -3,6 +3,7 @@
  * stáhne a spustí až po ťuknutí na její dlaždici. Profily dětí (#71) se
  * otevřou jednou za načtení stránky, dřív než menu: při prvním spuštění
  * po aktualizaci se tím přenesou dnešní data do výchozího profilu.
+ * Záznamy her (#125, album Omalovánek) jsou jen v zařízení v IndexedDB.
  */
 
 import { GAMES } from './gameList';
@@ -10,6 +11,7 @@ import { registerGameImport } from './menu/ui/gameImport';
 import { startMenuPage } from './menu/ui/menuPage';
 import { GAME_CATEGORIES } from './shared/logic/gameRegistry';
 import { blockInstallOffer } from './shared/logic/installOffer';
+import { browserIndexedDb, indexedDbProfileRecords } from './shared/storage/indexedDbRecords';
 import { browserStorage } from './shared/storage/keyValueStorage';
 import { openProfiles } from './shared/storage/profileStorage';
 
@@ -20,5 +22,8 @@ registerGameImport();
 startMenuPage({
   games: GAMES,
   categories: GAME_CATEGORIES,
-  profiles: openProfiles(browserStorage()),
+  profiles: openProfiles(
+    browserStorage(),
+    indexedDbProfileRecords(browserIndexedDb(), { persistentStorage: navigator.storage }),
+  ),
 });

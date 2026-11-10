@@ -7,7 +7,8 @@
  * pozdější změna stavu neukončí, zamčení platí až od dalšího spuštění.
  * Název stránky a kolečko nastaví stránka menu podle logiky menu.
  * Hra dostane úložiště aktivního profilu (#71), jiné úložiště nemá,
- * a značku profilu (#87): jen barvu a první písmeno přezdívky.
+ * a značku profilu (#87): jen barvu a první písmeno přezdívky. Záznamy her
+ * (#125) dostane jen pro aktivní profil, bez jeho označení.
  */
 
 import { isGameUnlocked } from '../../shared/logic/gameAccess';
@@ -15,6 +16,7 @@ import type { SubscriptionSource } from '../../shared/logic/gameAccess';
 import type { GameProfileMarker } from '../../shared/logic/gameHost';
 import type { GameEntry } from '../../shared/logic/gameRegistry';
 import type { KeyValueStorage } from '../../shared/storage/keyValueStorage';
+import type { GameRecords } from '../../shared/storage/profileRecords';
 import { isGameModule, runGame } from '../../shared/ui/gameRunner';
 
 export interface LaunchContext {
@@ -31,6 +33,8 @@ export interface LaunchContext {
   readonly gameStorage?: ((gameId: string) => KeyValueStorage) | undefined;
   /** Značka aktivního profilu v době spuštění (#87). */
   readonly profileMarker?: (() => GameProfileMarker) | undefined;
+  /** Záznamy hry pro aktivní profil v době spuštění (#125). */
+  readonly gameRecords?: ((gameId: string) => GameRecords) | undefined;
 }
 
 export function launchGame(game: GameEntry, loaded: unknown, context: LaunchContext): void {
@@ -44,6 +48,7 @@ export function launchGame(game: GameEntry, loaded: unknown, context: LaunchCont
     onLeft: context.returnToMenu,
     storage: context.gameStorage?.(game.id),
     profileMarker: context.profileMarker?.(),
+    records: context.gameRecords?.(game.id),
   });
   context.closeMenu();
 }

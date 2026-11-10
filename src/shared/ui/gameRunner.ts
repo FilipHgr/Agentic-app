@@ -25,6 +25,7 @@ import { PAGE_BACKGROUND } from '../logic/theme';
 import { gameAreaFor } from '../logic/viewportLayout';
 import type { GameAreaFit, Viewport } from '../logic/viewportLayout';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
+import type { GameRecords } from '../storage/profileRecords';
 import { startGameSession } from './gameSession';
 import { applyHomeButton, attachHomeButton } from './homeButton';
 import { attachSettingsButton } from './settingsButton';
@@ -83,6 +84,8 @@ export interface RunGameOptions {
   readonly storage?: KeyValueStorage | undefined;
   /** Značka aktivního profilu (#87): jen barva a první písmeno přezdívky. */
   readonly profileMarker?: GameProfileMarker | undefined;
+  /** Záznamy hry pro aktivní profil (#125), jen v zařízení. */
+  readonly records?: GameRecords | undefined;
 }
 
 /** Phaser hra bez vlastních zvuků: hry hrají přes společný zvukový kontext stránky. */
@@ -159,6 +162,7 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
     settingsButton: page.settingsButton,
     storage: options.storage,
     profileMarker: options.profileMarker,
+    records: options.records,
     onLeft: options.onLeft,
     startScenes: (session) => {
       const started = createGame(module, resolution);

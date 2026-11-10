@@ -172,6 +172,7 @@ export function startMenuPage(options: MenuPageOptions): void {
     reopenMenu: () => view.reopen?.(),
     gameStorage: (gameId) => options.profiles.gameStorage(gameId),
     profileMarker: () => profileMarkerOf(options.profiles.activeProfile()),
+    gameRecords: (gameId) => options.profiles.gameRecords(gameId),
     onPageStateChanged: (shown) => {
       document.title = shown.pageTitle();
     },

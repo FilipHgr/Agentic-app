@@ -612,3 +612,120 @@ describe('#74 AC5: rozhodnutí o přístupu ani místní zdroj nic neposílají 
     expect(accessViolations(files)).toEqual([]);
   });
 });
+
+/**
+ * #125: IndexedDB (velká data her, album Omalovánek) smí používat jen sdílené
+ * úložiště `src/shared/storage/`. Hra dostane záznamy aktivního profilu jen
+ * přes `GameHost.records`, a proto nesmí IndexedDB používat sama ani
+ * importovat soubor úložiště, který ji používá (otevřela by si záznamy
+ * jiného profilu). Hlídá se `indexedDB` i typy `IDB…`.
+ */
+const SHARED_STORAGE_DIR = 'src/shared/storage/';
+const INDEXED_DB_RULE = 'IndexedDB používá jen sdílené úložiště src/shared/storage/';
+const GAME_RECORDS_RULE = 'hra importuje úložiště IndexedDB místo GameHost.records';
+
+/** Používá kód (bez komentářů) IndexedDB nebo její typy? */
+function usesIndexedDb(text: string): boolean {
+  return /\bindexedDB\b|\bIDB[A-Z]\w*/.test(withoutComments(text));
+}
+
+/** Porušení pravidel #125 v souborech `files`. */
+function indexedDbViolations(files: Record<string, string>): Violation[] {
+  return Object.entries(files).flatMap(([file, text]) => {
+    const own =
+      !file.startsWith(SHARED_STORAGE_DIR) && usesIndexedDb(text)
+        ? [{ file, specifier: 'indexedDB', rule: INDEXED_DB_RULE }]
+        : [];
+    const imported =
+      gameOf(file) === null
+        ? []
+        : importsOf(text)
+            .filter((specifier) => {
+              const target = targetOf(file, specifier, files);
+              return (
+                target !== null &&
+                target.startsWith(SHARED_STORAGE_DIR) &&
+                usesIndexedDb(files[target] ?? '')
+              );
+            })
+            .map((specifier) => ({ file, specifier, rule: GAME_RECORDS_RULE }));
+    return [...own, ...imported];
+  });
+}
+
+/** Umělý projekt se sdíleným úložištěm záznamů nad IndexedDB. */
+const FAKE_RECORDS: Record<string, string> = {
+  ...FAKE_PROJECT,
+  'src/shared/storage/indexedDbRecords.ts':
+    "export function open(factory: IDBFactory): IDBOpenDBRequest { return factory.open('x'); }\nexport const browser = () => globalThis.indexedDB;",
+  'src/shared/storage/profileRecords.ts': 'export interface GameRecords { list(): void }',
+  'src/shared/logic/gameHost.ts':
+    "import type { GameRecords } from '../storage/profileRecords';\nexport interface GameHost { records?: GameRecords }",
+};
+
+/** Umělý projekt se záznamy, ve kterém soubor `file` má navíc kód `code`. */
+function recordsViolationsWith(file: string, code: string): Violation[] {
+  return indexedDbViolations({ ...FAKE_RECORDS, [file]: `${FAKE_RECORDS[file] ?? ''}\n${code}` });
+}
+
+describe('#125: IndexedDB používá jen sdílené úložiště', () => {
+  it('v src/ používá IndexedDB jen sdílené úložiště a žádná hra ho neimportuje', () => {
+    expect(indexedDbViolations(SOURCES)).toEqual([]);
+  });
+
+  it('kontrola vidí sdílené úložiště záznamů nad IndexedDB v src/shared/storage/', () => {
+    const recordStorages = Object.keys(SOURCES).filter(
+      (file) => file.startsWith(SHARED_STORAGE_DIR) && usesIndexedDb(SOURCES[file] ?? ''),
+    );
+    expect(recordStorages.length).toBeGreaterThan(0);
+  });
+
+  it('umělý projekt se sdíleným úložištěm záznamů projde', () => {
+    expect(indexedDbViolations(FAKE_RECORDS)).toEqual([]);
+  });
+
+  it.each([
+    ['logika hry', 'src/games/counting/logic/problems.ts', "const db = indexedDB.open('album');"],
+    ['scéna hry', 'src/games/counting/scenes/GameScene.ts', 'const db = window.indexedDB;'],
+    ['typ IndexedDB ve hře', 'src/games/jina/x.ts', 'let db: IDBDatabase | undefined;'],
+    ['menu', 'src/menu/logic/menu.ts', 'const db = globalThis.indexedDB;'],
+    ['seznam her', 'src/gameList.ts', "indexedDB.deleteDatabase('album');"],
+    ['src/main.ts', 'src/main.ts', 'const db = self.indexedDB;'],
+    ['sdílená logika', 'src/shared/logic/theme.ts', "indexedDB.open('x');"],
+    ['sdílené rozhraní', 'src/shared/ui/x.ts', 'const range = IDBKeyRange.only(1);'],
+  ])('kontrola najde IndexedDB mimo sdílené úložiště (%s)', (_name, file, code) => {
+    expect(recordsViolationsWith(file, code)).toContainEqual(
+      expect.objectContaining({ file, rule: INDEXED_DB_RULE }),
+    );
+  });
+
+  it.each([
+    ['import', "import { open } from '../../../shared/storage/indexedDbRecords';"],
+    ['import type', "import type { open } from '../../../shared/storage/indexedDbRecords';"],
+    ['import()', "const later = import('../../../shared/storage/indexedDbRecords');"],
+  ])('hra nesmí importovat úložiště nad IndexedDB (%s)', (_form, code) => {
+    expect(recordsViolationsWith('src/games/counting/scenes/GameScene.ts', code)).toEqual([
+      expect.objectContaining({ rule: GAME_RECORDS_RULE }),
+    ]);
+  });
+
+  it.each([
+    ['rozhraní hostitele', "import type { GameHost } from '../../../shared/logic/gameHost';"],
+    [
+      'typy záznamů bez IndexedDB',
+      "import type { GameRecords } from '../../../shared/storage/profileRecords';",
+    ],
+  ])('hra smí importovat %s', (_name, code) => {
+    expect(recordsViolationsWith('src/games/counting/scenes/GameScene.ts', code)).toEqual([]);
+  });
+
+  it('stránka smí úložiště nad IndexedDB importovat a předat ho profilům', () => {
+    const code = "import { browser } from './shared/storage/indexedDbRecords';";
+    expect(recordsViolationsWith('src/main.ts', code)).toEqual([]);
+  });
+
+  it('zmínka o IndexedDB jen v komentáři se nepočítá', () => {
+    const code = '/** Album je v indexedDB, viz IDBDatabase. */\n// indexedDB.open';
+    expect(recordsViolationsWith('src/games/counting/logic/problems.ts', code)).toEqual([]);
+  });
+});

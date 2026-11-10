@@ -1,12 +1,14 @@
 /**
  * Co stránka nabízí běžící hře (#68): kolečko nastavení, domeček, odchod
- * do menu, úložiště aktivního profilu (#71), značku profilu (#87) a háček
- * na podržení domečku (#124). Spouštění her (`src/shared/ui/gameRunner.ts`) to hře dá do
- * registru Phaseru pod klíčem `GAME_HOST_KEY`. Čistý TypeScript.
+ * do menu, úložiště aktivního profilu (#71), značku profilu (#87), háček
+ * na podržení domečku (#124) a záznamy her aktivního profilu (#125).
+ * Spouštění her (`src/shared/ui/gameRunner.ts`) to hře dá do registru
+ * Phaseru pod klíčem `GAME_HOST_KEY`. Čistý TypeScript.
  */
 
 import type { Profile } from './profiles';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
+import type { GameRecords } from '../storage/profileRecords';
 
 export const GAME_HOST_KEY = 'gameHost';
 
@@ -52,6 +54,12 @@ export interface GameHost {
   readonly storage: KeyValueStorage | undefined;
   /** Značka aktivního profilu (#87), `undefined`, když ji stránka nedala. */
   readonly profileMarker?: GameProfileMarker | undefined;
+  /**
+   * Záznamy této hry pro aktivní profil (#125, album Omalovánek), jen
+   * v zařízení. Hra nedostane označení profilu ani přístup k jiným
+   * profilům. `undefined`, když stránka žádné nedala.
+   */
+  readonly records?: GameRecords | undefined;
 }
 
 /** Je hodnota z registru stránka pro hru? */
@@ -66,7 +74,21 @@ export function isGameHost(value: unknown): value is GameHost {
     typeof host.onLeave === 'function' &&
     (host.onHomeHold === undefined || typeof host.onHomeHold === 'function') &&
     (host.storage === undefined || isKeyValueStorage(host.storage)) &&
-    (host.profileMarker === undefined || isProfileMarker(host.profileMarker))
+    (host.profileMarker === undefined || isProfileMarker(host.profileMarker)) &&
+    (host.records === undefined || isGameRecords(host.records))
+  );
+}
+
+/** Má hodnota tvar záznamů hry (funkce `list`, `add` a `remove`)? */
+function isGameRecords(value: unknown): value is GameRecords {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const records = value as Partial<GameRecords>;
+  return (
+    typeof records.list === 'function' &&
+    typeof records.add === 'function' &&
+    typeof records.remove === 'function'
   );
 }
 

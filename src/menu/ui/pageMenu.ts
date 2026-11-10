@@ -13,6 +13,7 @@
 import type { GameProfileMarker } from '../../shared/logic/gameHost';
 import { chooseSubscriptionSource } from '../../shared/logic/subscriptionSource';
 import type { KeyValueStorage } from '../../shared/storage/keyValueStorage';
+import type { GameRecords } from '../../shared/storage/profileRecords';
 import { createMenu } from '../logic/menu';
 import type { Menu, MenuOptions } from '../logic/menu';
 import { launchGame } from './launchGame';
@@ -38,6 +39,8 @@ export interface PageMenuOptions extends Omit<MenuOptions, 'start' | 'onStarted'
   readonly gameStorage?: ((gameId: string) => KeyValueStorage) | undefined;
   /** Značka aktivního profilu pro hru (#87): jen barva a písmeno. */
   readonly profileMarker?: (() => GameProfileMarker) | undefined;
+  /** Záznamy hry pro aktivní profil (#125), jen v zařízení. */
+  readonly gameRecords?: ((gameId: string) => GameRecords) | undefined;
   /** Menu právě nastavilo tlačítka: stránka podle menu nastaví svůj název. */
   readonly onPageStateChanged?: ((menu: Menu) => void) | undefined;
 }
@@ -64,6 +67,7 @@ export function createPageMenu(options: PageMenuOptions): Menu {
     reopenMenu,
     gameStorage,
     profileMarker,
+    gameRecords,
     onPageStateChanged,
     ...menuOptions
   } = options;
@@ -80,6 +84,7 @@ export function createPageMenu(options: PageMenuOptions): Menu {
         subscription: chooseSubscriptionSource(),
         gameStorage,
         profileMarker,
+        gameRecords,
       }),
     onStarted: () => showPageState(),
     onReturned: () => {
