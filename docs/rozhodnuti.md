@@ -279,5 +279,8 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-10 Claude smí stahovat vygenerované obrázky z ElevenLabs (do
   dočasné složky, do hry jen vybrané a zmenšené). Návrhy ukazovat rovnou tak,
   jak by vypadaly ve hře. Styl dlaždic minimalistický a čistý, model GPT
-  Image 2.5 (první zkouška Recraft byla nepřehledná). Stahování zatím brání
-  zákaz `curl`/`wget` v `.claude/settings.json`, úzká výjimka čeká na souhlas.
+  Image 2.5 (první zkouška Recraft byla nepřehledná).
+- 2026-11-10 Vlastník: „ok výjimka“. Zákaz `curl`/`wget` zůstává, stahuje se
+  jen nástrojem `tools/design/fetch-image.mjs` (HTTPS, jen
+  elevenlabsusercontent.com, jen obrázky). Osobní cloudové prostředí
+  „Agentic-app“ povoluje jen tento server navíc.
