@@ -312,3 +312,6 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   neotáčí žádná omalovánka, ani domek (rozšíření rozhodnutí o postavičkách,
   domek bude na výšku asi o 44 % menší). Obrysy omalovánek jako PNG, limit
   sady 131 072 B. Pořadí: #125, #126, #127, #128.
+- 2026-11-10 Obrázky #126 schváleny podle doporučení: ikony 📷 (fotoaparát)
+  a 📔 (album), na telefonu na šířku kniha 8 px od náhledů výběru (16 px se
+  nevejde), animace cvak, zmenšení a odlet do fotoaparátu.
