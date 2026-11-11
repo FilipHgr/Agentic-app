@@ -324,3 +324,4 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-11 #130: panel nástrojů Omalovánek začíná po každém otevření zavřený, i při úplně prvním otevření v profilu. Nahrazuje automatické otevření panelu při prvním otevření z #96 AC2 a #105 AC1.
 - 2026-11-11 Obrázky #131 schváleny („ok“): tlačítko malovat dál se štětcem 🖌️, na šířku 16 px nad košem, na výšku 16 px vlevo od koše.
 - 2026-11-11 Obrázky #132 schváleny („ok“): výběr 11 omalovánek v mřížce alba (4 sloupce na šířku, 3 na výšku), moře zjednodušené o 4 malé bublinky (obrys 32 036 B).
+- 2026-11-11 Nová mapa postupu v Počítání: #133 (3 kroky, 5 map se střídají), #134 (obrázky z ElevenLabs, asi 730 kreditů, nejdřív zkouška 1 mapy za 146), #135 (animace cesty a cíle), #136 (pohyby prostředí) schváleny podle doporučení, pořadí po #132.
