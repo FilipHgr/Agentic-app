@@ -37,6 +37,14 @@ import {
  * `pointerDown` (scéna ho tam pošle jen u `touchTargetAt(…).kind === 'picture'`).
  * Schování stránky hlásí scéna jako `suspend()`.
  *
+ * Od #130 (rozhodnutí vlastníka) začíná panel po každém otevření zavřený,
+ * i při úplně prvním otevření v profilu; nahrazuje to první otevření podle
+ * profilu z #96 AC2. Záznam o prvním otevření (`toolPanel.seen`) už panel
+ * neřídí. Testy, které dřív počítaly s otevřeným panelem po prvním otevření,
+ * ho teď otevřou úchytem; testy prvního otevření hlídají zavřený panel
+ * u nového profilu, poškozeného záznamu, nečitelného úložiště a starého
+ * obrázku.
+ *
  * Navržené rozhraní (`src/games/coloring/logic/savedPicture.ts`, nová pole
  * `SavedColoring`):
  * - `panelOpen(): boolean` je panel nástrojů otevřený?
@@ -80,18 +88,21 @@ describe('#96 AC2: úchyt otevře a zavře panel', () => {
     }
   });
 
-  it('při úplně prvním otevření Omalovánek v profilu je panel otevřený', () => {
+  it('i při úplně prvním otevření Omalovánek v profilu začíná panel zavřený a první ťuknutí na úchyt ho otevře (#130)', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
-    expect(game.panelOpen()).toBe(true);
+    expect(game.panelOpen(), 'poprvé zavřený').toBe(false);
+    game.tapHandle();
+    expect(game.panelOpen(), 'po prvním ťuknutí na úchyt').toBe(true);
   });
 
   it('po návratu z menu začíná panel zavřený, i když ho dítě nechalo otevřený', () => {
     const storage = new RecordingStorage();
     const first = openOn(storage, twoHalves());
-    expect(first.panelOpen()).toBe(true);
+    first.tapHandle();
+    expect(first.panelOpen(), 'dítě panel otevřelo').toBe(true);
     first.suspend();
 
-    expect(openOn(storage, twoHalves()).panelOpen()).toBe(false);
+    expect(openOn(storage, twoHalves()).panelOpen(), 'po návratu').toBe(false);
   });
 
   it('po obnovení stránky začíná panel zavřený', () => {
@@ -103,16 +114,20 @@ describe('#96 AC2: úchyt otevře a zavře panel', () => {
     expect(enterColoring(reloaded, regions).panelOpen()).toBe(false);
   });
 
-  it('nový profil uvidí při prvním otevření panel otevřený, profil, který už Omalovánky otevřel, zavřený', () => {
+  it('nový profil i profil, který už Omalovánky otevřel, začínají se zavřeným panelem (#130)', () => {
     const store = openProfiles(new DeviceStorage());
     const regions = twoHalves();
     const first = store.activeProfile();
-    enterColoring(store, regions).suspend();
+    const firstGame = enterColoring(store, regions);
+    expect(firstGame.panelOpen(), 'první profil poprvé').toBe(false);
+    firstGame.tapHandle();
+    firstGame.suspend();
 
     const second = store.createProfile({ nickname: 'BETA', color: PROFILE_COLORS[1] });
     store.selectProfile(second.id);
     const secondGame = enterColoring(store, regions);
-    expect(secondGame.panelOpen(), 'druhý profil poprvé').toBe(true);
+    expect(secondGame.panelOpen(), 'druhý profil poprvé').toBe(false);
+    secondGame.tapHandle();
     secondGame.suspend();
 
     store.selectProfile(first.id);
@@ -121,7 +136,7 @@ describe('#96 AC2: úchyt otevře a zavře panel', () => {
     expect(enterColoring(store, regions).panelOpen(), 'druhý profil znovu').toBe(false);
   });
 
-  it('nesmyslný záznam o prvním otevření se bere jako první otevření a hra se nezastaví', () => {
+  it('s nesmyslným záznamem o prvním otevření začíná panel zavřený, úchyt ho otevře a hra se nezastaví (#130)', () => {
     for (const nonsense of ['', 'nesmysl', '{', 'null', '42', '-1', 'true false']) {
       const storage = new RecordingStorage();
       openOn(storage, twoHalves()).suspend();
@@ -131,18 +146,21 @@ describe('#96 AC2: úchyt otevře a zavře panel', () => {
       expect(() => {
         game = openOn(storage, twoHalves());
       }, `záznam „${nonsense}“`).not.toThrow();
-      expect(game?.panelOpen(), `záznam „${nonsense}“`).toBe(true);
+      expect(game?.panelOpen(), `záznam „${nonsense}“`).toBe(false);
+      game?.tapHandle();
+      expect(game?.panelOpen(), `záznam „${nonsense}“, po ťuknutí na úchyt`).toBe(true);
     }
   });
 
-  it('nečitelné úložiště se bere jako první otevření a hra se nezastaví', () => {
+  it('s nečitelným úložištěm začíná panel zavřený, úchyt ho otevře a hra se nezastaví (#130)', () => {
     const store = openProfiles(forbiddenStorage());
     const game = enterColoring(store, twoHalves());
-    expect(game.panelOpen()).toBe(true);
+    expect(game.panelOpen()).toBe(false);
     expect(() => game.tapHandle()).not.toThrow();
+    expect(game.panelOpen(), 'po ťuknutí na úchyt').toBe(true);
   });
 
-  it('profil s obrázkem uloženým před tímto úkolem uvidí otevřený panel jednou a obrázek zůstane', () => {
+  it('profil s obrázkem uloženým před #96 uvidí panel zavřený a obrázek zůstane (#130)', () => {
     const regions = twoHalves();
     const before = openOn(new RecordingStorage(), regions);
     before.tapColor(BLUE);
@@ -156,7 +174,7 @@ describe('#96 AC2: úchyt otevře a zavře panel', () => {
     );
 
     const first = openOn(storage, regions);
-    expect(first.panelOpen(), 'poprvé po aktualizaci').toBe(true);
+    expect(first.panelOpen(), 'poprvé po aktualizaci').toBe(false);
     expect(pixelsOf(first, regions), 'obrázek beze změny').toEqual(picture);
     first.suspend();
 
@@ -168,6 +186,7 @@ describe('#96 AC2: úchyt otevře a zavře panel', () => {
   it('po schování stránky zůstane otevřený panel otevřený a zavřený zavřený', () => {
     const storage = new RecordingStorage();
     const game = openOn(storage, twoHalves());
+    game.tapHandle();
     expect(game.panelOpen()).toBe(true);
     game.suspend();
     expect(game.panelOpen(), 'otevřený po schování').toBe(true);
@@ -234,8 +253,11 @@ describe('#96 AC3: Zpět panel nezmění', () => {
 
   it('Zpět bez tahu se jen zhoupne a stav panelu nezmění', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
-    expect(game.tapUndo().kind).toBe('wobble');
-    expect(game.panelOpen()).toBe(true);
+    expect(game.tapUndo().kind, 'se zavřeným panelem').toBe('wobble');
+    expect(game.panelOpen(), 'zůstal zavřený').toBe(false);
+    game.tapHandle();
+    expect(game.tapUndo().kind, 's otevřeným panelem').toBe('wobble');
+    expect(game.panelOpen(), 'zůstal otevřený').toBe(true);
   });
 });
 
@@ -243,6 +265,7 @@ describe('#96 AC4: tah při otevřeném panelu', () => {
   it('tah začatý na obrázku otevřený panel zavře a zároveň normálně maluje', () => {
     const regions = twoHalves();
     const game = openOn(new RecordingStorage(), regions);
+    game.tapHandle();
     expect(game.panelOpen()).toBe(true);
 
     const changed = game.pointerDown({ id: 1, x: 20, y: 100, kind: 'touch' });
@@ -258,6 +281,7 @@ describe('#96 AC4: tah při otevřeném panelu', () => {
   it('ťuknutí na obrázek při otevřeném panelu udělá tečku a tu jde vrátit Zpět', () => {
     const regions = twoHalves();
     const game = openOn(new RecordingStorage(), regions);
+    game.tapHandle();
     expect(game.panelOpen()).toBe(true);
 
     paint(game, [at(70, 100)]);

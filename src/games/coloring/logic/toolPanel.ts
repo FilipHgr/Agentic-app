@@ -2,13 +2,9 @@
  * Panel nástrojů Omalovánek (#96): nástroje na místech panelu (štětec
  * a guma od #90, fix a pastelka od #93, duhový štětec od #97, razítkový
  * fix od #98, puntíkový fix od #101, proužkový fix od #102, třpytky od
- * #103, sprej od #104), velikost čáry a její záznam (#91), co ukazuje úchyt, tóny úchytu a záznam o prvním otevření hry
- * v profilu. Při úplně prvním otevření je panel otevřený, aby dítě
- * vidělo, co v něm je, jindy začíná zavřený. Záznam se zapíše při prvním
- * ukládání (tah, barva, velikost, Zpět) nebo nejpozději při odchodu
- * a schování stránky, ne hned při otevření: pouhé otevření hry do
- * úložiště nic nezapíše (#92 AC1). Kdo panel nezavře, uvidí ho příště
- * zavřený. Chybějící, nesmyslný nebo nečitelný záznam znamená první otevření.
+ * #103, sprej od #104), velikost čáry a její záznam (#91), co ukazuje
+ * úchyt a tóny úchytu. Po každém otevření začíná panel zavřený, i při
+ * úplně prvním otevření v profilu (#130, nahrazuje #96 AC2 a #105 AC1).
  * Čistý TypeScript bez Phaseru.
  */
 
@@ -207,28 +203,3 @@ export const PANEL_CLOSE_TONES: readonly Tone[] = [
   { frequencyHz: 659.25, startSeconds: 0, durationSeconds: 0.08, volume: 0.1 },
   { frequencyHz: 523.25, startSeconds: 0.08, durationSeconds: 0.12, volume: 0.1 },
 ];
-
-/** Klíč záznamu o prvním otevření v úložišti hry profilu. */
-const PANEL_SEEN_KEY = 'toolPanel.seen';
-
-/** Jediná platná hodnota záznamu; cokoli jiného je první otevření. */
-const PANEL_SEEN_VALUE = '1';
-
-/** Otevřel už profil Omalovánky? Selhání čtení je jako první otevření. */
-export function wasOpenedBefore(storage: KeyValueStorage): boolean {
-  try {
-    return storage.getItem(PANEL_SEEN_KEY) === PANEL_SEEN_VALUE;
-  } catch (error) {
-    console.warn('Omalovánky: záznam o prvním otevření nejde přečíst', error);
-    return false;
-  }
-}
-
-/** Zapíše, že profil Omalovánky otevřel. Chyba úložiště hru nezastaví. */
-export function rememberOpened(storage: KeyValueStorage): void {
-  try {
-    storage.setItem(PANEL_SEEN_KEY, PANEL_SEEN_VALUE);
-  } catch (error) {
-    console.warn('Omalovánky: záznam o prvním otevření nejde uložit', error);
-  }
-}

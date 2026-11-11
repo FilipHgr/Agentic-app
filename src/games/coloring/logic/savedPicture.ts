@@ -23,8 +23,8 @@
  *
  * Zpět (#89) vrací tahy z historie v paměti (`strokeHistory.ts`), vrácený
  * stav se uloží stejně jako po tahu. Panel nástrojů (#96) se otevírá
- * úchytem a zavře se i tahem po obrázku; při prvním otevření hry v profilu
- * začíná otevřený (`toolPanel.ts`). Od #105 je ve dvou krocích: úchyt ho
+ * úchytem a zavře se i tahem po obrázku; po každém otevření začíná
+ * zavřený (#130). Od #105 je ve dvou krocích: úchyt ho
  * otevře vždy na nástrojích, nástroj s barvou přepne na krok barev, výběr
  * barvy, guma a duha panel zavřou. Krok se neukládá.
  *
@@ -120,11 +120,9 @@ import {
   TOOL_PICK_TONES,
   loadLineSize,
   paintsWithColor,
-  rememberOpened,
   storeLineSize,
   toolAtSlot,
   hasColorStep,
-  wasOpenedBefore,
 } from './toolPanel';
 import type { HandleView, LineSize, PanelView, ToolId } from './toolPanel';
 
@@ -599,13 +597,12 @@ export function openColoring(options: {
   let unsaved = false;
   /** Vratné tahy od otevření omalovánky (#89); nové otevření začne bez historie. */
   let history = createUndoHistory();
-  /** Je v úložišti záznam, že profil hru už otevřel? */
-  let openingRemembered = wasOpenedBefore(storage);
   /**
-   * Krok panelu: otevřený na nástrojích jen při úplně prvním otevření hry
-   * v profilu (#96 AC2, #105 AC1), jinak zavřený.
+   * Krok panelu: po každém otevření zavřený, i při úplně prvním otevření
+   * v profilu (#130, nahrazuje #96 AC2 a #105 AC1). Dítě panel otevře úchytem,
+   * takže první ťuknutí na úchyt panel vždy otevře.
    */
-  let panelView: PanelView = openingRemembered ? 'closed' : 'tools';
+  let panelView: PanelView = 'closed';
   /** Vybraný nástroj; nepamatuje se, po otevření je vždy štětec (#90 AC1). */
   let tool: ToolId = INITIAL_TOOL;
   /** Naposledy vybraný malovací nástroj, na který přepne barva po gumě (#93 AC5). */
@@ -618,16 +615,7 @@ export function openColoring(options: {
   /** Barva, kterou maluje vybraný nástroj; guma a duha ji nepoužijí. */
   const paintColor = (): number => toolColors[toolReceivingColor(tool)];
 
-  /** Zapíše první otevření spolu s prvním ukládáním (#92 AC1: samotné otevření nic nezapíše). */
-  const rememberOpening = (): void => {
-    if (!openingRemembered) {
-      rememberOpened(storage);
-      openingRemembered = true;
-    }
-  };
-
   const save = (): void => {
-    rememberOpening();
     if (!unsaved) {
       return;
     }
@@ -858,7 +846,6 @@ export function openColoring(options: {
       }
       if (size !== lineSize) {
         lineSize = size;
-        rememberOpening();
         storeLineSize(storage, lineSize);
       }
       return LINE_SIZE_TONES[size];

@@ -206,9 +206,11 @@ describe('#105 AC1: otevření panelu ukáže nástroje', () => {
     }
   });
 
-  it('při úplně prvním otevření hry v profilu je panel otevřený na kroku nástrojů', () => {
+  it('i při úplně prvním otevření hry v profilu začíná panel zavřený a úchyt ho otevře na kroku nástrojů (#130)', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
-    expect(game.panelView()).toBe('tools');
+    expect(game.panelView(), 'poprvé').toBe('closed');
+    game.tapHandle();
+    expect(game.panelView(), 'po ťuknutí na úchyt').toBe('tools');
   });
 
   it('po návratu z menu začíná panel zavřený a úchyt ho otevře na nástrojích, i když dítě odešlo z kroku barev', () => {
