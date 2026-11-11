@@ -1,15 +1,15 @@
 /**
- * Rozložení výběru omalovánky (#124 AC6) podle schválených obrázků. Výběr
- * má stejnou herní plochu jako malování a místo pro 6 náhledů stejné
- * velikosti s poměrem stran omalovánky 4 : 3:
- * - na šířku mřížka 3 × 2 mezi pruhem domečku vlevo a stejně širokým
+ * Rozložení výběru omalovánky (#124 AC6, od #132 pro 11 omalovánek) podle
+ * schválených obrázků. Výběr má stejnou herní plochu jako malování a 12 míst
+ * pro náhledy stejné velikosti s poměrem stran omalovánky 4 : 3:
+ * - na šířku mřížka 4 × 3 mezi pruhem domečku vlevo a stejně širokým
  *   pruhem vpravo,
- * - na výšku mřížka 2 × 3 pod domečkem.
- * Mřížka je ve volném místě uprostřed. Míst je vždy 6, i když má sada méně
- * omalovánek; prázdná místa scéna nekreslí.
+ * - na výšku mřížka 3 × 4, nebo 2 × 6 (co dá větší náhled) pod domečkem.
+ * Mřížka je ve volném místě uprostřed, od knihy aspoň 16 px (na telefonu
+ * na šířku 8 px). Míst je vždy 12; prázdná místa scéna nekreslí.
  *
  * Od #126 je na výběru kniha vpravo nahoře zrcadlově k domečku a stejně
- * velká, mimo mřížku (mřížka se nemění). Album má ve stejném volném místě
+ * velká, mimo mřížku. Album má ve stejném volném místě
  * 12 náhledů: na šířku 4 × 3, na výšku 3 × 4 nebo 2 × 6, podle toho, co
  * dá větší náhledy.
  *
@@ -26,8 +26,11 @@ import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { PICTURE_ASPECT, layoutColoring } from './coloringLayout';
 import type { LayoutRect } from './coloringLayout';
 
-/** Míst pro náhledy (#124 AC6, posouvání pro víc omalovánek je mimo rozsah). */
-export const PICKER_PLACES = 6;
+/**
+ * Míst pro náhledy: 12 v mřížce na šířku 4 × 3, na výšku 3 × 4 nebo 2 × 6 (#132),
+ * sada má 11 omalovánek a 12. místo zůstane prázdné. Posouvání je mimo rozsah.
+ */
+export const PICKER_PLACES = 12;
 
 /** Mezera mezi náhledy v CSS px: na telefonu nejmenší povolená 16 px, na iPadu víc. */
 const PHONE_GAP_CSS = 16;
@@ -36,12 +39,19 @@ const TABLET_GAP_CSS = 24;
 /** Odstup mřížky od domečku a od okraje plochy v CSS px. */
 const EDGE_CSS = 8;
 
+/**
+ * Odstup mřížky navíc v CSS px (#132 AC4): s mřížkou pro 11 omalovánek je
+ * kniha od náhledů aspoň 16 px (na telefonu na šířku 8 px). Na šířku se
+ * ubírá z obou stran, aby mřížka zůstala uprostřed.
+ */
+const BOOK_EXTRA_GAP_CSS = 8;
+
 /** Zaoblení rohů dlaždice v CSS px jako u dlaždic menu. */
 const PHONE_RADIUS_CSS = 20;
 const TABLET_RADIUS_CSS = 24;
 
 export interface PickerLayout {
-  /** 6 míst náhledů v herních jednotkách, po řadách zleva doprava. */
+  /** 12 míst náhledů v herních jednotkách, po řadách zleva doprava (#132). */
   readonly previews: readonly LayoutRect[];
   /** Zaoblení rohů dlaždice v herních jednotkách. */
   readonly cornerRadius: number;
@@ -74,6 +84,14 @@ function freeBoxFor(area: GameArea, landscape: boolean): FreeBox {
   return { left: EDGE_CSS, top, width: width - 2 * EDGE_CSS, height: height - top - EDGE_CSS };
 }
 
+/** Volné místo zúžené o odstup od knihy: na šířku z obou stran, na výšku shora. */
+function awayFromBook(free: FreeBox, landscape: boolean): FreeBox {
+  const gap = BOOK_EXTRA_GAP_CSS;
+  return landscape
+    ? { left: free.left + gap, top: free.top, width: free.width - 2 * gap, height: free.height }
+    : { left: free.left, top: free.top + gap, width: free.width, height: free.height - gap };
+}
+
 /** Největší šířka náhledu 4 : 3, se kterou se mřížka vejde do volného místa. */
 function previewWidthFor(free: FreeBox, columns: number, rows: number, gap: number): number {
   const byWidth = (free.width - (columns - 1) * gap) / columns;
@@ -81,15 +99,27 @@ function previewWidthFor(free: FreeBox, columns: number, rows: number, gap: numb
   return Math.min(byWidth, byHeight);
 }
 
+/** Sloupce alba podle schválených obrázků: na šířku 4 × 3, na výšku 3 × 4 nebo 2 × 6. */
+const LANDSCAPE_ALBUM_COLUMNS: readonly number[] = [4];
+const PORTRAIT_ALBUM_COLUMNS: readonly number[] = [3, 2];
+
 /** Rozložení výběru pro herní plochu `area`. */
 export function layoutPicker(area: GameArea): PickerLayout {
   const phone = isPhoneMode(area.mode);
   const landscape = area.width >= area.height;
-  const columns = landscape ? 3 : 2;
-  const rows = PICKER_PLACES / columns;
   const gap = phone ? PHONE_GAP_CSS : TABLET_GAP_CSS;
-  const free = freeBoxFor(area, landscape);
-  const width = previewWidthFor(free, columns, rows, gap);
+  const free = awayFromBook(freeBoxFor(area, landscape), landscape);
+  // Stejně jako album: na výšku 3 × 4, nebo 2 × 6, podle toho, co dá větší náhled.
+  let columns = 0;
+  let width = 0;
+  for (const candidate of landscape ? LANDSCAPE_ALBUM_COLUMNS : PORTRAIT_ALBUM_COLUMNS) {
+    const candidateWidth = previewWidthFor(free, candidate, PICKER_PLACES / candidate, gap);
+    if (candidateWidth > width) {
+      columns = candidate;
+      width = candidateWidth;
+    }
+  }
+  const rows = PICKER_PLACES / columns;
   const height = width / PICTURE_ASPECT;
   const gridLeft = free.left + (free.width - (columns * width + (columns - 1) * gap)) / 2;
   const gridTop = free.top + (free.height - (rows * height + (rows - 1) * gap)) / 2;
@@ -135,10 +165,6 @@ function bookButtonFor(area: GameArea): LayoutRect {
 
 /** Míst pro obrázky v albu (#126, posouvání alba je mimo rozsah). */
 export const ALBUM_PLACES = 12;
-
-/** Sloupce alba podle schválených obrázků: na šířku 4 × 3, na výšku 3 × 4 nebo 2 × 6. */
-const LANDSCAPE_ALBUM_COLUMNS: readonly number[] = [4];
-const PORTRAIT_ALBUM_COLUMNS: readonly number[] = [3, 2];
 
 /** Zaoblení náhledu alba nejvýš tento díl jeho výšky, aby roh malý obrázek moc neořízl. */
 const ALBUM_RADIUS_SHARE = 0.16;

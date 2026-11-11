@@ -22,6 +22,10 @@
  * volné plochy bez bočních okrajů 8 px a výška 3/4 šířky (#127 AC1), spočtené
  * ze zadání, ne z hry (schválené obrázky: 390 × 844 → 374 × 280,5 px,
  * 360 × 620 → 344 × 258 px). Řádky na šířku jsou beze změny.
+ *
+ * #132 (11 omalovánek) mřížku výběru záměrně změnil na 12 míst (mřížka alba
+ * z #126), tabulka `PICKER_GRID_BEFORE_126` se proto už s hrou neporovnává
+ * a zůstává jen jako záznam. Místo knihy hlídá `layoutBefore132Fixture.ts`.
  */
 
 /** Okno, šířka a výška plochy omalovánky v CSS px. */

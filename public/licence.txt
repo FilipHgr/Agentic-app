@@ -34,6 +34,21 @@ nejsou v repozitáři, otisky SHA-256 zdrojů:
   butterfly: c38213d6043c873f56aa805975de5af3ca55761d1753ca41f7bcece33a0b1034
   fish: c834c755adad81103b41d56500a0e5f0f8ea3300a7ea27dc666090aa0bf7f8e3
 
+Obrysy omalovánek moře, mořská panna, duha, vánoční baňka a jednorožec
+(src/games/coloring/pictures/sea.png, mermaid.png, rainbow.png, ornament.png,
+unicorn.png) jsou vytvořené službou ElevenLabs (https://elevenlabs.io), model
+GPT Image 2.5. Použito v rámci komerčního tarifu vlastníka hry, stejně jako
+dlaždice her. Úprava: převedeno na obrys nástrojem v repozitáři
+tools/design/outline-from-image.mjs. U moře byly před převodem ze zdroje
+vymazány 4 malé bublinky, aby se obrys vešel do 32 768 B. Zdrojové PNG nejsou
+v repozitáři, otisky SHA-256 zdrojů:
+  sea: 394cdff007da49d3daddd9337cc33667096f15220284beb022e997d27c7e8483
+  sea (zdroj po vymazání bublinek): 9c4cef1bb39093d1217f785df84ddc8b822f17dec2b27b271c7981e01d76db32
+  mermaid: ade569aef5c4d70c0ebb1710e1de4e09e65a509f2e178ed137f995395e9a6855
+  rainbow: 7842dcb1849224c199d6be307e576feed848cf8b064957b3ba5162a95eaf7fce
+  ornament: fed6cf479745d8a4b5fc0a170687fb52442b15a9d965e2def02f061c9aada309
+  unicorn: d4d0be73e27dd7bea8bf5609ac6987c0cfdb779fb68d71e745927391c7db1086
+
 Ikony nástrojů v Omalovánkách (src/games/coloring/icons/: paintbrush, eraser,
 pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter), ikony
 fotoaparátu a knihy alba (camera, notebook-with-decorative-cover) a ikona koše

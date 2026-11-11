@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { COLORING_GAME_AREA_FIT } from '../../../src/games/coloring/logic/coloringLayout';
-import {
-  PICKER_PLACES,
-  layoutPicker,
-  previewAt,
-} from '../../../src/games/coloring/logic/pickerLayout';
+import { layoutPicker, previewAt } from '../../../src/games/coloring/logic/pickerLayout';
 import {
   loadPicturePreview,
   previewCellHex,
@@ -40,10 +36,12 @@ import {
 } from './pictureChoiceHelpers';
 import {
   EXPECTED_SET,
-  NEW_PICTURE_IDS,
+  FIRST_SIX_SET,
   OUTLINE_HEIGHT,
+  OUTLINE_PICTURE_IDS,
   OUTLINE_WIDTH,
   PICTURE_FILES,
+  SECOND_SET_IDS,
   outlineFileName,
 } from './realPicturesHelpers';
 import {
@@ -58,7 +56,8 @@ import { at } from './strokeHelpers';
 
 /**
  * Testy k #128 AC1 (sada omalovánek) a AC4 (uložené obrázky kruhů a hvězdy,
- * výpadek stahování obrysu, opětovné otevření).
+ * výpadek stahování obrysu, opětovné otevření), od #132 pro sadu 11
+ * omalovánek (#132 AC1 sada, AC5 nenačtený obrys a opětovné otevření).
  *
  * Sada je `COLORING_PICTURES` v `logic/pictureSet.ts`. Logika výběru
  * a ukládání obrys nezná, testy výběru proto dávají všem omalovánkám
@@ -116,12 +115,13 @@ function cellsOf(preview: PicturePreview): PreviewCell[] {
   return cells;
 }
 
-describe('#128 AC1: na výběru je 6 skutečných omalovánek', () => {
-  it('sada má 6 omalovánek ve stálém pořadí: domek, kočka, pejsek, auto, motýl, rybka', () => {
+describe('#128 a #132 AC1: na výběru je 11 skutečných omalovánek', () => {
+  it('sada má 11 omalovánek ve stálém pořadí: domek, kočka, pejsek, auto, motýl, rybka, moře, mořská panna, duha, vánoční baňka, jednorožec', () => {
     expect(COLORING_PICTURES).toEqual(EXPECTED_SET);
+    expect(COLORING_PICTURES.length, 'omalovánek v sadě').toBe(11);
   });
 
-  it('výběr ve hře ukáže náhledy domku, kočky, pejska, auta, motýla a rybky v tomto pořadí', () => {
+  it('výběr ve hře ukáže náhledy všech 11 omalovánek v pořadí sady', () => {
     const choice = enterPicker(COLORING_PICTURES);
     expect(choice.screen()).toEqual({ kind: 'picker' });
     expect(choice.previews()).toEqual(EXPECTED_SET);
@@ -138,7 +138,7 @@ describe('#128 AC1: na výběru je 6 skutečných omalovánek', () => {
 
   it('domek má dál označení house verze 1 a nové omalovánky mají vlastní označení s verzí 1', () => {
     expect(COLORING_PICTURES.find((picture) => picture.id === 'house')).toEqual(HOUSE);
-    for (const id of NEW_PICTURE_IDS) {
+    for (const id of OUTLINE_PICTURE_IDS) {
       expect(
         COLORING_PICTURES.filter((picture) => picture.id === id),
         id,
@@ -155,8 +155,25 @@ describe('#128 AC1: na výběru je 6 skutečných omalovánek', () => {
     }
   });
 
-  it('všech 6 omalovánek zaplní mřížku výběru z #124 bez posouvání', () => {
-    expect(COLORING_PICTURES.length, 'míst v mřížce').toBe(PICKER_PLACES);
+  it('všech 11 omalovánek se vejde do 12 míst mřížky výběru bez posouvání a 12. místo zůstane prázdné', () => {
+    for (const window of COLORING_WINDOWS) {
+      const layout = layoutPicker(gameAreaFor(viewportOf(window), COLORING_GAME_AREA_FIT));
+      expect(layout.previews.length, `${window.name}: míst v mřížce`).toBe(12);
+    }
+    expect(COLORING_PICTURES.length, 'omalovánek je o jednu méně než míst').toBe(11);
+    expect(enterPicker(COLORING_PICTURES).tapPreview(11), '12. místo').toEqual({
+      kind: 'ignored',
+    });
+  });
+
+  it('prvních 6 omalovánek zůstane na pozicích 1–6 se stejným označením jako před #132', () => {
+    expect(COLORING_PICTURES.slice(0, 6)).toEqual(FIRST_SIX_SET);
+    const choice = enterPicker(COLORING_PICTURES);
+    expect(choice.previews().slice(0, 6), 'náhledy 1–6').toEqual(FIRST_SIX_SET);
+  });
+
+  it('nové omalovánky moře, mořská panna, duha, vánoční baňka a jednorožec jsou na konci, na pozicích 7–11', () => {
+    expect(COLORING_PICTURES.slice(6).map((picture) => picture.id)).toEqual([...SECOND_SET_IDS]);
   });
 
   it('ťuknutí doprostřed náhledu otevře jeho omalovánku ve všech oknech', () => {
@@ -267,6 +284,22 @@ describe('#128 AC4: obrys se nenačte (výpadek stahování)', () => {
     expect(game.colorAt(1013, 757), 'konec tahu').not.toBeNull();
   });
 
+  it('#132 AC5: i nová omalovánka bez obrysu se z výběru otevře a maluje se po celé ploše', () => {
+    const regions = regionsWithoutOutline();
+    const storage = new RecordingStorage();
+    for (const id of SECOND_SET_IDS) {
+      const index = indexInSet({ id, version: 1 });
+      expect(index, `${id} je v sadě`).toBeGreaterThanOrEqual(0);
+      const choice = enterPicker(COLORING_PICTURES);
+      const game = openFromPicker(choice, index, storage, regions);
+      paint(game, [at(10, 10), at(1013, 757)]);
+      expect(game.colorAt(10, 10), `${id}: začátek tahu`).not.toBeNull();
+      expect(game.colorAt(512, 384), `${id}: střed plochy`).not.toBeNull();
+      expect(game.colorAt(1013, 757), `${id}: konec tahu`).not.toBeNull();
+      backToPicker(choice, game);
+    }
+  });
+
   it('náhled omalovánky bez obrysu ukáže uložené barvy a žádný obrys', () => {
     const regions = regionsWithoutOutline();
     const storage = new RecordingStorage();
@@ -308,7 +341,7 @@ describe('#128 AC4: opětovné otevření omalovánky ukáže její rozmalovaný
   it('každá nová omalovánka se po návratu na výběr a novém otevření ukáže stejně, jak ji dítě nechalo', () => {
     const storage = coloringStorage(openProfiles(new DeviceStorage()));
     const regions = twoHalves();
-    for (const id of NEW_PICTURE_IDS) {
+    for (const id of OUTLINE_PICTURE_IDS) {
       const index = indexInSet({ id, version: 1 });
       expect(index, `${id} je v sadě`).toBeGreaterThanOrEqual(0);
       const choice = enterPicker(COLORING_PICTURES);
@@ -334,7 +367,7 @@ describe('#128 AC4: opětovné otevření omalovánky ukáže její rozmalovaný
     paint(cat, [at(20, 100), at(140, 100)]);
     backToPicker(choice, cat);
 
-    for (const id of NEW_PICTURE_IDS.filter((each) => each !== 'cat')) {
+    for (const id of OUTLINE_PICTURE_IDS.filter((each) => each !== 'cat')) {
       const other = openFromPicker(choice, indexInSet({ id, version: 1 }), storage, regions);
       expect(paintedPixels(other, regions), id).toBe(0);
       backToPicker(choice, other);

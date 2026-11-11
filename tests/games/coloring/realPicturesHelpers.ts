@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 /**
- * Pomůcky pro testy k #128 (pět skutečných omalovánek místo kruhů a hvězdy).
+ * Pomůcky pro testy k #128 (pět skutečných omalovánek místo kruhů a hvězdy)
+ * a #132 (pět dalších omalovánek, celkem 11).
  *
  * Obrysy jsou soubory `src/games/coloring/pictures/<id>.png` (doporučení
  * k otázce 1: PNG s paletou a 16 úrovněmi průhlednosti). Testy je čtou přes
@@ -19,13 +20,28 @@ import { decodePng } from './pngReader.mjs';
 import type { DecodedPng } from './pngReader.mjs';
 import { at, stroke } from './strokeHelpers';
 
-/** Pět nových omalovánek v pořadí sady (AC1), schválně opsané, ne konstanta z kódu. */
+/** Pět omalovánek z #128 v pořadí sady (AC1), schválně opsané, ne konstanta z kódu. */
 export const NEW_PICTURE_IDS = ['cat', 'dog', 'car', 'butterfly', 'fish'] as const;
 
-/** Celá sada ve hře v pořadí náhledů (AC1): domek a pět nových, všechny verze 1. */
-export const EXPECTED_SET: readonly PictureIdentity[] = [
+/**
+ * Pět omalovánek z #132 v pořadí sady (AC1 a otázka 6): moře, mořská panna,
+ * duha, vánoční baňka, jednorožec. Schválně opsané, ne konstanta z kódu.
+ */
+export const SECOND_SET_IDS = ['sea', 'mermaid', 'rainbow', 'ornament', 'unicorn'] as const;
+
+/** Všechny omalovánky s obrysem PNG (#132 AC3: 10 souborů), v pořadí sady. */
+export const OUTLINE_PICTURE_IDS = [...NEW_PICTURE_IDS, ...SECOND_SET_IDS] as const;
+
+/** Sada před #132: domek a pět omalovánek z #128 na pozicích 1–6, všechny verze 1. */
+export const FIRST_SIX_SET: readonly PictureIdentity[] = [
   { id: 'house', version: 1 },
   ...NEW_PICTURE_IDS.map((id) => ({ id, version: 1 })),
+];
+
+/** Celá sada ve hře v pořadí náhledů (#132 AC1): prvních 6 a pět nových na konci, verze 1. */
+export const EXPECTED_SET: readonly PictureIdentity[] = [
+  ...FIRST_SIX_SET,
+  ...SECOND_SET_IDS.map((id) => ({ id, version: 1 })),
 ];
 
 /** Rozměr obrysu a vrstvy barev v malování (AC2). */

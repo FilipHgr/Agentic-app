@@ -25,6 +25,7 @@ import {
 import type { Box, TestWindow } from '../../shared/viewportFixtures';
 import { COLORING_WINDOWS, HOME_NAME, boxOfRect, isLandscapeArea } from './coloringLayoutScenes';
 import { PICKER_GRID_BEFORE_126 } from './layoutBefore126Fixture';
+import { BOOK_BEFORE_132 } from './layoutBefore132Fixture';
 
 /**
  * Testy k #126 AC6 (rozložení knihy na výběru a alba): pravidla v cyklu
@@ -40,6 +41,10 @@ import { PICKER_GRID_BEFORE_126 } from './layoutBefore126Fixture';
  * - album na šířku 4 × 3, na výšku 3 × 4 nebo 2 × 6 náhledů, nejmenší
  *   náhled 104 × 78 px.
  *
+ * Od #132 (AC4) má výběr 12 míst a 11 náhledů. Kniha se měří proti 11
+ * náhledům, které se kreslí (12. místo zůstane prázdné), s pravidly výše
+ * (16 px, na telefonu na šířku 8 px) a zůstane na místě před #132.
+ *
  * Navržené rozšíření `pickerLayout.ts` (herní jednotky):
  * - `PickerLayout.book: LayoutRect` kniha na výběru,
  * - `layoutAlbum(area: GameArea): AlbumLayout` s polem
@@ -51,6 +56,9 @@ import { PICKER_GRID_BEFORE_126 } from './layoutBefore126Fixture';
 
 const BOOK_NAME = 'kniha';
 const ALBUM_PLACES = 12;
+/** Míst v mřížce výběru a omalovánek v sadě od #132. */
+const PICKER_PLACES_SINCE_132 = 12;
+const PICTURES_IN_SET = 11;
 const MIN_PREVIEW_GAP = 16;
 const PICTURE_ASPECT = 4 / 3;
 
@@ -144,7 +152,8 @@ function pickerCase(window: TestWindow): PickerCase {
   const base = screenCase(window);
   const layout = layoutPicker(base.area);
   const css = (rect: LayoutRect): Box => toCss(boxOfRect(rect), base.area);
-  const previews = layout.previews.map(css);
+  // Kreslí se jen náhledy omalovánek sady (#132: 11 z 12 míst).
+  const previews = layout.previews.slice(0, PICTURES_IN_SET).map(css);
   const book = css(layout.book);
   const items: LayoutItem[] = [
     homeItem(base.home),
@@ -233,7 +242,7 @@ describe('#126 AC6: kniha na výběru', () => {
     }
   });
 
-  it('kniha je od náhledů výběru aspoň 16 px, na telefonu na šířku aspoň 8 px', () => {
+  it('kniha je od všech 11 náhledů výběru aspoň 16 px, na telefonu na šířku aspoň 8 px (#126, #132 AC4)', () => {
     for (const testCase of pickerCases()) {
       const minGap = BOOK_NARROW_GAP_WINDOWS.has(sizeOf(testCase.window))
         ? MIN_TAP_GAP
@@ -252,7 +261,7 @@ describe('#126 AC6: kniha na výběru', () => {
       const rect = testCase.layout.book;
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
-      expect(testCase.layout.previews.length, testCase.scene.label).toBe(6);
+      expect(testCase.layout.previews.length, testCase.scene.label).toBe(PICKER_PLACES_SINCE_132);
       // Náhledy dál hledá `previewAt` z #124; kniha mezi nimi není.
       expect(
         testCase.layout.previews.some(
@@ -287,23 +296,29 @@ describe('#126 AC6: kniha na výběru', () => {
     );
   });
 
-  it('mřížka výběru zůstane s knihou stejná jako před #126', () => {
-    const before = new Map(PICKER_GRID_BEFORE_126.map((row) => [row[0], row]));
+  // Do #132 tu byl test „mřížka výběru zůstane s knihou stejná jako před #126“
+  // (tabulka PICKER_GRID_BEFORE_126). #132 mřížku výběru záměrně mění na 12
+  // míst; náhradou je pevné místo knihy před #132 (BOOK_BEFORE_132) níž
+  // a pravidla mřížky v pickerLayoutRules.test.ts.
+  it('pevná tabulka místa knihy před #132 má všechna okna Omalovánek', () => {
+    expect(BOOK_BEFORE_132.map(([name]) => name)).toEqual(
+      COLORING_WINDOWS.map((window) => window.name),
+    );
+  });
+
+  it('#132 AC4: kniha zůstane s mřížkou pro 11 omalovánek na svém místě jako před #132', () => {
+    const before = new Map(BOOK_BEFORE_132.map((row) => [row[0], row]));
     for (const testCase of pickerCases()) {
       const row = before.get(testCase.window.name);
-      const first = testCase.previews[0];
-      const last = testCase.previews[5];
-      if (row === undefined || first === undefined || last === undefined) {
-        throw new Error(`${testCase.scene.label}: chybí míra nebo náhled`);
+      if (row === undefined) {
+        throw new Error(`${testCase.scene.label}: chybí místo knihy`);
       }
-      const [, left, top, right, bottom, width, height] = row;
+      const [, left, top, right, bottom] = row;
       const what = testCase.scene.label;
-      expect(first.left, `${what}: levý okraj mřížky`).toBeCloseTo(left, 2);
-      expect(first.top, `${what}: horní okraj mřížky`).toBeCloseTo(top, 2);
-      expect(last.right, `${what}: pravý okraj mřížky`).toBeCloseTo(right, 2);
-      expect(last.bottom, `${what}: spodní okraj mřížky`).toBeCloseTo(bottom, 2);
-      expect(widthOf(first), `${what}: šířka náhledu`).toBeCloseTo(width, 2);
-      expect(heightOf(first), `${what}: výška náhledu`).toBeCloseTo(height, 2);
+      expect(testCase.book.left, `${what}: levý okraj knihy`).toBeCloseTo(left, 2);
+      expect(testCase.book.top, `${what}: horní okraj knihy`).toBeCloseTo(top, 2);
+      expect(testCase.book.right, `${what}: pravý okraj knihy`).toBeCloseTo(right, 2);
+      expect(testCase.book.bottom, `${what}: spodní okraj knihy`).toBeCloseTo(bottom, 2);
     }
   });
 });

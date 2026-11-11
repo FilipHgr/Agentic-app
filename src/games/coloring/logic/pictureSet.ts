@@ -18,4 +18,9 @@ export const COLORING_PICTURES: readonly PictureIdentity[] = [
   { id: 'car', version: 1 },
   { id: 'butterfly', version: 1 },
   { id: 'fish', version: 1 },
+  { id: 'sea', version: 1 },
+  { id: 'mermaid', version: 1 },
+  { id: 'rainbow', version: 1 },
+  { id: 'ornament', version: 1 },
+  { id: 'unicorn', version: 1 },
 ];

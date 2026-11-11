@@ -18,19 +18,29 @@ import catUrl from '../pictures/cat.png';
 import dogUrl from '../pictures/dog.png';
 import fishUrl from '../pictures/fish.png';
 import houseSvg from '../pictures/house.svg?raw';
+import mermaidUrl from '../pictures/mermaid.png';
+import ornamentUrl from '../pictures/ornament.png';
+import rainbowUrl from '../pictures/rainbow.png';
+import seaUrl from '../pictures/sea.png';
+import unicornUrl from '../pictures/unicorn.png';
 
 /** SVG obrysu podle označení omalovánky ze sady (domek). */
 const OUTLINE_SVGS: Readonly<Record<string, string>> = {
   house: houseSvg,
 };
 
-/** Adresa PNG obrysu podle označení omalovánky ze sady (#128). */
+/** Adresa PNG obrysu podle označení omalovánky ze sady (#128, #132). */
 const OUTLINE_PNG_URLS: Readonly<Record<string, string>> = {
   cat: catUrl,
   dog: dogUrl,
   car: carUrl,
   butterfly: butterflyUrl,
   fish: fishUrl,
+  sea: seaUrl,
+  mermaid: mermaidUrl,
+  rainbow: rainbowUrl,
+  ornament: ornamentUrl,
+  unicorn: unicornUrl,
 };
 
 /** Plátno s obrysem a jestli se obrys opravdu vykreslil. */

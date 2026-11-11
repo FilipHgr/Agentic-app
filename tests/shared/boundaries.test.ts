@@ -547,10 +547,20 @@ function picturesLoadedWith(entry: string, files: Record<string, string>): strin
   return [...staticallyLoaded(entry, files)].filter((file) => PICTURES_RULE_PATTERN.test(file));
 }
 
-describe('#128 AC3: obrysy omalovánek se stahují až s hrou, ne s menu', () => {
-  const NEW_OUTLINES = ['cat', 'dog', 'car', 'butterfly', 'fish'].map(
-    (id) => `src/games/coloring/pictures/${id}.png`,
-  );
+describe('#128 a #132 AC3: obrysy omalovánek se stahují až s hrou, ne s menu', () => {
+  // #132 přidal moře, mořskou pannu, duhu, vánoční baňku a jednorožce (10 obrysů PNG).
+  const NEW_OUTLINES = [
+    'cat',
+    'dog',
+    'car',
+    'butterfly',
+    'fish',
+    'sea',
+    'mermaid',
+    'rainbow',
+    'ornament',
+    'unicorn',
+  ].map((id) => `src/games/coloring/pictures/${id}.png`);
 
   it('se stránkou a menu se nenačte žádný obrys omalovánky (meta.ts her, menu ani sdílená část ho neimportují)', () => {
     expect(SOURCES['src/main.ts']).toBeDefined();
@@ -567,7 +577,7 @@ describe('#128 AC3: obrysy omalovánek se stahují až s hrou, ne s menu', () =>
     );
   });
 
-  it('obrys každé z 5 nových omalovánek se načte až s kódem Omalovánek (index.ts hry)', () => {
+  it('obrys každé z 10 omalovánek s obrysem PNG se načte až s kódem Omalovánek (index.ts hry)', () => {
     const loaded = staticallyLoaded('src/games/coloring/index.ts', SOURCES);
     for (const outline of NEW_OUTLINES) {
       expect(loaded, outline).toContain(outline);
