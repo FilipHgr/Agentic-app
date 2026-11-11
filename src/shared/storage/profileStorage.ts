@@ -15,7 +15,9 @@
  *   s dočasným výchozím profilem v paměti. Ten čte staré záznamy Počítání,
  *   zapisuje jen do paměti.
  * - Co se nepodaří uložit, platí v paměti do zavření stránky (sdílené pro
- *   stejný profil a hru). Žádná výjimka z úložiště neunikne.
+ *   stejný profil a hru). Žádná výjimka z úložiště neunikne. Zápis
+ *   s výsledkem (`trySetItem`, #131) vrátí, jestli se hodnota opravdu
+ *   uložila do zařízení; nepovedený zápis v paměti nepodrží.
  * - Dva panely (#75): stránka může být otevřená ve dvou panelech nad
  *   stejným úložištěm. Založení, úprava i smazání proto vždy znovu načte
  *   uložený seznam, provede změnu v něm a zapíše výsledek, aby nezmizel
@@ -318,7 +320,10 @@ interface UnsavedProfile {
   readonly profile: Profile;
 }
 
-/** Úložiště jen v paměti (hra s neplatným označením); s úložištěm zařízení nic nesdílí. */
+/**
+ * Úložiště jen v paměti (hra s neplatným označením); s úložištěm zařízení
+ * nic nesdílí. Zápis s výsledkem tu nikdy neuloží nic do zařízení.
+ */
 function memoryOnlyStorage(): KeyValueStorage {
   const memory = new Map<string, string>();
   return {
@@ -326,6 +331,7 @@ function memoryOnlyStorage(): KeyValueStorage {
     setItem: (key, value) => {
       memory.set(key, value);
     },
+    trySetItem: () => false,
   };
 }
 
@@ -359,6 +365,15 @@ function gameStorageOf(state: StoreState, profileId: string, gameId: string): Ke
       } else {
         state.memory.set(fullKey, value);
       }
+    },
+    trySetItem(key: string, value: string): boolean {
+      // Zápis s výsledkem (#131): nepovedený zápis se v paměti nepodrží.
+      const fullKey = dataKey(profileId, gameId, key);
+      if (state.temporary || !write(state.storage, fullKey, value)) {
+        return false;
+      }
+      state.memory.delete(fullKey);
+      return true;
     },
   };
 }

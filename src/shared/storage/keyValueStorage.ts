@@ -8,6 +8,32 @@
 export interface KeyValueStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  /**
+   * Zápis s výsledkem (#131): `true`, jen když je hodnota opravdu uložená
+   * v zařízení. Nepovedený zápis nic nezmění, ani v paměti, a nevyhodí
+   * výjimku. Úložiště hry profilu ho má, jiná úložiště nemusí
+   * (`setItemChecked` pak použije `setItem`).
+   */
+  trySetItem?(key: string, value: string): boolean;
+}
+
+/**
+ * Zapíše hodnotu a vrátí, jestli se opravdu uložila (#131). Úložiště
+ * s `trySetItem` se zeptá přímo, jinak je výjimka ze `setItem` (plné nebo
+ * zakázané úložiště) „neuložilo se“. Výjimku nikdy nevyhodí.
+ */
+export function setItemChecked(storage: KeyValueStorage, key: string, value: string): boolean {
+  try {
+    // `typeof`: u `localStorage` by vlastnost mohla být i uložený záznam.
+    if (typeof storage.trySetItem === 'function') {
+      return storage.trySetItem(key, value);
+    }
+    storage.setItem(key, value);
+    return true;
+  } catch {
+    // Plné nebo zakázané úložiště: volající ví, že se nic neuložilo.
+    return false;
+  }
 }
 
 /**

@@ -56,6 +56,13 @@ export const BOOK_ICON_FILE = 'notebook-with-decorative-cover.svg';
 /** Koš 🗑️ (U+1F5D1, „wastebasket“) na velkém obrázku z alba (#129) ze stejné sady. */
 export const TRASH_ICON_FILE = 'wastebasket.svg';
 
+/**
+ * Štětec 🖌️ (U+1F58C, „paintbrush“) na tlačítku malovat dál na velkém
+ * obrázku z alba (#131): stejný soubor jako ikona štětce, malování se
+ * otevře se štětcem.
+ */
+export const CONTINUE_ICON_FILE = `${TOOL_EMOJI.brush}.svg`;
+
 /** Ikona nástroje `tool`; nezávisí na vybrané barvě ani velikosti čáry. */
 export function toolIconAsset(tool: ToolId): ToolIconAsset {
   const emoji = TOOL_EMOJI[tool];

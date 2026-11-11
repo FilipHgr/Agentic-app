@@ -67,7 +67,8 @@
  * a další ťuknutí fotoaparát jen zhoupne. Teprve po potvrzeném uložení je
  * omalovánka čistá a zapíše se do úložiště; barvy nástrojů, nedávné barvy
  * a tloušťka zůstanou a historie Zpět se vyprázdní. Ukládání doběhne
- * i po odchodu z malování.
+ * i po odchodu z malování. Odložená stránka z výměny s albem (#131), která
+ * do alba ještě přibude, se do plného alba počítá.
  * Čistý TypeScript bez Phaseru.
  */
 
@@ -84,6 +85,7 @@ import {
   sameLayers,
 } from './album';
 import type { AlbumContents } from './album';
+import { isUnsettledSwapPicture, pendingAlbumPictures } from './albumSwapRecord';
 import { NO_COLOR, createColoring, emptyColorLayer, strokeWidthFor } from './coloring';
 import type { ChangedArea, PointerSample } from './coloring';
 import { isPaletteIndex, tapColor } from './palette';
@@ -165,6 +167,20 @@ export interface DecodedPicture {
   readonly selectedColor: number;
   readonly colors: PictureColors;
 }
+
+/**
+ * Rozmalovaná stránka omalovánky v úložišti, jak ji vidí výměna s albem
+ * (#131): bez záznamu (i prázdný záznam), přečtená, nebo nečitelná.
+ */
+export type StoredPage =
+  | { readonly kind: 'clean' }
+  | {
+      readonly kind: 'painted';
+      readonly record: string;
+      readonly layer: Uint8Array;
+      readonly selectedColor: number;
+    }
+  | { readonly kind: 'unreadable' };
 
 /** Krátký tón po vrácení tahu (#89 AC1): dva klesající tóny, dozní za 0,2 s. */
 export const UNDO_TONES: readonly Tone[] = [
@@ -493,6 +509,60 @@ export function decodePicture(
   };
 }
 
+/** Klíč rozmalované stránky omalovánky v úložišti hry (#131). */
+export function pageKeyOf(picture: PictureIdentity): string {
+  return recordKey(picture);
+}
+
+/**
+ * Vrstva barev a vybraná barva ze záznamu stránky se všemi barvami sad
+ * (#131); `null` u poškozeného, nečitelného nebo cizího záznamu.
+ */
+export function decodePageRecord(
+  record: string,
+  picture: PictureIdentity,
+  regions: RegionMap,
+): { readonly layer: Uint8Array; readonly selectedColor: number } | null {
+  return readRecord(record, picture, regions, ALL_COLOR_COUNT);
+}
+
+/**
+ * Záznam stránky z vrstvy barev (#131); `null`, když je delší než limit
+ * stránky a uložit by nešel.
+ */
+export function pageRecordOf(
+  picture: PictureIdentity,
+  regions: RegionMap,
+  layer: Uint8Array,
+  selectedColor: number,
+): string | null {
+  const record = recordOf(picture, regions, layer, selectedColor);
+  return record.length > PICTURE_RECORD_LIMIT ? null : record;
+}
+
+/**
+ * Rozmalovaná stránka omalovánky `picture` v úložišti (#131). Záznam,
+ * který nejde přečíst (i úložiště, které čtení odmítne), je „nečitelný“.
+ */
+export function readStoredPage(
+  storage: KeyValueStorage,
+  picture: PictureIdentity,
+  regions: RegionMap,
+): StoredPage {
+  let record: string | null;
+  try {
+    record = storage.getItem(recordKey(picture));
+  } catch (error) {
+    console.warn('Omalovánky: uložený obrázek nejde přečíst', error);
+    return { kind: 'unreadable' };
+  }
+  if (record === null || record === '') {
+    return { kind: 'clean' };
+  }
+  const read = decodePageRecord(record, picture, regions);
+  return read === null ? { kind: 'unreadable' } : { kind: 'painted', record, ...read };
+}
+
 /** Uložený záznam z úložiště; selhání čtení je jako chybějící záznam. */
 function loadRecord(storage: KeyValueStorage, key: string): string | null {
   try {
@@ -684,10 +754,16 @@ export function openColoring(options: {
     if (album.status !== 'read' || albumRecords === undefined) {
       return false;
     }
-    if (album.entries.length >= ALBUM_PICTURE_LIMIT || album.recordCount >= ALBUM_RECORD_LIMIT) {
+    // Odložená stránka z výměny s albem (#131 AC2) se do 12 obrázků počítá.
+    const pictureCount = album.entries.length + pendingAlbumPictures(storage);
+    if (pictureCount >= ALBUM_PICTURE_LIMIT || album.recordCount >= ALBUM_RECORD_LIMIT) {
       return false;
     }
     if (layer.every((value) => value === NO_COLOR)) {
+      return false;
+    }
+    if (isUnsettledSwapPicture(storage, picture, regions, layer)) {
+      // Obrázek A výměny, o které se neví, že A z alba zmizel (#131).
       return false;
     }
     return !album.entries.some(

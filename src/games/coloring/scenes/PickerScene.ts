@@ -14,13 +14,20 @@ import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import { readAlbum } from '../logic/album';
 import type { AlbumContents, AlbumEntry, AlbumPicture } from '../logic/album';
+import { settleAlbumSwap } from '../logic/albumSwap';
 import { COLORING_GAME_AREA_FIT } from '../logic/coloringLayout';
 import { startColoringSession } from '../logic/coloringSession';
 import type { ColoringPage } from '../logic/coloringSession';
 import { TRASH_HOLD_MS, homeHoldDecision, startPictureChoice } from '../logic/pictureChoice';
-import type { PictureChoice, TrashFeedback, TrashResult } from '../logic/pictureChoice';
+import type {
+  ContinueResult,
+  PictureChoice,
+  TrashFeedback,
+  TrashResult,
+} from '../logic/pictureChoice';
 import {
   albumPreviewAt,
+  bigPictureContinueAt,
   bigPictureTrashAt,
   bookAt,
   layoutAlbum,
@@ -34,7 +41,7 @@ import { loadPicturePreview, previewOfColors } from '../logic/picturePreview';
 import { COLORING_PICTURES } from '../logic/pictureSet';
 import type { PictureIdentity } from '../logic/savedPicture';
 import { BIG_PICTURE_STYLE } from '../logic/theme';
-import { BOOK_ICON_FILE, TRASH_ICON_FILE } from '../logic/toolIcons';
+import { BOOK_ICON_FILE, CONTINUE_ICON_FILE, TRASH_ICON_FILE } from '../logic/toolIcons';
 import { ColoringScene, isGameArea } from './ColoringScene';
 import { IconButtonView } from './IconButtonView';
 import { loadOutlineImage, preparePicture } from './pictureCanvas';
@@ -96,6 +103,13 @@ interface PictureAssets {
  * koše se plní bílý kroužek jako u „Smazat“ v menu); scéna mu předává
  * stisk, sjetí a zvednutí prstu a kreslí odezvu. Držení domečku hlásí
  * stránka háčkem `GameHost.onHomeHolding`. Tah po velkém obrázku nic nedělá.
+ *
+ * Od #131 je vedle koše štětec (malovat dál). Ťuknutí na něj předá výběru
+ * (`tapContinue`), štětec se hned zhoupne s tónem náhledu a po výměně
+ * stránky a obrázku z alba (`albumSwap.ts`) se otevře malování té
+ * omalovánky jako po ťuknutí na náhled. Když se výměna nepovede, štětec se
+ * zhoupne s tónem domečku. Při otevření Omalovánek se nejdřív dokončí nebo
+ * vrátí výměna odložená z minula (`settleAlbumSwap`), teprve pak se čte album.
  */
 export class PickerScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -116,6 +130,12 @@ export class PickerScene extends Phaser.Scene {
   /** Velký obrázek z alba (#129); `null` mimo velký obrázek. */
   private bigTile: PreviewTileView | null = null;
   private readonly trashView = new IconButtonView(this, TRASH_ICON_FILE);
+  /** Štětec malovat dál na velkém obrázku (#131). */
+  private readonly continueView = new IconButtonView(this, CONTINUE_ICON_FILE);
+  /** Omalovánky sady s připraveným obrysem; doplní se, až jsou všechny připravené. */
+  private albumPictures: readonly AlbumPicture[] = [];
+  /** Dokončení nebo vrácení odložené výměny při otevření (#131); album se čte až po něm. */
+  private settling: Promise<void> = Promise.resolve();
   /** Plní se kroužek podržení kolem koše? */
   private trashRingShown = false;
   /** Kdy se koš začal držet (ms podle `performance.now`). */
@@ -150,6 +170,8 @@ export class PickerScene extends Phaser.Scene {
     const host = this.readHost();
     this.choice = startPictureChoice(COLORING_PICTURES, {
       records: host?.records,
+      storage: host?.storage,
+      albumPictures: () => this.albumPictures,
       onTrash: (feedback) => this.onTrashFeedback(feedback),
     });
     startColoringSession(host ?? NO_PAGE, () => this.stop());
@@ -157,6 +179,8 @@ export class PickerScene extends Phaser.Scene {
     host?.onHomeHolding?.((holding) => this.choice.homeHolding(holding));
 
     this.assets = this.loadPictures();
+    this.albumPictures = [];
+    this.settling = this.settleSwap();
     this.album = null;
     this.readAlbumAgain();
     this.listen();
@@ -291,11 +315,39 @@ export class PickerScene extends Phaser.Scene {
    * nepatří (jako v malování, kde se bez obrysu nic neukládá).
    */
   private async readAlbumOfProfile(): Promise<AlbumContents> {
+    await this.settling;
+    return readAlbum(this.readHost()?.records, this.albumPictures, { pause: nextFrame });
+  }
+
+  /** Omalovánky sady s vykresleným obrysem, až jsou všechny připravené. */
+  private async preparedAlbumPictures(): Promise<AlbumPicture[]> {
     const prepared = await Promise.all(this.assets.map((each) => each.prepared));
-    const pictures: AlbumPicture[] = prepared
+    return prepared
       .filter((each) => each.outline.drawn)
       .map((each) => ({ identity: each.picture, regions: each.regions }));
-    return readAlbum(this.readHost()?.records, pictures, { pause: nextFrame });
+  }
+
+  /**
+   * Při otevření Omalovánek (#131 AC5): dokončí nebo vrátí výměnu odloženou
+   * z minula. Když se tím změnila stránka, náhledy se nakreslí znovu.
+   */
+  private async settleSwap(): Promise<void> {
+    this.albumPictures = await this.preparedAlbumPictures();
+    const host = this.readHost();
+    const settlement = await settleAlbumSwap({
+      storage: host?.storage,
+      records: host?.records,
+      pictures: this.albumPictures,
+    });
+    const changed = settlement.kind === 'reverted' || settlement.kind === 'completed';
+    if (
+      changed &&
+      this.running &&
+      this.painting === null &&
+      this.choice.screen().kind === 'picker'
+    ) {
+      this.placeTiles();
+    }
   }
 
   /** Ťuknutí na knihu: otevře album, nebo se kniha jen zhoupne (AC4). */
@@ -413,8 +465,15 @@ export class PickerScene extends Phaser.Scene {
       return;
     }
     this.hideAlbum();
-    this.trashView.place(this.bigLayout.trash, this.gameArea.scale, BIG_PICTURE_STYLE.trashDepth);
+    this.placeBigPictureButtons();
     this.choice.bigPictureShown();
+  }
+
+  /** Koš a štětec na svá místa vedle velkého obrázku. */
+  private placeBigPictureButtons(): void {
+    const { scale } = this.gameArea;
+    this.trashView.place(this.bigLayout.trash, scale, BIG_PICTURE_STYLE.trashDepth);
+    this.continueView.place(this.bigLayout.continueButton, scale, BIG_PICTURE_STYLE.trashDepth);
   }
 
   /**
@@ -460,6 +519,7 @@ export class PickerScene extends Phaser.Scene {
     this.bigTile?.destroy();
     this.bigTile = null;
     this.trashView.destroy();
+    this.continueView.destroy();
     this.hideTrashRing();
     this.trashPointer = null;
   }
@@ -559,7 +619,53 @@ export class PickerScene extends Phaser.Scene {
       this.bigPictureShown();
       return;
     }
-    this.trashView.place(this.bigLayout.trash, this.gameArea.scale, BIG_PICTURE_STYLE.trashDepth);
+    this.placeBigPictureButtons();
+  }
+
+  /**
+   * Ťuknutí na štětec (#131 AC1): hned tón náhledu a zhoupnutí; po
+   * zhoupnutí a výměně se otevře malování, po nepovedené výměně se štětec
+   * zhoupne s tónem domečku.
+   */
+  private onContinueTapped(): void {
+    const tap = this.choice.tapContinue();
+    switch (tap.kind) {
+      case 'ignored':
+        return;
+      case 'wobble':
+        this.sounds.play(tap.tones);
+        this.continueView.wobble();
+        return;
+      case 'swapping': {
+        this.sounds.play(tap.tones);
+        const wobbled = new Promise<void>((resolve) => this.continueView.wobble(resolve));
+        void Promise.all([tap.done, wobbled]).then(([result]) => this.afterSwap(result));
+        return;
+      }
+    }
+  }
+
+  /** Konec výměny: malování obrázku z alba, nebo zhoupnutí štětce s tónem domečku. */
+  private afterSwap(result: ContinueResult): void {
+    if (!this.running) {
+      return;
+    }
+    // Album se po výměně (i po vrácení obrázku) změnilo.
+    this.readAlbumAgain();
+    if (result.kind === 'failed') {
+      this.sounds.play(result.tones);
+      this.continueView.wobble();
+      return;
+    }
+    if (this.choice.screen().kind !== 'opening') {
+      return;
+    }
+    this.hideBigPicture();
+    this.hideAlbum();
+    // Po návratu domečkem z malování se ukáže výběr s náhledy.
+    this.hidePicker();
+    this.drawTiles();
+    this.openPainting(result.picture);
   }
 
   /** Prst na koši (#129 AC3): stisk jen dotykem dolů, návrat prstu po sjetí není nový stisk. */
@@ -692,7 +798,11 @@ export class PickerScene extends Phaser.Scene {
     const { worldX: x, worldY: y } = pointer;
     const screen = this.choice.screen().kind;
     if (screen === 'bigPicture' || screen === 'openingBigPicture') {
-      // Na velkém obrázku platí jen koš, tah po obrázku nic nedělá (#129 AC5).
+      // Na velkém obrázku platí jen koš a štětec, tah po obrázku nic nedělá (#129 AC5).
+      if (screen === 'bigPicture' && bigPictureContinueAt(this.bigLayout, x, y)) {
+        this.onContinueTapped();
+        return;
+      }
       this.onTrashPointerDown(pointer);
       return;
     }
@@ -712,6 +822,12 @@ export class PickerScene extends Phaser.Scene {
       return;
     }
     const tap = this.choice.tapPreview(index);
+    if (tap.kind === 'wobble') {
+      // Výměna s albem se může ještě vrátit (#131 AC5): náhled se jen zhoupne.
+      this.sounds.play(tap.tones);
+      this.tiles[index]?.wobble(() => undefined);
+      return;
+    }
     if (tap.kind !== 'open') {
       return;
     }

@@ -27,6 +27,17 @@
  *   přepne obrazovku až po mazání. Po smazání je dítě v albu bez obrázku
  *   (album vznikne bez nového čtení), s prázdným albem na výběru. Když se
  *   smazání nepovede, zůstane velký obrázek a koš se zhoupne (AC4).
+ * - Štětec na velkém obrázku (#131) vymění rozmalovanou stránku té
+ *   omalovánky a obrázek z alba (`albumSwap.ts`) a otevře malování.
+ *   Ťuknutí hned zahraje tón náhledu; když výměna nemůže začít nebo se
+ *   nepovede, štětec se zhoupne s tónem domečku a dítě zůstane na velkém
+ *   obrázku. Druhé ťuknutí, druhý prst, ťuknutí během otevírání velkého
+ *   obrázku a při drženém koši se nepočítá (AC6). Během výměny nic
+ *   neudělá štětec, koš ani domeček. Když se P nepodaří uložit a A se
+ *   vrátí do alba, ukazuje velký obrázek vrácený A (AC4).
+ * - Náhled omalovánky, jejíž výměna se může ještě vrátit, se jen zhoupne
+ *   s tónem domečku (#131 AC5), aby dítě nemalovalo do stránky, kterou by
+ *   vrácení přepsalo.
  */
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
@@ -34,9 +45,13 @@ import type { HomeHoldDecision } from '../../../shared/logic/gameHost';
 import { createHoldButton } from '../../../shared/logic/holdButton';
 import type { HoldButton } from '../../../shared/logic/holdButton';
 import { HOLD_TO_GO_HOME_MS, HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
+import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import type { GameRecords } from '../../../shared/storage/profileRecords';
 import { removeAlbumEntry } from './album';
-import type { AlbumContents, AlbumEntry } from './album';
+import type { AlbumContents, AlbumEntry, AlbumPicture } from './album';
+import { planAlbumSwap, runAlbumSwap, swapBlocksPicture } from './albumSwap';
+import { readPendingSwap } from './albumSwapRecord';
+import type { SwapRun } from './albumSwap';
 import type { PictureIdentity } from './savedPicture';
 
 /**
@@ -98,7 +113,10 @@ export type TrashFeedback =
   /** Podržení 1 s začalo mazat obrázek `entry`; `done` řekne, jak mazání skončilo. */
   | { readonly kind: 'deleting'; readonly entry: AlbumEntry; readonly done: Promise<TrashResult> };
 
-/** Co udělá ťuknutí na náhled: otevře omalovánku s tónem, nebo nic. */
+/**
+ * Co udělá ťuknutí na náhled: otevře omalovánku s tónem, zhoupne se
+ * s tónem domečku (výměna s albem, která se může vrátit, #131 AC5), nebo nic.
+ */
 export type PreviewTap =
   | {
       readonly kind: 'open';
@@ -106,6 +124,27 @@ export type PreviewTap =
       readonly picture: PictureIdentity;
       readonly tones: readonly Tone[];
     }
+  | { readonly kind: 'wobble'; readonly tones: readonly Tone[] }
+  | { readonly kind: 'ignored' };
+
+/** Jak skončila výměna po ťuknutí na štětec (#131). */
+export type ContinueResult =
+  /** Výměna proběhla, otevírá se malování omalovánky `picture` (scéna pak hlásí `paintingShown`). */
+  | { readonly kind: 'opened'; readonly picture: PictureIdentity }
+  /** Nic se nevyměnilo: dítě zůstane na velkém obrázku a štětec se zhoupne s tónem domečku. */
+  | { readonly kind: 'failed'; readonly tones: readonly Tone[] };
+
+/** Co udělá ťuknutí na štětec na velkém obrázku (#131). */
+export type ContinueTap =
+  /** Hned tón náhledu a zhoupnutí; výměna běží a `done` řekne, jak skončila. */
+  | {
+      readonly kind: 'swapping';
+      readonly tones: readonly Tone[];
+      readonly done: Promise<ContinueResult>;
+    }
+  /** Výměna nemůže začít: štětec se jen zhoupne s tónem domečku. */
+  | { readonly kind: 'wobble'; readonly tones: readonly Tone[] }
+  /** Ťuknutí se nepočítá. */
   | { readonly kind: 'ignored' };
 
 /** Kam vede podržení domečku: na výběr, do menu, do alba (#129), nebo nikam. */
@@ -140,6 +179,8 @@ export interface PictureChoice {
   readonly trashButton: HoldButton;
   /** Stránka hlásí, že se domeček začal (`true`), nebo přestal (`false`) držet (#129 AC5). */
   homeHolding(holding: boolean): void;
+  /** Ťuknutí na štětec na velkém obrázku (#131). */
+  tapContinue(): ContinueTap;
 }
 
 export interface PictureChoiceOptions {
@@ -149,6 +190,13 @@ export interface PictureChoiceOptions {
   readonly records?: GameRecords | undefined;
   /** Odezva koše pro scénu (#129). */
   readonly onTrash?: (feedback: TrashFeedback) => void;
+  /** Úložiště hry aktivního profilu s rozmalovanými stránkami (#131); bez něj se nic nevymění. */
+  readonly storage?: KeyValueStorage | undefined;
+  /**
+   * Omalovánky sady i s obrysem (#131), pole nebo funkce, protože scéna
+   * obrysy připravuje postupně. Omalovánka bez obrysu se nevymění.
+   */
+  readonly albumPictures?: readonly AlbumPicture[] | (() => readonly AlbumPicture[]);
 }
 
 /** Co má stránka udělat po podržení domečku: do menu odejít, jinak zůstat ve hře. */
@@ -160,6 +208,20 @@ export function homeHoldDecision(hold: HomeHold): HomeHoldDecision {
 function screenWithout(entries: readonly AlbumEntry[], removed: AlbumEntry): ColoringScreen {
   const left = entries.filter((entry) => entry.recordId !== removed.recordId);
   return left.length === 0 ? { kind: 'picker' } : { kind: 'album', entries: left };
+}
+
+/** Album bez obrázku `replaced` a s obrázkem `returned` jako nejnovějším (#131 AC4). */
+function entriesWithReturned(
+  entries: readonly AlbumEntry[],
+  replaced: AlbumEntry,
+  returned: AlbumEntry,
+): AlbumEntry[] {
+  return [returned, ...entries.filter((entry) => entry.recordId !== replaced.recordId)];
+}
+
+/** Označení omalovánky i s verzí obrysu. */
+function pictureKey(picture: PictureIdentity): string {
+  return `${picture.id}@${picture.version}`;
 }
 
 /** Výběr nad sadou `pictures`. */
@@ -180,6 +242,38 @@ export function startPictureChoice(
   let deleting = false;
   /** Domeček se podržel během mazání: po mazání se ukáže album (#129 AC3). */
   let homeAfterDeleting = false;
+  /** Běží výměna stránky a obrázku z alba (#131)? */
+  let swapping = false;
+  /** Omalovánky, u kterých tahle stránka ví, že A z alba při výměně zmizel (#131). */
+  const albumRemovedFor = new Set<string>();
+
+  const albumPictures = (): readonly AlbumPicture[] => {
+    const given = options.albumPictures ?? [];
+    return typeof given === 'function' ? given() : given;
+  };
+  const albumPictureOf = (picture: PictureIdentity): AlbumPicture | undefined =>
+    albumPictures().find(
+      (each) => each.identity.id === picture.id && each.identity.version === picture.version,
+    );
+  /** Náhled se jen zhoupne: výměna té omalovánky se může ještě vrátit (#131 AC5). */
+  const previewBlocked = (picture: PictureIdentity): boolean => {
+    const removedNow = albumRemovedFor.has(pictureKey(picture));
+    const withOutline = albumPictureOf(picture);
+    if (withOutline !== undefined) {
+      return swapBlocksPicture(options.storage, withOutline, removedNow);
+    }
+    // Obrys ještě není připravený (scéna ho chystá postupně): bez něj nejde
+    // poznat, co je na stránce, takže odložená výměna té omalovánky náhled
+    // zablokuje, dokud o ní nerozhodne `settleAlbumSwap`.
+    const swap = options.storage === undefined ? null : readPendingSwap(options.storage);
+    return (
+      swap !== null &&
+      !swap.albumRemoved &&
+      !removedNow &&
+      swap.pictureId === picture.id &&
+      swap.pictureVersion === picture.version
+    );
+  };
 
   /** Začalo podržení až ve chvíli, kdy bylo malování nebo velký obrázek vidět? */
   const heldSinceShown = (): boolean => now() - shownAt >= HOLD_TO_GO_HOME_MS;
@@ -214,7 +308,7 @@ export function startPictureChoice(
 
   const trashHold = createHoldButton({
     holdMs: TRASH_HOLD_MS,
-    isEnabled: () => screen.kind === 'bigPicture' && !deleting && !homeHeld,
+    isEnabled: () => screen.kind === 'bigPicture' && !deleting && !homeHeld && !swapping,
     onHoldComplete: startDeleting,
     onTap: wobbleTrash,
     onHoldingChange: (holding) => onTrash({ kind: 'trashHolding', holding }),
@@ -223,7 +317,7 @@ export function startPictureChoice(
   /** Koš: během mazání jen zhoupne, při drženém domečku nic, jinak podržení 1 s. */
   const trashButton: HoldButton = {
     press: (pointerId) => {
-      if (screen.kind !== 'bigPicture' || homeHeld) {
+      if (screen.kind !== 'bigPicture' || homeHeld || swapping) {
         return;
       }
       if (deleting) {
@@ -241,7 +335,7 @@ export function startPictureChoice(
 
   /** Domeček z velkého obrázku: do alba, během mazání až po mazání. */
   const homeFromBigPicture = (shown: Extract<ColoringScreen, { kind: 'bigPicture' }>): HomeHold => {
-    if (trashHold.isHolding() || !heldSinceShown()) {
+    if (trashHold.isHolding() || swapping || !heldSinceShown()) {
       return 'ignored';
     }
     if (deleting) {
@@ -252,6 +346,52 @@ export function startPictureChoice(
     return 'toAlbum';
   };
 
+  /** Po výměně: malování té omalovánky se otevírá, nebo dítě zůstane na velkém obrázku. */
+  const afterSwap = (
+    shown: Extract<ColoringScreen, { kind: 'bigPicture' }>,
+    run: SwapRun,
+  ): ContinueResult => {
+    swapping = false;
+    const picture = shown.entry.picture;
+    switch (run.kind) {
+      case 'swapped':
+      case 'deferred':
+        albumRemovedFor.add(pictureKey(picture));
+        screen = { kind: 'opening', picture };
+        return { kind: 'opened', picture };
+      case 'restored':
+        screen = {
+          kind: 'bigPicture',
+          entries: entriesWithReturned(shown.entries, shown.entry, run.entry),
+          entry: run.entry,
+        };
+        return { kind: 'failed', tones: HOME_WOBBLE_TONES };
+      case 'kept':
+        return { kind: 'failed', tones: HOME_WOBBLE_TONES };
+    }
+  };
+
+  /** Štětec na velkém obrázku (#131): výměna a otevření malování. */
+  const tapContinue = (): ContinueTap => {
+    if (screen.kind !== 'bigPicture' || swapping || deleting || homeHeld || trashHold.isHolding()) {
+      return { kind: 'ignored' };
+    }
+    const shown = screen;
+    const plan = planAlbumSwap({
+      storage: options.storage,
+      records: options.records,
+      pictures: albumPictures(),
+      entry: shown.entry,
+    });
+    if (plan === null) {
+      return { kind: 'wobble', tones: HOME_WOBBLE_TONES };
+    }
+    swapping = true;
+    albumRemovedFor.delete(pictureKey(shown.entry.picture));
+    const done = runAlbumSwap(plan).then((run) => afterSwap(shown, run));
+    return { kind: 'swapping', tones: PREVIEW_TAP_TONES, done };
+  };
+
   return {
     previews: () => (onlyPicture === undefined ? pictures : []),
     screen: () => screen,
@@ -259,6 +399,9 @@ export function startPictureChoice(
       const picture = Number.isInteger(index) ? pictures[index] : undefined;
       if (screen.kind !== 'picker' || picture === undefined) {
         return { kind: 'ignored' };
+      }
+      if (previewBlocked(picture)) {
+        return { kind: 'wobble', tones: HOME_WOBBLE_TONES };
       }
       screen = { kind: 'opening', picture };
       return { kind: 'open', index, picture, tones: PREVIEW_TAP_TONES };
@@ -302,6 +445,7 @@ export function startPictureChoice(
     homeHolding: (holding) => {
       homeHeld = holding;
     },
+    tapContinue,
     holdHome: () => {
       switch (screen.kind) {
         case 'album':

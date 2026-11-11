@@ -14,7 +14,10 @@
  * dá větší náhledy.
  *
  * Od #129 má velký obrázek z alba stejnou velikost jako obrázek v malování
- * a koš je na místě fotoaparátu z malování. Čistý TypeScript bez Phaseru.
+ * a koš je na místě fotoaparátu z malování. Od #131 je vedle koše stejně
+ * velké tlačítko malovat dál (štětec): na šířku ve sloupci koše 16 CSS px
+ * nad ním, na výšku v řadě koše 16 CSS px vlevo od něj. Čistý TypeScript
+ * bez Phaseru.
  */
 
 import { homeButtonInFreeArea } from '../../../shared/logic/homeButton';
@@ -200,11 +203,27 @@ export function albumPreviewAt(layout: AlbumLayout, x: number, y: number): numbe
 /** Nejmenší mezera mezi košem a velkým obrázkem v CSS px (#129 AC6). */
 const TRASH_GAP_CSS = 16;
 
+/** Mezera mezi tlačítkem malovat dál a košem v CSS px (schválené obrázky #131). */
+const CONTINUE_GAP_CSS = 16;
+
 export interface BigPictureLayout {
   /** Velký obrázek 4 : 3 v herních jednotkách, stejně velký jako obrázek v malování. */
   readonly picture: LayoutRect;
   /** Koš na místě fotoaparátu z malování (herní jednotky). */
   readonly trash: LayoutRect;
+  /** Tlačítko malovat dál, stejně velké jako koš (#131 AC7, herní jednotky). */
+  readonly continueButton: LayoutRect;
+}
+
+/**
+ * Tlačítko malovat dál vedle koše (#131): na šířku nad košem, na výšku
+ * vlevo od koše, vždy 16 CSS px od něj.
+ */
+function continueButtonBeside(trash: LayoutRect, area: GameArea, landscape: boolean): LayoutRect {
+  const gap = CONTINUE_GAP_CSS / area.scale;
+  return landscape
+    ? { ...trash, top: trash.top - gap - trash.height }
+    : { ...trash, left: trash.left - gap - trash.width };
 }
 
 /**
@@ -218,12 +237,19 @@ export function layoutBigPicture(area: GameArea): BigPictureLayout {
   const painting = layoutColoring(area);
   const trash = painting.cameraButton;
   const picture = painting.picture;
-  if (area.width < area.height) {
-    return { picture, trash };
+  const landscape = area.width >= area.height;
+  const continueButton = continueButtonBeside(trash, area, landscape);
+  if (!landscape) {
+    return { picture, trash, continueButton };
   }
   const gapCss = (picture.left - (trash.left + trash.width)) * area.scale;
   const shift = Math.max(0, TRASH_GAP_CSS - gapCss) / area.scale;
-  return { picture: { ...picture, left: picture.left + shift }, trash };
+  return { picture: { ...picture, left: picture.left + shift }, trash, continueButton };
+}
+
+/** Trefil dotyk `x`, `y` tlačítko malovat dál na velkém obrázku (herní jednotky, #131)? */
+export function bigPictureContinueAt(layout: BigPictureLayout, x: number, y: number): boolean {
+  return placeAt([layout.continueButton], x, y) !== null;
 }
 
 /** Trefil dotyk `x`, `y` koš na velkém obrázku (herní jednotky)? */
