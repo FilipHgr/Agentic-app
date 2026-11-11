@@ -6,7 +6,7 @@ import { MAP_STEPS } from '../logic/progressMap';
 import type { MapMarker, MapMove } from '../logic/progressMap';
 import { layoutProgressMap, markerAt } from '../logic/progressMapLayout';
 import type { ProgressMapLayout } from '../logic/progressMapLayout';
-import { PROGRESS_MAP_STYLE } from '../logic/theme';
+import { PROGRESS_MAP_BACKGROUNDS, PROGRESS_MAP_STYLE } from '../logic/theme';
 
 /** Mapa leží nad příkladem, konfetami i hvězdičkami, pod panely rodičů. */
 const MAP_DEPTH = 20;
@@ -24,8 +24,9 @@ const MARKER_BORDER_SHARE = 0.07;
 const LETTER_SIZE_SHARE = 0.55;
 
 /**
- * Zástupný vzhled mapy postupu (#87 AC7): cesta, start, zastávky, cíl
- * a značka hráče. Prošlá místa jsou vybarvená, značka se posune o krok.
+ * Zástupný vzhled mapy postupu (#87 AC7, #133 AC6): cesta, start,
+ * 2 zastávky, cíl a značka hráče na pozadí v barvě mapy. Prošlá místa
+ * jsou vybarvená, značka se posune o krok.
  * Jen kreslí podle kroku od sezení, nic nerozhoduje a nemá ťukací plochy;
  * kdy se ukáže a zmizí, řídí sezení. Vzhled jde vyměnit bez změny logiky.
  */
@@ -69,9 +70,10 @@ export class ProgressMapView {
   }
 
   private draw(area: GameArea, move: MapMove, animate: boolean): void {
-    const layout = layoutProgressMap(area);
+    const layout = layoutProgressMap(area, move.theme);
+    const background = PROGRESS_MAP_BACKGROUNDS[move.theme];
     const backdrop = this.scene.add
-      .rectangle(0, 0, area.width, area.height, colorNumber(PROGRESS_MAP_STYLE.background))
+      .rectangle(0, 0, area.width, area.height, colorNumber(background))
       .setOrigin(0, 0);
     const path = this.drawPath(layout);
     const visitedUntil = animate ? move.from : move.to;

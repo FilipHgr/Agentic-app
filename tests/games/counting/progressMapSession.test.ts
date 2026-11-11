@@ -25,14 +25,17 @@ import { brokenStorage } from './storageFakes';
 /**
  * Testy k #87 (mapa postupu v Počítání) na úrovni sezení hry: mapa po
  * oslavě (AC1), jen dopředu a jeden krok za řadu (AC2), přerušení
- * nastavením, domečkem a zavřením hry (AC4, #45), 8 kroků a nová mapa
- * v jednom sezení (AC5) a poškozená uložená mapa (AC6). Falešné časovače,
+ * nastavením, domečkem a zavřením hry (AC4, #45) a poškozená uložená mapa
+ * (AC6). Podle #133 má mapa 3 kroky (AC1), mapy se střídají (AC2, AC3)
+ * a poškozená data se čtou podle #133 AC5; testy #87 s 8 kroky jsou
+ * nahrazené testy se 3 kroky se stejnou ochranou. Falešné časovače,
  * zvuky a stránka jsou ze `sessionFakes.ts`.
  *
  * Navržené rozhraní `CountingSession` (navíc k dnešnímu):
  * - `mapProgress(): MapProgress` krok a počet dokončených map,
  * - `shownMap(): MapMove | null` co mapa právě ukazuje (`from`, `to`,
- *   `reachedGoal`), `null`, když mapa není vidět.
+ *   `reachedGoal` a podle #133 `theme`, tedy která z 5 map), `null`,
+ *   když mapa není vidět.
  * Uložení `src/games/counting/storage/mapStorage.ts`: `MAP_PROGRESS_KEY`
  * (klíč v úložišti hry profilu), `loadMapProgress(storage)`
  * a `saveMapProgress(storage, progress)`, chyby úložiště hra nevidí.
@@ -93,6 +96,12 @@ function deviceWithMap(map: MapProgress, earned?: number): TestDevice {
   return device;
 }
 
+/** Záznam v novém tvaru (#133), ve kterém jsou pole přepsaná (třeba poškozená). */
+function currentRecord(fields: Record<string, unknown>): string {
+  const valid = JSON.parse(serializeMapProgress(START_MAP)) as Record<string, unknown>;
+  return JSON.stringify({ ...valid, ...fields });
+}
+
 /** Krok uložený v zařízení. */
 function savedStep(device: TestDevice): number {
   return loadMapProgress(device.storage).step;
@@ -112,7 +121,7 @@ describe('#87 AC1: po oslavě se na chvíli ukáže mapa a hra pokračuje sama',
 
     const shown = waitForMap(test);
 
-    expect(shown).toEqual({ from: 0, to: 1, reachedGoal: false });
+    expect(shown).toMatchObject({ from: 0, to: 1, reachedGoal: false });
     expect(test.session.celebrating(), 'mapa přijde až po oslavě').toBe(false);
   });
 
@@ -161,7 +170,7 @@ describe('#87 AC1: po oslavě se na chvíli ukáže mapa a hra pokračuje sama',
     const test = enterCounting(device);
     fillRow(test);
     const shown = waitForMap(test);
-    expect(shown).toEqual({ from: MAP_STEPS - 1, to: MAP_STEPS, reachedGoal: true });
+    expect(shown).toMatchObject({ from: MAP_STEPS - 1, to: MAP_STEPS, reachedGoal: true });
 
     test.timers.advance(MAP_SHOW_MS + 100);
     expect(test.session.shownMap(), 'po 3 s je mapa v cíli pořád vidět').not.toBeNull();
@@ -177,12 +186,12 @@ describe('#87 AC1: po oslavě se na chvíli ukáže mapa a hra pokračuje sama',
 
   it('mapa se ukáže po každé oslavě v sezení, pokaždé o krok dál', () => {
     const test = enterCounting(testDevice());
-    for (let row = 1; row <= 3; row += 1) {
+    for (let row = 1; row <= MAP_STEPS; row += 1) {
       fillRow(test);
-      expect(waitForMap(test), `řada ${row}`).toEqual({
+      expect(waitForMap(test), `řada ${row}`).toMatchObject({
         from: row - 1,
         to: row,
-        reachedGoal: false,
+        reachedGoal: row === MAP_STEPS,
       });
       test.timers.runAll();
     }
@@ -228,7 +237,7 @@ describe('#87 AC2: mapa jde jen dopředu, jedna plná řada je přesně jeden kr
   });
 
   it('změna rozsahu nebo druhu příkladů v nastavení krok nevezme ani nepřidá', () => {
-    const device = deviceWithMap({ step: 5, completedMaps: 2 });
+    const device = deviceWithMap({ step: 2, completedMaps: 2 });
     const test = enterCounting(device);
     solveProblems(test, 4);
     const changes = [
@@ -241,11 +250,11 @@ describe('#87 AC2: mapa jde jen dopředu, jedna plná řada je přesně jeden kr
       test.session.confirmSettings(chosen);
       test.timers.runAll();
       expect(test.session.mapProgress(), JSON.stringify(chosen)).toEqual({
-        step: 5,
+        step: 2,
         completedMaps: 2,
       });
     }
-    expect(loadMapProgress(device.storage)).toEqual({ step: 5, completedMaps: 2 });
+    expect(loadMapProgress(device.storage)).toEqual({ step: 2, completedMaps: 2 });
   });
 
   it('po změně nastavení uprostřed řady dá zaplnění řady zase přesně jeden krok', () => {
@@ -285,7 +294,7 @@ describe('#87 AC4: krok se započte při zaplnění řady a přerušení ho nepr
     expect(test.session.round().solved).toBe(false);
 
     fillRow(test);
-    expect(waitForMap(test)).toEqual({ from: 1, to: 2, reachedGoal: false });
+    expect(waitForMap(test)).toMatchObject({ from: 1, to: 2, reachedGoal: false });
   });
 
   it('nastavení otevřené během mapy: mapa zmizí, po zavření se neukáže a krok se nepřičte znovu', () => {
@@ -304,7 +313,7 @@ describe('#87 AC4: krok se započte při zaplnění řady a přerušení ho nepr
     expect(test.session.round().solved).toBe(false);
 
     fillRow(test);
-    expect(waitForMap(test)).toEqual({ from: 1, to: 2, reachedGoal: false });
+    expect(waitForMap(test)).toMatchObject({ from: 1, to: 2, reachedGoal: false });
   });
 
   it('nastavení otevřené už před začátkem oslavy (#45): oslava ani mapa nepřijdou a krok platí', () => {
@@ -323,7 +332,7 @@ describe('#87 AC4: krok se započte při zaplnění řady a přerušení ho nepr
     expect(test.session.starCount()).toBe(0);
 
     fillRow(test);
-    expect(waitForMap(test)).toEqual({ from: 1, to: 2, reachedGoal: false });
+    expect(waitForMap(test)).toMatchObject({ from: 1, to: 2, reachedGoal: false });
   });
 
   it('nastavení otevřené během mapy v cíli: dokončená mapa se započte jednou a další řada začne novou mapu', () => {
@@ -338,7 +347,7 @@ describe('#87 AC4: krok se započte při zaplnění řady a přerušení ho nepr
 
     expect(test.session.mapProgress()).toEqual({ step: MAP_STEPS, completedMaps: 1 });
     fillRow(test);
-    expect(waitForMap(test)).toEqual({ from: 0, to: 1, reachedGoal: false });
+    expect(waitForMap(test)).toMatchObject({ from: 0, to: 1, reachedGoal: false });
     expect(test.session.mapProgress()).toEqual({ step: 1, completedMaps: 1 });
   });
 
@@ -354,7 +363,7 @@ describe('#87 AC4: krok se započte při zaplnění řady a přerušení ho nepr
     expect(mapAppearsWithin(next, MAP_GOAL_SHOW_MS + CELEBRATION_MS)).toBe(false);
 
     fillRow(next);
-    expect(waitForMap(next)).toEqual({ from: 1, to: 2, reachedGoal: false });
+    expect(waitForMap(next)).toMatchObject({ from: 1, to: 2, reachedGoal: false });
   });
 
   it('odchod domečkem během mapy: příště se mapa neukáže sama a krok se nepřičte znovu', () => {
@@ -371,7 +380,7 @@ describe('#87 AC4: krok se započte při zaplnění řady a přerušení ho nepr
     expect(mapAppearsWithin(next, MAP_GOAL_SHOW_MS + CELEBRATION_MS)).toBe(false);
 
     fillRow(next);
-    expect(waitForMap(next)).toEqual({ from: 1, to: 2, reachedGoal: false });
+    expect(waitForMap(next)).toMatchObject({ from: 1, to: 2, reachedGoal: false });
   });
 
   it('zavření hry hned po 10. odpovědi: krok zůstane a po otevření se nepřičte znovu', () => {
@@ -386,7 +395,7 @@ describe('#87 AC4: krok se započte při zaplnění řady a přerušení ho nepr
     expect(mapAppearsWithin(reopened, MAP_GOAL_SHOW_MS + CELEBRATION_MS)).toBe(false);
 
     fillRow(reopened);
-    expect(waitForMap(reopened)).toEqual({ from: 1, to: 2, reachedGoal: false });
+    expect(waitForMap(reopened)).toMatchObject({ from: 1, to: 2, reachedGoal: false });
   });
 
   it('zavření hry během mapy: krok zůstane a po otevření se nepřičte znovu', () => {
@@ -398,12 +407,12 @@ describe('#87 AC4: krok se započte při zaplnění řady a přerušení ho nepr
     const reopened = enterCounting(device);
     expect(reopened.session.mapProgress().step).toBe(1);
     fillRow(reopened);
-    expect(waitForMap(reopened)).toEqual({ from: 1, to: 2, reachedGoal: false });
+    expect(waitForMap(reopened)).toMatchObject({ from: 1, to: 2, reachedGoal: false });
   });
 });
 
-describe('#87 AC5: 8 kroků do cíle a pak nová mapa, i v jednom sezení', () => {
-  it('po 8. plné řadě v jednom sezení značka dojde do cíle a mapa je hotová', () => {
+describe('#133 AC1: 3 kroky do cíle a pak nová mapa, i v jednom sezení', () => {
+  it('po 3. plné řadě v jednom sezení značka dojde do cíle a mapa je hotová', () => {
     const test = enterCounting(testDevice());
     for (let row = 1; row < MAP_STEPS; row += 1) {
       fillRow(test);
@@ -411,19 +420,23 @@ describe('#87 AC5: 8 kroků do cíle a pak nová mapa, i v jednom sezení', () =
       test.timers.runAll();
     }
     fillRow(test);
-    expect(waitForMap(test)).toEqual({ from: MAP_STEPS - 1, to: MAP_STEPS, reachedGoal: true });
+    expect(waitForMap(test)).toMatchObject({
+      from: MAP_STEPS - 1,
+      to: MAP_STEPS,
+      reachedGoal: true,
+    });
     expect(test.session.mapProgress()).toEqual({ step: MAP_STEPS, completedMaps: 1 });
   });
 
-  it('9. plná řada ukáže novou mapu a značka udělá 1. krok ze startu', () => {
+  it('4. plná řada ukáže novou mapu se značkou na 1. zastávce', () => {
     const test = enterCounting(testDevice());
     solveProblems(test, MAP_STEPS * STARS_PER_SET);
     fillRow(test);
-    expect(waitForMap(test)).toEqual({ from: 0, to: 1, reachedGoal: false });
+    expect(waitForMap(test)).toMatchObject({ from: 0, to: 1, reachedGoal: false });
     expect(test.session.mapProgress()).toEqual({ step: 1, completedMaps: 1 });
   });
 
-  it('počet dokončených map za 17 řad nikdy neklesne a je 2', () => {
+  it('počet dokončených map za 7 řad nikdy neklesne a je 2', () => {
     const device = testDevice();
     const test = enterCounting(device);
     let completedBefore = 0;
@@ -435,19 +448,20 @@ describe('#87 AC5: 8 kroků do cíle a pak nová mapa, i v jednom sezení', () =
     }
     expect(test.session.mapProgress()).toEqual({ step: 1, completedMaps: 2 });
     expect(loadMapProgress(device.storage)).toEqual({ step: 1, completedMaps: 2 });
+    expect(MAP_STEPS, 'za 7 řad: 2 hotové mapy po 3 krocích a 1. zastávka třetí').toBe(3);
   });
 
-  it('hráč uložený v cíli pokračuje po otevření hry novou mapou od 1. kroku', () => {
+  it('hráč uložený v cíli pokračuje po otevření hry novou mapou na 1. zastávce', () => {
     const device = deviceWithMap({ step: MAP_STEPS, completedMaps: 3 });
     const test = enterCounting(device);
     expect(test.session.mapProgress()).toEqual({ step: MAP_STEPS, completedMaps: 3 });
     fillRow(test);
-    expect(waitForMap(test)).toEqual({ from: 0, to: 1, reachedGoal: false });
+    expect(waitForMap(test)).toMatchObject({ from: 0, to: 1, reachedGoal: false });
     expect(test.session.mapProgress()).toEqual({ step: 1, completedMaps: 3 });
   });
 });
 
-describe('#87 AC6: poškozená uložená mapa hru nezastaví a hvězdičky v řadě zůstanou', () => {
+describe('#87 AC6 a #133 AC5: poškozená uložená mapa hru nezastaví a hvězdičky v řadě zůstanou', () => {
   const corruptRecords = [
     '{',
     'nesmysl',
@@ -460,6 +474,13 @@ describe('#87 AC6: poškozená uložená mapa hru nezastaví a hvězdičky v řa
     '{"step":"4","completedMaps":2}',
     '{"step":4,"completedMaps":-1}',
     '{"step":4,"completedMaps":"x"}',
+    // Nový tvar záznamu (#133 AC5): krok za cílem 3, záporný, necelý, jiný typ, poškozené mapy.
+    currentRecord({ step: 4, completedMaps: 2 }),
+    currentRecord({ step: -1, completedMaps: 2 }),
+    currentRecord({ step: 1.5, completedMaps: 2 }),
+    currentRecord({ step: '2', completedMaps: 2 }),
+    currentRecord({ step: 2, completedMaps: -1 }),
+    currentRecord({ step: 2, completedMaps: 'x' }),
   ];
 
   it('s poškozenou mapou hra začne bez chyby a dnešních 7 hvězdiček zůstane', () => {
@@ -507,5 +528,92 @@ describe('#87 AC6: poškozená uložená mapa hru nezastaví a hvězdičky v řa
   it('zakázané nebo chybějící úložiště dá start a hra s mapou jede dál v paměti', () => {
     expect(loadMapProgress(brokenStorage())).toEqual(START_MAP);
     expect(loadMapProgress(undefined)).toEqual(START_MAP);
+  });
+});
+
+describe('#133 AC5: poškozený nový záznam v sezení hry', () => {
+  it('krok za cílem 3 dá start, počet map zůstane a hvězdičky v řadě taky', () => {
+    const device = testDevice();
+    device.storage.setItem(LEGACY_PROGRESS_KEY, JSON.stringify({ earned: 6 }));
+    device.storage.setItem(MAP_PROGRESS_KEY, currentRecord({ step: 4, completedMaps: 2 }));
+    const test = enterCounting(device);
+    expect(test.session.mapProgress()).toEqual({ step: 0, completedMaps: 2 });
+    expect(test.session.starCount()).toBe(6);
+  });
+
+  it('poškozený počet map dá 0 map, krok zůstane a mapa je zase první (ostrov)', () => {
+    const device = testDevice();
+    device.storage.setItem(MAP_PROGRESS_KEY, currentRecord({ step: 1, completedMaps: -3 }));
+    const test = enterCounting(device);
+    expect(test.session.mapProgress()).toEqual({ step: 1, completedMaps: 0 });
+    fillRow(test);
+    expect(waitForMap(test)).toMatchObject({ from: 1, to: 2, theme: 'island' });
+  });
+});
+
+describe('#133 AC2 a AC3: mapy se střídají ve stálém pořadí podle počtu dokončených map', () => {
+  it('nový hráč jde po první mapě (ostrov)', () => {
+    const test = enterCounting(testDevice());
+    fillRow(test);
+    expect(waitForMap(test)).toMatchObject({ from: 0, to: 1, theme: 'island' });
+  });
+
+  it('hráč se 7 dokončenými mapami jde po třetí mapě (hrad)', () => {
+    const test = enterCounting(deviceWithMap({ step: 1, completedMaps: 7 }));
+    fillRow(test);
+    expect(waitForMap(test)).toMatchObject({ from: 1, to: 2, theme: 'castle' });
+  });
+
+  it('v cíli je vidět mapa, kterou dítě právě dokončilo, a další řada ukáže další mapu', () => {
+    const test = enterCounting(deviceWithMap({ step: 2, completedMaps: 1 }));
+    fillRow(test);
+    expect(waitForMap(test), 'cíl lesa').toMatchObject({
+      from: 2,
+      to: 3,
+      reachedGoal: true,
+      theme: 'forest',
+    });
+    test.timers.runAll();
+
+    fillRow(test);
+    expect(waitForMap(test), 'další mapa je hrad').toMatchObject({
+      from: 0,
+      to: 1,
+      reachedGoal: false,
+      theme: 'castle',
+    });
+  });
+
+  it('za 16 řad v jednom sezení projde dítě všech 5 map v pořadí a začne znovu ostrovem', () => {
+    const test = enterCounting(testDevice());
+    const firstSteps: string[] = [];
+    for (let row = 1; row <= 16; row += 1) {
+      fillRow(test);
+      const shown = waitForMap(test);
+      if (shown.from === 0) {
+        firstSteps.push(shown.theme);
+      }
+      test.timers.runAll();
+    }
+    expect(firstSteps).toEqual(['island', 'forest', 'castle', 'underwater', 'space', 'island']);
+  });
+
+  it('po páté mapě (vesmír) přijde znovu první mapa (ostrov)', () => {
+    const test = enterCounting(deviceWithMap({ step: 2, completedMaps: 4 }));
+    fillRow(test);
+    expect(waitForMap(test)).toMatchObject({ reachedGoal: true, theme: 'space' });
+    test.timers.runAll();
+    fillRow(test);
+    expect(waitForMap(test)).toMatchObject({ from: 0, to: 1, theme: 'island' });
+  });
+
+  it('změna nastavení nezmění, která mapa se hraje', () => {
+    const device = deviceWithMap({ step: 1, completedMaps: 3 });
+    const test = enterCounting(device);
+    device.page.holdGear();
+    test.session.confirmSettings({ maxNumber: 20, operations: 'minus', answerInput: 'keypad' });
+    test.timers.runAll();
+    fillRow(test);
+    expect(waitForMap(test)).toMatchObject({ from: 1, to: 2, theme: 'underwater' });
   });
 });

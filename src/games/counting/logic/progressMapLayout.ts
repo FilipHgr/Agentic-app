@@ -1,14 +1,17 @@
 /**
- * Rozmístění zástupné mapy postupu (#87 AC7) v herních jednotkách: start,
- * 7 zastávek a cíl jako 8. zastávka na cestě, a kde stojí značka hráče.
- * Na šířku jde cesta vlnovkou zleva doprava, na výšku hadem ve třech řadách
- * po třech. Mapa leží pod rohem kolečka a domečku a mimo výřez a lištu.
+ * Rozmístění zástupné mapy postupu (#87 AC7, #133 AC7) v herních
+ * jednotkách: start, 2 zastávky a cíl na cestě, a kde stojí značka hráče.
+ * Cesta vede rovnými úseky od místa k místu po řadě. Na šířku jde vlnovkou
+ * zleva doprava, na výšku klikatě zdola nahoru, takže se nikde nekříží.
+ * Každá mapa má vlnovku jinak natočenou (začíná dole, nebo nahoře).
+ * Mapa leží pod rohem kolečka a domečku a mimo výřez a lištu.
  * Čistý TypeScript bez Phaseru; vzhled kreslí scéna a dá se vyměnit bez
  * změny tohoto rozložení i logiky mapy.
  */
 
 import type { GameArea } from '../../../shared/logic/viewportLayout';
-import { MAP_STEPS } from './progressMap';
+import { MAP_STEPS, MAP_THEMES } from './progressMap';
+import type { MapThemeId } from './progressMap';
 
 export interface MapPoint {
   readonly x: number;
@@ -16,7 +19,7 @@ export interface MapPoint {
 }
 
 export interface ProgressMapLayout {
-  /** Střed místa podle kroku: 0 start, 1 až 7 zastávky, `MAP_STEPS` cíl. */
+  /** Střed místa podle kroku: 0 start, 1 a 2 zastávky, `MAP_STEPS` cíl. */
   readonly places: readonly MapPoint[];
   /** Průměr místa na mapě. */
   readonly placeSize: number;
@@ -30,8 +33,11 @@ const CORNER_BAND_CSS = 100;
 /** Odstup mapy od okrajů viditelné plochy v CSS px. */
 const EDGE_MARGIN_CSS = 16;
 
-/** Na výšku: had ve třech řadách po třech místech. */
-const PORTRAIT_COLUMNS = 3;
+/** Na výšku leží místa střídavě v levém a pravém sloupci. */
+const PORTRAIT_COLUMNS = 2;
+
+/** Největší značka v CSS px, aby mapa se 4 místy nevypadala přerostle. */
+const MAX_MARKER_CSS = 150;
 
 /** Značka zabere nejvýš tento díl místa mezi zastávkami, aby nezakryla sousední. */
 const MARKER_SHARE = 0.75;
@@ -57,42 +63,54 @@ function contentBoxOf(area: GameArea): ContentBox {
   return { left, top, width: right - left, height: bottom - top };
 }
 
-/** Na šířku: všechna místa v jedné řadě, střídavě výš a níž jako vlnitá cesta. */
-function wavyRow(content: ContentBox): ProgressMapLayout {
-  const count = MAP_STEPS + 1;
-  const spacing = content.width / count;
-  const markerSize = Math.min(spacing * MARKER_SHARE, content.height / 2);
-  const amplitude = Math.min((content.height - markerSize) / 2, markerSize * 0.6);
-  const middle = content.top + content.height / 2;
-  const places = Array.from({ length: count }, (_, index) => ({
-    x: content.left + spacing * (index + 0.5),
-    y: middle + (index % 2 === 0 ? amplitude : -amplitude),
-  }));
-  return { places, placeSize: markerSize * PLACE_TO_MARKER, markerSize };
+/** Začíná cesta této mapy vlnou dolů (na výšku vlevo)? Mapy se střídají. */
+function startsLow(theme: MapThemeId): boolean {
+  return MAP_THEMES.indexOf(theme) % 2 === 0;
 }
 
-/** Na výšku: had shora dolů, liché řady zprava doleva. */
-function snake(content: ContentBox): ProgressMapLayout {
+/** Na šířku: všechna místa v jedné řadě zleva doprava, střídavě výš a níž. */
+function wavyRow(content: ContentBox, maxMarker: number, theme: MapThemeId): ProgressMapLayout {
   const count = MAP_STEPS + 1;
-  const rows = Math.ceil(count / PORTRAIT_COLUMNS);
-  const cellWidth = content.width / PORTRAIT_COLUMNS;
-  const cellHeight = content.height / rows;
-  const markerSize = Math.min(cellWidth, cellHeight) * MARKER_SHARE;
+  const spacing = content.width / count;
+  const markerSize = Math.min(spacing * MARKER_SHARE, content.height / 2, maxMarker);
+  const amplitude = Math.min((content.height - markerSize) / 2, markerSize * 0.8);
+  const middle = content.top + content.height / 2;
+  const firstLow = startsLow(theme);
   const places = Array.from({ length: count }, (_, index) => {
-    const row = Math.floor(index / PORTRAIT_COLUMNS);
-    const inRow = index % PORTRAIT_COLUMNS;
-    const column = row % 2 === 0 ? inRow : PORTRAIT_COLUMNS - 1 - inRow;
+    const low = index % 2 === 0 ? firstLow : !firstLow;
     return {
-      x: content.left + cellWidth * (column + 0.5),
-      y: content.top + cellHeight * (row + 0.5),
+      x: content.left + spacing * (index + 0.5),
+      y: middle + (low ? amplitude : -amplitude),
     };
   });
   return { places, placeSize: markerSize * PLACE_TO_MARKER, markerSize };
 }
 
-export function layoutProgressMap(area: GameArea): ProgressMapLayout {
+/** Na výšku: místa zdola nahoru, střídavě vlevo a vpravo. */
+function zigzagUp(content: ContentBox, maxMarker: number, theme: MapThemeId): ProgressMapLayout {
+  const count = MAP_STEPS + 1;
+  const cellWidth = content.width / PORTRAIT_COLUMNS;
+  const cellHeight = content.height / count;
+  const markerSize = Math.min(cellWidth * MARKER_SHARE, cellHeight * MARKER_SHARE, maxMarker);
+  const firstColumn = startsLow(theme) ? 0 : 1;
+  const places = Array.from({ length: count }, (_, index) => {
+    const column = index % 2 === 0 ? firstColumn : 1 - firstColumn;
+    return {
+      x: content.left + cellWidth * (column + 0.5),
+      // Řady se počítají odspodu: start dole, cíl nahoře.
+      y: content.top + content.height - cellHeight * (index + 0.5),
+    };
+  });
+  return { places, placeSize: markerSize * PLACE_TO_MARKER, markerSize };
+}
+
+/** Rozložení mapy `theme`; orientace cesty se řídí tvarem herní plochy. */
+export function layoutProgressMap(area: GameArea, theme: MapThemeId): ProgressMapLayout {
   const content = contentBoxOf(area);
-  return content.width >= content.height ? wavyRow(content) : snake(content);
+  const maxMarker = MAX_MARKER_CSS / area.scale;
+  return area.width > area.height
+    ? wavyRow(content, maxMarker, theme)
+    : zigzagUp(content, maxMarker, theme);
 }
 
 /** Kde stojí značka na kroku `step` (mimo mapu se bere nejbližší konec). */

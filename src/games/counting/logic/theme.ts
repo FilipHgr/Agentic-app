@@ -7,6 +7,7 @@
 import type { TapOutcome } from './answerRound';
 import { STARS_PER_SET } from './stars';
 import type { StarProgress } from './stars';
+import type { MapThemeId } from './progressMap';
 import {
   BLUE,
   PAGE_BACKGROUND,
@@ -197,11 +198,27 @@ export const CONFETTI_COLORS: readonly string[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Mapa postupu (#87): zatím jen zástupný vzhled v barvách A3.
+// Mapa postupu (#87, #133): zatím jen zástupný vzhled v barvách A3.
 // ---------------------------------------------------------------------------
 
+/**
+ * Pozadí každé z 5 map (#133 AC6): jemné pastelové barvy podle prostředí,
+ * aby dítě poznalo, že přišla jiná mapa, a značka i místa byly dobře vidět.
+ */
+export const PROGRESS_MAP_BACKGROUNDS: Readonly<Record<MapThemeId, string>> = {
+  /** Ostrov s pokladem: písek. */
+  island: '#FBEFCF',
+  /** Les: světle zelená. */
+  forest: '#DCEFD6',
+  /** Hrad: světle růžová. */
+  castle: '#F5E1E4',
+  /** Podmořský svět: světle tyrkysová. */
+  underwater: '#D4ECF4',
+  /** Vesmír: světle fialová. */
+  space: '#E4DFF5',
+};
+
 export const PROGRESS_MAP_STYLE = {
-  background: PAGE_BACKGROUND,
   pathColor: '#D2D2D7',
   /** Zastávka, kam značka ještě nedošla: jako tlačítko číselníku. */
   placeColor: KEYPAD_BUTTON_STYLE.background,

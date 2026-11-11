@@ -1,24 +1,27 @@
 /**
- * Obrazovka mapy postupu (#87 AC7) pro společná pravidla rozložení
- * (`tests/shared/layoutRules.ts`): zástupný vzhled se startem, zastávkami,
- * cílem a značkou hráče ve všech oknech, kde se Počítání hraje (iPad na
- * šířku, telefon na šířku i na výšku, hranice, spuštění z plochy), a se
- * značkou na každém kroku 0 až 8.
+ * Obrazovka mapy postupu (#87 AC7, #133 AC7) pro společná pravidla
+ * rozložení (`tests/shared/layoutRules.ts`): zástupný vzhled se startem,
+ * 2 zastávkami, cílem a značkou hráče ve všech oknech, kde se Počítání
+ * hraje (iPad na šířku, telefon na šířku i na výšku, hranice, spuštění
+ * z plochy), pro každou z 5 map a se značkou na každém kroku 0 až 3.
  *
  * Navržené rozhraní `src/games/counting/logic/progressMapLayout.ts`:
- * `layoutProgressMap(area: GameArea): ProgressMapLayout` v herních
- * jednotkách jako ostatní rozložení Počítání:
+ * `layoutProgressMap(area: GameArea, theme: MapThemeId): ProgressMapLayout`
+ * v herních jednotkách jako ostatní rozložení Počítání (mapa smí mít podle
+ * `theme` vlastní tvar cesty):
  * - `places: readonly MapPoint[]` střed místa na mapě podle kroku
- *   (index 0 start, 1 až 7 zastávky, 8 cíl), `MapPoint { x, y }`,
+ *   (index 0 start, 1 a 2 zastávky, 3 cíl), `MapPoint { x, y }`;
+ *   cesta vede rovnými úseky od místa k místu po řadě,
  * - `placeSize` průměr místa, `markerSize` průměr značky,
  * - `markerAt(layout, step): MapPoint` kde stojí značka na kroku `step`.
  *
  * Mapa nemá tlačítka (zavře se sama), proto žádná ťukací plocha.
  * Kolečko a domeček zůstanou (rodič smí otevřít nastavení a dítě odejít
- * domečkem i během mapy, AC4), mapa nesmí do jejich rohu.
+ * domečkem i během mapy, #87 AC4), mapa nesmí do jejich rohu.
  */
 
-import { MAP_STEPS } from '../../../src/games/counting/logic/progressMap';
+import { MAP_STEPS, MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
+import type { MapThemeId } from '../../../src/games/counting/logic/progressMap';
 import { layoutProgressMap, markerAt } from '../../../src/games/counting/logic/progressMapLayout';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import { HOME_SCREEN_WINDOWS } from '../../shared/layoutRules';
@@ -32,7 +35,7 @@ export const MAP_WINDOWS: readonly TestWindow[] = [...PLAY_WINDOWS, ...HOME_SCRE
 
 export const MARKER_NAME = 'značka';
 
-/** Jméno místa na mapě podle kroku: start, zastávka 1 až 7, cíl. */
+/** Jméno místa na mapě podle kroku: start, 1. a 2. zastávka, cíl. */
 export function placeName(step: number): string {
   if (step === 0) {
     return 'start';
@@ -43,10 +46,10 @@ export function placeName(step: number): string {
   return `zastávka ${step}`;
 }
 
-/** Mapa v okně `window` se značkou na kroku `step`. */
-export function mapScene(window: TestWindow, step: number): LayoutScene {
+/** Mapa `theme` v okně `window` se značkou na kroku `step`. */
+export function mapScene(window: TestWindow, theme: MapThemeId, step: number): LayoutScene {
   const area = gameAreaFor(viewportOf(window));
-  const layout = layoutProgressMap(area);
+  const layout = layoutProgressMap(area, theme);
   const placeItems: LayoutItem[] = layout.places.map((place, index) => ({
     name: placeName(index),
     box: toCss(box(place.x, place.y, layout.placeSize, layout.placeSize), area),
@@ -58,7 +61,7 @@ export function mapScene(window: TestWindow, step: number): LayoutScene {
   };
   const ownPlace = placeName(step);
   return {
-    label: `${window.name}, mapa, značka na kroku ${step} (${ownPlace})`,
+    label: `${window.name}, mapa ${theme}, značka na kroku ${step} (${ownPlace})`,
     free: visibleAreaOf(window, area),
     items: [...cornerItems(window, area), ...placeItems, markerItem],
     // Značka stojí na svém místě, jiné místo ani kolečko a domeček překrýt nesmí.
@@ -71,9 +74,11 @@ export function mapScene(window: TestWindow, step: number): LayoutScene {
   };
 }
 
-/** Mapa ve všech oknech se značkou na každém kroku. */
+/** Mapa ve všech oknech, pro každou z 5 map a se značkou na každém kroku. */
 export function mapScenes(windows: readonly TestWindow[] = MAP_WINDOWS): LayoutScene[] {
   return windows.flatMap((window) =>
-    Array.from({ length: MAP_STEPS + 1 }, (_, step) => mapScene(window, step)),
+    MAP_THEMES.flatMap((theme) =>
+      Array.from({ length: MAP_STEPS + 1 }, (_, step) => mapScene(window, theme, step)),
+    ),
   );
 }
