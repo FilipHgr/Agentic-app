@@ -60,6 +60,14 @@ export interface MapStepResult {
 }
 
 /**
+ * Mapa, kterou ukáže příští plná řada (#134: její obrázek se stahuje během
+ * hraní). Po cíli je to už další mapa, jinak ta rozehraná.
+ */
+export function upcomingMapTheme(progress: MapProgress): MapThemeId {
+  return mapThemeFor(progress.completedMaps);
+}
+
+/**
  * Plná řada: značka jde o krok dál. Ze cíle začne nová mapa a značka
  * udělá 1. krok ze startu. V cíli se přičte dokončená mapa.
  */

@@ -1,8 +1,8 @@
 /**
  * Co stránka nabízí běžící hře (#68): kolečko nastavení, domeček, odchod
  * do menu, úložiště aktivního profilu (#71), značku profilu (#87), háček
- * na podržení domečku (#124), záznamy her aktivního profilu (#125)
- * a háček na držení domečku (#129).
+ * na podržení domečku (#124), záznamy her aktivního profilu (#125),
+ * háček na držení domečku (#129) a pozadí stránky kolem hry (#134).
  * Spouštění her (`src/shared/ui/gameRunner.ts`) to hře dá do registru
  * Phaseru pod klíčem `GAME_HOST_KEY`. Čistý TypeScript.
  */
@@ -34,6 +34,17 @@ export function profileMarkerOf(profile: Pick<Profile, 'nickname' | 'color'>): G
  */
 export type HomeHoldDecision = 'leave' | 'stay';
 
+/**
+ * Pozadí stránky kolem plátna hry (#134): barva a volitelně obrázek ze
+ * stejné stránky, který zakryje celé okno (jako CSS `cover`, na střed).
+ * Plátno hry leží jen v herní ploše, okraje okna kolem něj tak vyplní
+ * stránka stejným obrázkem.
+ */
+export interface PageBackdrop {
+  readonly color: string;
+  readonly imageUrl?: string | undefined;
+}
+
 export interface GameHost {
   /** Napojí podržení kolečka na otevření nastavení hry. Vrátí odpojení. */
   attachSettingsGear(open: () => void): () => void;
@@ -55,6 +66,11 @@ export interface GameHost {
    * Starší hostitel háček nemusí mít.
    */
   onHomeHolding?(listener: (holding: boolean) => void): void;
+  /**
+   * Nastaví pozadí stránky kolem plátna hry (#134), `null` vrátí výchozí.
+   * Při odchodu z hry se vrátí výchozí samo. Starší hostitel háček nemusí mít.
+   */
+  setPageBackdrop?(backdrop: PageBackdrop | null): void;
   /**
    * Úložiště této hry pro aktivní profil (#71), `undefined`, když stránka
    * žádné nedala (hra pak ukládá jen do paměti).
@@ -82,6 +98,7 @@ export function isGameHost(value: unknown): value is GameHost {
     typeof host.onLeave === 'function' &&
     (host.onHomeHold === undefined || typeof host.onHomeHold === 'function') &&
     (host.onHomeHolding === undefined || typeof host.onHomeHolding === 'function') &&
+    (host.setPageBackdrop === undefined || typeof host.setPageBackdrop === 'function') &&
     (host.storage === undefined || isKeyValueStorage(host.storage)) &&
     (host.profileMarker === undefined || isProfileMarker(host.profileMarker)) &&
     (host.records === undefined || isGameRecords(host.records))

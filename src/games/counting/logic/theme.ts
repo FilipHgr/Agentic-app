@@ -7,6 +7,7 @@
 import type { TapOutcome } from './answerRound';
 import { STARS_PER_SET } from './stars';
 import type { StarProgress } from './stars';
+import type { MapLook } from './mapPictureLoading';
 import type { MapThemeId } from './progressMap';
 import {
   BLUE,
@@ -198,12 +199,13 @@ export const CONFETTI_COLORS: readonly string[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Mapa postupu (#87, #133): zatím jen zástupný vzhled v barvách A3.
+// Mapa postupu (#87, #133, #134): obrázek prostředí, bez něj zástupný vzhled.
 // ---------------------------------------------------------------------------
 
 /**
  * Pozadí každé z 5 map (#133 AC6): jemné pastelové barvy podle prostředí,
  * aby dítě poznalo, že přišla jiná mapa, a značka i místa byly dobře vidět.
+ * S obrázkem (#134) je to zástupný vzhled, když obrázek ještě není stažený.
  */
 export const PROGRESS_MAP_BACKGROUNDS: Readonly<Record<MapThemeId, string>> = {
   /** Ostrov s pokladem: písek. */
@@ -219,16 +221,79 @@ export const PROGRESS_MAP_BACKGROUNDS: Readonly<Record<MapThemeId, string>> = {
 };
 
 export const PROGRESS_MAP_STYLE = {
-  pathColor: '#D2D2D7',
-  /** Zastávka, kam značka ještě nedošla: jako tlačítko číselníku. */
+  /** Zastávka, kam značka ještě nedošla: jako tlačítko číselníku (okraj podle mapy). */
   placeColor: KEYPAD_BUTTON_STYLE.background,
-  placeBorderColor: KEYPAD_BUTTON_STYLE.borderColor,
   /** Prošlá zastávka: plná modrá. */
   visitedColor: BLUE,
   visitedBorderColor: BLUE,
-  /** Cíl má zelený okraj, aby byl vidět i před dojitím. */
-  goalBorderColor: SUCCESS_GREEN,
   markerBorderColor: WHITE,
   markerLetterColor: WHITE,
   markerLetterWeight: 700,
 } as const;
+
+/** Šířka okraje jako díl průměru: místo, cíl a značka hráče. */
+export const PROGRESS_MAP_SHAPE = {
+  placeBorderShare: 0.08,
+  goalBorderShare: 0.14,
+  markerBorderShare: 0.07,
+  /**
+   * Symbol cíle stojí na světlém kruhovém podkladu (kontrola UX #134), aby
+   * nesplýval s obrázkem. Podklad je o tolik větší než značka, symbol
+   * zabere tento díl jeho průměru a okraj tento díl průměru podkladu.
+   */
+  goalBadgeToMarker: 1.2,
+  goalSymbolShare: 0.75,
+  goalBadgeBorderShare: 0.06,
+} as const;
+
+/** Barvy cesty a okraje místa, kam značka ještě nedošla (#134). */
+export interface ProgressMapStyle {
+  readonly pathColor: string;
+  readonly placeBorderColor: string;
+  /** Cíl má zelený okraj, aby byl vidět i před dojitím; na obrázku tmavší nebo světlejší. */
+  readonly goalBorderColor: string;
+  /** Světlý kruhový podklad symbolu cíle a jeho okraj. */
+  readonly goalBadgeColor: string;
+  readonly goalBadgeBorderColor: string;
+}
+
+/** Na zástupném pastelovém pozadí stačí šedá cesta a modrošedý okraj míst. */
+const PLACEHOLDER_MAP_STYLE: ProgressMapStyle = {
+  pathColor: '#6E6E73',
+  placeBorderColor: '#4A6A99',
+  goalBorderColor: SUCCESS_GREEN,
+  goalBadgeColor: WHITE,
+  goalBadgeBorderColor: '#4A6A99',
+};
+
+/** Na světlých a pestrých obrázcích je cesta i okraj tmavá, zelená cíle tmavší. */
+const DARK_ON_PICTURE: ProgressMapStyle = {
+  pathColor: TEXT,
+  placeBorderColor: TEXT,
+  goalBorderColor: '#146C2E',
+  goalBadgeColor: WHITE,
+  goalBadgeBorderColor: TEXT,
+};
+
+/** Na tmavém obrázku vesmíru je cesta i okraj bílá, zelená cíle světlejší. */
+const LIGHT_ON_PICTURE: ProgressMapStyle = {
+  pathColor: WHITE,
+  placeBorderColor: WHITE,
+  goalBorderColor: '#34C759',
+  goalBadgeColor: WHITE,
+  goalBadgeBorderColor: WHITE,
+};
+
+/** Obrázky, na kterých je potřeba světlá cesta, protože jsou tmavé. */
+const DARK_PICTURES: ReadonlySet<MapThemeId> = new Set<MapThemeId>(['space']);
+
+/**
+ * Barvy mapy `theme` podle vzhledu: cesta a okraj nenavštívených míst mají
+ * vůči obrázku i zástupné barvě kontrast aspoň 3 : 1 (kontrola #133).
+ */
+export function progressMapStyleFor(theme: MapThemeId, look: MapLook): ProgressMapStyle {
+  if (look === 'placeholder') {
+    return PLACEHOLDER_MAP_STYLE;
+  }
+  return DARK_PICTURES.has(theme) ? LIGHT_ON_PICTURE : DARK_ON_PICTURE;
+}

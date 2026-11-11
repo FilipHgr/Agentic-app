@@ -16,9 +16,16 @@
  * se odejde do menu, nebo zůstane ve hře (Omalovánky se vrátí na výběr).
  * Držení domečku (#129): hra napojená háčkem `onHomeHolding` se dozví,
  * kdy se kolem domečku plní kroužek (Omalovánky pak nepustí koš).
+ * Pozadí stránky (#134): hra smí stránce kolem plátna dát vlastní pozadí
+ * (mapa postupu Počítání přes celé okno), po odchodu se vrátí výchozí.
  */
 
-import type { GameHost, GameProfileMarker, HomeHoldDecision } from '../logic/gameHost';
+import type {
+  GameHost,
+  GameProfileMarker,
+  HomeHoldDecision,
+  PageBackdrop,
+} from '../logic/gameHost';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
 import type { GameRecords } from '../storage/profileRecords';
 
@@ -40,6 +47,8 @@ export interface GameSessionOptions {
   readonly profileMarker?: GameProfileMarker | undefined;
   /** Záznamy hry pro aktivní profil (#125); bez nich hra žádné nedostane. */
   readonly records?: GameRecords | undefined;
+  /** Nastaví pozadí stránky kolem plátna (#134), `null` výchozí; bez něj hra pozadí nemění. */
+  readonly pageBackdrop?: ((backdrop: PageBackdrop | null) => void) | undefined;
   /**
    * Spustí scény hry s `session.host`. Vrátí úklid, který se zavolá při
    * odchodu z hry.
@@ -120,6 +129,11 @@ export function startGameSession(options: GameSessionOptions): GameSession {
     onHomeHolding: (listener) => {
       homeHoldingListener = listener;
     },
+    setPageBackdrop: (backdrop) => {
+      if (!hasLeft) {
+        options.pageBackdrop?.(backdrop);
+      }
+    },
     storage: options.storage,
     profileMarker: options.profileMarker,
     records: options.records,
@@ -158,6 +172,8 @@ export function startGameSession(options: GameSessionOptions): GameSession {
       showHome();
       cleanUpScenes?.();
       cleanUpScenes = null;
+      // Menu má zase výchozí pozadí stránky, ať hra nechala jakékoli.
+      options.pageBackdrop?.(null);
       options.onLeft();
     },
   };

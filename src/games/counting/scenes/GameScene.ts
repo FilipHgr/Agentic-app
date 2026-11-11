@@ -8,25 +8,31 @@ import type { GameHost } from '../../../shared/logic/gameHost';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
-import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
+import { GAME_AREA_KEY, readViewport } from '../../../shared/ui/viewport';
 import type { TapOutcome } from '../logic/answerRound';
 import { createCountingSession } from '../logic/countingSession';
 import type { CountingSession, SessionChange, SessionPage } from '../logic/countingSession';
 import { isTwoBoxRound, playStateAfterResize } from '../logic/deviceLayout';
 import type { PlayState } from '../logic/deviceLayout';
+import { createMapPictureLoading } from '../logic/mapPictureLoading';
+import type { MapLook, MapPictureId } from '../logic/mapPictureLoading';
+import { mapOrientationOf, mapPictureUrl } from '../logic/mapPictures';
 import type { GameProgress } from '../logic/progress';
-import { mapMarkerFor } from '../logic/progressMap';
-import type { MapMarker } from '../logic/progressMap';
+import { mapMarkerFor, upcomingMapTheme } from '../logic/progressMap';
+import type { MapMarker, MapThemeId } from '../logic/progressMap';
 import { loadDigitRecognizer } from '../logic/recognizerLoading';
 import type { RecognizerLoadStatus } from '../logic/recognizerLoading';
 import type { GameSettings } from '../logic/settings';
+import { PROGRESS_MAP_BACKGROUNDS } from '../logic/theme';
 import { switchToKeypad } from '../logic/twoBoxWriting';
 import type { TwoBoxConfirmResult, TwoBoxRound } from '../logic/twoBoxWriting';
 import { highlightCorrectButton, shakeWrongButton } from './AnswerButton';
 import type { AnswerButton } from './AnswerButton';
 import { Confetti } from './Confetti';
 import { ParentPanels } from './ParentPanels';
+import { loadMapPicture, preloadGoalSymbols } from './mapPictureTextures';
 import { ProgressMapView } from './ProgressMapView';
+import type { MapScreen } from './ProgressMapView';
 import { RoundView } from './RoundView';
 import { SceneLayouts, gameAreaFromRegistry } from './SceneLayouts';
 import { StarRow } from './StarRow';
@@ -80,11 +86,20 @@ export class GameScene extends Phaser.Scene {
   private readonly starRow = new StarRow(this, this.layouts, () => this.currentProgress());
   private readonly confetti = new Confetti(this);
   private readonly progressMap = new ProgressMapView(this, () => this.profileMarker());
+  /** Obrázky map se stahují na pozadí, jen ten, který se ukáže příště (#134). */
+  private readonly mapPictures = createMapPictureLoading((picture) =>
+    loadMapPicture(this, picture),
+  );
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu (#67 AC6).
   private readonly sounds = createTonePlayer(sharedToneContext);
 
   constructor() {
     super('game');
+  }
+
+  /** Symboly cíle map jsou malé, načtou se hned se scénou (#134 AC2). */
+  preload(): void {
+    preloadGoalSymbols(this);
   }
 
   create(): void {
@@ -117,6 +132,7 @@ export class GameScene extends Phaser.Scene {
     this.session = session;
     host?.onLeave(() => session.leave());
 
+    this.prepareMapPicture();
     this.starRow.create();
     this.starRow.paint();
     this.view.listenForKeypadRelease();
@@ -154,6 +170,7 @@ export class GameScene extends Phaser.Scene {
     switch (change.kind) {
       case 'roundStarted':
         this.drawNewRound();
+        this.prepareMapPicture();
         break;
       case 'celebrationStarted':
         this.confetti.throw(this.gameArea, this.layouts.keypad().detailScale);
@@ -174,7 +191,7 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'mapHidden':
       case 'mapStopped':
-        this.progressMap.hide();
+        this.hideProgressMap();
         break;
       case 'settingsOpened':
         this.panels.openSettings();
@@ -192,8 +209,59 @@ export class GameScene extends Phaser.Scene {
   private showProgressMap(): void {
     const move = this.session.shownMap();
     if (move !== null) {
-      this.progressMap.show(this.gameArea, move);
+      const look = this.mapPictures.mapShown(this.mapPictureOf(move.theme));
+      this.progressMap.show(this.mapScreen(look), move);
+      this.showPageBackdrop(move.theme, look);
     }
+  }
+
+  private hideProgressMap(): void {
+    this.progressMap.hide();
+    this.mapPictures.mapHidden();
+    this.readHost()?.setPageBackdrop?.(null);
+  }
+
+  /**
+   * Otočení zařízení: ukázaná mapa dostane vzhled pro novou orientaci
+   * (obrázek jen když je stažený, AC4), jinak se připraví obrázek další mapy.
+   */
+  private relayoutProgressMap(): void {
+    const move = this.session.shownMap();
+    if (move === null) {
+      this.prepareMapPicture();
+      return;
+    }
+    const look = this.mapPictures.orientationChanged(this.mapPictureOf(move.theme));
+    this.progressMap.redraw(this.mapScreen(look));
+    this.showPageBackdrop(move.theme, look);
+  }
+
+  /** Během hraní se na pozadí stáhne obrázek mapy, kterou ukáže příští plná řada. */
+  private prepareMapPicture(): void {
+    this.mapPictures.prepare(this.mapPictureOf(upcomingMapTheme(this.session.mapProgress())));
+  }
+
+  /** Obrázek mapy `theme` v orientaci okna. */
+  private mapPictureOf(theme: MapThemeId): MapPictureId {
+    return { theme, orientation: mapOrientationOf(this.windowSize()) };
+  }
+
+  private mapScreen(look: MapLook): MapScreen {
+    return { area: this.gameArea, window: this.windowSize(), look };
+  }
+
+  /** Velikost okna v CSS px: obrázek mapy zakryje celé okno, ne jen herní plochu. */
+  private windowSize(): { width: number; height: number } {
+    const { width, height } = readViewport();
+    return { width, height };
+  }
+
+  /** Okraje okna kolem plátna vyplní stránka stejným obrázkem, nebo barvou mapy. */
+  private showPageBackdrop(theme: MapThemeId, look: MapLook): void {
+    const color = PROGRESS_MAP_BACKGROUNDS[theme];
+    const imageUrl =
+      look === 'picture' ? mapPictureUrl(theme, mapOrientationOf(this.windowSize())) : undefined;
+    this.readHost()?.setPageBackdrop?.({ color, imageUrl });
   }
 
   /** Nastavení, jak se má rozehraný příklad ukázat: s číselníkem, nebo s okénky. */
@@ -238,7 +306,7 @@ export class GameScene extends Phaser.Scene {
     this.layouts.clear();
     this.starRow.redraw();
     this.relayoutRound();
-    this.progressMap.redraw(this.gameArea);
+    this.relayoutProgressMap();
     this.panels.fitTo(this.gameArea);
   }
 

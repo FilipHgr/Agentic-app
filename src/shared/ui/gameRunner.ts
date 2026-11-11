@@ -28,6 +28,7 @@ import type { KeyValueStorage } from '../storage/keyValueStorage';
 import type { GameRecords } from '../storage/profileRecords';
 import { startGameSession } from './gameSession';
 import { applyHomeButton, attachHomeButton } from './homeButton';
+import { applyPageBackdrop } from './pageBackdrop';
 import { attachSettingsButton } from './settingsButton';
 import { applySettingsGear } from './settingsGear';
 import { CANVAS_RESOLUTION_KEY } from './sharpCanvas';
@@ -163,6 +164,7 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
     storage: options.storage,
     profileMarker: options.profileMarker,
     records: options.records,
+    pageBackdrop: applyPageBackdrop,
     onLeft: options.onLeft,
     startScenes: (session) => {
       const started = createGame(module, resolution);

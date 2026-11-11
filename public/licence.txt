@@ -49,10 +49,31 @@ v repozitáři, otisky SHA-256 zdrojů:
   ornament: fed6cf479745d8a4b5fc0a170687fb52442b15a9d965e2def02f061c9aada309
   unicorn: d4d0be73e27dd7bea8bf5609ac6987c0cfdb779fb68d71e745927391c7db1086
 
+Obrázky map postupu v Počítání (src/games/counting/maps/island-landscape.webp,
+island-portrait.webp, forest-landscape.webp, forest-portrait.webp,
+castle-landscape.webp, castle-portrait.webp, underwater-landscape.webp,
+underwater-portrait.webp, space-landscape.webp, space-portrait.webp) jsou
+vytvořené službou ElevenLabs (https://elevenlabs.io), model GPT Image 2.5.
+Použito v rámci komerčního tarifu vlastníka hry, stejně jako dlaždice her.
+Úprava: zmenšeno na 1200 × 800 (na šířku) a 800 × 1200 (na výšku) a převedeno
+na WebP. Zdrojové PNG nejsou v repozitáři, otisky SHA-256 zdrojů:
+  island-landscape: 82f5747de28130eb2553de82e6589da9abfb4416698ebe6fe7e1feb08cea954a
+  island-portrait: 098f88957006987d9be00f821009973dfbb1e429e966595b7d2a6b96c2dca919
+  forest-landscape: 7c2b693aba671540816fd87949003dcb0cdc51e03219e87c6ef27e3038354cc7
+  forest-portrait: f8dd7351a3ce86356318e127c8a96986ffffb2d83a93ce08e2bbf48ea06fcf77
+  castle-landscape: 27358f745e4891fcf611087aefed149e8d9ef389ea57b917ee1b93035b0869b8
+  castle-portrait: 07a98f762ae149484d1b1e750154c10291206f9c8276215a66c23103ca0aa9f9
+  underwater-landscape: 04fc7c0f949fa4dd9c8743f263d1a320857571d8c413413e35ee4df7cf57e352
+  underwater-portrait: 94225d345ce006e74b2284e30b25b3c8c018b6d7408a226a658a292399d261ca
+  space-landscape: a3d89742a07a621498d946b2b45b360e5f8789382affa68f74334432b2783619
+  space-portrait: 74f2c07b7aa76df5aa1cc14c593ea9264f730430ae70b9992831a02e3f2c24d9
+
 Ikony nástrojů v Omalovánkách (src/games/coloring/icons/: paintbrush, eraser,
 pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter), ikony
 fotoaparátu a knihy alba (camera, notebook-with-decorative-cover) a ikona koše
-u velkého obrázku z alba (wastebasket) jsou obrázky ze sady Noto Emoji, autor
+u velkého obrázku z alba (wastebasket) a symboly cíle map postupu v Počítání
+(src/games/counting/maps/: gem-stone, mushroom, castle, spiral-shell,
+ringed-planet) jsou obrázky ze sady Noto Emoji, autor
 Google Inc.,
 https://github.com/googlefonts/noto-emoji
 Copyright Google Inc.
