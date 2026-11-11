@@ -323,3 +323,4 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-11 #130, #131 a #132 schváleny podle doporučení (pořadí #130, #131, #132). Druhá sada omalovánek: moře, mořská panna, duha, vánoční baňka, jednorožec (365 kreditů). U #132 kvóta localStorage: teď přijmout, změřit a při překročení poloviny kvóty založit úkol na přesun stránek do IndexedDB ještě v tomto sprintu.
 - 2026-11-11 #130: panel nástrojů Omalovánek začíná po každém otevření zavřený, i při úplně prvním otevření v profilu. Nahrazuje automatické otevření panelu při prvním otevření z #96 AC2 a #105 AC1.
 - 2026-11-11 Obrázky #131 schváleny („ok“): tlačítko malovat dál se štětcem 🖌️, na šířku 16 px nad košem, na výšku 16 px vlevo od koše.
+- 2026-11-11 Obrázky #132 schváleny („ok“): výběr 11 omalovánek v mřížce alba (4 sloupce na šířku, 3 na výšku), moře zjednodušené o 4 malé bublinky (obrys 32 036 B).
