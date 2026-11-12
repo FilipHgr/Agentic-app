@@ -9,10 +9,11 @@ import { gameTitleKey } from '../../shared/logic/gameRegistry';
 import type { Language } from '../../shared/texts/languages';
 import { sharedTexts } from '../../shared/texts/sharedTexts';
 import cs from '../texts/cs';
+import en from '../texts/en';
 import type { MenuTexts } from '../texts/menuTextsTypes';
 import { PAGE_TITLE_KEY } from './menuTextKeys';
 
-const MENU_TEXTS: Record<Language, MenuTexts> = { cs };
+const MENU_TEXTS: Record<Language, MenuTexts> = { cs, en };
 
 /** Text podle klíče s tečkami (`categories.all.title`) v jednom jazyce. */
 export function menuText(key: string, language: Language): string | undefined {

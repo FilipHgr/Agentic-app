@@ -39,6 +39,8 @@
  * současně: tlačítko jednoho s otevřeným druhým jen zavře to druhé.
  */
 
+import { languageFlagOf } from './languageFlags';
+import type { LanguageFlag } from './languageFlags';
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
 import { findGame } from '../../shared/logic/gameRegistry';
 import { DEFAULT_PROFILE_COLOR, DEFAULT_PROFILE_ID } from '../../shared/logic/profiles';
@@ -201,6 +203,8 @@ export interface Menu {
   returnFromGame(): void;
   /** Zkratka aktuálního jazyka velkými písmeny na tlačítku („CS“, #70). */
   languageButtonLabel(): string;
+  /** Vlajka aktuálního jazyka pod zkratkou na tlačítku (#138); jazyk bez vlajky `null`. */
+  languageButtonFlag(): LanguageFlag | null;
   /** Jazyky nabídky v jejím pořadí, aktuální s ✓ (#70). */
   languages(): MenuLanguageView[];
   isLanguageMenuOpen(): boolean;
@@ -503,6 +507,10 @@ export function createMenu(options: MenuOptions): Menu {
 
     languageButtonLabel(): string {
       return languageSource.current().toUpperCase();
+    },
+
+    languageButtonFlag(): LanguageFlag | null {
+      return languageFlagOf(languageSource.current());
     },
 
     languages(): MenuLanguageView[] {

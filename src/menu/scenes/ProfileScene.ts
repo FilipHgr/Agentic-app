@@ -41,6 +41,7 @@ import {
   languageRowArt,
   sceneText,
 } from './languageArt';
+import { preloadLanguageFlags } from './languageFlagTextures';
 import { MENU_UNITS_PER_CSS_PX } from './MenuScene';
 
 /** Klíč scény ve hře Phaseru. */
@@ -212,6 +213,11 @@ export class ProfileScene extends Phaser.Scene {
 
   constructor(private readonly host: ProfileSceneHost) {
     super({ key: PROFILE_SCENE_KEY, active: true });
+  }
+
+  /** Vlajky nabídky jazyků (#138) jsou malé a načtou se se scénou. */
+  preload(): void {
+    preloadLanguageFlags(this);
   }
 
   create(): void {
@@ -750,6 +756,7 @@ export class ProfileScene extends Phaser.Scene {
         this,
         layout.languageSlot,
         menu.languageButtonLabel(),
+        menu.languageButtonFlag(),
         layout.languageButtonFontSize,
         UNIT,
       ),

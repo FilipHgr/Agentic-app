@@ -5,6 +5,7 @@
  */
 
 import cs from './cs';
+import en from './en';
 import { currentLanguage } from './languages';
 import type { Language } from './languages';
 
@@ -22,7 +23,7 @@ export interface SharedTexts {
   readonly oneLetterPrepositions: readonly string[];
 }
 
-const SHARED_TEXTS: Record<Language, SharedTexts> = { cs };
+const SHARED_TEXTS: Record<Language, SharedTexts> = { cs, en };
 
 /** Sdílené texty jazyka, bez zadání v aktuálním jazyce. */
 export function sharedTexts(language: Language = currentLanguage()): SharedTexts {

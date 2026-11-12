@@ -57,7 +57,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('#65 AC3: aktuální jazyk je zatím pevně čeština', () => {
+describe('#65 AC3: bez volby je jazyk čeština, platí jen přesný kód ze seznamu', () => {
   it('výchozí jazyk je čeština', () => {
     expect(DEFAULT_LANGUAGE).toBe('cs');
   });
@@ -83,8 +83,14 @@ describe('#65 AC3: aktuální jazyk je zatím pevně čeština', () => {
     expect(currentLanguage('xx')).toBe('cs');
   });
 
-  it('s kódem „en“, který zatím není v seznamu, dostane hra češtinu', () => {
-    expect(currentLanguage('en')).toBe('cs');
+  // #138: angličtina je v seznamu jazyků, s požadavkem „en“ dostane hra angličtinu.
+  it('s kódem „en“ dostane hra angličtinu (#138)', () => {
+    expect(currentLanguage('en')).toBe('en');
+  });
+
+  it('s kódem „en-GB“ nebo „EN“ dostane hra výchozí češtinu (platí jen přesný kód)', () => {
+    expect(currentLanguage('en-GB')).toBe('cs');
+    expect(currentLanguage('EN')).toBe('cs');
   });
 
   it('s kódem velkými písmeny „CS“ dostane hra výchozí češtinu (platí jen přesný kód)', () => {
@@ -149,8 +155,8 @@ describe('#65 AC3 a #70: zjištění jazyka nic neuloží', () => {
 
   it('uložený jazyk mimo seznam nic nezmění, jazyk zůstane čeština', async () => {
     watchedLocalStorage();
-    localStorage.setItem('language', 'en');
-    localStorage.setItem('agentic-app.language', 'en');
+    localStorage.setItem('language', 'de');
+    localStorage.setItem('agentic-app.language', 'de');
     // Čerstvý modul, aby se uložená hodnota opravdu přečetla (jazyk se pamatuje).
     vi.resetModules();
     const fresh = await import('../../src/shared/texts/languages');

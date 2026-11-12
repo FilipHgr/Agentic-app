@@ -6,14 +6,11 @@ import { dictionariesByLanguage, findTextProblems } from './textChecks';
 
 /**
  * Testy k #137 pro sdílenou část: anglické texty stránky přesně podle
- * tabulky v zadání (AC1) a hra se zatím nezmění, protože angličtina není
- * v seznamu jazyků (AC4).
+ * tabulky v zadání (AC1). Od #138 je angličtina v seznamu jazyků, proto
+ * testy #137 AC4 („hra se zatím nezmění“) nahradilo chování po zapnutí.
  *
- * Navržené rozhraní: nový soubor `src/shared/texts/en.ts`, který jako
- * `export default { … } satisfies SharedTexts` vrací anglické sdílené
- * texty. Seznam `LANGUAGES` v `languages.ts` zůstává `['cs']`, proto se
- * anglický slovník zatím nedostane do `SHARED_TEXTS` (typ `Language` ho
- * nepustí) a čte se tu jen ze souboru.
+ * Rozhraní: `src/shared/texts/en.ts` (`export default { … } satisfies
+ * SharedTexts`), od #138 i v `SHARED_TEXTS` a `LANGUAGES = ['cs', 'en']`.
  */
 
 /** Sdílené texty každého jazyka, který má soubor `src/shared/texts/<jazyk>.ts`. */
@@ -33,7 +30,7 @@ const ENGLISH_SHARED = {
 function storedLocalStorage(initial: Record<string, string>): { writes: string[] } {
   const data = new Map<string, string>(Object.entries(initial));
   const writes: string[] = [];
-  vi.stubGlobal('localStorage', {
+  const storage = {
     getItem: (key: string) => data.get(key) ?? null,
     setItem: (key: string, value: string) => {
       writes.push(key);
@@ -47,7 +44,10 @@ function storedLocalStorage(initial: Record<string, string>): { writes: string[]
     get length() {
       return data.size;
     },
-  });
+  };
+  // Úložiště prohlížeče se čte přes `window.localStorage`, proto obojí.
+  vi.stubGlobal('localStorage', storage);
+  vi.stubGlobal('window', { localStorage: storage });
   return { writes };
 }
 
@@ -95,35 +95,38 @@ describe('#137 AC1: anglické texty stránky', () => {
   });
 });
 
-describe('#137 AC4: hra se zatím nezmění, angličtina není zapnutá', () => {
-  it('v seznamu jazyků je dál jen čeština, i když angličtina má soubor textů', () => {
-    expect(LANGUAGES).toEqual(['cs']);
+// #138: angličtina je v seznamu jazyků. Testy #137 AC4 („hra se zatím
+// nezmění“) nahrazuje chování po zapnutí jazyka; podrobně je volba jazyka
+// v `englishLanguageChoice.test.ts`.
+describe('#138: angličtina je zapnutá, stránka ji po výběru použije', () => {
+  it('v seznamu jazyků je čeština a angličtina, čeština první', () => {
+    expect(LANGUAGES).toEqual(['cs', 'en']);
   });
 
-  it('po načtení stránky s uloženým „en“ je jazyk čeština', async () => {
+  it('po načtení stránky s uloženým „en“ je jazyk angličtina', async () => {
     storedLocalStorage({ [LANGUAGE_STORAGE_KEY]: 'en' });
     const languages = await freshLanguages();
-    expect(languages.currentLanguage()).toBe('cs');
+    expect(languages.currentLanguage()).toBe('en');
   });
 
-  it('s uloženým „en“ jsou texty stránky česky: „Matematika“ a „Čeština“', async () => {
+  it('s uloženým „en“ jsou texty stránky anglicky: „Maths“ a „English“', async () => {
     storedLocalStorage({ [LANGUAGE_STORAGE_KEY]: 'en' });
     const shared = await freshSharedTexts();
-    expect(shared.sharedTexts().pageTitle).toBe('Matematika');
-    expect(shared.sharedTexts().languageName).toBe('Čeština');
+    expect(shared.sharedTexts().pageTitle).toBe('Maths');
+    expect(shared.sharedTexts().languageName).toBe('English');
   });
 
-  it('výběr angličtiny nic nezmění ani neuloží, jazyk zůstane čeština', async () => {
+  it('výběr angličtiny jazyk změní a uloží jen kód jazyka', async () => {
     const storage = storedLocalStorage({});
     const languages = await freshLanguages();
-    expect(languages.selectLanguage('en')).toBe(false);
-    expect(languages.currentLanguage()).toBe('cs');
-    expect(storage.writes).toEqual([]);
+    expect(languages.selectLanguage('en')).toBe(true);
+    expect(languages.currentLanguage()).toBe('en');
+    expect(storage.writes).toEqual([LANGUAGE_STORAGE_KEY]);
   });
 
-  it('požadavek na „en“ dá dál češtinu', async () => {
+  it('požadavek na „en“ dá angličtinu', async () => {
     storedLocalStorage({});
     const languages = await freshLanguages();
-    expect(languages.currentLanguage('en')).toBe('cs');
+    expect(languages.currentLanguage('en')).toBe('en');
   });
 });

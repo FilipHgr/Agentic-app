@@ -85,6 +85,24 @@ export interface MenuLanguagePanel {
   readonly checkWidth: number;
 }
 
+/** Části tlačítka jazyka (#138): zkratka jazyka a pod ní vlajka. */
+export interface MenuLanguageButtonParts {
+  /** Plocha zkratky jazyka („CS“), vysoká jako písmo. */
+  readonly code: MenuBox;
+  /** Rámeček vlajky (24 × 16 px) pod zkratkou. */
+  readonly flag: MenuBox;
+}
+
+/** Části jednoho řádku nabídky jazyků (#138): vlajka, vlastní název jazyka a ✓. */
+export interface MenuLanguageRowParts {
+  /** Rámeček vlajky (30 × 20 px) vlevo, svisle uprostřed řádku. */
+  readonly flag: MenuBox;
+  /** Plocha vlastního názvu jazyka mezi vlajkou a místem pro ✓. */
+  readonly name: MenuBox;
+  /** Místo pro ✓ u pravého okraje řádku. */
+  readonly check: MenuBox;
+}
+
 /** Kolečko profilu a přezdívka vedle něj (#71). */
 export interface MenuProfileBadgeLayout {
   /** Ťukací plocha kolečka (64 × 64 px), kolečko se kreslí uprostřed. */
@@ -312,6 +330,21 @@ const LANGUAGE_BUTTON_FONT_SIZE = 20;
 const LANGUAGE_FONT_SIZE = 17;
 const LANGUAGE_TEXT_INSET = 20;
 const LANGUAGE_CHECK_WIDTH = 24;
+/**
+ * Rámeček vlajky vlevo od názvu jazyka (#138, schválený obrázek): 30 × 20 px,
+ * stejný pro všechny jazyky, aby názvy začínaly pod sebou. Scéna do něj
+ * vlajku vepíše se zachovaným poměrem stran.
+ */
+const LANGUAGE_FLAG_WIDTH = 30;
+const LANGUAGE_FLAG_HEIGHT = 20;
+/** Mezera mezi vlajkou a názvem jazyka. */
+const LANGUAGE_FLAG_GAP = 12;
+/** Na tlačítku jazyka je pod zkratkou menší vlajka 24 × 16 px s mezerou 3 px (#138). */
+const BUTTON_FLAG_WIDTH = 24;
+const BUTTON_FLAG_HEIGHT = 16;
+const BUTTON_CODE_FLAG_GAP = 3;
+/** Plocha zkratky jazyka je široká dvě výšky písma (dvě velká písmena). */
+const BUTTON_CODE_WIDTH_PER_FONT = 2;
 const LANGUAGE_ROW_GAP = 8;
 const LANGUAGE_PANEL_PADDING = 8;
 /** Panel je od tlačítka jazyka 8 px. */
@@ -625,7 +658,13 @@ export function languagePanelFor(
   names: readonly string[],
 ): MenuLanguagePanel {
   const longest = Math.max(0, ...names.map((name) => textWidth(name, LANGUAGE_FONT_SIZE)));
-  const rowWidth = Math.ceil(longest + 2 * LANGUAGE_TEXT_INSET + LANGUAGE_CHECK_WIDTH);
+  const rowWidth = Math.ceil(
+    LANGUAGE_FLAG_WIDTH +
+      LANGUAGE_FLAG_GAP +
+      longest +
+      2 * LANGUAGE_TEXT_INSET +
+      LANGUAGE_CHECK_WIDTH,
+  );
   const maxWidth = free.right - free.left - 2 * LANGUAGE_PANEL_EDGE;
   const width = Math.min(
     maxWidth,
@@ -663,6 +702,52 @@ export function languagePanelFor(
     textInset: LANGUAGE_TEXT_INSET,
     checkWidth: LANGUAGE_CHECK_WIDTH,
   };
+}
+
+/**
+ * Rozdělení tlačítka jazyka (#138): zkratka a pod ní vlajka, obojí
+ * vodorovně uprostřed a dohromady svisle uprostřed kolečka.
+ */
+export function languageButtonParts(button: MenuBox, fontSize: number): MenuLanguageButtonParts {
+  const middleX = (button.left + button.right) / 2;
+  const total = fontSize + BUTTON_CODE_FLAG_GAP + BUTTON_FLAG_HEIGHT;
+  const top = (button.top + button.bottom) / 2 - total / 2;
+  const codeWidth = BUTTON_CODE_WIDTH_PER_FONT * fontSize;
+  const code = boxAt(middleX - codeWidth / 2, top, codeWidth, fontSize);
+  const flag = boxAt(
+    middleX - BUTTON_FLAG_WIDTH / 2,
+    code.bottom + BUTTON_CODE_FLAG_GAP,
+    BUTTON_FLAG_WIDTH,
+    BUTTON_FLAG_HEIGHT,
+  );
+  return { code, flag };
+}
+
+/**
+ * Rozdělení řádku nabídky jazyků (#138): vlajka vlevo s odsazením řádku,
+ * za ní mezera a vlastní název jazyka, vpravo místo pro ✓.
+ */
+export function languageRowParts(panel: MenuLanguagePanel, row: MenuBox): MenuLanguageRowParts {
+  const middle = (row.top + row.bottom) / 2;
+  const flag = boxAt(
+    row.left + panel.textInset,
+    middle - LANGUAGE_FLAG_HEIGHT / 2,
+    LANGUAGE_FLAG_WIDTH,
+    LANGUAGE_FLAG_HEIGHT,
+  );
+  const check: MenuBox = {
+    left: row.right - panel.textInset - panel.checkWidth,
+    right: row.right - panel.textInset,
+    top: row.top,
+    bottom: row.bottom,
+  };
+  const name: MenuBox = {
+    left: flag.right + LANGUAGE_FLAG_GAP,
+    right: check.left,
+    top: row.top,
+    bottom: row.bottom,
+  };
+  return { flag, name, check };
 }
 
 /**

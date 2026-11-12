@@ -10,6 +10,7 @@ import type { Language } from '../../../shared/texts/languages';
 import type { GuideLineId } from '../logic/guideScript';
 import type { SettingsRowKind } from '../logic/settingsLayout';
 import cs from './cs';
+import en from './en';
 
 export interface CountingTexts {
   /** Název hry pro menu (AC2 v #65), zatím se nikde nezobrazuje. */
@@ -29,7 +30,7 @@ export interface CountingTexts {
   readonly guideLines: Readonly<Record<GuideLineId, readonly [string, string]>>;
 }
 
-const COUNTING_TEXTS: Record<Language, CountingTexts> = { cs };
+const COUNTING_TEXTS: Record<Language, CountingTexts> = { cs, en };
 
 /** Texty Počítání v jazyce, bez zadání v aktuálním jazyce. */
 export function countingTexts(language: Language = currentLanguage()): CountingTexts {

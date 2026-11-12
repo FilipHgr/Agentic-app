@@ -4,5 +4,11 @@
     "maxNumber": "3eaf10feb359c33d92e83f2ed847ebeb2f9bfcf478c6055b0206949690d9fd61",
     "operations": "88ace491300fa1a794bfe78e7e7661d4b1fe76d46f1cf82965a76afc43eb80ab",
     "summary": "ce4d80206756a78ab54246ca610c924f27b840504fdf67c628febe9305f77690"
+  },
+  "en": {
+    "answerInput": "ca5db47aa8534dfd32d0528d9ff44c877fa10f03a517d89c027ed60bcd0d0592",
+    "maxNumber": "97ba918b467d98b9b60665b4f85e0f62634994325fe3f5d1f0b44faeed5432f2",
+    "operations": "8658bae16565697c0a4bee5391bb9b6b3514b75b7df4bb4d28e8f4c7da723d1f",
+    "summary": "ff15c00085c3bc971a1d5b84d129507b3c8f0b9ae8fed6c323ac1779d088583b"
   }
 }

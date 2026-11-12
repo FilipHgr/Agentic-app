@@ -11,6 +11,7 @@
 
 import type { GameMeta } from '../../shared/logic/gameRegistry';
 import cs from './texts/cs';
+import en from './texts/en';
 import tile from './tile.webp';
 
 export const COLORING_META: GameMeta = {
@@ -18,6 +19,6 @@ export const COLORING_META: GameMeta = {
   categoryId: 'drawing',
   symbol: '✎',
   access: 'free',
-  titles: { cs: cs.title },
+  titles: { cs: cs.title, en: en.title },
   tile,
 };

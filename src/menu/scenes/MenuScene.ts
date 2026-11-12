@@ -21,6 +21,7 @@ import {
   languageCardArt,
   languageRowArt,
 } from './languageArt';
+import { preloadLanguageFlags } from './languageFlagTextures';
 import { categoryButtonArt, categoryRowArt } from './categoryPickerArt';
 
 /** Herní jednotky na 1 CSS px: plátno menu má dvojnásobné rozlišení okna. */
@@ -136,6 +137,11 @@ export class MenuScene extends Phaser.Scene {
 
   constructor(private readonly host: MenuSceneHost) {
     super(MENU_SCENE_KEY);
+  }
+
+  /** Vlajky nabídky jazyků (#138) jsou malé a načtou se se scénou. */
+  preload(): void {
+    preloadLanguageFlags(this);
   }
 
   create(): void {
@@ -611,6 +617,7 @@ export class MenuScene extends Phaser.Scene {
         this,
         box,
         this.host.menu.languageButtonLabel(),
+        this.host.menu.languageButtonFlag(),
         layout.languageButtonFontSize,
         MENU_UNITS_PER_CSS_PX,
       ),

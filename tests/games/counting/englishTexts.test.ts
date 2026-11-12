@@ -101,8 +101,9 @@ describe('#137 AC1: anglické texty Počítání', () => {
     ).toEqual([]);
   });
 
-  it('angličtina je jen soubor textů, do seznamu jazyků hry zatím nepatří', () => {
-    expect(LANGUAGES).not.toContain('en');
+  // #138: angličtina se zapnula spolu s nahrávkami průvodce.
+  it('angličtina je v seznamu jazyků hry', () => {
+    expect(LANGUAGES).toContain('en');
   });
 });
 

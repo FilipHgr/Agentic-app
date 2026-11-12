@@ -12,7 +12,7 @@ import { browserStorage } from '../storage/keyValueStorage';
 
 export { LANGUAGE_STORAGE_KEY, chooseLanguage } from '../logic/languageChoice';
 
-export const LANGUAGES = ['cs'] as const;
+export const LANGUAGES = ['cs', 'en'] as const;
 
 export type Language = (typeof LANGUAGES)[number];
 

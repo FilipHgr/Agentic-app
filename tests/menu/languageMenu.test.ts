@@ -63,10 +63,14 @@ describe('#70 AC1: tlačítko jazyka ukazuje zkratku aktuálního jazyka', () =>
     expect(test.menu.languageButtonLabel()).toBe('XX');
   });
 
-  it('bez zadaných jazyků menu použije jazyky zařízení: dnes jen „CS“ a „Čeština“', () => {
+  // #138: jazyky zařízení jsou čeština a angličtina.
+  it('bez zadaných jazyků menu použije jazyky zařízení: „CS“, „Čeština“ a „English“', () => {
     const test = testMenu();
     expect(test.menu.languageButtonLabel()).toBe('CS');
-    expect(test.menu.languages()).toEqual([{ code: 'cs', name: 'Čeština', selected: true }]);
+    expect(test.menu.languages()).toEqual([
+      { code: 'cs', name: 'Čeština', selected: true },
+      { code: 'en', name: 'English', selected: false },
+    ]);
   });
 });
 

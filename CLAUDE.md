@@ -79,18 +79,21 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
   Symboly (číslice, +, −, ✓ a podobně) nejsou texty jazyka a zůstávají
   v kódu. Nahrávky jsou v `public/voice/<jazyk>/<hra>/`.
 - Přidání jazyka:
-  1. soubor textů ve sdílené části, v menu a v každé hře (a jazyk
-     v `titles` každého `meta.ts`),
+  1. soubor textů ve sdílené části, v menu a v každé hře; název hry pro
+     menu (jazyk v `titles` každého `meta.ts`) a zapnutí jazyka ve
+     slovnících textů přibudou až v commitu, který jazyk přidává do seznamu,
   2. projdou testy textů (klíče, prázdné texty, vejde se do rozložení); běží
      pro každý jazyk se souborem textů, i mimo seznam, kontrola nahrávek jen
      pro jazyky ze seznamu,
   3. hlas jazyka (`voiceId`, `modelId`, `voiceSettings`) se zapíše do
-     oddílu jazyka v `tools/voice/voice.config.json`, vlastník u sebe vytvoří
-     nahrávky Počítání příkazem `npm run voice -- <jazyk>` (kód jazyka malými
-     písmeny přesně podle souboru textů, např. `npm run voice -- cs`) a hlas
-     doplní do `public/licence.txt`,
-  4. jazyk se přidá do seznamu v `languages.ts` až s nahrávkami, v jednom
-     commitu.
+     oddílu jazyka v `tools/voice/voice.config.json` jednou a už se nemění.
+     Nahrávky Počítání vytvoří Claude tímto hlasem přes napojení ElevenLabs,
+     stáhne je jen nástrojem `tools/voice/fetch-voice.mjs`, převede na mono
+     64 kb/s a otisky zapíše stejně jako skript `npm run voice -- <jazyk>`
+     (kód jazyka malými písmeny přesně podle souboru textů, např.
+     `npm run voice -- cs`). Hlas se doplní do `public/licence.txt`,
+  4. jazyk se přidá do seznamu v `languages.ts` až s nahrávkami a vlajkou
+     v `src/menu/flags/` (původ v `public/licence.txt`), v jednom commitu.
 - `npm run dev` vývojový server
 - `npm test` všechny testy
 - `npm run test:shared` testy sdílené části, `npm run test:menu` testy menu

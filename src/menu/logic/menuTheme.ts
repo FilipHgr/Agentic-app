@@ -22,6 +22,8 @@ export const MENU_STYLE = {
   languageButtonBackground: WHITE,
   languageButtonText: '#6E6E73',
   languageButtonShadowAlpha: 0.06,
+  /** Jemný vnitřní obrys vlajky, aby bílý pruh nesplýval s bílým pozadím (#138). */
+  languageFlagOutline: '#D2D2D7',
   /** Profil (#71): bílý podklad jako tlačítko jazyka, bílé písmeno, tmavá přezdívka. */
   profileBackground: WHITE,
   profileSymbol: WHITE,

@@ -171,7 +171,7 @@ describe('#70 AC2: panel nabídky ve všech oknech s dnešními i 12 jazyky', ()
     });
   });
 
-  it('dnešní jeden jazyk se do panelu vejde a nic se neposouvá', () => {
+  it('dnešní jazyky (čeština a angličtina, #138) se do panelu vejdou a nic se neposouvá', () => {
     for (const window of MENU_WINDOWS) {
       expect(
         languageLayout(window, TODAY_LANGUAGE_NAMES).languagePanel.list.maxOffset,

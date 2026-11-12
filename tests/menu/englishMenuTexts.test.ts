@@ -6,13 +6,12 @@ import { dictionariesByLanguage, findTextProblems } from '../shared/textChecks';
 import { testMenu, watchedLocalStorage } from './menuFixtures';
 
 /**
- * Testy k #137 pro menu: anglické texty menu podle tabulky v zadání (AC1)
- * a nabídka jazyků se zatím nezmění (AC4).
+ * Testy k #137 pro menu: anglické texty menu podle tabulky v zadání (AC1).
+ * Od #138 je angličtina v seznamu jazyků a nabídka ji ukazuje (místo
+ * #137 AC4 „nabídka se zatím nezmění“).
  *
- * Navržené rozhraní: nový soubor `src/menu/texts/en.ts`, který jako
- * `export default { … } satisfies MenuTexts` vrací anglické texty menu.
- * Do `MENU_TEXTS` v `menuTexts.ts` se zatím nepřidává (angličtina není
- * v `LANGUAGES`), proto se tu čte jen ze souboru.
+ * Rozhraní: `src/menu/texts/en.ts` (`export default { … } satisfies
+ * MenuTexts`), od #138 i v `MENU_TEXTS` v `menuTexts.ts`.
  *
  * Kategorie „Sčítání a odčítání“: tabulka navrhuje „Adding and
  * subtracting“, ale zadání (otázka 2, platí doporučení) říká, že když se
@@ -95,36 +94,56 @@ describe('#137 AC1: anglické texty menu', () => {
   });
 });
 
-describe('#137 AC4: nabídka jazyků zatím ukazuje jen češtinu', () => {
-  it('v nabídce jazyků je jen „Čeština“ s ✓ a na tlačítku „CS“', async () => {
-    watchedLocalStorage();
+/**
+ * Úložiště zařízení v paměti: `watchedLocalStorage` a k tomu `window`, protože
+ * volba jazyka čte úložiště prohlížeče přes `window.localStorage`.
+ */
+function deviceStorage(
+  initial: Record<string, string> = {},
+): ReturnType<typeof watchedLocalStorage> {
+  const storage = watchedLocalStorage(initial);
+  vi.stubGlobal('window', { localStorage: globalThis.localStorage });
+  return storage;
+}
+
+// #138: angličtina je v seznamu jazyků. Testy #137 AC4 („nabídka zatím
+// ukazuje jen češtinu“) nahrazuje nabídka se dvěma jazyky; podrobně
+// v `englishMenu.test.ts`.
+describe('#138: nabídka jazyků ukazuje češtinu i angličtinu', () => {
+  it('v nabídce jsou „Čeština“ s ✓ a „English“, na tlačítku „CS“', async () => {
+    deviceStorage();
     const test = testMenu({ languages: await freshDeviceLanguages() });
     test.menu.tapLanguageButton();
-    expect(test.menu.languages()).toEqual([{ code: 'cs', name: 'Čeština', selected: true }]);
+    expect(test.menu.languages()).toEqual([
+      { code: 'cs', name: 'Čeština', selected: true },
+      { code: 'en', name: 'English', selected: false },
+    ]);
     expect(test.menu.languageButtonLabel()).toBe('CS');
   });
 
-  it('s uloženým „en“ ukáže menu dál „CS“ a v nabídce jen „Čeština“', async () => {
-    watchedLocalStorage({ [LANGUAGE_STORAGE_KEY]: 'en' });
+  it('s uloženým „en“ ukáže menu „EN“ a ✓ u „English“', async () => {
+    deviceStorage({ [LANGUAGE_STORAGE_KEY]: 'en' });
     const languages = await freshDeviceLanguages();
-    expect(languages.current()).toBe('cs');
+    expect(languages.current()).toBe('en');
     const test = testMenu({ languages });
     test.menu.tapLanguageButton();
-    expect(test.menu.languageButtonLabel()).toBe('CS');
-    expect(test.menu.languages()).toEqual([{ code: 'cs', name: 'Čeština', selected: true }]);
+    expect(test.menu.languageButtonLabel()).toBe('EN');
+    expect(test.menu.languages().filter((item) => item.selected)).toEqual([
+      { code: 'en', name: 'English', selected: true },
+    ]);
   });
 
-  it('jazyky zařízení nabízejí jen češtinu, i když angličtina má soubory textů', async () => {
-    watchedLocalStorage();
+  it('jazyky zařízení nabízejí češtinu a angličtinu', async () => {
+    deviceStorage();
     const languages = await freshDeviceLanguages();
-    expect(languages.supported).toEqual(['cs']);
+    expect(languages.supported).toEqual(['cs', 'en']);
   });
 
-  it('pokus vybrat angličtinu jazyk nezmění ani neuloží', async () => {
-    const storage = watchedLocalStorage();
+  it('výběr angličtiny jazyk změní a uloží jen klíč jazyka', async () => {
+    const storage = deviceStorage();
     const languages = await freshDeviceLanguages();
-    expect(languages.select('en')).toBe(false);
-    expect(languages.current()).toBe('cs');
-    expect(storage.writes).toEqual([]);
+    expect(languages.select('en')).toBe(true);
+    expect(languages.current()).toBe('en');
+    expect(storage.writes).toEqual([LANGUAGE_STORAGE_KEY]);
   });
 });

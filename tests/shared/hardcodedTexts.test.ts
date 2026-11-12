@@ -86,8 +86,9 @@ describe('#65 AC1: texty jsou na jednom místě, po jazycích', () => {
     }
   });
 
-  it('ve sdílené části je seznam jazyků, zatím jen čeština', () => {
-    expect(LANGUAGES).toEqual(['cs']);
+  // #138: angličtina přibyla do seznamu jazyků spolu s nahrávkami.
+  it('ve sdílené části je seznam jazyků: čeština a angličtina', () => {
+    expect(LANGUAGES).toEqual(['cs', 'en']);
   });
 
   it('sdílená část má soubor českých textů src/shared/texts/cs.ts', () => {

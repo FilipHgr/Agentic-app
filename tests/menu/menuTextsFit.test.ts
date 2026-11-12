@@ -291,10 +291,11 @@ function overflowAmount(message: string): number {
 }
 
 describe('#137 AC2: texty menu každého jazyka se souborem textů se vejdou', () => {
-  it('kontrola měří i angličtinu, která má soubory textů, ale ještě není v seznamu jazyků', () => {
+  // #138: angličtina je už i v seznamu jazyků, kontrola ji měří dál ze souborů.
+  it('kontrola měří i angličtinu, která má soubory textů a je v seznamu jazyků', () => {
     expect(Object.keys(MENU_FILES)).toEqual(expect.arrayContaining(['cs', 'en']));
     expect(Object.keys(SHARED_FILES)).toEqual(expect.arrayContaining(['cs', 'en']));
-    expect(LANGUAGES).not.toContain('en');
+    expect(LANGUAGES).toContain('en');
   });
 
   it('zkušební okna pokrývají sloupec kategorií (iPad, zmenšené, telefon na šířku) i výběr kategorie (na výšku)', () => {

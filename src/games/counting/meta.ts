@@ -10,6 +10,7 @@
 
 import type { GameMeta } from '../../shared/logic/gameRegistry';
 import cs from './texts/cs';
+import en from './texts/en';
 import tile from './tile.webp';
 
 export const COUNTING_META: GameMeta = {
@@ -17,6 +18,6 @@ export const COUNTING_META: GameMeta = {
   categoryId: 'addingSubtracting',
   symbol: '2+3',
   access: 'free',
-  titles: { cs: cs.title },
+  titles: { cs: cs.title, en: en.title },
   tile,
 };
