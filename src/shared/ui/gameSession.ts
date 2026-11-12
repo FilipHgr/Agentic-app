@@ -18,6 +18,7 @@
  * kdy se kolem domečku plní kroužek (Omalovánky pak nepustí koš).
  * Pozadí stránky (#134): hra smí stránce kolem plátna dát vlastní pozadí
  * (mapa postupu Počítání přes celé okno), po odchodu se vrátí výchozí.
+ * Klíče (#139): hra dostane klíče aktivního profilu tak, jak je dala stránka.
  */
 
 import type {
@@ -26,6 +27,7 @@ import type {
   HomeHoldDecision,
   PageBackdrop,
 } from '../logic/gameHost';
+import type { KeyRewards } from '../logic/keyRewards';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
 import type { GameRecords } from '../storage/profileRecords';
 
@@ -47,6 +49,8 @@ export interface GameSessionOptions {
   readonly profileMarker?: GameProfileMarker | undefined;
   /** Záznamy hry pro aktivní profil (#125); bez nich hra žádné nedostane. */
   readonly records?: GameRecords | undefined;
+  /** Klíče za dokončené mapy aktivního profilu (#139); bez nich hra klíče nedává. */
+  readonly keyRewards?: KeyRewards | undefined;
   /** Nastaví pozadí stránky kolem plátna (#134), `null` výchozí; bez něj hra pozadí nemění. */
   readonly pageBackdrop?: ((backdrop: PageBackdrop | null) => void) | undefined;
   /**
@@ -137,6 +141,7 @@ export function startGameSession(options: GameSessionOptions): GameSession {
     storage: options.storage,
     profileMarker: options.profileMarker,
     records: options.records,
+    keyRewards: options.keyRewards,
   };
 
   const session: GameSession = {

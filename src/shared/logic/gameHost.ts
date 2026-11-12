@@ -2,11 +2,13 @@
  * Co stránka nabízí běžící hře (#68): kolečko nastavení, domeček, odchod
  * do menu, úložiště aktivního profilu (#71), značku profilu (#87), háček
  * na podržení domečku (#124), záznamy her aktivního profilu (#125),
- * háček na držení domečku (#129) a pozadí stránky kolem hry (#134).
+ * háček na držení domečku (#129), pozadí stránky kolem hry (#134) a klíče
+ * za dokončené mapy aktivního profilu (#139).
  * Spouštění her (`src/shared/ui/gameRunner.ts`) to hře dá do registru
  * Phaseru pod klíčem `GAME_HOST_KEY`. Čistý TypeScript.
  */
 
+import type { KeyRewards } from './keyRewards';
 import type { Profile } from './profiles';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
 import type { GameRecords } from '../storage/profileRecords';
@@ -84,6 +86,12 @@ export interface GameHost {
    * profilům. `undefined`, když stránka žádné nedala.
    */
   readonly records?: GameRecords | undefined;
+  /**
+   * Klíče za dokončené mapy aktivního profilu (#139): hra jen hlásí
+   * dokončené mapy a čte stav, označení profilu ani přezdívku nedostane.
+   * `undefined`, když stránka žádné nedala (hra pak klíče nedává).
+   */
+  readonly keyRewards?: KeyRewards | undefined;
 }
 
 /** Je hodnota z registru stránka pro hru? */
@@ -101,8 +109,18 @@ export function isGameHost(value: unknown): value is GameHost {
     (host.setPageBackdrop === undefined || typeof host.setPageBackdrop === 'function') &&
     (host.storage === undefined || isKeyValueStorage(host.storage)) &&
     (host.profileMarker === undefined || isProfileMarker(host.profileMarker)) &&
-    (host.records === undefined || isGameRecords(host.records))
+    (host.records === undefined || isGameRecords(host.records)) &&
+    (host.keyRewards === undefined || isKeyRewards(host.keyRewards))
   );
+}
+
+/** Má hodnota tvar klíčů (funkce `reportCompletedMaps` a `balance`)? */
+function isKeyRewards(value: unknown): value is KeyRewards {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const keys = value as Partial<KeyRewards>;
+  return typeof keys.reportCompletedMaps === 'function' && typeof keys.balance === 'function';
 }
 
 /** Má hodnota tvar záznamů hry (funkce `list`, `add` a `remove`)? */

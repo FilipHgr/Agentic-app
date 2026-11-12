@@ -1,11 +1,13 @@
 /**
  * Textury mapy postupu (#134): obrázek prostředí se stahuje Phaser
- * loaderem až během hraní (`loadMapPicture`), symboly cíle jsou malé
- * a načtou se se scénou (`preloadGoalSymbols`). Všechno jen ze stejné
- * stránky, adresy dává `logic/mapPictures.ts`.
+ * loaderem až během hraní (`loadMapPicture`), symboly cíle a klíč (#139)
+ * jsou malé a načtou se se scénou (`preloadGoalSymbols`). Všechno jen ze
+ * stejné stránky, adresy dává `logic/mapPictures.ts` a import klíče.
  */
 
 import Phaser from 'phaser';
+
+import keySymbolUrl from '../icons/key.svg?no-inline';
 
 import type { MapPictureId } from '../logic/mapPictureLoading';
 import { MAP_GOAL_SYMBOLS, mapPictureUrl } from '../logic/mapPictures';
@@ -23,7 +25,13 @@ export function goalSymbolTextureKey(theme: MapThemeId): string {
   return `countingGoal:${theme}`;
 }
 
-/** Načte symboly cíle všech 5 map; volá se v `preload` scény. */
+/** Klíč 🔑 ze sady Noto (#139), jak ho načte loader: šikmo, hlavou vpravo nahoře. */
+const KEY_SYMBOL_TEXTURE = 'countingKey:symbol';
+
+/** Klíč otočený vodorovně (hlavou vpravo), z něj se ořezávají půlky. */
+const FLAT_KEY_TEXTURE = 'countingKey:flat';
+
+/** Načte symboly cíle všech 5 map a klíč; volá se v `preload` scény. */
 export function preloadGoalSymbols(scene: Phaser.Scene): void {
   for (const theme of MAP_THEMES) {
     scene.load.svg(goalSymbolTextureKey(theme), MAP_GOAL_SYMBOLS[theme].url, {
@@ -31,6 +39,49 @@ export function preloadGoalSymbols(scene: Phaser.Scene): void {
       height: GOAL_SYMBOL_PIXELS,
     });
   }
+  scene.load.svg(KEY_SYMBOL_TEXTURE, keySymbolUrl, {
+    width: GOAL_SYMBOL_PIXELS,
+    height: GOAL_SYMBOL_PIXELS,
+  });
+}
+
+/**
+ * Vodorovný klíč (#139): šikmý klíč z Noto otočený o 45° po směru
+ * hodinových ručiček do čtverce o straně úhlopříčky, střed zůstane ve
+ * středu. Kresba se nemění, jen se otočí. Vrátí klíč textury a stranu
+ * původního obrázku v bodech, nebo `null`, když se klíč nenačetl.
+ */
+export function flatKeyTexture(scene: Phaser.Scene): { key: string; symbolPixels: number } | null {
+  const flat = { key: FLAT_KEY_TEXTURE, symbolPixels: GOAL_SYMBOL_PIXELS };
+  if (scene.textures.exists(FLAT_KEY_TEXTURE)) {
+    return flat;
+  }
+  if (!scene.textures.exists(KEY_SYMBOL_TEXTURE)) {
+    return null;
+  }
+  const source = scene.textures.get(KEY_SYMBOL_TEXTURE).getSourceImage();
+  if (source instanceof Phaser.GameObjects.RenderTexture) {
+    return null;
+  }
+  const side = Math.ceil(GOAL_SYMBOL_PIXELS * Math.SQRT2);
+  const canvas = scene.textures.createCanvas(FLAT_KEY_TEXTURE, side, side);
+  const context = canvas?.getContext();
+  if (!canvas || !context) {
+    // Bez kreslení do plátna se klíč ukáže jako emoji (viz `GoalKeyBadge`).
+    scene.textures.remove(FLAT_KEY_TEXTURE);
+    return null;
+  }
+  context.translate(side / 2, side / 2);
+  context.rotate(Math.PI / 4);
+  context.drawImage(
+    source,
+    -GOAL_SYMBOL_PIXELS / 2,
+    -GOAL_SYMBOL_PIXELS / 2,
+    GOAL_SYMBOL_PIXELS,
+    GOAL_SYMBOL_PIXELS,
+  );
+  canvas.refresh();
+  return flat;
 }
 
 /**

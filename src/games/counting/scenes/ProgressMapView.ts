@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import type { KeyReward } from '../../../shared/logic/keyRewards';
 import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
 import type { GameArea, GameSize } from '../../../shared/logic/viewportLayout';
 import type { MapLook } from '../logic/mapPictureLoading';
@@ -21,7 +22,12 @@ import {
   markerShareAt,
 } from '../logic/mapAnimation';
 import { layoutMapScenery } from '../logic/mapScenery';
-import { MAP_ARRIVAL_PULSE_SCALE, layoutProgressMap, markerAt } from '../logic/progressMapLayout';
+import {
+  MAP_ARRIVAL_PULSE_SCALE,
+  MAP_PATH_WIDTH_SHARE,
+  layoutProgressMap,
+  markerAt,
+} from '../logic/progressMapLayout';
 import type { MapPoint, ProgressMapLayout } from '../logic/progressMapLayout';
 import {
   CONFETTI_COLORS,
@@ -32,6 +38,7 @@ import {
   progressMapStyleFor,
 } from '../logic/theme';
 import type { ProgressMapStyle } from '../logic/theme';
+import { GoalKeyBadge } from './GoalKeyBadge';
 import { drawScenery, moveScenery } from './MapSceneryPieces';
 import type { DrawnSceneryPiece } from './MapSceneryPieces';
 import { goalSymbolTextureKey, mapPictureTextureKey } from './mapPictureTextures';
@@ -120,7 +127,6 @@ const GOAL_CONFETTI_SPIN = { min: 180, max: 540 };
 const GOAL_CONFETTI_WIDTH = 0.1;
 const GOAL_CONFETTI_HEIGHT = 0.16;
 
-const PATH_WIDTH_SHARE = 0.18;
 const LETTER_SIZE_SHARE = 0.55;
 
 const CONFETTI_COLOR_NUMBERS = CONFETTI_COLORS.map(colorNumber);
@@ -161,6 +167,8 @@ interface MapDrawing {
   readonly goalSparkles: readonly Phaser.GameObjects.Star[];
   /** Pohyblivé kousky prostředí pod cestou (#136). */
   readonly scenery: readonly DrawnSceneryPiece[];
+  /** Půlka klíče u cíle (#139), když cíl nějakou dal. */
+  readonly goalKey: GoalKeyBadge | null;
   /** Značka už zastavila na novém místě (svatozář a jiskřičky proběhly). */
   arrived: boolean;
   /** Konfety v cíli už vyletěly. */
@@ -183,7 +191,8 @@ interface MapDrawing {
  * podle tématu (#136, `logic/mapScenery.ts`).
  * Značka jde po cestě se zlatou stopou, nové místo se rozsvítí až při
  * zastavení (svatozář, jiskřičky, poskočení) a v cíli se symbol zvětší
- * a zazáří a přijdou konfety. Kde co je, řídí časová osa
+ * a zazáří a přijdou konfety. Po melodii cíle se vedle cíle objeví půlka
+ * klíče, případně se spojí s druhou v celý klíč (#139). Kde co je, řídí časová osa
  * `logic/mapAnimation.ts` podle času od ukázání, takže po otočení se mapa
  * překreslí ve stejném okamžiku. Nic nerozhoduje a nemá ťukací plochy
  * (#134 AC3); kdy se ukáže a zmizí, řídí sezení. Kolečko a domeček jsou
@@ -192,6 +201,8 @@ interface MapDrawing {
 export class ProgressMapView {
   private drawing: MapDrawing | null = null;
   private shown: MapMove | null = null;
+  /** Co dal ukázaný cíl (#139); `null` na zastávce a když cíl nic nedal. */
+  private shownKeyReward: KeyReward | null = null;
   /** Kdy se mapa ukázala (čas scény); po otočení se zachová. */
   private shownAt = 0;
 
@@ -200,10 +211,14 @@ export class ProgressMapView {
     private readonly marker: () => MapMarker,
   ) {}
 
-  /** Ukáže mapu se značkou na `move.from`; značka pak jde na `move.to`. */
-  show(screen: MapScreen, move: MapMove): void {
+  /**
+   * Ukáže mapu se značkou na `move.from`; značka pak jde na `move.to`.
+   * V cíli s `keyReward` se po melodii cíle objeví půlka klíče (#139).
+   */
+  show(screen: MapScreen, move: MapMove, keyReward: KeyReward | null): void {
     this.hide();
     this.shown = move;
+    this.shownKeyReward = move.reachedGoal ? keyReward : null;
     this.shownAt = this.scene.time.now;
     this.scene.events.on(Phaser.Scenes.Events.UPDATE, this.tick, this);
     this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, this.hide, this);
@@ -223,6 +238,7 @@ export class ProgressMapView {
   /** Mapa zmizí i uprostřed animace: efekty se zastaví a nic dalšího se nestane. */
   hide(): void {
     this.shown = null;
+    this.shownKeyReward = null;
     this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.tick, this);
     this.scene.events.off(Phaser.Scenes.Events.SHUTDOWN, this.hide, this);
     this.destroyDrawing();
@@ -237,6 +253,7 @@ export class ProgressMapView {
     this.drawing = null;
     if (drawing) {
       this.scene.tweens.killTweensOf(drawing.container.list);
+      drawing.goalKey?.stopAnimations();
       drawing.container.destroy(true);
     }
   }
@@ -257,6 +274,10 @@ export class ProgressMapView {
     const goalGlow = this.scene.add.graphics();
     const goal = this.drawGoalSymbol(layout, style, move, goalGlow);
     const goalSparkles = this.drawGoalSparkles(layout);
+    const goalKey =
+      this.shownKeyReward === null
+        ? null
+        : new GoalKeyBadge(this.scene, layout.goalKey, style, this.shownKeyReward, elapsed);
     const markerPoint = markerPointAt(layout, move, elapsed);
     const marker = this.drawMarker(layout, markerPoint.x, markerPoint.y);
     const container = this.scene.add
@@ -268,6 +289,7 @@ export class ProgressMapView {
         trail,
         goal,
         ...goalSparkles,
+        ...(goalKey === null ? [] : [goalKey.container]),
         marker,
       ])
       .setDepth(MAP_DEPTH);
@@ -283,6 +305,7 @@ export class ProgressMapView {
       goalGlow,
       goalSparkles,
       scenery,
+      goalKey,
       // Po otočení se jednorázové efekty, které už proběhly, neopakují.
       arrived: isPlaceLitAt(move, move.to, elapsed),
       confettiThrown: goalCelebrationAt(move, elapsed).confetti,
@@ -320,6 +343,7 @@ export class ProgressMapView {
     if (move.reachedGoal) {
       this.paintGoal(drawing, elapsed);
     }
+    drawing.goalKey?.update(elapsed);
   }
 
   /**
@@ -357,7 +381,7 @@ export class ProgressMapView {
     style: ProgressMapStyle,
   ): Phaser.GameObjects.Graphics {
     const graphics = this.scene.add.graphics();
-    graphics.lineStyle(layout.markerSize * PATH_WIDTH_SHARE, colorNumber(style.pathColor));
+    graphics.lineStyle(layout.markerSize * MAP_PATH_WIDTH_SHARE, colorNumber(style.pathColor));
     const [first, ...rest] = layout.places;
     if (first) {
       graphics.beginPath();
@@ -611,6 +635,10 @@ export class ProgressMapView {
     if (moment.confetti && !drawing.confettiThrown) {
       drawing.confettiThrown = true;
       this.throwGoalConfetti(drawing);
+      // Půlka klíče zůstane nad konfetami, aby ji nezakryly (#139).
+      if (drawing.goalKey) {
+        drawing.container.bringToTop(drawing.goalKey.container);
+      }
     }
   }
 

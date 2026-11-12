@@ -7,7 +7,8 @@
  * Mapa leží pod rohem kolečka a domečku a mimo výřez a lištu. Za cílem
  * (na šířku vpravo, na výšku nad ním) stojí symbol tématu (#134 AC2).
  * Místa a značka se měří i s okrajem a poskočením po dojití, aby se ani
- * nakreslené nepřekrývaly a nevyčnívaly (kontrola #133).
+ * nakreslené nepřekrývaly a nevyčnívaly (kontrola #133). Vedle slavícího
+ * cíle je místo pro klíč (#139), které nepřekryje cíl, místa ani značku.
  * Čistý TypeScript bez Phaseru; vzhled kreslí scéna a dá se vyměnit bez
  * změny tohoto rozložení i logiky mapy.
  */
@@ -28,6 +29,12 @@ export interface MapSquare extends MapPoint {
   readonly size: number;
 }
 
+/** Obdélník se středem `x`, `y`, šířkou `width` a výškou `height`. */
+export interface MapRect extends MapPoint {
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface ProgressMapLayout {
   /** Střed místa podle kroku: 0 start, 1 a 2 zastávky, `MAP_STEPS` cíl. */
   readonly places: readonly MapPoint[];
@@ -42,10 +49,19 @@ export interface ProgressMapLayout {
    * zlatou září a prstencem, se středem ve středu symbolu cíle.
    */
   readonly goalCelebration: MapSquare;
+  /**
+   * Kam se u cíle vejde klíč (#139 AC2): vodorovný štítek s půlkou klíče,
+   * nebo s oběma půlkami, které se k sobě přiblíží. Vedle slavícího cíle,
+   * nepřekrývá ho, místa na cestě, značku v cíli ani okraj mapy.
+   */
+  readonly goalKey: MapRect;
 }
 
 /** Kolikrát se zastávka, cíl a značka po dojití značky krátce zvětší. */
 export const MAP_ARRIVAL_PULSE_SCALE = 1.15;
+
+/** Šířka čáry cesty jako díl průměru značky. */
+export const MAP_PATH_WIDTH_SHARE = 0.18;
 
 /** Kolikrát je nakreslená značka větší než její průměr: bílý okraj a poskočení. */
 export const DRAWN_MARKER_SCALE =
@@ -56,6 +72,26 @@ const CORNER_BAND_CSS = 100;
 
 /** Odstup mapy od okrajů viditelné plochy v CSS px. */
 const EDGE_MARGIN_CSS = 16;
+
+/** Štítek klíče: výška jako díl průměru značky, poměr šířky k výšce a nejmenší výška v CSS px. */
+const GOAL_KEY_HEIGHT_TO_MARKER = 0.62;
+const GOAL_KEY_ASPECT = 2.4;
+const GOAL_KEY_MIN_HEIGHT_CSS = 36;
+
+/** Mezera mezi štítkem klíče a slavícím cílem nebo místem na cestě v CSS px. */
+const GOAL_KEY_GAP_CSS = 8;
+
+/** O kolik se štítek klíče zmenší, když se nikam nevejde. */
+const GOAL_KEY_SHRINK = 0.92;
+
+/** Rozestup mřížky v CSS px, ve které se hledá místo pro štítek, když se nevejde vedle cíle. */
+const GOAL_KEY_SEARCH_STEP_CSS = 6;
+
+/** Jak daleko od slavícího cíle v CSS px štítek klíče ještě stojí „u cíle“. */
+const GOAL_KEY_NEAR_CSS = 40;
+
+/** Jak málo rozhoduje vzdálenost od značky proti vzdálenosti od cíle (jen při shodě). */
+const GOAL_KEY_MARKER_TIEBREAK = 0.001;
 
 /** Na výšku leží místa střídavě v levém a pravém sloupci. */
 const PORTRAIT_COLUMNS = 2;
@@ -111,7 +147,12 @@ const GOAL_SYMBOL_SLOT = PLACE_COUNT + 0.5;
  * Na šířku: všechna místa v jedné řadě zleva doprava, střídavě výš a níž,
  * symbol cíle vpravo vedle cíle ve stejné výšce.
  */
-function wavyRow(content: ContentBox, maxMarker: number, theme: MapThemeId): ProgressMapLayout {
+function wavyRow(
+  content: ContentBox,
+  maxMarker: number,
+  theme: MapThemeId,
+  scale: number,
+): ProgressMapLayout {
   const spacing = rowSpacing(content, maxMarker);
   const markerSize = rowMarkerSize(content, maxMarker, spacing);
   const amplitude = Math.min(
@@ -128,7 +169,7 @@ function wavyRow(content: ContentBox, maxMarker: number, theme: MapThemeId): Pro
     };
   });
   const goal = lastPlace(places);
-  return withGoal(content, places, markerSize, { x: goal.x + spacing, y: goal.y });
+  return withGoal(content, places, markerSize, { x: goal.x + spacing, y: goal.y }, scale);
 }
 
 function rowMarkerSize(content: ContentBox, maxMarker: number, spacing: number): number {
@@ -150,7 +191,12 @@ function rowSpacing(content: ContentBox, maxMarker: number): number {
 }
 
 /** Na výšku: místa zdola nahoru, střídavě vlevo a vpravo, symbol cíle nad cílem. */
-function zigzagUp(content: ContentBox, maxMarker: number, theme: MapThemeId): ProgressMapLayout {
+function zigzagUp(
+  content: ContentBox,
+  maxMarker: number,
+  theme: MapThemeId,
+  scale: number,
+): ProgressMapLayout {
   const cellWidth = content.width / PORTRAIT_COLUMNS;
   const cellHeight = columnCellHeight(content, maxMarker);
   const markerSize = columnMarkerSize(cellWidth, cellHeight, maxMarker);
@@ -164,7 +210,7 @@ function zigzagUp(content: ContentBox, maxMarker: number, theme: MapThemeId): Pr
     };
   });
   const goal = lastPlace(places);
-  return withGoal(content, places, markerSize, { x: goal.x, y: goal.y - cellHeight });
+  return withGoal(content, places, markerSize, { x: goal.x, y: goal.y - cellHeight }, scale);
 }
 
 /**
@@ -176,6 +222,7 @@ function withGoal(
   places: readonly MapPoint[],
   markerSize: number,
   wanted: MapPoint,
+  scale: number,
 ): ProgressMapLayout {
   const size = goalBadgeSize(markerSize);
   const celebrationSize = goalCelebrationSize(size);
@@ -184,13 +231,243 @@ function withGoal(
     x: clampInto(wanted.x, content.left + half, content.left + content.width - half),
     y: clampInto(wanted.y, content.top + half, content.top + content.height - half),
   };
+  const placeSize = markerSize * PLACE_TO_MARKER;
+  const goalCelebration = { ...center, size: celebrationSize };
+  const keySpace: GoalKeySpace = {
+    content,
+    goal: goalCelebration,
+    goalPlace: lastPlace(places),
+    obstacles: [
+      squareRect(goalCelebration),
+      ...places.map((place, step) =>
+        squareRect({ ...place, size: drawnPlaceSize(step, placeSize, markerSize) }),
+      ),
+    ],
+    path: places.slice(1).map((place, index) => [places[index] ?? place, place] as const),
+    pathClearance: (markerSize * MAP_PATH_WIDTH_SHARE) / 2 + GOAL_KEY_GAP_CSS / scale,
+    gap: GOAL_KEY_GAP_CSS / scale,
+    searchStep: GOAL_KEY_SEARCH_STEP_CSS / scale,
+    nearGap: GOAL_KEY_NEAR_CSS / scale,
+  };
   return {
     places,
-    placeSize: markerSize * PLACE_TO_MARKER,
+    placeSize,
     markerSize,
     goalSymbol: { ...center, size },
-    goalCelebration: { ...center, size: celebrationSize },
+    goalCelebration,
+    goalKey: placeGoalKey(
+      keySpace,
+      markerSize * GOAL_KEY_HEIGHT_TO_MARKER,
+      GOAL_KEY_MIN_HEIGHT_CSS / scale,
+    ),
   };
+}
+
+/** Kolik zabere nakreslené místo: cíl i se značkou, která v něm stojí, ostatní s okrajem. */
+function drawnPlaceSize(step: number, placeSize: number, markerSize: number): number {
+  return step === MAP_STEPS
+    ? markerSize * DRAWN_MARKER_SCALE
+    : placeSize * (1 + PROGRESS_MAP_SHAPE.goalBorderShare) * MAP_ARRIVAL_PULSE_SCALE;
+}
+
+function squareRect(square: MapSquare): MapRect {
+  return { x: square.x, y: square.y, width: square.size, height: square.size };
+}
+
+/** Překrývají se obdélníky, i s mezerou `gap` kolem? */
+function rectsOverlap(first: MapRect, second: MapRect, gap: number): boolean {
+  return (
+    Math.abs(first.x - second.x) < (first.width + second.width) / 2 + gap &&
+    Math.abs(first.y - second.y) < (first.height + second.height) / 2 + gap
+  );
+}
+
+function isRectInside(rect: MapRect, content: ContentBox): boolean {
+  return (
+    rect.x - rect.width / 2 >= content.left &&
+    rect.x + rect.width / 2 <= content.left + content.width &&
+    rect.y - rect.height / 2 >= content.top &&
+    rect.y + rect.height / 2 <= content.top + content.height
+  );
+}
+
+/** Kde smí stát štítek klíče: plocha mapy, slavící cíl, čemu se vyhnout a mezera. */
+interface GoalKeySpace {
+  readonly content: ContentBox;
+  readonly goal: MapSquare;
+  /** Cíl na cestě, kde stojí značka. */
+  readonly goalPlace: MapPoint;
+  /** Slavící cíl a všechna nakreslená místa na cestě. */
+  readonly obstacles: readonly MapRect[];
+  /** Úseky cesty mezi místy; štítek od nich drží `pathClearance`. */
+  readonly path: readonly (readonly [MapPoint, MapPoint])[];
+  /** Nejmenší vzdálenost štítku od osy cesty: půl čáry a mezera. */
+  readonly pathClearance: number;
+  readonly gap: number;
+  /** Rozestup mřížky, ve které se hledá místo pro štítek. */
+  readonly searchStep: number;
+  /** Jak daleko od slavícího cíle je štítek ještě „u cíle“. */
+  readonly nearGap: number;
+}
+
+/**
+ * Kam se dá štítek klíče výšky `height` postavit: těsně pod, nad, vlevo
+ * a vpravo od slavícího cíle a navíc v mřížce po `GOAL_KEY_SEARCH_STEP_CSS`
+ * přes celou plochu mapy (na malých oknech se vedle cíle nevejde).
+ */
+function goalKeyCandidates(space: GoalKeySpace, height: number): MapRect[] {
+  const { content, goal, gap } = space;
+  const width = height * GOAL_KEY_ASPECT;
+  const reachX = goal.size / 2 + gap + width / 2;
+  const reachY = goal.size / 2 + gap + height / 2;
+  const minX = content.left + width / 2;
+  const maxX = content.left + content.width - width / 2;
+  const minY = content.top + height / 2;
+  const maxY = content.top + content.height - height / 2;
+  const alongX = clampInto(goal.x, minX, maxX);
+  const alongY = clampInto(goal.y, minY, maxY);
+  const candidates: MapRect[] = [
+    { x: alongX, y: goal.y + reachY, width, height },
+    { x: alongX, y: goal.y - reachY, width, height },
+    { x: goal.x - reachX, y: alongY, width, height },
+    { x: goal.x + reachX, y: alongY, width, height },
+  ];
+  for (let y = minY; y <= maxY; y += space.searchStep) {
+    for (let x = minX; x <= maxX; x += space.searchStep) {
+      candidates.push({ x, y, width, height });
+    }
+  }
+  return candidates;
+}
+
+/**
+ * Místo pro štítek klíče u slavícího cíle (#139 AC2): nejdřív jen místa
+ * u cíle (nejvýš `nearGap` od slavícího cíle), co největší, ale nejvýš
+ * `maxHeight`, a z nich to nejblíž cíli (při shodě dál od značky v cíli).
+ * Teprve když se u cíle nevejde ani nejmenší (`minHeight`), hledá se
+ * kdekoli na mapě; když ani tam, stojí pod cílem.
+ */
+function placeGoalKey(space: GoalKeySpace, maxHeight: number, minHeight: number): MapRect {
+  const goalRect = squareRect(space.goal);
+  const isNearGoal = (rect: MapRect): boolean => rectDistance(rect, goalRect) <= space.nearGap;
+  return (
+    largestFitting(space, maxHeight, minHeight, isNearGoal) ??
+    largestFitting(space, maxHeight, minHeight, () => true) ??
+    goalKeyCandidates(space, minHeight)[0] ?? {
+      ...space.goalPlace,
+      width: minHeight * GOAL_KEY_ASPECT,
+      height: minHeight,
+    }
+  );
+}
+
+/** Největší štítek od `maxHeight` do `minHeight`, který se vejde a splní `allowed`. */
+function largestFitting(
+  space: GoalKeySpace,
+  maxHeight: number,
+  minHeight: number,
+  allowed: (rect: MapRect) => boolean,
+): MapRect | undefined {
+  for (
+    let height = Math.max(maxHeight, minHeight);
+    height >= minHeight;
+    height *= GOAL_KEY_SHRINK
+  ) {
+    const fitting = goalKeyCandidates(space, height).filter(
+      (rect) =>
+        allowed(rect) &&
+        isRectInside(rect, space.content) &&
+        space.obstacles.every((other) => !rectsOverlap(rect, other, space.gap)) &&
+        space.path.every(
+          ([from, to]) => segmentRectDistance(from, to, rect) >= space.pathClearance,
+        ),
+    );
+    const nearest = nearestToGoal(fitting, space);
+    if (nearest !== undefined) {
+      return nearest;
+    }
+  }
+  return undefined;
+}
+
+/** Vzdálenost bodu od obdélníku (0 uvnitř). */
+function pointRectDistance(point: MapPoint, rect: MapRect): number {
+  const dx = Math.max(Math.abs(point.x - rect.x) - rect.width / 2, 0);
+  const dy = Math.max(Math.abs(point.y - rect.y) - rect.height / 2, 0);
+  return Math.hypot(dx, dy);
+}
+
+/** Vzdálenost bodu od úsečky `from`–`to`. */
+function pointSegmentDistance(point: MapPoint, from: MapPoint, to: MapPoint): number {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const share =
+    lengthSquared === 0
+      ? 0
+      : clampInto(((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared, 0, 1);
+  return Math.hypot(point.x - (from.x + dx * share), point.y - (from.y + dy * share));
+}
+
+/**
+ * Vzdálenost úsečky od obdélníku. Úsečka, která obdélníkem prochází, má
+ * vzdálenost 0; jinak je nejbližší bod buď konec úsečky, nebo roh obdélníku.
+ */
+function segmentRectDistance(from: MapPoint, to: MapPoint, rect: MapRect): number {
+  const halfWidth = rect.width / 2;
+  const halfHeight = rect.height / 2;
+  const corners: MapPoint[] = [
+    { x: rect.x - halfWidth, y: rect.y - halfHeight },
+    { x: rect.x + halfWidth, y: rect.y - halfHeight },
+    { x: rect.x + halfWidth, y: rect.y + halfHeight },
+    { x: rect.x - halfWidth, y: rect.y + halfHeight },
+  ];
+  const crossesEdge = corners.some((corner, index) =>
+    segmentsCross(from, to, corner, corners[(index + 1) % corners.length] ?? corner),
+  );
+  if (crossesEdge || pointRectDistance(from, rect) === 0) {
+    return 0;
+  }
+  return Math.min(
+    pointRectDistance(from, rect),
+    pointRectDistance(to, rect),
+    ...corners.map((corner) => pointSegmentDistance(corner, from, to)),
+  );
+}
+
+/** Kříží se úsečky `a1`–`a2` a `b1`–`b2`? */
+function segmentsCross(a1: MapPoint, a2: MapPoint, b1: MapPoint, b2: MapPoint): boolean {
+  const side = (p: MapPoint, q: MapPoint, r: MapPoint): number =>
+    (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const d1 = side(b1, b2, a1);
+  const d2 = side(b1, b2, a2);
+  const d3 = side(a1, a2, b1);
+  const d4 = side(a1, a2, b2);
+  return d1 * d2 < 0 && d3 * d4 < 0;
+}
+
+/** Vzdálenost mezi okraji obdélníků (0, když se dotýkají nebo překrývají). */
+function rectDistance(first: MapRect, second: MapRect): number {
+  const dx = Math.abs(first.x - second.x) - (first.width + second.width) / 2;
+  const dy = Math.abs(first.y - second.y) - (first.height + second.height) / 2;
+  return Math.max(dx, dy, 0);
+}
+
+/** Štítek nejblíž slavícímu cíli, při shodě nejdál od značky v cíli; `undefined`, když žádný není. */
+function nearestToGoal(rects: readonly MapRect[], space: GoalKeySpace): MapRect | undefined {
+  let best: MapRect | undefined;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const rect of rects) {
+    const toGoal = Math.hypot(rect.x - space.goal.x, rect.y - space.goal.y);
+    const toMarker = Math.hypot(rect.x - space.goalPlace.x, rect.y - space.goalPlace.y);
+    // Vzdálenost od značky rozhoduje jen při (skoro) stejné vzdálenosti od cíle.
+    const score = toGoal - toMarker * GOAL_KEY_MARKER_TIEBREAK;
+    if (score < bestScore) {
+      best = rect;
+      bestScore = score;
+    }
+  }
+  return best;
 }
 
 function columnMarkerSize(cellWidth: number, cellHeight: number, maxMarker: number): number {
@@ -239,8 +516,8 @@ export function layoutProgressMap(area: GameArea, theme: MapThemeId): ProgressMa
   const content = mapContentBox(area);
   const maxMarker = MAX_MARKER_CSS / area.scale;
   return area.width > area.height
-    ? wavyRow(content, maxMarker, theme)
-    : zigzagUp(content, maxMarker, theme);
+    ? wavyRow(content, maxMarker, theme, area.scale)
+    : zigzagUp(content, maxMarker, theme, area.scale);
 }
 
 /** Kde stojí značka na kroku `step` (mimo mapu se bere nejbližší konec). */

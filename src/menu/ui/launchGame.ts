@@ -8,7 +8,9 @@
  * Název stránky a kolečko nastaví stránka menu podle logiky menu.
  * Hra dostane úložiště aktivního profilu (#71), jiné úložiště nemá,
  * a značku profilu (#87): jen barvu a první písmeno přezdívky. Záznamy her
- * (#125) dostane jen pro aktivní profil, bez jeho označení.
+ * (#125) dostane jen pro aktivní profil, bez jeho označení. Klíče za
+ * dokončené mapy (#139) jsou v úložišti aktivního profilu v oblasti
+ * `KEY_REWARDS_AREA`, takže je smazání profilu smaže s ostatními daty.
  */
 
 import { isGameUnlocked } from '../../shared/logic/gameAccess';
@@ -16,6 +18,7 @@ import type { SubscriptionSource } from '../../shared/logic/gameAccess';
 import type { GameProfileMarker } from '../../shared/logic/gameHost';
 import type { GameEntry } from '../../shared/logic/gameRegistry';
 import type { KeyValueStorage } from '../../shared/storage/keyValueStorage';
+import { KEY_REWARDS_AREA, openKeyRewards } from '../../shared/storage/keyRewardsStorage';
 import type { GameRecords } from '../../shared/storage/profileRecords';
 import { isGameModule, runGame } from '../../shared/ui/gameRunner';
 
@@ -49,6 +52,12 @@ export function launchGame(game: GameEntry, loaded: unknown, context: LaunchCont
     storage: context.gameStorage?.(game.id),
     profileMarker: context.profileMarker?.(),
     records: context.gameRecords?.(game.id),
+    // Nové klíče při každém spuštění; neuložená půlka se po návratu do hry
+    // znovu nahlásí z mapy a úložiště profilu ji drží v paměti (#139 AC6).
+    keyRewards:
+      context.gameStorage === undefined
+        ? undefined
+        : openKeyRewards(context.gameStorage(KEY_REWARDS_AREA)),
   });
   context.closeMenu();
 }

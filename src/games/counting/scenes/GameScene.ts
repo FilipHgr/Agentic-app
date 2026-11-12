@@ -127,6 +127,8 @@ export class GameScene extends Phaser.Scene {
       },
       page: host ?? NO_PAGE,
       loadRecognizer: loadDigitRecognizer,
+      // Klíče aktivního profilu od stránky (#139); bez stránky mapa klíč nedává.
+      keyRewards: host?.keyRewards,
       onChange: (change) => this.onSessionChange(change),
     });
     this.session = session;
@@ -210,7 +212,7 @@ export class GameScene extends Phaser.Scene {
     const move = this.session.shownMap();
     if (move !== null) {
       const look = this.mapPictures.mapShown(this.mapPictureOf(move.theme));
-      this.progressMap.show(this.mapScreen(look), move);
+      this.progressMap.show(this.mapScreen(look), move, this.session.goalKeyReward());
       this.showPageBackdrop(move.theme, look);
     }
   }

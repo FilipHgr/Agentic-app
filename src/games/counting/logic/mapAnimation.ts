@@ -5,9 +5,13 @@
  * a v cíli se symbol zvětší, zazáří a přijdou konfety.
  * Vše plyne jen z času a kroku, ne z rozložení, takže po otočení zařízení
  * značka pokračuje ze stejného dílu cesty a dojde ve stejném čase (AC4).
+ * Po melodii cíle se u cíle objeví půlka klíče (#139 AC2), a když tím
+ * vznikne celý klíč, přiletí k ní druhá půlka a spojí se.
  * Čistý TypeScript bez Phaseru; kreslí scéna, zvuky pouští sezení.
  */
 
+import type { KeyReward } from '../../../shared/logic/keyRewards';
+import { SOUNDS, soundLengthSeconds } from './answerSounds';
 import type { MapMove } from './progressMap';
 import type { MapPoint, ProgressMapLayout } from './progressMapLayout';
 
@@ -114,4 +118,59 @@ export function goalCelebrationAt(move: MapMove, elapsedMs: number): GoalCelebra
     glowing: true,
     confetti: sinceArrival >= GOAL_CONFETTI_DELAY_MS,
   };
+}
+
+/**
+ * Kdy se u cíle objeví půlka klíče a zazní její tón, ms od ukázání mapy
+ * (#139 AC2): až dohraje melodie cíle, která začne, když značka dojde.
+ */
+export const KEY_REWARD_APPEAR_MS =
+  MARKER_ARRIVAL_MS + Math.ceil(soundLengthSeconds(SOUNDS.mapGoal) * 1000);
+
+/** Jak dlouho půlka klíče naskakuje (zvětšuje se z nuly). */
+export const KEY_REWARD_POP_MS = 350;
+
+/** Jak dlouho po objevení stojí půlky celého klíče od sebe, než se k sobě rozletí. */
+export const KEY_JOIN_DELAY_MS = 450;
+
+/** Jak dlouho se půlky celého klíče k sobě přibližují. */
+export const KEY_JOIN_MS = 600;
+
+/** Kdy jsou půlky celého klíče spojené, ms od ukázání mapy (dlouho před koncem 5 s cíle). */
+export const KEY_JOINED_MS = KEY_REWARD_APPEAR_MS + KEY_JOIN_DELAY_MS + KEY_JOIN_MS;
+
+/** Jak vypadá půlka klíče u cíle v jednom okamžiku. */
+export interface KeyRewardMoment {
+  /** Půlka klíče je u cíle vidět. */
+  readonly visible: boolean;
+  /** Obě půlky jsou spojené v celý klíč (jen když cíl klíč dokončil). */
+  readonly joined: boolean;
+  /** Jak velká už je naskakující půlka: 0 před objevením, 1 celá. */
+  readonly popShare: number;
+  /** Jak daleko od sebe jsou půlky: 1 od sebe, 0 spojené; u půlky bez druhé 0. */
+  readonly separation: number;
+}
+
+/**
+ * Půlka klíče u cíle v čase `elapsedMs` od ukázání mapy: objeví se po
+ * melodii cíle a naskočí. U `'wholeKey'` se objeví obě půlky kousek od
+ * sebe a pak se k sobě přiblíží a spojí. Všechno doběhne do konce 5 s cíle
+ * a pak se nemění.
+ */
+export function keyRewardMomentAt(reward: KeyReward, elapsedMs: number): KeyRewardMoment {
+  const sinceAppear = elapsedMs - KEY_REWARD_APPEAR_MS;
+  if (sinceAppear < 0) {
+    return {
+      visible: false,
+      joined: false,
+      popShare: 0,
+      separation: reward === 'wholeKey' ? 1 : 0,
+    };
+  }
+  const popShare = easeOut(clampShare(sinceAppear / KEY_REWARD_POP_MS));
+  if (reward === 'half') {
+    return { visible: true, joined: false, popShare, separation: 0 };
+  }
+  const joinShare = clampShare((sinceAppear - KEY_JOIN_DELAY_MS) / KEY_JOIN_MS);
+  return { visible: true, joined: joinShare >= 1, popShare, separation: 1 - easeInOut(joinShare) };
 }

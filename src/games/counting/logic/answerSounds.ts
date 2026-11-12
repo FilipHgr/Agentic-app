@@ -6,7 +6,8 @@
 import type { TapOutcome } from './answerRound';
 import type { Tone } from '../../../shared/audio/tonePlayer';
 
-export type SoundName = 'correct' | 'wrong' | 'celebration' | 'hint' | 'mapStep' | 'mapGoal';
+export type SoundName =
+  'correct' | 'wrong' | 'celebration' | 'hint' | 'mapStep' | 'mapGoal' | 'keyReward';
 
 /** Veselá stoupající melodie C5, E5, G5. */
 const CORRECT_TONES: readonly Tone[] = [
@@ -56,6 +57,15 @@ const MAP_GOAL_TONES: readonly Tone[] = [
   { frequencyHz: 2093, startSeconds: 0.74, durationSeconds: 0.5, volume: 0.28 },
 ];
 
+/**
+ * Krátké zacinkání, když se u cíle objeví půlka klíče (#139 AC2, asi 0,4 s):
+ * dva jasné tóny, tišší než melodie cíle, která už dohrála.
+ */
+const KEY_REWARD_TONES: readonly Tone[] = [
+  { frequencyHz: 1760, startSeconds: 0, durationSeconds: 0.1, volume: 0.25 },
+  { frequencyHz: 2349.32, startSeconds: 0.12, durationSeconds: 0.28, volume: 0.25 },
+];
+
 export const SOUNDS: Readonly<Record<SoundName, readonly Tone[]>> = {
   correct: CORRECT_TONES,
   wrong: WRONG_TONES,
@@ -63,6 +73,7 @@ export const SOUNDS: Readonly<Record<SoundName, readonly Tone[]>> = {
   hint: HINT_TONES,
   mapStep: MAP_STEP_TONES,
   mapGoal: MAP_GOAL_TONES,
+  keyReward: KEY_REWARD_TONES,
 };
 
 /** Vrátí zvuk pro výsledek ťuknutí, nebo `null`, když se nemá ozvat nic. */

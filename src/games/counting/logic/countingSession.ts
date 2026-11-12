@@ -1,7 +1,8 @@
 /**
  * Jeden vstup do Počítání (#68 AC5): rozehraný příklad, chyby, nápověda,
- * hvězdičky, oslava, mapa postupu (#87), nastavení pro rodiče, průvodce
- * a stahování rozpoznávání psaní. Scéna jen kreslí podle sezení a předává mu ťuknutí.
+ * hvězdičky, oslava, mapa postupu (#87), půlka klíče za dokončenou mapu
+ * (#139), nastavení pro rodiče, průvodce a stahování rozpoznávání psaní.
+ * Scéna jen kreslí podle sezení a předává mu ťuknutí.
  *
  * Časovače, zvuky, větu průvodce a kolečko nastavení dostane sezení zvenku,
  * aby je při odchodu domečkem (`leave`) mohlo všechny zastavit a odpojit.
@@ -10,6 +11,7 @@
  */
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
+import type { KeyReward, KeyRewards } from '../../../shared/logic/keyRewards';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import { loadMapProgress, saveMapProgress } from '../storage/mapStorage';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
@@ -29,7 +31,7 @@ import type { DotCounting } from './dotCounting';
 import { drawProblem, startProblemRotation } from './problemRotation';
 import type { ProblemRotation } from './problemRotation';
 import type { Problem } from './problems';
-import { MARKER_ARRIVAL_MS } from './mapAnimation';
+import { KEY_REWARD_APPEAR_MS, MARKER_ARRIVAL_MS } from './mapAnimation';
 import { mapShowMs, stepOnMap } from './progressMap';
 import type { MapMove, MapProgress } from './progressMap';
 import { createRecognizerLoading } from './recognizerLoading';
@@ -111,6 +113,11 @@ export interface CountingSessionOptions {
   readonly timers: SessionTimers;
   readonly page: SessionPage;
   readonly loadRecognizer: LoadRecognizer;
+  /**
+   * Klíče aktivního profilu od stránky (#139); bez nich mapa klíč nedává
+   * a hra jede dál jako dřív.
+   */
+  readonly keyRewards?: KeyRewards | undefined;
   /** Obrazovka se má překreslit; po odchodu se už nezavolá. */
   readonly onChange: (change: SessionChange) => void;
 }
@@ -134,6 +141,12 @@ export interface CountingSession {
   mapProgress(): MapProgress;
   /** Krok, který mapa po oslavě právě ukazuje; `null`, když mapa není vidět. */
   shownMap(): MapMove | null;
+  /**
+   * Co dal cíl, který mapa právě ukazuje (#139): `'half'` půlku klíče,
+   * `'wholeKey'` druhou půlku do celého klíče. `null` mimo obrazovku cíle
+   * a když cíl nic nedal (mapa už započtená, třeba v druhém panelu).
+   */
+  goalKeyReward(): KeyReward | null;
   /** Uložené nastavení rodiče. */
   settings(): GameSettings;
   /** Čím dítě odpovídá v rozehraném příkladu (psaní jen s rozpoznáváním, #58). */
@@ -187,6 +200,12 @@ export function createCountingSession(options: CountingSessionOptions): Counting
   /** Krok za právě zaplněnou řadu, který mapa ukáže po oslavě. */
   let moveToShow: MapMove | null = null;
   let shownMove: MapMove | null = null;
+  /** Co dal cíl za právě zaplněnou řadu; ukáže se s mapou po oslavě (#139). */
+  let keyRewardToShow: KeyReward | null = null;
+  let shownKeyReward: KeyReward | null = null;
+  // Mapy dokončené dřív (i před #139) se započtou hned, jednou a bez
+  // animace (AC5); dřív započtené mapy klíče nepřidají (AC3).
+  reportCompletedMaps(map.completedMaps);
   const recognizerLoading = createRecognizerLoading(options.loadRecognizer);
   // Vystřídání příkladů jen pro toto spuštění, nic se neukládá (#94 AC7).
   let rotation: ProblemRotation = startProblemRotation();
@@ -278,32 +297,62 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     showMap();
   }
 
-  /** Plná řada: krok na mapě se započte a uloží hned, ještě před oslavou (#87 AC4). */
+  /**
+   * Nahlásí stránce počet dokončených map a vrátí, co tím dítě dostalo.
+   * Klíče jsou cizí kód stránky: když selžou, dítě hraje dál bez půlky
+   * a nevidí chybu (AC6).
+   */
+  function reportCompletedMaps(completedMaps: number): KeyReward | null {
+    if (options.keyRewards === undefined) {
+      return null;
+    }
+    try {
+      return options.keyRewards.reportCompletedMaps(completedMaps);
+    } catch {
+      // Selhání klíčů nesmí zastavit mapu ani další příklad.
+      return null;
+    }
+  }
+
+  /**
+   * Plná řada: krok na mapě se započte a uloží hned, ještě před oslavou
+   * (#87 AC4). Došla-li značka do cíle, nahlásí se hned i dokončená mapa,
+   * aby přerušení obrazovky cíle půlku klíče nevzalo (#139 AC3).
+   */
   function stepMap(): void {
     const result = stepOnMap(map);
     map = result.progress;
     moveToShow = result.move;
     saveMapProgress(storage, map);
+    keyRewardToShow = result.move.reachedGoal ? reportCompletedMaps(map.completedMaps) : null;
   }
 
   /** Po oslavě se na chvíli ukáže mapa s krokem, pak sama zmizí (#87 AC1). */
   function showMap(): void {
     const move = moveToShow;
+    const keyReward = keyRewardToShow;
     moveToShow = null;
+    keyRewardToShow = null;
     if (move === null) {
       startRound();
       return;
     }
     shownMove = move;
+    shownKeyReward = keyReward;
     notify({ kind: 'mapShown' });
     // Zvuk zazní, až značka na novém místě zastaví (#135 AC2, AC3).
     const arrivalSound = move.reachedGoal ? SOUNDS.mapGoal : SOUNDS.mapStep;
     schedule(MARKER_ARRIVAL_MS, () => sounds.play(arrivalSound), celebrationSteps);
+    if (keyReward !== null) {
+      // Tón půlky klíče až po melodii cíle, spolu s půlkou (#139 AC2).
+      schedule(KEY_REWARD_APPEAR_MS, () => sounds.play(SOUNDS.keyReward), celebrationSteps);
+    }
     schedule(mapShowMs(move), hideMap, celebrationSteps);
   }
 
   function hideMap(): void {
     shownMove = null;
+    shownKeyReward = null;
     notify({ kind: 'mapHidden' });
     startRound();
   }
@@ -346,12 +395,14 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     }
     settingsAreOpen = true;
     moveToShow = null;
+    keyRewardToShow = null;
     if (celebrationSteps.size > 0) {
       cancelAll(celebrationSteps);
       if (shownMove === null) {
         notify({ kind: 'celebrationStopped' });
       } else {
         shownMove = null;
+        shownKeyReward = null;
         notify({ kind: 'mapStopped' });
       }
     }
@@ -375,6 +426,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     celebrating: () => isCelebrating,
     mapProgress: () => map,
     shownMap: () => shownMove,
+    goalKeyReward: () => shownKeyReward,
     settings: () => settings,
     answerInput: () => roundInput,
     recognizer: () => recognizerLoading.recognizer(),
@@ -477,6 +529,8 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       isCelebrating = false;
       moveToShow = null;
       shownMove = null;
+      keyRewardToShow = null;
+      shownKeyReward = null;
       cancelAll(pending);
       stopWatchingRecognizer();
       detachGear();

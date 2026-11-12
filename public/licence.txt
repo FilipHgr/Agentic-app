@@ -108,10 +108,11 @@ Plný text licence MIT:
 
 Ikony nástrojů v Omalovánkách (src/games/coloring/icons/: paintbrush, eraser,
 pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter), ikony
-fotoaparátu a knihy alba (camera, notebook-with-decorative-cover) a ikona koše
-u velkého obrázku z alba (wastebasket) a symboly cíle map postupu v Počítání
+fotoaparátu a knihy alba (camera, notebook-with-decorative-cover), ikona koše
+u velkého obrázku z alba (wastebasket), symboly cíle map postupu v Počítání
 (src/games/counting/maps/: gem-stone, mushroom, castle, spiral-shell,
-ringed-planet) jsou obrázky ze sady Noto Emoji, autor
+ringed-planet) a klíč za dokončenou mapu v Počítání
+(src/games/counting/icons/: key) jsou obrázky ze sady Noto Emoji, autor
 Google Inc.,
 https://github.com/googlefonts/noto-emoji
 Copyright Google Inc.
