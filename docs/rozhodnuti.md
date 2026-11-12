@@ -325,3 +325,4 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-11 Obrázky #131 schváleny („ok“): tlačítko malovat dál se štětcem 🖌️, na šířku 16 px nad košem, na výšku 16 px vlevo od koše.
 - 2026-11-11 Obrázky #132 schváleny („ok“): výběr 11 omalovánek v mřížce alba (4 sloupce na šířku, 3 na výšku), moře zjednodušené o 4 malé bublinky (obrys 32 036 B).
 - 2026-11-11 Nová mapa postupu v Počítání: #133 (3 kroky, 5 map se střídají), #134 (obrázky z ElevenLabs, asi 730 kreditů, nejdřív zkouška 1 mapy za 146), #135 (animace cesty a cíle), #136 (pohyby prostředí) schváleny podle doporučení, pořadí po #132.
+- 2026-11-12 Obrázky #135 schváleny („ok“): zlatá stopa za značkou, rozsvícení zastávky září kolem značky s jiskřičkami, cíl zvětšený 1,3× se zlatou září a konfetami; cíl se na mapě posune doleva, aby se zvětšený vešel celý.
