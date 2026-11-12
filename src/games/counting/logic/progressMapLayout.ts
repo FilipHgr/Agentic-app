@@ -48,7 +48,8 @@ export interface ProgressMapLayout {
 export const MAP_ARRIVAL_PULSE_SCALE = 1.15;
 
 /** Kolikrát je nakreslená značka větší než její průměr: bílý okraj a poskočení. */
-const DRAWN_MARKER_SCALE = (1 + PROGRESS_MAP_SHAPE.markerBorderShare) * MAP_ARRIVAL_PULSE_SCALE;
+export const DRAWN_MARKER_SCALE =
+  (1 + PROGRESS_MAP_SHAPE.markerBorderShare) * MAP_ARRIVAL_PULSE_SCALE;
 
 /** Pás nahoře pro kolečko a domeček v CSS px (roh 88 px, iPad 12 + 76 px a stavový řádek). */
 const CORNER_BAND_CSS = 100;
@@ -68,15 +69,19 @@ const MARKER_SHARE = 0.75;
 /** Místo je menší než značka, aby značka stojící na něm byla dobře vidět. */
 const PLACE_TO_MARKER = 0.7;
 
-interface ContentBox {
+/** Plocha mapy v herních jednotkách: levý horní roh, šířka a výška. */
+export interface ContentBox {
   readonly left: number;
   readonly top: number;
   readonly width: number;
   readonly height: number;
 }
 
-/** Plocha pro mapu: bez pásu kolečka a domečku, výřezu, lišty a s odstupem od okraje. */
-function contentBoxOf(area: GameArea): ContentBox {
+/**
+ * Plocha pro mapu: bez pásu kolečka a domečku, výřezu, lišty a s odstupem
+ * od okraje. Drží se jí i pohyby prostředí (#136).
+ */
+export function mapContentBox(area: GameArea): ContentBox {
   const covered = area.coveredEdges ?? { top: 0, right: 0, bottom: 0, left: 0 };
   const margin = EDGE_MARGIN_CSS / area.scale;
   const left = covered.left + margin;
@@ -231,7 +236,7 @@ function lastPlace(places: readonly MapPoint[]): MapPoint {
 
 /** Rozložení mapy `theme`; orientace cesty se řídí tvarem herní plochy. */
 export function layoutProgressMap(area: GameArea, theme: MapThemeId): ProgressMapLayout {
-  const content = contentBoxOf(area);
+  const content = mapContentBox(area);
   const maxMarker = MAX_MARKER_CSS / area.scale;
   return area.width > area.height
     ? wavyRow(content, maxMarker, theme)

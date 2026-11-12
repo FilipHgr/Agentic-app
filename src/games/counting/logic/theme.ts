@@ -247,6 +247,30 @@ export const PROGRESS_MAP_EFFECTS = {
   goalRingColor: '#F5B800',
 } as const;
 
+/**
+ * Pohyby prostředí na mapách (#136): jemné kousky v barvách obrázků map.
+ * Kde je víc barev, střídají se po kouscích.
+ */
+export const MAP_SCENERY_COLORS = {
+  wave: WHITE,
+  gull: WHITE,
+  leaves: ['#E8892B', '#D9502F', '#F2C230', '#B5651D'],
+  leafVein: '#7A4A1E',
+  butterflyWings: ['#FF7EB6', '#8E7CFF'],
+  butterflySpots: '#FFE45C',
+  butterflyBody: '#3A3A3C',
+  flagPole: '#6B4A2B',
+  flagCloths: ['#E5484D', '#2F7DE1'],
+  cloud: WHITE,
+  bubble: WHITE,
+  fish: ['#FF8A3D', '#FFD23F'],
+  fishFin: '#E0662A',
+  fishEye: TEXT,
+  stars: ['#FFE45C', WHITE],
+  cometHead: '#FFF3A6',
+  cometTail: '#FFD633',
+} as const;
+
 /** Šířka okraje jako díl průměru: místo, cíl a značka hráče. */
 export const PROGRESS_MAP_SHAPE = {
   placeBorderShare: 0.08,

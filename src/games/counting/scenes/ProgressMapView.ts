@@ -20,6 +20,7 @@ import {
   markerPointAt,
   markerShareAt,
 } from '../logic/mapAnimation';
+import { layoutMapScenery } from '../logic/mapScenery';
 import { MAP_ARRIVAL_PULSE_SCALE, layoutProgressMap, markerAt } from '../logic/progressMapLayout';
 import type { MapPoint, ProgressMapLayout } from '../logic/progressMapLayout';
 import {
@@ -31,6 +32,8 @@ import {
   progressMapStyleFor,
 } from '../logic/theme';
 import type { ProgressMapStyle } from '../logic/theme';
+import { drawScenery, moveScenery } from './MapSceneryPieces';
+import type { DrawnSceneryPiece } from './MapSceneryPieces';
 import { goalSymbolTextureKey, mapPictureTextureKey } from './mapPictureTextures';
 
 /** Mapa leží nad příkladem, konfetami i hvězdičkami, pod panely rodičů. */
@@ -156,6 +159,8 @@ interface MapDrawing {
   readonly goal: Phaser.GameObjects.Container;
   readonly goalGlow: Phaser.GameObjects.Graphics;
   readonly goalSparkles: readonly Phaser.GameObjects.Star[];
+  /** Pohyblivé kousky prostředí pod cestou (#136). */
+  readonly scenery: readonly DrawnSceneryPiece[];
   /** Značka už zastavila na novém místě (svatozář a jiskřičky proběhly). */
   arrived: boolean;
   /** Konfety v cíli už vyletěly. */
@@ -174,6 +179,8 @@ interface MapDrawing {
  * Mapa postupu (#87, #133, #134, #135): obrázek prostředí přes celé okno,
  * nad ním cesta, start, 2 zastávky, cíl se symbolem tématu a značka hráče.
  * Bez staženého obrázku zástupný vzhled v barvě mapy (#134 AC4).
+ * Nad pozadím (obrázkem i zástupným) a pod cestou se jemně hýbe prostředí
+ * podle tématu (#136, `logic/mapScenery.ts`).
  * Značka jde po cestě se zlatou stopou, nové místo se rozsvítí až při
  * zastavení (svatozář, jiskřičky, poskočení) a v cíli se symbol zvětší
  * a zazáří a přijdou konfety. Kde co je, řídí časová osa
@@ -241,6 +248,7 @@ export class ProgressMapView {
     const layout = layoutProgressMap(area, move.theme);
     const style = progressMapStyleFor(move.theme, look);
     const background = this.drawBackground(screen, move);
+    const scenery = drawScenery(this.scene, layoutMapScenery(area, move.theme, layout));
     const path = this.drawPath(layout, style);
     const trail = this.scene.add.graphics();
     const places = layout.places.map((_, step) =>
@@ -252,7 +260,16 @@ export class ProgressMapView {
     const markerPoint = markerPointAt(layout, move, elapsed);
     const marker = this.drawMarker(layout, markerPoint.x, markerPoint.y);
     const container = this.scene.add
-      .container(0, 0, [...background, path, ...places, trail, goal, ...goalSparkles, marker])
+      .container(0, 0, [
+        ...background,
+        ...scenery.map(({ graphics }) => graphics),
+        path,
+        ...places,
+        trail,
+        goal,
+        ...goalSparkles,
+        marker,
+      ])
       .setDepth(MAP_DEPTH);
     this.drawing = {
       container,
@@ -265,6 +282,7 @@ export class ProgressMapView {
       goal,
       goalGlow,
       goalSparkles,
+      scenery,
       // Po otočení se jednorázové efekty, které už proběhly, neopakují.
       arrived: isPlaceLitAt(move, move.to, elapsed),
       confettiThrown: goalCelebrationAt(move, elapsed).confetti,
@@ -276,7 +294,10 @@ export class ProgressMapView {
     this.tick();
   }
 
-  /** Každý snímek: značka, stopa, rozsvícení nového místa a slavící cíl podle času. */
+  /**
+   * Každý snímek: kousky prostředí, značka, stopa, rozsvícení nového místa
+   * a slavící cíl podle času.
+   */
   private tick(): void {
     const drawing = this.drawing;
     if (drawing === null) {
@@ -284,6 +305,7 @@ export class ProgressMapView {
     }
     const elapsed = this.elapsedMs();
     const { layout, move, marker } = drawing;
+    moveScenery(drawing.scenery, elapsed);
     if (!drawing.settled) {
       const point = markerPointAt(layout, move, elapsed);
       marker.setPosition(point.x, point.y - arrivalHop(elapsed) * layout.markerSize);
