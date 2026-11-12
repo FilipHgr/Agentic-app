@@ -118,8 +118,8 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
   (kvůli možné migraci na GitLab).
 
 ## Postup práce
-- Úkoly navrhuje Claude jako GitHub issues, vlastník je jen schvaluje.
-  Postup: skill `novy-ukol`.
+- Úkoly navrhuje Claude jako GitHub issues a dělá je rovnou bez
+  schvalování vlastníkem. Postup: skill `novy-ukol`.
 - Po dokončení úkolu pošli odkaz na náhled, na konci sprintu otevři PR.
   Postup: skill `predani-ukolu`.
 - Úkol je hotový, až když projde `npm run test:changed`, `npm run lint`

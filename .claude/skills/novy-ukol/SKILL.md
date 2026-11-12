@@ -5,7 +5,8 @@ description: Navržení nového úkolu do hry jako GitHub issue (user story a ak
 
 # Nový úkol
 
-Úkoly vymýšlí Claude, vlastník je jen schvaluje nebo upravuje. Nic z toho
+Úkoly vymýšlí Claude a dělá je rovnou bez schvalování vlastníkem
+(rozhodnutí 2026-11-12); vlastník může kdykoli napsat připomínky. Nic z toho
 nepiš do chatu jako hotové zadání, zadání žije v GitHub issue.
 
 Když `gh` nefunguje (v cloudu je povolený jen na vyhledávání), dělej
@@ -25,33 +26,24 @@ Návrh vzniká a kontroluje se v subagentech, ty ho jen předáváš a zakládá
    - Když po dvou kolech pořád něco blokuje, issue nezakládej a napiš
      vlastníkovi, v čem je problém.
 3. Po SCHVÁLENO založ issue podle šablony
-   `.github/ISSUE_TEMPLATE/user-story.md` se štítkem „ke schválení“.
-   Obsah vezmi z návrhu beze změn. Nevyřešená DOPORUČENÍ od
-   `story-reviewer` přidej do issue jako komentář.
-4. Najednou navrhni 2–3 úkoly (vlastník je schválí jedním „ok“ a Claude je pak udělá za sebou bez čekání). Obrázky před schválením jen u úkolů, které mění vzhled; drobné úpravy vzhledu ukaž až po implementaci.
-5. Pošli vlastníkovi odkaz na issue, v jedné větě o čem je a proč teď.
+   `.github/ISSUE_TEMPLATE/user-story.md` rovnou se štítkem „schváleno“
+   (bez „ke schválení“, sekce „Jak schválit“ se vynechá). Obsah vezmi
+   z návrhu beze změn. Nevyřešená DOPORUČENÍ od `story-reviewer` přidej
+   do issue jako komentář. Otevřené otázky rozhodni podle doporučení.
+4. Pošli vlastníkovi odkaz na issue, v jedné větě o čem je a proč teď,
+   a pokračuj prací (sekce 3) bez čekání na „ok“.
+5. Vzhled se neschvaluje předem: obrázky a snímky ukaž po implementaci.
+   Otázku, kterou opravdu musí rozhodnout vlastník (nejasné zadání,
+   cizí služba, změna pravidel o soukromí), polož a úkol do odpovědi
+   odlož. Před generováním v ElevenLabs napiš cenu; nad 1 000 kreditů
+   na jeden úkol počkej na souhlas.
 
-## 2. Schválení
+## 2. Připomínky vlastníka
 
-Claude nesleduje issues sám, o schválení se dozví jen z chatu. Vlastník
-nemusí psát „ok“ na dvě místa:
-
-- „ok“ (nebo „ok #číslo“) v chatu = schváleno bez připomínek,
-- připomínky v chatu = zapracuj je do těla issue,
-- „připomínky v issue“ v chatu = přečti si komentáře v issue
-  a zapracuj je do těla issue.
-
-Připomínky zapracovává `issue-planner` a upravený návrh znovu
-kontroluje `story-reviewer`, stejně jako v kroku 1. Pak teprve
-přepiš tělo issue a pošli vlastníkovi, co se změnilo.
-
-Po schválení:
-
-1. Nezodpovězená otevřená otázka znamená, že platí doporučení. Napiš
-   to vlastníkovi.
-2. Do issue přidej komentář, že vlastník úkol schválil v chatu, a co
-   z připomínek bylo zapracováno.
-3. Změň štítek na „schváleno“.
+Vlastník nemusí nic schvalovat. Když napíše připomínky v chatu (nebo
+„připomínky v issue“), zapracuje je `issue-planner`, zkontroluje
+`story-reviewer` a přepíšeš tělo issue; do issue přidej komentář, co se
+změnilo.
 
 ## 3. Práce na úkolu
 
