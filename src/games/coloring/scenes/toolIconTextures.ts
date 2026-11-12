@@ -99,3 +99,158 @@ export function showToolIcon(
     .setDisplaySize(icon.width, icon.width)
     .setVisible(true);
 }
+
+/** Jak se ikona překreslí: jen obrys tvaru (#140, 0 klíčů), nebo jen hlava klíče (půlka). */
+export type IconVariant = 'outline' | 'keyHead';
+
+/** Tloušťka obrysu jako díl strany ikony a kolik posunů ho skládá. */
+const OUTLINE_WIDTH_SHARE = 0.035;
+const OUTLINE_STEPS = 16;
+
+/**
+ * Naposledy vytvořená textura každé podoby ikony (soubor, podoba, barva):
+ * po změně velikosti (otočení) se stará smaže, aby se textury nehromadily.
+ * Volající ji musí přestat používat dřív, než si vyžádá novou velikost.
+ */
+const latestVariantKeys = new Map<string, string>();
+
+/** Alfa, od které bod půlky klíče patří kresbě (ořez hlavy podle obsahu). */
+const OPAQUE_ALPHA = 8;
+
+/**
+ * Klíč ostré textury ikony `file` překreslené jako `variant` pro čtverec
+ * o straně `sideCss` CSS px, nebo `null`, když se SVG nenačetlo:
+ * - `'outline'` jen obrys tvaru ikony v barvě `color` (ukazatel s 0 klíči),
+ * - `'keyHead'` jen pravá horní polovina šikmého klíče Noto, hlava s očkem
+ *   (půlka klíče jako u cíle mapy v Počítání, #139).
+ */
+export function iconVariantTexture(
+  scene: Phaser.Scene,
+  file: string,
+  sideCss: number,
+  variant: IconVariant,
+  color: string,
+): string | null {
+  const plain = iconFileTexture(scene, file, sideCss);
+  if (plain === null) {
+    return null;
+  }
+  const key = `${plain}:${variant}:${color}`;
+  if (scene.textures.exists(key)) {
+    return key;
+  }
+  const family = `${file}:${variant}:${color}`;
+  const previous = latestVariantKeys.get(family);
+  if (previous !== undefined && scene.textures.exists(previous)) {
+    scene.textures.remove(previous);
+  }
+  const source = scene.textures.get(plain).getSourceImage();
+  if (!(source instanceof HTMLCanvasElement)) {
+    return null;
+  }
+  const pixels = source.width;
+  const texture = scene.textures.createCanvas(key, pixels, pixels);
+  if (texture === null) {
+    return null;
+  }
+  if (variant === 'outline') {
+    drawOutline(texture.context, source, color);
+  } else {
+    drawKeyHead(texture.context, source);
+  }
+  texture.refresh();
+  latestVariantKeys.set(family, key);
+  return key;
+}
+
+/** Obrys tvaru: silueta posunutá dokola a vnitřek vyříznutý. */
+function drawOutline(
+  context: CanvasRenderingContext2D,
+  source: HTMLCanvasElement,
+  color: string,
+): void {
+  const pixels = source.width;
+  const silhouette = document.createElement('canvas');
+  silhouette.width = pixels;
+  silhouette.height = pixels;
+  const shape = silhouette.getContext('2d');
+  if (shape === null) {
+    return;
+  }
+  shape.drawImage(source, 0, 0);
+  shape.globalCompositeOperation = 'source-in';
+  shape.fillStyle = color;
+  shape.fillRect(0, 0, pixels, pixels);
+  const width = Math.max(1, pixels * OUTLINE_WIDTH_SHARE);
+  for (let step = 0; step < OUTLINE_STEPS; step += 1) {
+    const angle = (step / OUTLINE_STEPS) * 2 * Math.PI;
+    context.drawImage(silhouette, Math.cos(angle) * width, Math.sin(angle) * width);
+  }
+  context.globalCompositeOperation = 'destination-out';
+  context.drawImage(silhouette, 0, 0);
+  context.globalCompositeOperation = 'source-over';
+}
+
+/**
+ * Hlava šikmého klíče: část ikony nad úhlopříčkou z levého horního do
+ * pravého dolního rohu, oříznutá podle kresby a zvětšená na celý čtverec
+ * (se zachovaným poměrem stran, uprostřed).
+ */
+function drawKeyHead(context: CanvasRenderingContext2D, source: HTMLCanvasElement): void {
+  const pixels = source.width;
+  const half = document.createElement('canvas');
+  half.width = pixels;
+  half.height = pixels;
+  const halfContext = half.getContext('2d');
+  if (halfContext === null) {
+    return;
+  }
+  halfContext.beginPath();
+  halfContext.moveTo(0, 0);
+  halfContext.lineTo(pixels, 0);
+  halfContext.lineTo(pixels, pixels);
+  halfContext.closePath();
+  halfContext.clip();
+  halfContext.drawImage(source, 0, 0);
+  const bounds = opaqueBounds(halfContext, pixels);
+  if (bounds === null) {
+    return;
+  }
+  const scale = pixels / Math.max(bounds.width, bounds.height);
+  const width = bounds.width * scale;
+  const height = bounds.height * scale;
+  context.drawImage(
+    half,
+    bounds.left,
+    bounds.top,
+    bounds.width,
+    bounds.height,
+    (pixels - width) / 2,
+    (pixels - height) / 2,
+    width,
+    height,
+  );
+}
+
+/** Nejmenší obdélník s kresbou v plátně o straně `pixels`; `null` u prázdného. */
+function opaqueBounds(
+  context: CanvasRenderingContext2D,
+  pixels: number,
+): { left: number; top: number; width: number; height: number } | null {
+  const data = context.getImageData(0, 0, pixels, pixels).data;
+  let left = pixels;
+  let top = pixels;
+  let right = -1;
+  let bottom = -1;
+  for (let y = 0; y < pixels; y += 1) {
+    for (let x = 0; x < pixels; x += 1) {
+      if ((data[(y * pixels + x) * 4 + 3] ?? 0) >= OPAQUE_ALPHA) {
+        left = Math.min(left, x);
+        right = Math.max(right, x);
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+      }
+    }
+  }
+  return right < 0 ? null : { left, top, width: right - left + 1, height: bottom - top + 1 };
+}

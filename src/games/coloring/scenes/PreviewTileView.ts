@@ -7,6 +7,9 @@
  *
  * Od #129 je stejná dlaždice i velký obrázek z alba: umí se zvětšit
  * z místa náhledu, zmenšit zpátky a zmenšit a zmizet po smazání.
+ *
+ * Od #140 umí zamčená omalovánka ztlumení bílým závojem a zámek uprostřed
+ * (`setLocked`): zámek se umí zhoupnout a otevřít.
  */
 
 import Phaser from 'phaser';
@@ -15,7 +18,21 @@ import { CANVAS_PIXELS_PER_CSS_PX } from '../../../shared/logic/canvasResolution
 import type { LayoutRect } from '../logic/coloringLayout';
 import { previewCellHex } from '../logic/picturePreview';
 import type { PicturePreview, PreviewCell } from '../logic/picturePreview';
-import { PICKER_TILE_STYLE, rgbOf } from '../logic/theme';
+import { PICKER_TILE_STYLE, PICTURE_LOCK_STYLE, rgbOf } from '../logic/theme';
+import { LOCK_ICON_FILE, UNLOCKED_ICON_FILE } from '../logic/toolIcons';
+import { iconFileTexture } from './toolIconTextures';
+
+/** Zámek bez načteného SVG: systémové emoji (symbol, ne text jazyka). */
+const LOCK_SYMBOL = '🔒';
+const UNLOCKED_SYMBOL = '🔓';
+
+/** Závoj a zámek zamčené omalovánky (#140). */
+interface LockLayer {
+  readonly container: Phaser.GameObjects.Container;
+  readonly icon: Phaser.GameObjects.Image | Phaser.GameObjects.Text;
+  /** Zámek se otevírá: co se zavolá, až zmizí (i když se otevírání přeruší). */
+  readonly onOpened?: () => void;
+}
 
 /** Kde a jak velká je dlaždice: obdélník a zaoblení v herních jednotkách, CSS px na jednotku. */
 export interface PreviewTilePlace {
@@ -87,6 +104,8 @@ export class PreviewTileView {
   private place: PreviewTilePlace | null = null;
   /** Číslo další textury, aby nová textura nikdy nepřepsala tu, která je vidět. */
   private textureCount = 0;
+  /** Závoj a zámek zamčené omalovánky; `null` u odemčené (#140). */
+  private lock: LockLayer | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -136,6 +155,120 @@ export class PreviewTileView {
     this.shadow
       .fillStyle(Phaser.Display.Color.HexStringToColor(PICKER_TILE_STYLE.background).color, 1)
       .fillRoundedRect(-rect.width / 2, -rect.height / 2, rect.width, rect.height, cornerRadius);
+    // Zámek podle nového místa; otevírání zámku se dokončí hned.
+    const wasLocked = this.lock !== null && this.lock.onOpened === undefined;
+    this.removeLock();
+    if (wasLocked) {
+      this.setLocked(true);
+    }
+  }
+
+  /** Ztlumí náhled a ukáže zámek (`true`), nebo zámek schová (#140). */
+  setLocked(locked: boolean): void {
+    if (!locked) {
+      this.removeLock();
+      return;
+    }
+    if (this.lock !== null || this.place === null) {
+      return;
+    }
+    const { rect, cornerRadius, cssScale } = this.place;
+    const style = PICTURE_LOCK_STYLE;
+    const veil = this.scene.add.graphics();
+    veil
+      .fillStyle(Phaser.Display.Color.HexStringToColor(style.veil).color, style.veilAlpha)
+      .fillRoundedRect(-rect.width / 2, -rect.height / 2, rect.width, rect.height, cornerRadius);
+    const side = Math.min(rect.width, rect.height) * style.lockShare;
+    const icon = this.lockIcon(LOCK_ICON_FILE, LOCK_SYMBOL, side, cssScale);
+    const container = this.scene.add.container(0, 0, [veil, icon]);
+    this.container.add(container);
+    this.lock = { container, icon };
+  }
+
+  /** Zámek se zhoupne (zamčená omalovánka bez klíče, #140 AC4). */
+  wobbleLock(): void {
+    const icon = this.lock?.icon;
+    if (icon === undefined) {
+      return;
+    }
+    const { wobbleAngle: angle, wobbleMs: ms } = PICTURE_LOCK_STYLE;
+    this.scene.tweens.killTweensOf(icon);
+    icon.setAngle(0).setScale(icon.getData('scale') as number);
+    this.scene.tweens.chain({
+      targets: icon,
+      tweens: [
+        { angle, duration: ms, ease: 'Sine.easeOut' },
+        { angle: -angle, duration: 2 * ms, ease: 'Sine.easeInOut' },
+        { angle: 0, duration: ms, ease: 'Sine.easeIn' },
+      ],
+    });
+  }
+
+  /**
+   * Zámek se otevře (#140 AC5): vymění se za otevřený, poskočí a se
+   * závojem zmizí; `onDone` se zavolá na konci (i bez zámku hned).
+   */
+  openLock(onDone: () => void): void {
+    const lock = this.lock;
+    if (lock === null || this.place === null) {
+      onDone();
+      return;
+    }
+    const style = PICTURE_LOCK_STYLE;
+    const side = Math.min(this.place.rect.width, this.place.rect.height) * style.lockShare;
+    lock.icon.destroy();
+    const icon = this.lockIcon(UNLOCKED_ICON_FILE, UNLOCKED_SYMBOL, side, this.place.cssScale);
+    lock.container.add(icon);
+    const baseScale = icon.getData('scale') as number;
+    this.scene.tweens.chain({
+      targets: icon,
+      tweens: [
+        {
+          scale: baseScale * style.openPopScale,
+          duration: style.openPopMs,
+          ease: 'Sine.easeOut',
+          yoyo: true,
+        },
+      ],
+    });
+    this.scene.tweens.add({
+      targets: lock.container,
+      alpha: 0,
+      delay: 2 * style.openPopMs,
+      duration: style.openFadeMs,
+      ease: 'Sine.easeIn',
+      onComplete: () => this.removeLock(),
+    });
+    this.lock = { container: lock.container, icon, onOpened: onDone };
+  }
+
+  /** Ikona zámku ze SVG, bez něj emoji, se stranou `side` a středem v počátku. */
+  private lockIcon(
+    file: string,
+    symbol: string,
+    side: number,
+    cssScale: number,
+  ): Phaser.GameObjects.Image | Phaser.GameObjects.Text {
+    const key = iconFileTexture(this.scene, file, side * cssScale);
+    const icon =
+      key === null
+        ? this.scene.add.text(0, 0, symbol, { fontSize: `${Math.round(side)}px` }).setOrigin(0.5)
+        : this.scene.add.image(0, 0, key).setDisplaySize(side, side);
+    // Velikost v klidu, aby zhoupnutí a poskočení vracely ikonu do ní.
+    icon.setData('scale', icon.scale);
+    return icon;
+  }
+
+  private removeLock(): void {
+    const lock = this.lock;
+    if (lock === null) {
+      return;
+    }
+    this.scene.tweens.killTweensOf(lock.container);
+    this.scene.tweens.killTweensOf(lock.icon);
+    lock.container.destroy();
+    this.lock = null;
+    lock.onOpened?.();
   }
 
   /**
@@ -255,6 +388,7 @@ export class PreviewTileView {
 
   destroy(): void {
     this.scene.tweens.killTweensOf(this.container);
+    this.removeLock();
     this.container.destroy();
     this.removeTexture();
   }
@@ -273,6 +407,10 @@ export class PreviewTileView {
     if (this.image === null) {
       this.image = this.scene.add.image(0, 0, key);
       this.container.add(this.image);
+      if (this.lock !== null) {
+        // Závoj a zámek zůstanou nad obrázkem.
+        this.container.bringToTop(this.lock.container);
+      }
     } else {
       this.image.setTexture(key);
     }

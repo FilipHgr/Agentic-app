@@ -114,13 +114,18 @@ export function isGameHost(value: unknown): value is GameHost {
   );
 }
 
-/** Má hodnota tvar klíčů (funkce `reportCompletedMaps` a `balance`)? */
+/** Má hodnota tvar klíčů (funkce `reportCompletedMaps`, `balance`, `spendKey` a `spentItems`)? */
 function isKeyRewards(value: unknown): value is KeyRewards {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
   const keys = value as Partial<KeyRewards>;
-  return typeof keys.reportCompletedMaps === 'function' && typeof keys.balance === 'function';
+  return (
+    typeof keys.reportCompletedMaps === 'function' &&
+    typeof keys.balance === 'function' &&
+    typeof keys.spendKey === 'function' &&
+    typeof keys.spentItems === 'function'
+  );
 }
 
 /** Má hodnota tvar záznamů hry (funkce `list`, `add` a `remove`)? */

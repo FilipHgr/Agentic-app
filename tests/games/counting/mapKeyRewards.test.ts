@@ -419,6 +419,13 @@ describe('#139 AC6: chybějící nebo poškozený záznam klíčů a hra bez kl�
       balance: () => {
         throw new Error('klíče selhaly');
       },
+      // Utrácení klíčů (#140) Počítání nevolá, selhávají jen kvůli úplnosti klíčů.
+      spendKey: () => {
+        throw new Error('klíče selhaly');
+      },
+      spentItems: () => {
+        throw new Error('klíče selhaly');
+      },
     };
     const test = enterCountingWithKeys(countingStorageOf(page, beforeGoal(0)), failing);
 

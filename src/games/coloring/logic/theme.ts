@@ -4,7 +4,7 @@
  * používají. Odstíny barev palety jsou v `palette.ts`.
  */
 
-import { BLUE, TEXT, WHITE } from '../../../shared/logic/theme';
+import { BLUE, SECONDARY, TEXT, WHITE } from '../../../shared/logic/theme';
 
 /** Plocha omalovánky: bílé pozadí, tmavý obrys (stejný jako v SVG obrázku) a jemný rámeček. */
 export const PICTURE_STYLE = {
@@ -202,5 +202,57 @@ export const PICKER_TILE_STYLE = {
   shadowAlpha: 0.03,
   /** Zhoupnutí po ťuknutí jako u tlačítek v menu. */
   wobbleAngle: 4,
+  wobbleMs: 90,
+} as const;
+
+/**
+ * Zamčená omalovánka na výběru (#140): náhled ztlumený bílým závojem
+ * a uprostřed zámek. Bez klíče se zámek zhoupne, s klíčem se vymění za
+ * otevřený zámek, poskočí a se závojem zmizí, pak se otevře malování.
+ */
+export const PICTURE_LOCK_STYLE = {
+  veil: WHITE,
+  veilAlpha: 0.55,
+  /** Zámek zabere tento díl kratší strany náhledu. */
+  lockShare: 0.42,
+  wobbleAngle: 12,
+  wobbleMs: 80,
+  /** Otevřený zámek poskočí na tuto velikost a zpět. */
+  openPopScale: 1.25,
+  openPopMs: 140,
+  /** Pak zámek i závoj zmizí. */
+  openFadeMs: 200,
+} as const;
+
+/**
+ * Ukazatel klíčů na výběru (#140): klíč a vedle něj číslice celých klíčů,
+ * půlka klíče za číslicí (široký ukazatel), nebo pod nimi (úzký). S 0 klíči
+ * je klíč jen šedý obrys.
+ */
+export const KEY_INDICATOR_STYLE = {
+  /** Strana klíče jako díl řady (výšky řady klíče s číslicí). */
+  keyShare: 0.9,
+  /** Výška číslice jako díl strany klíče. */
+  digitShare: 0.7,
+  /** Šířka místa číslice jako díl strany klíče. */
+  digitWidthShare: 0.55,
+  /** Strana půlky klíče jako díl strany klíče. */
+  halfShare: 0.85,
+  /** Půlka jako emoji, když se SVG nenačetlo: průhlednější. */
+  halfFallbackAlpha: 0.6,
+  /** Klíč jako emoji bez SVG: velikost písma jako díl strany klíče. */
+  fallbackSymbolShare: 0.8,
+  /** Klíč jako emoji s 0 klíči: průhledný místo obrysu. */
+  emptyFallbackAlpha: 0.35,
+  /** Půlka jako emoji: velikost písma jako díl strany půlky. */
+  halfFallbackSymbolShare: 0.6,
+  /** Od tohoto poměru šířky k výšce jsou klíč, číslice a půlka v jedné řadě. */
+  rowMinAspect: 1.4,
+  /** Poskočení ukazatele po utracení klíče (zvětšení tam a zpět). */
+  spendPulseScale: 1.2,
+  spendPulseMs: 160,
+  digitColor: TEXT,
+  emptyColor: SECONDARY,
+  wobbleAngle: 8,
   wobbleMs: 90,
 } as const;

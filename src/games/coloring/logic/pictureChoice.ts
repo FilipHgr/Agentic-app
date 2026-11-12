@@ -38,6 +38,11 @@
  * - Náhled omalovánky, jejíž výměna se může ještě vrátit, se jen zhoupne
  *   s tónem domečku (#131 AC5), aby dítě nemalovalo do stránky, kterou by
  *   vrácení přepsalo.
+ * - Zamčená omalovánka (#140, volba `locks`) se bez celého klíče neotevře:
+ *   zámek a ukazatel klíčů se zhoupnou s tónem domečku a nic se nezmění
+ *   (AC4). S celým klíčem ťuknutí klíč utratí, zámek se otevře
+ *   a omalovánka se otevírá jako po ťuknutí na odemčenou (AC5). Během
+ *   otevírání se další ťuknutí nepočítá, takže se utratí jen jeden klíč (AC6).
  */
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
@@ -52,6 +57,7 @@ import type { AlbumContents, AlbumEntry, AlbumPicture } from './album';
 import { planAlbumSwap, runAlbumSwap, swapBlocksPicture } from './albumSwap';
 import { readPendingSwap } from './albumSwapRecord';
 import type { SwapRun } from './albumSwap';
+import type { PictureLocks } from './pictureLocks';
 import type { PictureIdentity } from './savedPicture';
 
 /**
@@ -115,7 +121,9 @@ export type TrashFeedback =
 
 /**
  * Co udělá ťuknutí na náhled: otevře omalovánku s tónem, zhoupne se
- * s tónem domečku (výměna s albem, která se může vrátit, #131 AC5), nebo nic.
+ * s tónem domečku (výměna s albem, která se může vrátit, #131 AC5),
+ * zhoupne zámek a ukazatel klíčů (zamčená bez klíče, #140 AC4), odemkne
+ * zamčenou klíčem a otevře ji (#140 AC5), nebo nic.
  */
 export type PreviewTap =
   | {
@@ -125,6 +133,13 @@ export type PreviewTap =
       readonly tones: readonly Tone[];
     }
   | { readonly kind: 'wobble'; readonly tones: readonly Tone[] }
+  | { readonly kind: 'locked'; readonly index: number; readonly tones: readonly Tone[] }
+  | {
+      readonly kind: 'unlocked';
+      readonly index: number;
+      readonly picture: PictureIdentity;
+      readonly tones: readonly Tone[];
+    }
   | { readonly kind: 'ignored' };
 
 /** Jak skončila výměna po ťuknutí na štětec (#131). */
@@ -197,6 +212,8 @@ export interface PictureChoiceOptions {
    * obrysy připravuje postupně. Omalovánka bez obrysu se nevymění.
    */
   readonly albumPictures?: readonly AlbumPicture[] | (() => readonly AlbumPicture[]);
+  /** Zámky omalovánek (#140); bez nich jsou všechny omalovánky odemčené. */
+  readonly locks?: PictureLocks | undefined;
 }
 
 /** Co má stránka udělat po podržení domečku: do menu odejít, jinak zůstat ve hře. */
@@ -403,7 +420,15 @@ export function startPictureChoice(
       if (previewBlocked(picture)) {
         return { kind: 'wobble', tones: HOME_WOBBLE_TONES };
       }
+      const unlock =
+        options.locks?.isLocked(picture) === true ? options.locks.unlock(picture) : null;
+      if (unlock === 'noKey') {
+        return { kind: 'locked', index, tones: HOME_WOBBLE_TONES };
+      }
       screen = { kind: 'opening', picture };
+      if (unlock === 'unlocked') {
+        return { kind: 'unlocked', index, picture, tones: PREVIEW_TAP_TONES };
+      }
       return { kind: 'open', index, picture, tones: PREVIEW_TAP_TONES };
     },
     paintingShown: () => {

@@ -4,6 +4,7 @@ import { sharedToneContext } from '../../../shared/audio/sharedAudio';
 import { createTonePlayer } from '../../../shared/audio/tonePlayer';
 import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
 import type { GameHost, HomeHoldDecision } from '../../../shared/logic/gameHost';
+import { HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
 import {
   TABLET_GAME_HEIGHT,
   TABLET_GAME_WIDTH,
@@ -37,6 +38,8 @@ import {
   trashHoldRingFor,
 } from '../logic/pickerLayout';
 import type { AlbumLayout, BigPictureLayout, PickerLayout } from '../logic/pickerLayout';
+import { openPictureLocks, unlockPaintedPictures } from '../logic/pictureLocks';
+import type { PictureLocks } from '../logic/pictureLocks';
 import { loadPicturePreview, previewOfColors } from '../logic/picturePreview';
 import { COLORING_PICTURES } from '../logic/pictureSet';
 import type { PictureIdentity } from '../logic/savedPicture';
@@ -44,6 +47,7 @@ import { BIG_PICTURE_STYLE } from '../logic/theme';
 import { BOOK_ICON_FILE, CONTINUE_ICON_FILE, TRASH_ICON_FILE } from '../logic/toolIcons';
 import { ColoringScene, isGameArea } from './ColoringScene';
 import { IconButtonView } from './IconButtonView';
+import { KeyIndicatorView } from './KeyIndicatorView';
 import { loadOutlineImage, preparePicture } from './pictureCanvas';
 import type { PreparedPicture } from './pictureCanvas';
 import { PreviewTileView } from './PreviewTileView';
@@ -110,6 +114,14 @@ interface PictureAssets {
  * omalovánky jako po ťuknutí na náhled. Když se výměna nepovede, štětec se
  * zhoupne s tónem domečku. Při otevření Omalovánek se nejdřív dokončí nebo
  * vrátí výměna odložená z minula (`settleAlbumSwap`), teprve pak se čte album.
+ *
+ * Od #140 jsou některé omalovánky zamčené (`pictureLocks.ts`): náhled je
+ * ztlumený se zámkem a vedle knihy je ukazatel klíčů z Počítání
+ * (`GameHost.keyRewards`). Po přečtení alba se jednou odemknou zdarma
+ * rozmalované omalovánky a obrázky z alba (`unlockPaintedPictures`); do té
+ * doby se ťuknutí na zámek jen zhoupne a klíč se neutratí. Bez klíče se
+ * zámek i ukazatel zhoupnou s tónem domečku, s klíčem se zámek otevře
+ * a otevře se malování.
  */
 export class PickerScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -118,6 +130,15 @@ export class PickerScene extends Phaser.Scene {
   private assets: readonly PictureAssets[] = [];
   private tiles: PreviewTileView[] = [];
   private readonly bookView = new IconButtonView(this, BOOK_ICON_FILE);
+  /** Zámky omalovánek a klíče aktivního profilu (#140). */
+  private locks: PictureLocks = openPictureLocks({
+    pictures: COLORING_PICTURES,
+    storage: undefined,
+    keyRewards: undefined,
+  });
+  /** Doběhlo odemčení zdarma (#140 AC2)? Do té doby se klíč neutratí. */
+  private locksReady = false;
+  private readonly keyIndicatorView = new KeyIndicatorView(this);
   /** Album, jak se naposledy přečetlo; `null`, dokud se čte (kniha se jen zhoupne). */
   private album: AlbumContents | null = null;
   /** Rozběhnuté čtení alba; malování ho počká. */
@@ -168,7 +189,14 @@ export class PickerScene extends Phaser.Scene {
     this.gameArea = this.readGameArea();
     this.layout = layoutPicker(this.gameArea);
     const host = this.readHost();
+    this.locks = openPictureLocks({
+      pictures: COLORING_PICTURES,
+      storage: host?.storage,
+      keyRewards: host?.keyRewards,
+    });
+    this.locksReady = false;
     this.choice = startPictureChoice(COLORING_PICTURES, {
+      locks: this.locks,
       records: host?.records,
       storage: host?.storage,
       albumPictures: () => this.albumPictures,
@@ -183,6 +211,7 @@ export class PickerScene extends Phaser.Scene {
     this.settling = this.settleSwap();
     this.album = null;
     this.readAlbumAgain();
+    void this.unlockPaintedOnce(this.albumReading);
     this.listen();
     const screen = this.choice.screen();
     if (screen.kind === 'opening') {
@@ -191,6 +220,27 @@ export class PickerScene extends Phaser.Scene {
       return;
     }
     this.drawTiles();
+  }
+
+  /**
+   * Odemčení zdarma po prvním přečtení alba (#140 AC2), dřív než výběr
+   * přijme ťuknutí na zámek. Dostane jen omalovánky s připraveným obrysem;
+   * ostatní se zkontrolují při dalším otevření a klíč je do té doby neodemkne.
+   */
+  private async unlockPaintedOnce(reading: Promise<AlbumContents>): Promise<void> {
+    const album = await reading;
+    if (!this.running) {
+      return;
+    }
+    unlockPaintedPictures({
+      storage: this.readHost()?.storage,
+      pictures: this.albumPictures,
+      album,
+    });
+    this.locksReady = true;
+    if (this.painting === null && this.choice.screen().kind === 'picker') {
+      this.showLocks();
+    }
   }
 
   private readHost(): GameHost | undefined {
@@ -253,6 +303,27 @@ export class PickerScene extends Phaser.Scene {
       });
       void this.showPreview(index);
     });
+    this.showLocks();
+  }
+
+  /** Zámky na zamčených náhledech a ukazatel klíčů podle aktuálního stavu (#140). */
+  private showLocks(): void {
+    const previews = this.choice.previews();
+    this.tiles.forEach((tile, index) => {
+      const picture = previews[index];
+      tile.setLocked(picture !== undefined && this.locks.isLocked(picture));
+    });
+    this.showKeyIndicator();
+  }
+
+  /** Ukazatel klíčů vedle knihy; bez zamčených omalovánek zmizí (#140 AC3). */
+  private showKeyIndicator(): void {
+    this.keyIndicatorView.show(
+      this.locks.keyIndicator(),
+      this.layout.keyIndicator,
+      this.gameArea.scale,
+      BOOK_DEPTH,
+    );
   }
 
   /** Náhled `index`: hned s obrysem, s barvami dítěte, až je omalovánka připravená. */
@@ -738,6 +809,7 @@ export class PickerScene extends Phaser.Scene {
     }
     this.tiles = [];
     this.bookView.destroy();
+    this.keyIndicatorView.destroy();
   }
 
   /** Domeček z alba: album zmizí a výběr se ukáže znovu s aktuálními náhledy. */
@@ -821,11 +893,43 @@ export class PickerScene extends Phaser.Scene {
     if (index === null) {
       return;
     }
+    if (!this.locksReady && this.isLockedPreview(index)) {
+      // Odemčení zdarma ještě neproběhlo (#140 AC2): zámek se jen zhoupne, klíč se neutratí.
+      this.sounds.play(HOME_WOBBLE_TONES);
+      this.tiles[index]?.wobbleLock();
+      this.keyIndicatorView.wobble();
+      return;
+    }
     const tap = this.choice.tapPreview(index);
     if (tap.kind === 'wobble') {
       // Výměna s albem se může ještě vrátit (#131 AC5): náhled se jen zhoupne.
       this.sounds.play(tap.tones);
       this.tiles[index]?.wobble(() => undefined);
+      return;
+    }
+    if (tap.kind === 'locked') {
+      // Bez celého klíče (#140 AC4): zámek a ukazatel se zhoupnou s tónem domečku.
+      this.sounds.play(tap.tones);
+      this.tiles[index]?.wobbleLock();
+      this.keyIndicatorView.wobble();
+      return;
+    }
+    if (tap.kind === 'unlocked') {
+      // Klíč se utratil (#140 AC5): ukazatel ubere klíč, zámek se otevře a pak malování.
+      this.sounds.play(tap.tones);
+      this.showKeyIndicator();
+      this.keyIndicatorView.pulse();
+      const lockedTile = this.tiles[index];
+      if (lockedTile === undefined) {
+        this.openPainting(tap.picture);
+        return;
+      }
+      lockedTile.openLock(() => {
+        // Zámek zmizí i se zrušenou dlaždicí (odchod ze hry): malování jen v běžící scéně.
+        if (this.running) {
+          this.openPainting(tap.picture);
+        }
+      });
       return;
     }
     if (tap.kind !== 'open') {
@@ -838,6 +942,12 @@ export class PickerScene extends Phaser.Scene {
       return;
     }
     tile.wobble(() => this.openPainting(tap.picture));
+  }
+
+  /** Je náhled `index` zamčený? */
+  private isLockedPreview(index: number): boolean {
+    const picture = this.choice.previews()[index];
+    return picture !== undefined && this.locks.isLocked(picture);
   }
 
   /** Otevře malování omalovánky `picture` v nové scéně nad výběrem; výběr usne. */

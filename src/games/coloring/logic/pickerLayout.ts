@@ -16,8 +16,11 @@
  * Od #129 má velký obrázek z alba stejnou velikost jako obrázek v malování
  * a koš je na místě fotoaparátu z malování. Od #131 je vedle koše stejně
  * velké tlačítko malovat dál (štětec): na šířku ve sloupci koše 16 CSS px
- * nad ním, na výšku v řadě koše 16 CSS px vlevo od něj. Čistý TypeScript
- * bez Phaseru.
+ * nad ním, na výšku v řadě koše 16 CSS px vlevo od něj.
+ *
+ * Od #140 je vedle knihy ukazatel klíčů (ikona klíče s číslicí): na šířku
+ * pod knihou v jejím pruhu, na výšku v řadě knihy vlevo od ní. Na ťuknutí
+ * nereaguje. Čistý TypeScript bez Phaseru.
  */
 
 import { homeButtonInFreeArea } from '../../../shared/logic/homeButton';
@@ -57,6 +60,8 @@ export interface PickerLayout {
   readonly cornerRadius: number;
   /** Kniha vpravo nahoře, otevře album (#126 AC4). */
   readonly book: LayoutRect;
+  /** Ukazatel klíčů vedle knihy (#140 AC3), nereaguje na ťuknutí. */
+  readonly keyIndicator: LayoutRect;
 }
 
 /** Volné místo pro mřížku v CSS px. */
@@ -131,7 +136,13 @@ export function layoutPicker(area: GameArea): PickerLayout {
     height: height * unitsPerCss,
   }));
   const radius = phone ? PHONE_RADIUS_CSS : TABLET_RADIUS_CSS;
-  return { previews, cornerRadius: radius * unitsPerCss, book: bookButtonFor(area) };
+  const book = bookButtonFor(area);
+  return {
+    previews,
+    cornerRadius: radius * unitsPerCss,
+    book,
+    keyIndicator: keyIndicatorBeside(book, area, landscape),
+  };
 }
 
 /** Místo náhledu pod dotykem (herní jednotky), `null` mimo náhledy a v mezerách. */
@@ -161,6 +172,34 @@ function bookButtonFor(area: GameArea): LayoutRect {
     width: home.size,
     height: home.size,
   };
+}
+
+/** Mezera mezi knihou a ukazatelem klíčů v CSS px (#140). */
+const KEY_INDICATOR_GAP_CSS = 8;
+
+/** Výška ukazatele klíčů na šířku jako díl strany knihy (řada klíče s číslicí a pod ní půlka). */
+const LANDSCAPE_INDICATOR_HEIGHT_SHARE = 1.6;
+
+/** Šířka ukazatele klíčů na výšku jako díl strany knihy (klíč, číslice a půlka v řadě). */
+const PORTRAIT_INDICATOR_WIDTH_SHARE = 2;
+
+/**
+ * Ukazatel klíčů vedle knihy (#140): na šířku pod knihou v jejím pruhu
+ * (stejně široký jako kniha), na výšku vlevo od knihy v její řadě (stejně
+ * vysoký jako kniha). Od knihy je 8 CSS px.
+ */
+function keyIndicatorBeside(book: LayoutRect, area: GameArea, landscape: boolean): LayoutRect {
+  const gap = KEY_INDICATOR_GAP_CSS / area.scale;
+  if (landscape) {
+    return {
+      left: book.left,
+      top: book.top + book.height + gap,
+      width: book.width,
+      height: book.height * LANDSCAPE_INDICATOR_HEIGHT_SHARE,
+    };
+  }
+  const width = book.width * PORTRAIT_INDICATOR_WIDTH_SHARE;
+  return { left: book.left - gap - width, top: book.top, width, height: book.height };
 }
 
 /** Míst pro obrázky v albu (#126, posouvání alba je mimo rozsah). */

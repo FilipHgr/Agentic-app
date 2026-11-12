@@ -6,6 +6,8 @@
  * celý klíč. Započte se jen nejvyšší nahlášený počet, takže stejná mapa
  * nahlášená znovu (návrat do hry, druhý panel, poškozený záznam mapy, který
  * začne zase od 0) žádnou půlku nepřidá.
+ * Celý klíč jde utratit za věc (#140, odemčení omalovánky); za stejnou věc
+ * se klíč utratí jen jednou a celých klíčů nikdy není méně než 0.
  * Čistý TypeScript; ukládání je v `src/shared/storage/keyRewardsStorage.ts`.
  */
 
@@ -15,11 +17,18 @@
  */
 export type KeyReward = 'half' | 'wholeKey';
 
+/**
+ * Jak dopadlo utracení klíče za věc (#140): `'spent'` klíč se utratil,
+ * `'alreadySpent'` za tuto věc už klíč utracený je (nic se nebere),
+ * `'noKey'` dítě nemá celý klíč (nebo věc nemá označení) a nic se nezměnilo.
+ */
+export type KeySpend = 'spent' | 'alreadySpent' | 'noKey';
+
 /** Kolik klíčů profil má. */
 export interface KeyBalance {
   /** Všechny získané půlky (jedna za každou dokončenou mapu). */
   readonly halves: number;
-  /** Celé klíče: dvojice půlek. */
+  /** Celé klíče, které zbývají: dvojice půlek bez utracených klíčů (#140), nejméně 0. */
   readonly wholeKeys: number;
   /** Zbyla půlka bez druhé poloviny? */
   readonly hasHalf: boolean;
@@ -34,6 +43,10 @@ export interface KeyRewards {
   reportCompletedMaps(completedMaps: number): KeyReward | null;
   /** Kolik klíčů profil teď má. */
   balance(): KeyBalance;
+  /** Utratí jeden celý klíč za věc `itemId` (např. `coloring/car`). */
+  spendKey(itemId: string): KeySpend;
+  /** Věci, za které profil klíč utratil. */
+  spentItems(): readonly string[];
 }
 
 /** Je hodnota smysluplný počet dokončených map (celé číslo od 0)? */
@@ -41,9 +54,28 @@ export function isCompletedMapCount(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
-/** Stav klíčů po `halves` získaných půlkách. */
-export function balanceOf(halves: number): KeyBalance {
-  return { halves, wholeKeys: Math.floor(halves / 2), hasHalf: halves % 2 === 1 };
+/** Tvar označení věci: `hra/věc` malými písmeny, číslicemi a pomlčkami (např. `coloring/car`). */
+const SPEND_ITEM_PATTERN = /^[a-z0-9-]+\/[a-z0-9-]+$/;
+
+/** Nejdelší označení věci. */
+const SPEND_ITEM_MAX_LENGTH = 64;
+
+/** Je hodnota označení věci, za kterou jde utratit klíč (`hra/věc`, nejvýš 64 znaků)? */
+export function isSpendItemId(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length <= SPEND_ITEM_MAX_LENGTH &&
+    SPEND_ITEM_PATTERN.test(value)
+  );
+}
+
+/** Stav klíčů po `halves` získaných půlkách a `spentKeys` utracených klíčích. */
+export function balanceOf(halves: number, spentKeys = 0): KeyBalance {
+  return {
+    halves,
+    wholeKeys: Math.max(0, Math.floor(halves / 2) - spentKeys),
+    hasHalf: halves % 2 === 1,
+  };
 }
 
 /**

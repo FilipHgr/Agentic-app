@@ -63,6 +63,15 @@ export const TRASH_ICON_FILE = 'wastebasket.svg';
  */
 export const CONTINUE_ICON_FILE = `${TOOL_EMOJI.brush}.svg`;
 
+/**
+ * Zámek zamčené omalovánky 🔒 (U+1F512, „locked“), otevřený zámek 🔓
+ * (U+1F513, „unlocked“) po odemčení a klíč 🔑 (U+1F511, „key“) ukazatele
+ * klíčů na výběru (#140) ze stejné sady.
+ */
+export const LOCK_ICON_FILE = 'locked.svg';
+export const UNLOCKED_ICON_FILE = 'unlocked.svg';
+export const KEY_ICON_FILE = 'key.svg';
+
 /** Ikona nástroje `tool`; nezávisí na vybrané barvě ani velikosti čáry. */
 export function toolIconAsset(tool: ToolId): ToolIconAsset {
   const emoji = TOOL_EMOJI[tool];
