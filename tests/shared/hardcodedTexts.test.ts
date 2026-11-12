@@ -180,6 +180,62 @@ describe('#65 AC1: jak kontrola „žádný text natvrdo“ funguje', () => {
   });
 });
 
+/**
+ * #137 AC5: kontrola bere každý soubor jazyka, tedy i anglické texty
+ * (`…/texts/en.ts`), a hlídá i krátké anglické texty. Anglické soubory
+ * vytvoří implementace #137; dokud nejsou, první test selže.
+ */
+describe('#137 AC5: kontrola natvrdo napsaných textů prochází i anglické texty', () => {
+  const SHORT_ENGLISH_TEXTS = ['All', 'Back', 'Next', 'Delete', 'Up to', 'Sums'];
+
+  it('kontrola vidí anglické texty sdílené části, menu, Počítání i Omalovánek', () => {
+    const texts = languageTexts(SOURCES);
+    for (const text of ['Maths', 'Drawing', 'Counting', 'Colouring', ...SHORT_ENGLISH_TEXTS]) {
+      expect(texts.has(text), text).toBe(true);
+    }
+  });
+
+  it('každá část má soubor anglických textů, který kontrola prochází', () => {
+    for (const path of [
+      'src/shared/texts/en.ts',
+      'src/menu/texts/en.ts',
+      'src/games/counting/texts/en.ts',
+      'src/games/coloring/texts/en.ts',
+    ]) {
+      expect(SOURCES[path], path).toBeDefined();
+      expect(isLanguageFile(path), path).toBe(true);
+    }
+  });
+
+  it('umělý řetězec „Back“ v kódu kontrola najde a ukáže soubor, řádek a text', () => {
+    const problems = hardcodedTexts({
+      'src/menu/texts/en.ts': "export default { profiles: { deleteCancel: 'Back' } };",
+      'src/menu/logic/example.ts': "\nconst label = 'Back';",
+    });
+    expect(problems).toEqual(['src/menu/logic/example.ts:2 „Back“']);
+  });
+
+  it('každý krátký anglický text v kódu kontrola najde jako celý řetězec', () => {
+    const english = `export default { texts: [${SHORT_ENGLISH_TEXTS.map((text) => `'${text}'`).join(', ')}] };`;
+    for (const text of SHORT_ENGLISH_TEXTS) {
+      const problems = hardcodedTexts({
+        'src/games/counting/texts/en.ts': english,
+        'src/games/counting/logic/example.ts': `const a = "${text}";`,
+      });
+      expect(problems, text).toHaveLength(1);
+    }
+  });
+
+  it('řetězec, který anglický text jen obsahuje, nevadí („Backspace“ není „Back“)', () => {
+    expect(
+      hardcodedTexts({
+        'src/menu/texts/en.ts': "export default { a: 'Back', b: 'All' };",
+        'src/menu/logic/example.ts': "const key = 'Backspace'; const b = 'all';",
+      }),
+    ).toEqual([]);
+  });
+});
+
 describe('#65 AC1 a AC3: stránka index.html odpovídá českým textům', () => {
   const texts = sharedTexts('cs');
 

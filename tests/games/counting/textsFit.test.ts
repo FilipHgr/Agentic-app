@@ -251,6 +251,11 @@ describe('#65 AC5: texty každého jazyka se vejdou do rozložení', () => {
     expect([...modes].sort()).toEqual(['phoneLandscape', 'phonePortrait', 'scaled', 'tablet']);
   });
 
+  it('#137 AC2: kontrola měří i angličtinu, která má soubor textů, ale ještě není v seznamu jazyků', () => {
+    expect(Object.keys(COUNTING_FILES)).toContain('en');
+    expect(Object.keys(SHARED_FILES)).toContain('en');
+  });
+
   for (const language of Object.keys(COUNTING_FILES)) {
     it(`jazyk ${language}: popisky řad, tlačítka i rada průvodce se vejdou ve všech oknech`, () => {
       expect(overflowsEverywhere(language, layoutTextsOf(language))).toEqual([]);
