@@ -13,6 +13,7 @@
  */
 
 import type { GameArea } from '../../../shared/logic/viewportLayout';
+import { MAP_GOAL_CELEBRATION_SCALE } from './mapAnimation';
 import { MAP_STEPS, MAP_THEMES } from './progressMap';
 import type { MapThemeId } from './progressMap';
 import { PROGRESS_MAP_SHAPE } from './theme';
@@ -36,6 +37,11 @@ export interface ProgressMapLayout {
   readonly markerSize: number;
   /** Symbol tématu u cíle (#134 AC2) na světlém kruhovém podkladu, `size` je průměr podkladu. */
   readonly goalSymbol: MapSquare;
+  /**
+   * Kam se vejde celý slavící cíl (#135 AC3): podklad zvětšený 1,3× i se
+   * zlatou září a prstencem, se středem ve středu symbolu cíle.
+   */
+  readonly goalCelebration: MapSquare;
 }
 
 /** Kolikrát se zastávka, cíl a značka po dojití značky krátce zvětší. */
@@ -90,16 +96,19 @@ const PLACE_COUNT = MAP_STEPS + 1;
 const SLOT_COUNT = PLACE_COUNT + 1;
 
 /**
+ * Střed symbolu cíle měřený v rozestupech míst od začátku řady (na výšku
+ * v řadách odspodu): stojí v posledním, pátém místě za cílem, tedy
+ * o půl rozestupu dál než poslední hrana míst.
+ */
+const GOAL_SYMBOL_SLOT = PLACE_COUNT + 0.5;
+
+/**
  * Na šířku: všechna místa v jedné řadě zleva doprava, střídavě výš a níž,
  * symbol cíle vpravo vedle cíle ve stejné výšce.
  */
 function wavyRow(content: ContentBox, maxMarker: number, theme: MapThemeId): ProgressMapLayout {
-  const spacing = content.width / SLOT_COUNT;
-  const markerSize = Math.min(
-    spacing * MARKER_SHARE,
-    content.height / 2 / DRAWN_MARKER_SCALE,
-    maxMarker,
-  );
+  const spacing = rowSpacing(content, maxMarker);
+  const markerSize = rowMarkerSize(content, maxMarker, spacing);
   const amplitude = Math.min(
     (content.height - markerSize * DRAWN_MARKER_SCALE) / 2,
     markerSize * 0.8,
@@ -114,19 +123,32 @@ function wavyRow(content: ContentBox, maxMarker: number, theme: MapThemeId): Pro
     };
   });
   const goal = lastPlace(places);
-  return {
-    places,
-    placeSize: markerSize * PLACE_TO_MARKER,
-    markerSize,
-    goalSymbol: { x: goal.x + spacing, y: goal.y, size: goalBadgeSize(markerSize) },
-  };
+  return withGoal(content, places, markerSize, { x: goal.x + spacing, y: goal.y });
+}
+
+function rowMarkerSize(content: ContentBox, maxMarker: number, spacing: number): number {
+  return Math.min(spacing * MARKER_SHARE, content.height / 2 / DRAWN_MARKER_SCALE, maxMarker);
+}
+
+/**
+ * Rozestup míst v řadě. Symbol cíle stojí o rozestup za cílem; když by se
+ * slavící cíl (#135) za ním nevešel, řada se zhustí, aby se symbol nemusel
+ * posunout až k cíli.
+ */
+function rowSpacing(content: ContentBox, maxMarker: number): number {
+  const even = content.width / SLOT_COUNT;
+  const half = goalCelebrationSize(goalBadgeSize(rowMarkerSize(content, maxMarker, even))) / 2;
+  if (GOAL_SYMBOL_SLOT * even + half <= content.width) {
+    return even;
+  }
+  return (content.width - half) / GOAL_SYMBOL_SLOT;
 }
 
 /** Na výšku: místa zdola nahoru, střídavě vlevo a vpravo, symbol cíle nad cílem. */
 function zigzagUp(content: ContentBox, maxMarker: number, theme: MapThemeId): ProgressMapLayout {
   const cellWidth = content.width / PORTRAIT_COLUMNS;
-  const cellHeight = content.height / SLOT_COUNT;
-  const markerSize = Math.min(cellWidth * MARKER_SHARE, cellHeight * MARKER_SHARE, maxMarker);
+  const cellHeight = columnCellHeight(content, maxMarker);
+  const markerSize = columnMarkerSize(cellWidth, cellHeight, maxMarker);
   const firstColumn = startsLow(theme) ? 0 : 1;
   const places = Array.from({ length: PLACE_COUNT }, (_, index) => {
     const column = index % 2 === 0 ? firstColumn : 1 - firstColumn;
@@ -137,12 +159,65 @@ function zigzagUp(content: ContentBox, maxMarker: number, theme: MapThemeId): Pr
     };
   });
   const goal = lastPlace(places);
+  return withGoal(content, places, markerSize, { x: goal.x, y: goal.y - cellHeight });
+}
+
+/**
+ * Rozložení se symbolem cíle na místě `wanted`. Symbol se posune dovnitř
+ * tak, aby se slavící cíl i se září vešel celý do plochy mapy (#135 AC3).
+ */
+function withGoal(
+  content: ContentBox,
+  places: readonly MapPoint[],
+  markerSize: number,
+  wanted: MapPoint,
+): ProgressMapLayout {
+  const size = goalBadgeSize(markerSize);
+  const celebrationSize = goalCelebrationSize(size);
+  const half = celebrationSize / 2;
+  const center = {
+    x: clampInto(wanted.x, content.left + half, content.left + content.width - half),
+    y: clampInto(wanted.y, content.top + half, content.top + content.height - half),
+  };
   return {
     places,
     placeSize: markerSize * PLACE_TO_MARKER,
     markerSize,
-    goalSymbol: { x: goal.x, y: goal.y - cellHeight, size: goalBadgeSize(markerSize) },
+    goalSymbol: { ...center, size },
+    goalCelebration: { ...center, size: celebrationSize },
   };
+}
+
+function columnMarkerSize(cellWidth: number, cellHeight: number, maxMarker: number): number {
+  return Math.min(cellWidth * MARKER_SHARE, cellHeight * MARKER_SHARE, maxMarker);
+}
+
+/**
+ * Výška řady na výšku. Symbol cíle stojí o řadu nad cílem; když by se
+ * slavící cíl (#135) nad ním nevešel, řady se zhustí.
+ */
+function columnCellHeight(content: ContentBox, maxMarker: number): number {
+  const cellWidth = content.width / PORTRAIT_COLUMNS;
+  const even = content.height / SLOT_COUNT;
+  const marker = columnMarkerSize(cellWidth, even, maxMarker);
+  const half = goalCelebrationSize(goalBadgeSize(marker)) / 2;
+  if (GOAL_SYMBOL_SLOT * even + half <= content.height) {
+    return even;
+  }
+  return (content.height - half) / GOAL_SYMBOL_SLOT;
+}
+
+/** Průměr slavícího cíle i se září. */
+function goalCelebrationSize(badgeSize: number): number {
+  return badgeSize * MAP_GOAL_CELEBRATION_SCALE * (1 + PROGRESS_MAP_SHAPE.goalGlowShare);
+}
+
+/** `value` posunutá do rozmezí `min` až `max`; když se rozmezí nevejde, jeho střed. */
+function clampInto(value: number, min: number, max: number): number {
+  if (min > max) {
+    return (min + max) / 2;
+  }
+  return Math.min(Math.max(value, min), max);
 }
 
 /** Průměr světlého podkladu symbolu cíle i s okrajem; symbol leží uvnitř. */

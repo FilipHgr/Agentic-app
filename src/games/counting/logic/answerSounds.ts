@@ -6,7 +6,7 @@
 import type { TapOutcome } from './answerRound';
 import type { Tone } from '../../../shared/audio/tonePlayer';
 
-export type SoundName = 'correct' | 'wrong' | 'celebration' | 'hint' | 'mapStep';
+export type SoundName = 'correct' | 'wrong' | 'celebration' | 'hint' | 'mapStep' | 'mapGoal';
 
 /** Veselá stoupající melodie C5, E5, G5. */
 const CORRECT_TONES: readonly Tone[] = [
@@ -43,12 +43,26 @@ const MAP_STEP_TONES: readonly Tone[] = [
   { frequencyHz: 880, startSeconds: 0.12, durationSeconds: 0.18, volume: 0.3 },
 ];
 
+/**
+ * Krátká vítězná melodie, když značka dojde do cíle mapy (#135 AC3, kratší
+ * než 2 s): rychlý běh nahoru a dlouhý vysoký tón.
+ */
+const MAP_GOAL_TONES: readonly Tone[] = [
+  { frequencyHz: 783.99, startSeconds: 0, durationSeconds: 0.12, volume: 0.3 },
+  { frequencyHz: 1046.5, startSeconds: 0.12, durationSeconds: 0.12, volume: 0.3 },
+  { frequencyHz: 1318.51, startSeconds: 0.24, durationSeconds: 0.12, volume: 0.3 },
+  { frequencyHz: 1567.98, startSeconds: 0.36, durationSeconds: 0.2, volume: 0.3 },
+  { frequencyHz: 1318.51, startSeconds: 0.6, durationSeconds: 0.12, volume: 0.3 },
+  { frequencyHz: 2093, startSeconds: 0.74, durationSeconds: 0.5, volume: 0.28 },
+];
+
 export const SOUNDS: Readonly<Record<SoundName, readonly Tone[]>> = {
   correct: CORRECT_TONES,
   wrong: WRONG_TONES,
   celebration: CELEBRATION_TONES,
   hint: HINT_TONES,
   mapStep: MAP_STEP_TONES,
+  mapGoal: MAP_GOAL_TONES,
 };
 
 /** Vrátí zvuk pro výsledek ťuknutí, nebo `null`, když se nemá ozvat nic. */

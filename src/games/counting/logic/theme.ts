@@ -231,6 +231,22 @@ export const PROGRESS_MAP_STYLE = {
   markerLetterWeight: 700,
 } as const;
 
+/**
+ * Efekty animace mapy (#135, schválené obrázky): zlatá zářící stopa za
+ * značkou s jiskřičkami, modrá svatozář při zastavení a zlatá záře
+ * s prstencem kolem slavícího cíle. Jiskřičky jsou bílé a zlaté.
+ */
+export const PROGRESS_MAP_EFFECTS = {
+  trailGlowColor: '#FFD633',
+  trailCoreColor: '#FFF3A6',
+  sparkleColors: [WHITE, STAR_STYLE.earnedColor],
+  sparkleOutlineColor: STAR_STYLE.earnedOutlineColor,
+  haloColor: BLUE,
+  /** Světlejší zlatá, aby záře nezšedla ani na tmavém vesmíru. */
+  goalGlowColor: '#FFE45C',
+  goalRingColor: '#F5B800',
+} as const;
+
 /** Šířka okraje jako díl průměru: místo, cíl a značka hráče. */
 export const PROGRESS_MAP_SHAPE = {
   placeBorderShare: 0.08,
@@ -244,6 +260,11 @@ export const PROGRESS_MAP_SHAPE = {
   goalBadgeToMarker: 1.2,
   goalSymbolShare: 0.75,
   goalBadgeBorderShare: 0.06,
+  /**
+   * Slavící cíl (#135 AC3): kolem zvětšeného podkladu zlatý prstenec a záře.
+   * O tento díl průměru zvětšeného podkladu je slavící cíl i se září větší.
+   */
+  goalGlowShare: 0.3,
 } as const;
 
 /** Barvy cesty a okraje místa, kam značka ještě nedošla (#134). */

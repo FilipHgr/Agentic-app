@@ -29,6 +29,7 @@ import type { DotCounting } from './dotCounting';
 import { drawProblem, startProblemRotation } from './problemRotation';
 import type { ProblemRotation } from './problemRotation';
 import type { Problem } from './problems';
+import { MARKER_ARRIVAL_MS } from './mapAnimation';
 import { mapShowMs, stepOnMap } from './progressMap';
 import type { MapMove, MapProgress } from './progressMap';
 import { createRecognizerLoading } from './recognizerLoading';
@@ -294,8 +295,10 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       return;
     }
     shownMove = move;
-    sounds.play(SOUNDS.mapStep);
     notify({ kind: 'mapShown' });
+    // Zvuk zazní, až značka na novém místě zastaví (#135 AC2, AC3).
+    const arrivalSound = move.reachedGoal ? SOUNDS.mapGoal : SOUNDS.mapStep;
+    schedule(MARKER_ARRIVAL_MS, () => sounds.play(arrivalSound), celebrationSteps);
     schedule(mapShowMs(move), hideMap, celebrationSteps);
   }
 
