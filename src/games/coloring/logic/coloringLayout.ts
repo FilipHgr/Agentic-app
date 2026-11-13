@@ -22,6 +22,12 @@
  * vpravo nahoře zrcadlově k domečku. Obrázek má stejnou velikost jako
  * před #126, jen se může posunout.
  *
+ * Koště (#142) je stejně velké jako fotoaparát a 16 px od něj: na šířku
+ * v jednom sloupci pod ním, jen když se tam vejde, jinak vpravo od něj
+ * (pruh má pak dva sloupce), na výšku vlevo od něj. Místo obrázku se
+ * počítá bez koštěte (obrázek zůstane stejný), jen když by byl ke koštěti
+ * blíž než 8 px, posune se doprava. Panel vyjíždí vpravo od koštěte.
+ *
  * Od #111 sahá obrázek na šířku k hornímu a dolnímu okraji, na výšku leží
  * rovně (#127, neotáčí se žádná omalovánka) přes šířku okna bez bočních
  * okrajů 8 px. Dotyk na omalovánku převádí
@@ -58,6 +64,8 @@ export interface ColoringLayout {
   readonly recentColors: readonly LayoutRect[];
   /** Fotoaparát, uloží hotový obrázek do alba (#126). */
   readonly cameraButton: LayoutRect;
+  /** Koště, podržením vrátí stránku na začátek (#142). */
+  readonly broomButton: LayoutRect;
   /** Pozadí otevřeného panelu. */
   readonly panel: LayoutRect;
   /** 12 míst pro barvy v těle kroku barev, barvy `PALETTE` na prvních místech. */
@@ -90,6 +98,7 @@ export type TouchTarget =
   | { readonly kind: 'handle' }
   | { readonly kind: 'undo' }
   | { readonly kind: 'camera' }
+  | { readonly kind: 'broom' }
   | { readonly kind: 'recentColor'; readonly index: number }
   | { readonly kind: 'color'; readonly index: number }
   | { readonly kind: 'tool'; readonly index: number }
@@ -114,6 +123,9 @@ const LANDSCAPE_STRIP_CONTROLS = 4 + RECENT_COLOR_PLACES;
 
 /** Mezera mezi plochami a mezi pruhem a obrázkem v CSS px. */
 const GAP_CSS = 8;
+
+/** Odstup koštěte od fotoaparátu v CSS px (#142 AC6). */
+const BROOM_GAP_CSS = 16;
 
 /**
  * Odstup obrázku od bočního okraje volné plochy v CSS px. Nahoře a dole
@@ -305,26 +317,40 @@ interface Strip {
   readonly cameraButton: LayoutRect;
 }
 
-/** Pruh vlevo pod domečkem: jeden sloupec, když se vejde, jinak dva. */
-function landscapeStrip(home: LayoutRect, height: number): Strip {
+interface StripWithBroom extends Strip {
+  readonly broomButton: LayoutRect;
+}
+
+/** Vejde se do výšky jeden sloupec domečku, ovládání a navíc `extra` CSS px dole? */
+function oneColumnFits(home: LayoutRect, height: number, extra: number): boolean {
+  return (
+    home.top + lineLength(LANDSCAPE_STRIP_CONTROLS, home.width) + extra <= height - MIN_EDGE_CSS
+  );
+}
+
+/** Pruh v jednom sloupci pod domečkem. */
+function oneColumnStrip(home: LayoutRect): Strip {
   const side = home.width;
   const below = bottomOf(home) + GAP_CSS;
-  const oneColumnFits =
-    home.top + lineLength(LANDSCAPE_STRIP_CONTROLS, side) <= height - MIN_EDGE_CSS;
-  if (oneColumnFits) {
-    const step = side + GAP_CSS;
-    return {
-      handle: square(home.left, below, side),
-      undoButton: square(home.left, below + step, side),
-      recentColors: [
-        square(home.left, below + 2 * step, side),
-        square(home.left, below + 3 * step, side),
-      ],
-      cameraButton: square(home.left, below + 4 * step, side),
-    };
-  }
-  // Dva sloupce (L-A na telefonu): úchyt a Zpět vedle sebe, pod nimi nedávné
-  // barvy a úplně dole fotoaparát (#126), obrázek se jen posune.
+  const step = side + GAP_CSS;
+  return {
+    handle: square(home.left, below, side),
+    undoButton: square(home.left, below + step, side),
+    recentColors: [
+      square(home.left, below + 2 * step, side),
+      square(home.left, below + 3 * step, side),
+    ],
+    cameraButton: square(home.left, below + 4 * step, side),
+  };
+}
+
+/**
+ * Pruh ve dvou sloupcích (L-A na telefonu): úchyt a Zpět vedle sebe, pod
+ * nimi nedávné barvy a úplně dole fotoaparát (#126).
+ */
+function twoColumnStrip(home: LayoutRect, height: number): Strip {
+  const side = home.width;
+  const below = bottomOf(home) + GAP_CSS;
   const secondColumn = home.left + side + GAP_CSS;
   const cameraTop = Math.max(below + 2 * (side + GAP_CSS), height - home.top - side);
   const recentTop = cameraTop - side - GAP_CSS;
@@ -334,6 +360,46 @@ function landscapeStrip(home: LayoutRect, height: number): Strip {
     recentColors: [square(home.left, recentTop, side), square(secondColumn, recentTop, side)],
     cameraButton: square(home.left, cameraTop, side),
   };
+}
+
+/** Pruh vlevo pod domečkem jako před #142: jeden sloupec, když se vejde, jinak dva. */
+function stripWithoutBroom(home: LayoutRect, height: number): Strip {
+  return oneColumnFits(home, height, 0) ? oneColumnStrip(home) : twoColumnStrip(home, height);
+}
+
+/**
+ * Pruh vlevo pod domečkem s koštětem (#142 AC6): koště 16 px pod
+ * fotoaparátem, jen když se tam do výšky vejde, jinak ve druhém sloupci
+ * 16 px vpravo od fotoaparátu ve stejné výšce. Ostatní plochy pruhu
+ * zůstanou na místě jako před #142.
+ */
+function landscapeStrip(home: LayoutRect, height: number): StripWithBroom {
+  const side = home.width;
+  const strip = stripWithoutBroom(home, height);
+  const camera = strip.cameraButton;
+  const broomButton = oneColumnFits(home, height, BROOM_GAP_CSS + side)
+    ? square(camera.left, bottomOf(camera) + BROOM_GAP_CSS, side)
+    : square(rightOf(camera) + BROOM_GAP_CSS, camera.top, side);
+  return { ...strip, broomButton };
+}
+
+function stripRightOf(strip: Strip): number {
+  return rightEdgeOf([strip.handle, strip.undoButton, ...strip.recentColors, strip.cameraButton]);
+}
+
+function rightEdgeOf(places: readonly LayoutRect[]): number {
+  return Math.max(...places.map(rightOf));
+}
+
+/**
+ * Obrázek posunutý doprava, aby byl od pravého okraje pruhu `stripRight`
+ * aspoň 8 px (#142 AC6), ale ne přes okraj `right`.
+ */
+function pictureBeside(picture: LayoutRect, stripRight: number, right: number): LayoutRect {
+  const wanted = stripRight + GAP_CSS - picture.left;
+  const room = right - rightOf(picture);
+  const shift = Math.max(0, Math.min(wanted, room));
+  return rect(picture.left + shift, picture.top, picture.width, picture.height);
 }
 
 /**
@@ -351,6 +417,19 @@ function landscapePanel(left: number, height: number, side: number, phone: boole
   return panelAt(left, (height - panelHeight) / 2, grid, padding);
 }
 
+/**
+ * Obrázek na šířku tak, jak by byl bez koštěte (před #142): na středu
+ * vedle pruhu, přes celou výšku, nebo co nejširší.
+ */
+function landscapePictureWithoutBroom(width: number, height: number, home: LayoutRect): LayoutRect {
+  return fitPicture({
+    left: stripRightOf(stripWithoutBroom(home, height)) + GAP_CSS,
+    right: width - PICTURE_EDGE_CSS,
+    top: 0,
+    bottom: height,
+  });
+}
+
 function landscapeLayout(
   width: number,
   height: number,
@@ -358,22 +437,16 @@ function landscapeLayout(
   phone: boolean,
 ): CssLayout {
   const strip = landscapeStrip(home, height);
-  const stripRight = Math.max(
-    ...[home, strip.handle, strip.undoButton, ...strip.recentColors, strip.cameraButton].map(
-      rightOf,
-    ),
+  const stripRight = Math.max(stripRightOf(strip), rightOf(strip.broomButton));
+  const picture = pictureBeside(
+    landscapePictureWithoutBroom(width, height, home),
+    stripRight,
+    width - PICTURE_EDGE_CSS,
   );
-  const besideStrip = stripRight + GAP_CSS;
-  const picture = fitPicture({
-    left: besideStrip,
-    right: width - PICTURE_EDGE_CSS,
-    top: 0,
-    bottom: height,
-  });
   return {
     picture,
     ...strip,
-    ...landscapePanel(besideStrip, height, home.width, phone),
+    ...landscapePanel(stripRight + GAP_CSS, height, home.width, phone),
     panelSlidesFrom: 'left',
   };
 }
@@ -384,9 +457,10 @@ function landscapeLayout(
 
 /**
  * Pruh dole: nedávné barvy vlevo, úchyt uprostřed, Zpět vpravo u palce.
- * Fotoaparát je vpravo nahoře zrcadlově k domečku (#126).
+ * Fotoaparát je vpravo nahoře zrcadlově k domečku (#126), koště 16 px
+ * vlevo od něj (#142).
  */
-function portraitStrip(width: number, height: number, home: LayoutRect): Strip {
+function portraitStrip(width: number, height: number, home: LayoutRect): StripWithBroom {
   const side = home.width;
   const top = height - home.top - side;
   const handleLeft = (width - side) / 2;
@@ -400,6 +474,7 @@ function portraitStrip(width: number, height: number, home: LayoutRect): Strip {
     undoButton: square(width - home.left - side, top, side),
     recentColors: [square(recentLeft, top, side), square(recentLeft + side + GAP_CSS, top, side)],
     cameraButton: square(width - home.left - side, home.top, side),
+    broomButton: square(width - home.left - 2 * side - BROOM_GAP_CSS, home.top, side),
   };
 }
 
@@ -473,6 +548,7 @@ function layoutInUnits(css: CssLayout, unitsPerCss: number): ColoringLayout {
     undoButton: units(css.undoButton),
     recentColors: css.recentColors.map(units),
     cameraButton: units(css.cameraButton),
+    broomButton: units(css.broomButton),
     panel: units(css.panel),
     paletteColors: css.paletteColors.map(units),
     toolSlots: css.toolSlots.map(units),
@@ -483,18 +559,38 @@ function layoutInUnits(css: CssLayout, unitsPerCss: number): ColoringLayout {
   };
 }
 
-/** Rozložení Omalovánek pro herní plochu `area` (oba stavy panelu). */
-export function layoutColoring(area: GameArea): ColoringLayout {
+/** Domeček a rozměr herní plochy `area` v CSS px. */
+function cssFrame(area: GameArea): { home: LayoutRect; width: number; height: number } {
   const cssPerUnit = area.scale;
   const home = homeButtonInFreeArea(area);
-  const homeCss = square(home.left * cssPerUnit, home.top * cssPerUnit, home.size * cssPerUnit);
-  const width = area.width * cssPerUnit;
-  const height = area.height * cssPerUnit;
+  return {
+    home: square(home.left * cssPerUnit, home.top * cssPerUnit, home.size * cssPerUnit),
+    width: area.width * cssPerUnit,
+    height: area.height * cssPerUnit,
+  };
+}
+
+/** Rozložení Omalovánek pro herní plochu `area` (oba stavy panelu). */
+export function layoutColoring(area: GameArea): ColoringLayout {
+  const { home, width, height } = cssFrame(area);
   const css =
     width >= height
-      ? landscapeLayout(width, height, homeCss, area.mode === 'phoneLandscape')
-      : portraitLayout(width, height, homeCss);
-  return layoutInUnits(css, 1 / cssPerUnit);
+      ? landscapeLayout(width, height, home, area.mode === 'phoneLandscape')
+      : portraitLayout(width, height, home);
+  return layoutInUnits(css, 1 / area.scale);
+}
+
+/**
+ * Místo obrázku malování v herních jednotkách tak, jak by bylo bez koštěte
+ * (před #142). Podle něj se staví velký obrázek z alba (#129, #131), který
+ * koště nemá, a proto se kvůli němu neposouvá.
+ */
+export function pictureWithoutBroom(area: GameArea): LayoutRect {
+  const { home, width, height } = cssFrame(area);
+  if (width < height) {
+    return layoutColoring(area).picture;
+  }
+  return toUnits(landscapePictureWithoutBroom(width, height, home), 1 / area.scale);
 }
 
 // ---------------------------------------------------------------------------
@@ -548,6 +644,9 @@ export function touchTargetAt(
   }
   if (contains(layout.cameraButton, x, y)) {
     return { kind: 'camera' };
+  }
+  if (contains(layout.broomButton, x, y)) {
+    return { kind: 'broom' };
   }
   const recent = indexContaining(layout.recentColors, x, y);
   if (recent >= 0) {

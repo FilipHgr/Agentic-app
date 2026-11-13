@@ -110,6 +110,36 @@ export class PaintLayer {
     return canvas;
   }
 
+  /**
+   * Kopie jen barev obrázku (#142): bílá plocha a obrys jsou průhledné,
+   * aby smetené barvy neodnesly bílé pozadí ani druhý obrys. `null`, když
+   * plátno nejde vytvořit.
+   */
+  colorsSnapshot(): HTMLCanvasElement | null {
+    const canvas = document.createElement('canvas');
+    canvas.width = this.regions.width;
+    canvas.height = this.regions.height;
+    const context = canvas.getContext('2d');
+    if (context === null) {
+      return null;
+    }
+    const colors = new ImageData(new Uint8ClampedArray(this.pixels.data), this.regions.width);
+    const { regionIds } = this.regions;
+    const data = colors.data;
+    for (let index = 0; index < regionIds.length; index += 1) {
+      const offset = index * 4;
+      const isBackground =
+        data[offset] === BACKGROUND_RGB[0] &&
+        data[offset + 1] === BACKGROUND_RGB[1] &&
+        data[offset + 2] === BACKGROUND_RGB[2];
+      if (regionIds[index] === OUTLINE_REGION || isBackground) {
+        data[offset + 3] = 0;
+      }
+    }
+    context.putImageData(colors, 0, 0);
+    return canvas;
+  }
+
   /** Pošle změněný obdélník do textury. Volá se jednou za snímek. */
   flush(): void {
     const area = this.pending;

@@ -330,7 +330,14 @@ describe('#96 AC3, AC6: otevřený panel se v obou krocích vejde vedle pruhu', 
   it('na šířku vyjíždí panel hned vedle pruhu vlevo, na výšku hned nad pruhem dole', () => {
     for (const testCase of openCases()) {
       const { label } = testCase.scene;
-      const strip = boundsOf([testCase.handle, testCase.undo, ...testCase.recentColors]);
+      // Na šířku patří do pruhu i koště (#142 AC6), panel vyjíždí vedle něj.
+      const broom = toCss(boxOfRect(testCase.layout.broomButton), testCase.area);
+      const strip = boundsOf([
+        testCase.handle,
+        testCase.undo,
+        ...testCase.recentColors,
+        ...(testCase.landscape ? [broom] : []),
+      ]);
       const gap = testCase.landscape
         ? testCase.panelBox.left - strip.right
         : strip.top - testCase.panelBox.bottom;

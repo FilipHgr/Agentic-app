@@ -111,6 +111,7 @@ pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter), ikony
 fotoaparátu a knihy alba (camera, notebook-with-decorative-cover), ikona koše
 u velkého obrázku z alba (wastebasket), zámek zamčené omalovánky, otevřený
 zámek a klíč ukazatele klíčů na výběru omalovánek (locked, unlocked, key),
+koště v malování Omalovánek (broom),
 symboly cíle map postupu v Počítání
 (src/games/counting/maps/: gem-stone, mushroom, castle, spiral-shell,
 ringed-planet) a klíč za dokončenou mapu v Počítání

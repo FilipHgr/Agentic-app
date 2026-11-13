@@ -19,6 +19,7 @@ import {
   recentColorName,
 } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
+import { PICTURE_MAY_MOVE_IN } from './layoutBefore142Fixture';
 
 /**
  * Testy k #127 (na výšku se omalovánka neotáčí) a k #111 AC3, AC4, které
@@ -365,13 +366,34 @@ describe('#111 AC4 (#127 AC1 na šířku beze změny): na šířku sahá obráze
   });
 
   it('obrázek přes celou výšku leží vodorovně na středu mezi pruhem + 8 px a pravým okrajem − 8 px', () => {
-    for (const testCase of landscapeCases().filter(fullHeightFits)) {
+    // V 932×499 s výřezem se obrázek od #142 AC6 posune doprava za koště
+    // (hlídá broomLayoutRules.test.ts), jinde zůstává na středu.
+    const centered = landscapeCases().filter(
+      (each) => fullHeightFits(each) && each.window.name !== PICTURE_MAY_MOVE_IN,
+    );
+    for (const testCase of centered) {
       const space = landscapeSpaceOf(testCase);
       const left = testCase.picture.left - space.left;
       const right = space.right - testCase.picture.right;
       const label = `${testCase.scene.label}: vlevo ${px(left)}, vpravo ${px(right)}`;
       expect(left, label).toBeGreaterThanOrEqual(-TOLERANCE);
       expect(Math.abs(left - right), label).toBeLessThanOrEqual(TOLERANCE);
+    }
+  });
+
+  it('v 932×499 s výřezem leží obrázek mezi koštětem + 8 px a pravým okrajem − 8 px (#142 AC6)', () => {
+    // Náhrada za kontrolu na středu, která toto okno od #142 vynechává.
+    const moved = landscapeCases().filter((each) => each.window.name === PICTURE_MAY_MOVE_IN);
+    expect(moved.length, 'okno je mezi případy').toBeGreaterThan(0);
+    for (const testCase of moved) {
+      const broom = toCss(boxOfRect(testCase.layout.broomButton), testCase.area);
+      const label = testCase.scene.label;
+      expect(testCase.picture.left, `${label}: 8 px od koštěte`).toBeGreaterThanOrEqual(
+        broom.right + PICTURE_SIDE_MARGIN - TOLERANCE,
+      );
+      expect(testCase.picture.right, `${label}: 8 px od pravého okraje`).toBeLessThanOrEqual(
+        testCase.visible.right - PICTURE_SIDE_MARGIN + TOLERANCE,
+      );
     }
   });
 

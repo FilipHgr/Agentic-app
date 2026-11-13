@@ -43,7 +43,7 @@ import { openPictureLocks, unlockPaintedPictures } from '../logic/pictureLocks';
 import type { PictureLocks } from '../logic/pictureLocks';
 import { loadPicturePreview, previewOfColors } from '../logic/picturePreview';
 import { COLORING_PICTURES } from '../logic/pictureSet';
-import type { PictureIdentity } from '../logic/savedPicture';
+import type { PaintingOrigin, PictureIdentity } from '../logic/savedPicture';
 import { BIG_PICTURE_STYLE } from '../logic/theme';
 import { BOOK_ICON_FILE, CONTINUE_ICON_FILE, TRASH_ICON_FILE } from '../logic/toolIcons';
 import { ColoringScene, isGameArea } from './ColoringScene';
@@ -217,6 +217,7 @@ export class PickerScene extends Phaser.Scene {
       storage: host?.storage,
       albumPictures: () => this.albumPictures,
       onTrash: (feedback) => this.onTrashFeedback(feedback),
+      onBroom: (feedback) => this.painting?.showBroomFeedback(feedback),
     });
     startColoringSession(host ?? NO_PAGE, () => this.stop());
     host?.onHomeHold?.(() => this.onHomeHold());
@@ -754,7 +755,7 @@ export class PickerScene extends Phaser.Scene {
     // Po návratu domečkem z malování se ukáže výběr s náhledy.
     this.hidePicker();
     this.drawTiles();
-    this.openPainting(result.picture);
+    this.openPainting(result.picture, 'album');
   }
 
   /** Prst na koši (#129 AC3): stisk jen dotykem dolů, návrat prstu po sjetí není nový stisk. */
@@ -875,6 +876,7 @@ export class PickerScene extends Phaser.Scene {
       this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
       this.events.off(Phaser.Scenes.Events.UPDATE, this.drawTrashRing, this);
       this.choice.trashButton.dispose();
+      this.choice.broomButton.dispose();
       this.stop();
       this.hidePicker();
       this.hideAlbum();
@@ -972,8 +974,11 @@ export class PickerScene extends Phaser.Scene {
     return picture !== undefined && this.locks.isLocked(picture);
   }
 
-  /** Otevře malování omalovánky `picture` v nové scéně nad výběrem; výběr usne. */
-  private openPainting(picture: PictureIdentity): void {
+  /**
+   * Otevře malování omalovánky `picture` v nové scéně nad výběrem; výběr
+   * usne. `origin` říká koštěti, kam stránku vrací (#142).
+   */
+  private openPainting(picture: PictureIdentity, origin: PaintingOrigin = 'picker'): void {
     const assets = this.assetsOf(picture);
     if (assets === undefined) {
       return;
@@ -988,6 +993,9 @@ export class PickerScene extends Phaser.Scene {
       album: () => this.albumReading,
       onAlbumSaved: () => this.onAlbumSaved(),
       pageSettled: () => this.choice.pageSettled(picture),
+      origin,
+      broomButton: this.choice.broomButton,
+      onPainting: (game) => this.choice.attachPainting(game),
     });
     this.painting = painting;
     this.scene.add(key, painting, true);

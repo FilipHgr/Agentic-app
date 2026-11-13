@@ -4,6 +4,7 @@
  * používají. Odstíny barev palety jsou v `palette.ts`.
  */
 
+import type { Tone } from '../../../shared/audio/tonePlayer';
 import { BLUE, SECONDARY, TEXT, WHITE } from '../../../shared/logic/theme';
 
 /** Plocha omalovánky: bílé pozadí, tmavý obrys (stejný jako v SVG obrázku) a jemný rámeček. */
@@ -210,6 +211,22 @@ export const BIG_PICTURE_STYLE = {
   holdRingOutline: TEXT,
   holdRingOutlineAlpha: 0.35,
 } as const;
+
+/**
+ * Smetení barev koštětem (#142): kopie vrstvy barev před zrušením krátce
+ * odjede do strany a zmizí, pod ní je už stránka na začátku. Posun je díl
+ * šířky obrázku.
+ */
+export const BROOM_SWEEP_STYLE = {
+  durationMs: 320,
+  shiftShare: 0.08,
+} as const;
+
+/** Krátký jemný „šup“ po smetení barev koštětem (#142): dva tiché klesající tóny. */
+export const BROOM_SWEEP_TONES: readonly Tone[] = [
+  { frequencyHz: 987.77, startSeconds: 0, durationSeconds: 0.06, volume: 0.07 },
+  { frequencyHz: 659.25, startSeconds: 0.05, durationSeconds: 0.1, volume: 0.06 },
+];
 
 /**
  * Dlaždice náhledu na výběru omalovánky (#124): bílá se zaoblením a jemným

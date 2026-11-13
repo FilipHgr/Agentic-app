@@ -52,6 +52,13 @@
  *   přesun právě zpracovává. Omalovánku, jejíž malování je vidět, přesun
  *   přeskočí, dokud z něj dítě neodejde (i do menu u jediné omalovánky).
  *   Přesun nikdy nevyhodí výjimku.
+ * - Koště v malování (#142) vrátí podržením 1 s stránku malování, které
+ *   scéna předala (`attachPainting`), na začátek (`clearPage`). Ťuknutí,
+ *   kratší podržení a stránka stejná jako začátek koště jen zhoupnou
+ *   s tónem domečku. Koště nic neudělá, když jiný prst maluje, během
+ *   ukládání fotoaparátem, když se drží domeček a podržení začaté před
+ *   zobrazením malování se nepočítá. Když se drží koště, domeček nic
+ *   neudělá.
  */
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
@@ -69,6 +76,7 @@ import type { SwapRun } from './albumSwap';
 import { createPageMoveQueue } from './pageMoveQueue';
 import type { PageMove } from './pageToAlbum';
 import type { PictureLocks } from './pictureLocks';
+import type { ChangedArea } from './coloring';
 import type { PictureIdentity, SavedColoring } from './savedPicture';
 
 /**
@@ -130,6 +138,15 @@ export type TrashFeedback =
   /** Podržení 1 s začalo mazat obrázek `entry`; `done` řekne, jak mazání skončilo. */
   | { readonly kind: 'deleting'; readonly entry: AlbumEntry; readonly done: Promise<TrashResult> };
 
+/** Odezva koštěte v malování, kterou scéna nakreslí (#142). */
+export type BroomFeedback =
+  /** Kroužek kolem koštěte se začal plnit (`true`), nebo zmizel (`false`). */
+  | { readonly kind: 'broomHolding'; readonly holding: boolean }
+  /** Ťuknutí, kratší podržení nebo stránka stejná jako začátek: koště se jen zhoupne. */
+  | { readonly kind: 'broomWobble'; readonly tones: readonly Tone[] }
+  /** Stránka je zpátky na začátku: scéna překreslí `changed` a smete barvy. */
+  | { readonly kind: 'cleared'; readonly changed: ChangedArea };
+
 /**
  * Co udělá ťuknutí na náhled: otevře omalovánku s tónem, zhoupne se
  * s tónem domečku (výměna s albem, která se může vrátit, #131 AC5),
@@ -179,6 +196,9 @@ export type HomeHold = 'toPicker' | 'toMenu' | 'toAlbum' | 'ignored';
 /** Jak dlouho se drží koš, aby smazal obrázek (#129 AC3, jako „Smazat“ u profilu). */
 export const TRASH_HOLD_MS = 1000;
 
+/** Jak dlouho se drží koště, aby vrátilo stránku na začátek (#142 AC1, jako koš). */
+export const BROOM_HOLD_MS = TRASH_HOLD_MS;
+
 /** Tón ťuknutí na náhled: krátký vzestupný dvojtón. */
 export const PREVIEW_TAP_TONES: readonly Tone[] = [
   { frequencyHz: 659.25, startSeconds: 0, durationSeconds: 0.09, volume: 0.13 },
@@ -203,6 +223,10 @@ export interface PictureChoice {
   bigPictureShown(): void;
   /** Koš na velkém obrázku: scéna mu předává stisk, zvednutí a sjetí prstu (#129 AC3). */
   readonly trashButton: HoldButton;
+  /** Koště v malování: scéna mu předává stisk, zvednutí, přerušení a sjetí prstu (#142). */
+  readonly broomButton: HoldButton;
+  /** Scéna předá malování, které otevřela; koště pak vrací jeho stránku (#142). */
+  attachPainting(game: SavedColoring): void;
   /** Stránka hlásí, že se domeček začal (`true`), nebo přestal (`false`) držet (#129 AC5). */
   homeHolding(holding: boolean): void;
   /** Ťuknutí na štětec na velkém obrázku (#131). */
@@ -234,6 +258,8 @@ export interface PictureChoiceOptions {
   readonly records?: GameRecords | undefined;
   /** Odezva koše pro scénu (#129). */
   readonly onTrash?: (feedback: TrashFeedback) => void;
+  /** Odezva koštěte v malování pro scénu (#142). */
+  readonly onBroom?: (feedback: BroomFeedback) => void;
   /** Úložiště hry aktivního profilu s rozmalovanými stránkami (#131); bez něj se nic nevymění. */
   readonly storage?: KeyValueStorage | undefined;
   /**
@@ -277,6 +303,7 @@ export function startPictureChoice(
 ): PictureChoice {
   const now = options.now ?? (() => Date.now());
   const onTrash = options.onTrash ?? (() => undefined);
+  const onBroom = options.onBroom ?? (() => undefined);
   const onlyPicture = pictures.length === 1 ? pictures[0] : undefined;
   let screen: ColoringScreen =
     onlyPicture === undefined ? { kind: 'picker' } : { kind: 'opening', picture: onlyPicture };
@@ -402,6 +429,42 @@ export function startPictureChoice(
     dispose: () => trashHold.dispose(),
   };
 
+  /** Malování, které scéna otevřela a předala (#142); koště vrací jeho stránku. */
+  let painting: SavedColoring | null = null;
+
+  /** Je vidět malování, ze kterého dítě neodešlo, a koště ho může vrátit? */
+  const broomEnabled = (): boolean =>
+    screen.kind === 'painting' &&
+    !paintingEnded &&
+    !homeHeld &&
+    painting !== null &&
+    painting.canUseBroom();
+
+  const clearPainting = (): void => {
+    const result = painting?.clearPage() ?? { kind: 'ignored' };
+    switch (result.kind) {
+      case 'cleared':
+        onBroom({ kind: 'cleared', changed: result.changed });
+        return;
+      case 'unchanged':
+        onBroom({ kind: 'broomWobble', tones: HOME_WOBBLE_TONES });
+        return;
+      case 'ignored':
+        return;
+    }
+  };
+
+  const broomButton = createHoldButton({
+    holdMs: BROOM_HOLD_MS,
+    isEnabled: broomEnabled,
+    onHoldComplete: clearPainting,
+    onTap: () => onBroom({ kind: 'broomWobble', tones: HOME_WOBBLE_TONES }),
+    onHoldingChange: (holding) => {
+      painting?.broomHolding(holding);
+      onBroom({ kind: 'broomHolding', holding });
+    },
+  });
+
   /** Domeček z velkého obrázku: do alba, během mazání až po mazání. */
   const homeFromBigPicture = (shown: Extract<ColoringScreen, { kind: 'bigPicture' }>): HomeHold => {
     if (trashHold.isHolding() || swapping || !heldSinceShown()) {
@@ -521,6 +584,10 @@ export function startPictureChoice(
       shownAt = now();
     },
     trashButton,
+    broomButton,
+    attachPainting: (game) => {
+      painting = game;
+    },
     homeHolding: (holding) => {
       homeHeld = holding;
     },
@@ -544,7 +611,7 @@ export function startPictureChoice(
         case 'bigPicture':
           return homeFromBigPicture(screen);
         case 'painting':
-          if (!heldSinceShown()) {
+          if (!heldSinceShown() || broomButton.isHolding()) {
             return 'ignored';
           }
           if (onlyPicture !== undefined) {

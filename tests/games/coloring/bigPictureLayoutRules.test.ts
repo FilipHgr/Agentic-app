@@ -39,6 +39,7 @@ import {
   isLandscapeArea,
 } from './coloringLayoutScenes';
 import { ALBUM_GRID_BEFORE_129 } from './layoutBefore129Fixture';
+import { PICTURE_BEFORE_142, PICTURE_MAY_MOVE_IN } from './layoutBefore142Fixture';
 
 /**
  * Testy k #129 AC6 (rozložení velkého obrázku a koše): pravidla v cyklu
@@ -108,6 +109,24 @@ interface BigPictureCase {
   readonly scene: LayoutScene;
 }
 
+/**
+ * Obrázek v malování, jak byl před koštětem (#142): velký obrázek koště
+ * nemá a kvůli němu se neposouvá. Malování se od #142 AC6 posune jen
+ * v okně `PICTURE_MAY_MOVE_IN`, tam platí pevná míra před #142.
+ */
+function paintingPictureBefore142(
+  window: TestWindow,
+  picture: LayoutRect,
+  css: (rect: LayoutRect) => Box,
+): Box {
+  const before = PICTURE_BEFORE_142.find(([name]) => name === window.name);
+  if (window.name !== PICTURE_MAY_MOVE_IN || before === undefined) {
+    return css(picture);
+  }
+  const [, left, top, width, height] = before;
+  return { left, top, right: left + width, bottom: top + height };
+}
+
 function bigPictureCase(window: TestWindow): BigPictureCase {
   const area = gameAreaFor(viewportOf(window), COLORING_GAME_AREA_FIT);
   const css = (rect: LayoutRect): Box => toCss(boxOfRect(rect), area);
@@ -144,7 +163,7 @@ function bigPictureCase(window: TestWindow): BigPictureCase {
     home,
     picture,
     trash,
-    paintingPicture: css(painting.picture),
+    paintingPicture: paintingPictureBefore142(window, painting.picture, css),
     camera: css(painting.cameraButton),
     scene: { label: `${window.name}, velký obrázek`, free: visible, items },
   };

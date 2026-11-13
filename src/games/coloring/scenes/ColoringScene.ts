@@ -5,6 +5,7 @@ import { createTonePlayer } from '../../../shared/audio/tonePlayer';
 import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
 import type { GameRecords } from '../../../shared/storage/profileRecords';
 import type { GameHost } from '../../../shared/logic/gameHost';
+import type { HoldButton } from '../../../shared/logic/holdButton';
 import {
   TABLET_GAME_HEIGHT,
   TABLET_GAME_WIDTH,
@@ -25,9 +26,12 @@ import {
   pictureScreenPoint,
   touchTargetAt,
 } from '../logic/coloringLayout';
-import type { ColoringLayout } from '../logic/coloringLayout';
+import type { ColoringLayout, LayoutRect } from '../logic/coloringLayout';
 import { tapColor } from '../logic/palette';
 import type { PaletteState } from '../logic/palette';
+import type { BroomFeedback } from '../logic/pictureChoice';
+import { BROOM_HOLD_MS } from '../logic/pictureChoice';
+import { holdRingAround } from '../logic/pickerLayout';
 import { noRecentColors } from '../logic/recentColors';
 import {
   CAMERA_WOBBLE_TONES,
@@ -38,15 +42,16 @@ import {
 import type {
   CameraSaveResult,
   CameraTap,
+  PaintingOrigin,
   PictureIdentity,
   RecentColorTap,
   SavedColoring,
   UndoResult,
 } from '../logic/savedPicture';
-import { PICTURE_STYLE } from '../logic/theme';
+import { BROOM_SWEEP_TONES, PICTURE_STYLE } from '../logic/theme';
 import { ALL_COLOR_COUNT, TOOL_COLOR_SETS, placeInSet } from '../logic/toolColorSets';
 import { DEFAULT_TOOL_COLORS, isColorTool, toolReceivingColor } from '../logic/toolColors';
-import { CAMERA_ICON_FILE, handleColorDotFill } from '../logic/toolIcons';
+import { BROOM_ICON_FILE, CAMERA_ICON_FILE, handleColorDotFill } from '../logic/toolIcons';
 import {
   INITIAL_LINE_SIZE,
   INITIAL_TOOL,
@@ -57,6 +62,7 @@ import {
   markedTools,
 } from '../logic/toolPanel';
 import type { HandleView, LineSize, PanelView, ToolId } from '../logic/toolPanel';
+import { BroomSweepView } from './BroomSweepView';
 import { CameraPhotoView } from './CameraPhotoView';
 import { GlitterShineView } from './GlitterShineView';
 import { HandleButtonView } from './HandleButtonView';
@@ -82,6 +88,8 @@ const PICTURE_LAYER = { width: PICTURE_PIXEL_WIDTH, height: PICTURE_PIXEL_HEIGHT
  * rámeček, lesk třpytek, panel, pozadí pruhu a nahoře pruh ovládání.
  */
 const PICTURE_FRAME_DEPTH = 3;
+/** Smetené barvy (#142) leží nad vrstvou barev (1) a pod obrysem (2). */
+const SWEEP_DEPTH = 1.5;
 const SHINE_DEPTH = 4;
 const PANEL_DEPTH = 10;
 /** Fotka při uložení do alba (#126) letí nad panelem i nad pruhem. */
@@ -112,6 +120,12 @@ export interface ColoringSceneOptions {
    * potom, aby nezačalo se stránkou, kterou přesun vzápětí vyčistí.
    */
   readonly pageSettled: () => Promise<void>;
+  /** Odkud se malování otevřelo (#142): podle toho koště vrací stránku. */
+  readonly origin: PaintingOrigin;
+  /** Koště (#142) drží výběr; scéna mu předává stisk, zvednutí a sjetí prstu. */
+  readonly broomButton: HoldButton;
+  /** Malování vzniklo (těsně před `onShown`); výběr ho předá koštěti (#142). */
+  readonly onPainting: (game: SavedColoring) => void;
 }
 
 /**
@@ -152,6 +166,10 @@ export interface ColoringSceneOptions {
  *
  * Od #141 odchod domečkem malování předá výběru (`savedColoring`), který
  * ho ukončí, uloží a obrázek přesune do alba.
+ *
+ * Od #142 je v pruhu koště. Podržení počítá výběr (`broomButton`), scéna
+ * mu předává dotyky a kreslí odezvu (`showBroomFeedback`): bílý kroužek
+ * podržení, zhoupnutí a smetení barev.
  */
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -179,12 +197,23 @@ export class ColoringScene extends Phaser.Scene {
   private readonly recentView = new RecentColorsView(this);
   private readonly cameraView = new IconButtonView(this, CAMERA_ICON_FILE);
   private readonly photoView: CameraPhotoView;
+  private readonly broomView = new IconButtonView(this, BROOM_ICON_FILE);
+  private readonly sweepView: BroomSweepView;
+  /** Prst, který stiskl koště a ještě z něj nesjel ani se nezvedl. */
+  private broomPointer: number | null = null;
+  /** Plní se kroužek podržení kolem koštěte? */
+  private broomRingShown = false;
+  /** Kdy se koště začalo držet (ms podle `Date.now`, stejně jako `holdButton`). */
+  private broomHoldStartedAt = 0;
   /** Lesk během tahu třpytkami (#103 AC3), do obrázku se nezapíše. */
   private readonly shineView = new GlitterShineView(this, SHINE_DEPTH);
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu (#67 AC6).
   private readonly sounds = createTonePlayer(sharedToneContext);
   /** Přerušení tahu systémem (hovor, gesto systému) hlásí prohlížeč jako zrušený dotyk. */
-  private readonly onPointerCancel = (): void => this.interruptStroke();
+  private readonly onPointerCancel = (): void => {
+    this.interruptStroke();
+    this.cancelBroom();
+  };
   /** Schovaná stránka (přepnutí aplikace, zamčení iPadu) obrázek uloží (#92). */
   private readonly onVisibilityChange = (): void => {
     if (document.visibilityState === 'hidden') {
@@ -202,6 +231,7 @@ export class ColoringScene extends Phaser.Scene {
     this.paintTextureKey = `${options.key}:paint`;
     this.outlineTextureKey = `${options.key}:outline`;
     this.photoView = new CameraPhotoView(this, `${options.key}:photo`);
+    this.sweepView = new BroomSweepView(this, `${options.key}:sweep`);
   }
 
   /**
@@ -215,6 +245,31 @@ export class ColoringScene extends Phaser.Scene {
   /** Návrat na výběr nebo odchod z hry: tah skončí, kam došel, obrázek se uloží. */
   finishPainting(): void {
     this.stop();
+  }
+
+  /** Odezva koštěte od výběru (#142): kroužek, zhoupnutí, nebo smetení barev. */
+  showBroomFeedback(feedback: BroomFeedback): void {
+    if (!this.sys.isActive()) {
+      return;
+    }
+    switch (feedback.kind) {
+      case 'broomHolding':
+        this.broomRingShown = feedback.holding;
+        this.broomHoldStartedAt = Date.now();
+        this.drawBroomRing();
+        return;
+      case 'broomWobble':
+        this.sounds.play(feedback.tones);
+        this.broomView.wobble();
+        return;
+      case 'cleared':
+        this.sounds.play(BROOM_SWEEP_TONES);
+        this.sweepColors();
+        if (this.coloring !== null) {
+          this.paintLayer?.paint(feedback.changed, this.coloring);
+        }
+        return;
+    }
   }
 
   /** Ikony nástrojů (#106) jsou SVG přibalená ke hře, načtou se před startem scény. */
@@ -242,6 +297,7 @@ export class ColoringScene extends Phaser.Scene {
       unitsPerLayerPixel: this.unitsPerLayerPixel(),
       cssScale: this.gameArea.scale,
     });
+    this.drawBroomRing();
   }
 
   /** Stránka s domečkem z registru; bez ní hra běží bez domečku. */
@@ -277,6 +333,7 @@ export class ColoringScene extends Phaser.Scene {
       // Album se dočte až potom; malování na něj nečeká (do přečtení se
       // fotoaparát jen zhoupne).
       album: { records, contents: { status: 'unavailable' } },
+      origin: this.options.origin,
     });
     const coloring = this.coloring;
     void albumReading.then((contents) => coloring.albumRead(contents));
@@ -288,6 +345,7 @@ export class ColoringScene extends Phaser.Scene {
     this.paintImage = this.add.image(0, 0, this.paintTextureKey);
     this.outlineImage = this.add.image(0, 0, this.outlineTextureKey);
     this.placePicture();
+    this.options.onPainting(this.coloring);
     this.options.onShown();
   }
 
@@ -330,6 +388,8 @@ export class ColoringScene extends Phaser.Scene {
     // Po otočení by fotka letěla na staré místo: animace skončí, ukládání doběhne.
     this.photoView.cancel();
     this.cameraView.place(this.layout.cameraButton, this.gameArea.scale, STRIP_DEPTH);
+    this.broomView.place(this.layout.broomButton, this.gameArea.scale, STRIP_DEPTH);
+    this.drawBroomRing();
   }
 
   /**
@@ -701,6 +761,75 @@ export class ColoringScene extends Phaser.Scene {
   }
 
   // -------------------------------------------------------------------------
+  // Koště (#142)
+  // -------------------------------------------------------------------------
+
+  /** Prst na koštěti: podržení počítá výběr, tah z koštěte nemaluje (AC4). */
+  private onBroomPressed(pointer: Phaser.Input.Pointer): void {
+    if (this.broomPointer !== null) {
+      // Druhý prst na koštěti nic nepřidá, stránka se zruší jen jednou.
+      return;
+    }
+    this.broomPointer = pointer.id;
+    this.options.broomButton.press(pointer.id);
+  }
+
+  /** Prst, který koště stiskl, z něj sjel: podržení se zruší (AC3). */
+  private onBroomPointerMove(pointer: Phaser.Input.Pointer): void {
+    if (pointer.id !== this.broomPointer) {
+      return;
+    }
+    if (!isInside(this.layout.broomButton, pointer.worldX, pointer.worldY)) {
+      this.broomPointer = null;
+      this.options.broomButton.leave(pointer.id);
+    }
+  }
+
+  /** Prst, který koště stiskl, se zvedl. */
+  private onBroomPointerUp(pointer: Phaser.Input.Pointer): void {
+    if (pointer.id === this.broomPointer) {
+      this.broomPointer = null;
+      this.options.broomButton.release(pointer.id);
+    }
+  }
+
+  /** Systém dotyk přerušil, nebo malování končí: podržení koštěte se zruší bez zhoupnutí. */
+  private cancelBroom(): void {
+    if (this.broomPointer !== null) {
+      this.options.broomButton.cancel(this.broomPointer);
+      this.broomPointer = null;
+    }
+  }
+
+  /** Bílý kroužek kolem koštěte podle času od začátku podržení (v každém snímku). */
+  private drawBroomRing(): void {
+    if (!this.broomRingShown) {
+      this.broomView.setHoldProgress(null);
+      return;
+    }
+    const elapsed = Date.now() - this.broomHoldStartedAt;
+    this.broomView.setHoldProgress(
+      Math.min(1, elapsed / BROOM_HOLD_MS),
+      holdRingAround(this.layout.broomButton, this.gameArea),
+    );
+  }
+
+  /** Barvy před zrušením se smetou: kopie vrstvy odjede a zmizí. */
+  private sweepColors(): void {
+    this.paintLayer?.flush();
+    const snapshot = this.paintLayer?.colorsSnapshot() ?? null;
+    if (snapshot === null) {
+      return;
+    }
+    this.sweepView.start({
+      picture: this.layout.picture,
+      layerSize: pictureLayerSize(this.layout),
+      snapshot,
+      depth: SWEEP_DEPTH,
+    });
+  }
+
+  // -------------------------------------------------------------------------
   // Malování
   // -------------------------------------------------------------------------
 
@@ -714,6 +843,7 @@ export class ColoringScene extends Phaser.Scene {
       this.onPointerDown(pointer),
     );
     this.input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) => {
+      this.onBroomPointerMove(pointer);
       if (this.coloring !== null) {
         const sample = this.sampleOf(pointer);
         this.paintLayer?.paint(this.coloring.pointerMove(sample), this.coloring);
@@ -721,6 +851,7 @@ export class ColoringScene extends Phaser.Scene {
       }
     });
     const onUp = (pointer: Phaser.Input.Pointer): void => {
+      this.onBroomPointerUp(pointer);
       this.coloring?.pointerUp(pointer.id);
       this.shineView.end(pointer.id);
     };
@@ -748,6 +879,9 @@ export class ColoringScene extends Phaser.Scene {
         return;
       case 'camera':
         this.onCameraTapped();
+        return;
+      case 'broom':
+        this.onBroomPressed(pointer);
         return;
       case 'color':
         this.onColorTapped(target.index);
@@ -838,6 +972,8 @@ export class ColoringScene extends Phaser.Scene {
       window.removeEventListener('pagehide', this.onPageHide);
       this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
       this.photoView.destroy();
+      this.sweepView.destroy();
+      this.cancelBroom();
       this.stop();
     });
     // Textury patří jen této scéně; další otevření omalovánky má vlastní.
@@ -853,6 +989,13 @@ export class ColoringScene extends Phaser.Scene {
     this.coloring?.suspend();
     this.sounds.stopAll();
   }
+}
+
+/** Leží bod `x`, `y` (herní jednotky) v obdélníku `rect`? */
+function isInside(rect: LayoutRect, x: number, y: number): boolean {
+  return (
+    x >= rect.left && x < rect.left + rect.width && y >= rect.top && y < rect.top + rect.height
+  );
 }
 
 /** Je hodnota z registru herní plocha? */

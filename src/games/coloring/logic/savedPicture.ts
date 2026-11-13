@@ -73,6 +73,15 @@
  * Odchod domečkem (`leave`, #141) ukončí tah, uloží obrázek a počká na
  * rozběhnuté ukládání fotoaparátem; potom malování nic nepřijme, takže
  * stránku, kterou výběr přesune do alba, už nic znovu nerozmaluje.
+ *
+ * Koště (#142, `clearPage`) vrátí stránku na začátek a hned ji uloží:
+ * u malování z výběru čistý obrys, u obrázku z alba (`origin: 'album'`)
+ * obrázek tak, jak byl při otevření, a po vyfocení v témže malování čistý
+ * obrys. Do alba nic neuloží ani z něj nic nesmaže. Barvy nástrojů,
+ * nedávné barvy, tloušťka a nástroj zůstanou, historie Zpět se vyprázdní.
+ * Stránka stejná jako začátek se nezmění. Koště nic neudělá během tahu,
+ * během ukládání do alba a po odchodu; dokud se drží, fotoaparát nic
+ * neudělá (`broomHolding`).
  * Čistý TypeScript bez Phaseru.
  */
 
@@ -236,6 +245,21 @@ export type CameraTap =
   /** Ťuknutí, když jiný prst maluje (AC3): nic, ani zhoupnutí. */
   | { readonly kind: 'ignored' };
 
+/** Co udělalo podržení koštěte (#142). */
+export type PageClear =
+  /** Stránka je zase na začátku a uložená: scéna překreslí `changed` a smete barvy. */
+  | { readonly kind: 'cleared'; readonly changed: ChangedArea }
+  /** Stránka je stejná jako začátek: koště se jen zhoupne. */
+  | { readonly kind: 'unchanged' }
+  /** Jiný prst maluje, ukládá se do alba nebo dítě odešlo: nic. */
+  | { readonly kind: 'ignored' };
+
+/**
+ * Odkud se malování otevřelo (#142): z výběru (začátkem je čistý obrys),
+ * nebo štětcem z alba (začátkem je obrázek z alba při otevření).
+ */
+export type PaintingOrigin = 'picker' | 'album';
+
 /** Album aktivního profilu pro malování: záznamy a jejich obsah přečtený při otevření. */
 export interface ColoringAlbum {
   readonly records: GameRecords | undefined;
@@ -363,8 +387,23 @@ export interface SavedColoring {
    * před přečtením, rozhodnutí koordinátora 2 k #126).
    */
   albumRead(contents: AlbumContents): void;
+  /**
+   * Podržení koštěte 1 s (#142 AC1): vrátí stránku na začátek a hned ji
+   * uloží; stránku stejnou jako začátek nechá. Během tahu, ukládání do
+   * alba a po odchodu nic.
+   */
+  clearPage(): PageClear;
+  /** Může teď koště něco udělat (nikdo nemaluje, neukládá se do alba, dítě neodešlo)? */
+  canUseBroom(): boolean;
+  /** Koště se začalo (`true`), nebo přestalo (`false`) držet; mezitím fotoaparát nic (#142 AC4). */
+  broomHolding(holding: boolean): void;
   /** Index barvy v pixelu; `null` bez barvy, na obrysu a mimo plochu. */
   colorAt(x: number, y: number): number | null;
+}
+
+/** Jsou obě vrstvy barev pixel po pixelu stejné? */
+function sameLayer(first: Uint8Array, second: Uint8Array): boolean {
+  return first.length === second.length && first.every((value, index) => value === second[index]);
 }
 
 /** Klíč záznamu v úložišti hry; profil a hru doplní úložiště profilu. */
@@ -652,6 +691,8 @@ export function openColoring(options: {
   readonly paletteSize?: number;
   /** Album aktivního profilu (#126); bez něj fotoaparát nic neuloží. */
   readonly album?: ColoringAlbum;
+  /** Odkud se malování otevřelo (#142), bez něj z výběru. */
+  readonly origin?: PaintingOrigin;
 }): SavedColoring {
   const { regions, picture } = options;
   const paletteSize = paletteSizeOf(options.paletteSize);
@@ -661,6 +702,14 @@ export function openColoring(options: {
   const restored = stored === null ? null : readRecord(stored, picture, regions, paletteSize);
 
   let coloring = createColoring(regions, restored === null ? {} : { colors: restored.layer });
+  /**
+   * Začátek, ke kterému vrací koště (#142): u obrázku z alba stránka při
+   * otevření, jinak (i po vyfocení) čistý obrys.
+   */
+  let startLayer: Uint8Array =
+    options.origin === 'album' ? coloring.colorLayer().slice() : emptyColorLayer(regions);
+  /** Drží se koště (#142 AC4)? Mezitím fotoaparát nic neudělá. */
+  let broomHeld = false;
   /** Album přečtené při otevření; po každém uložení se doplní nový obrázek. */
   let album: AlbumContents = options.album?.contents ?? { status: 'unavailable' };
   const albumRecords = options.album?.records;
@@ -801,6 +850,7 @@ export function openColoring(options: {
       };
     }
     coloring = createColoring(regions, {});
+    startLayer = emptyColorLayer(regions);
     history = createUndoHistory();
     unsaved = true;
     save();
@@ -822,6 +872,26 @@ export function openColoring(options: {
       return { kind: 'failed', tones: CAMERA_WOBBLE_TONES };
     }
     return afterAlbumSaved(result.id, layer);
+  };
+
+  const canUseBroom = (): boolean => strokePointer === null && !savingToAlbum && leaving === null;
+
+  /** Koště: stránka zpátky na začátek, hned uložená, bez historie Zpět (#142 AC1). */
+  const clearPage = (): PageClear => {
+    if (!canUseBroom()) {
+      return { kind: 'ignored' };
+    }
+    if (sameLayer(coloring.colorLayer(), startLayer)) {
+      return { kind: 'unchanged' };
+    }
+    coloring = createColoring(regions, { colors: startLayer });
+    history = createUndoHistory();
+    unsaved = true;
+    save();
+    return {
+      kind: 'cleared',
+      changed: { left: 0, top: 0, right: regions.width, bottom: regions.height },
+    };
   };
 
   /** Odchod z malování: tah skončí, obrázek se uloží a počká se na fotoaparát. */
@@ -994,7 +1064,7 @@ export function openColoring(options: {
     },
 
     tapCamera() {
-      if (strokePointer !== null || leaving !== null) {
+      if (strokePointer !== null || leaving !== null || broomHeld) {
         return { kind: 'ignored' };
       }
       const layer = coloring.colorLayer().slice();
@@ -1015,6 +1085,14 @@ export function openColoring(options: {
       if (!savingToAlbum) {
         album = contents;
       }
+    },
+
+    clearPage,
+
+    canUseBroom,
+
+    broomHolding(holding) {
+      broomHeld = holding;
     },
 
     colorAt: (x, y) => coloring.colorAt(x, y),

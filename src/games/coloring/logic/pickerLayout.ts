@@ -26,7 +26,7 @@
 import { homeButtonInFreeArea } from '../../../shared/logic/homeButton';
 import { isPhoneMode } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
-import { PICTURE_ASPECT, layoutColoring } from './coloringLayout';
+import { PICTURE_ASPECT, layoutColoring, pictureWithoutBroom } from './coloringLayout';
 import type { LayoutRect } from './coloringLayout';
 
 /**
@@ -301,7 +301,8 @@ function continueButtonBeside(trash: LayoutRect, area: GameArea, landscape: bool
 export function layoutBigPicture(area: GameArea): BigPictureLayout {
   const painting = layoutColoring(area);
   const trash = painting.cameraButton;
-  const picture = painting.picture;
+  // Velký obrázek koště nemá, posouvá se jen kvůli koši (#142).
+  const picture = pictureWithoutBroom(area);
   const landscape = area.width >= area.height;
   const continueButton = continueButtonBeside(trash, area, landscape);
   if (!landscape) {
@@ -348,7 +349,14 @@ export interface TrashHoldRing {
  * celý; vždy ale zůstane vně stran koše.
  */
 export function trashHoldRingFor(layout: BigPictureLayout, area: GameArea): TrashHoldRing {
-  const { trash } = layout;
+  return holdRingAround(layout.trash, area);
+}
+
+/**
+ * Stejný bílý kroužek podržení kolem tlačítka `trash` (herní jednotky):
+ * kolem koše na velkém obrázku (#129) i kolem koštěte v malování (#142).
+ */
+export function holdRingAround(trash: LayoutRect, area: GameArea): TrashHoldRing {
   const unitsPerCss = 1 / area.scale;
   const side = Math.min(trash.width, trash.height);
   const lineWidth = TRASH_RING_WIDTH_CSS * unitsPerCss;
