@@ -333,3 +333,4 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-12 Vlastník: „dělej ty issues rovnou bez mého schvalování“. Claude issues navrhuje, zakládá rovnou se štítkem „schváleno“ a dělá je bez čekání na „ok“; vzhled ukazuje až po implementaci. Ptá se jen u otázek, které musí rozhodnout vlastník, a u generování nad 1 000 kreditů na úkol. Nahrazuje schvalování „ok“ z 2026-11-02 a obrázky před schválením z 2026-11-10.
 - 2026-11-13 Výběr omalovánek má být vždy čistý (jen obrysy, bez rozmalované stránky). Rozmalovaný obrázek patří do alba, i bez ťuknutí na fotoaparát (nový úkol).
 - 2026-11-13 Koště 🧹 v malování Omalovánek s podržením 1 s a bílým kroužkem je další výjimka z pravidla o kroužku jen u kolečka a domečku (#142).
+- 2026-11-13 Klíč (#139 u cíle mapy, #140 ukazatel v Omalovánkách) se mění na návrh B z ElevenLabs: zlatý klíč se dvěma půlkami spojenými dílkem skládačky (hlava s hvězdou, dřík se zuby); dnešní Noto 🔑 se vlastníkovi nelíbil.
