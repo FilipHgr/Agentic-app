@@ -74,6 +74,17 @@ na WebP. Zdrojové PNG nejsou v repozitáři, otisky SHA-256 zdrojů:
   space-landscape: a3d89742a07a621498d946b2b45b360e5f8789382affa68f74334432b2783619
   space-portrait: 74f2c07b7aa76df5aa1cc14c593ea9264f730430ae70b9992831a02e3f2c24d9
 
+Klíč za dokončenou mapu v Počítání (src/games/counting/icons/key-head.webp,
+key-blade.webp) a klíč ukazatele klíčů na výběru omalovánek
+(src/games/coloring/icons/key.webp, key-head.webp) je obrázek vytvořený
+službou ElevenLabs (https://elevenlabs.io), model GPT Image 2.5. Použito
+v rámci komerčního tarifu vlastníka hry, stejně jako dlaždice her. Úprava:
+bílé pozadí převedeno na průhlednost, oříznuto, zmenšeno na šířku 256 px
+(v Omalovánkách uprostřed čtverce 256 × 256 px), rozděleno podél spoje
+skládačky na hlavu s hvězdou (key-head) a dřík (key-blade) a převedeno na
+WebP. Zdrojové PNG není v repozitáři, otisk SHA-256 zdroje:
+  key: 12c565016f161bb965209a21795f3712864a34bfa9453fd94ba6f2e23850836c
+
 Vlajky v nabídce jazyků v menu (src/menu/flags/: flag-czechia,
 flag-united-kingdom) jsou ploché vlajky ze sady Noto Emoji, autor Google Inc.,
 https://github.com/googlefonts/noto-emoji, složka third_party/region-flags
@@ -110,12 +121,11 @@ Ikony nástrojů v Omalovánkách (src/games/coloring/icons/: paintbrush, eraser
 pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter), ikony
 fotoaparátu a knihy alba (camera, notebook-with-decorative-cover), ikona koše
 u velkého obrázku z alba (wastebasket), zámek zamčené omalovánky, otevřený
-zámek a klíč ukazatele klíčů na výběru omalovánek (locked, unlocked, key),
-koště v malování Omalovánek (broom),
+zámek na výběru omalovánek (locked, unlocked),
+koště v malování Omalovánek (broom) a
 symboly cíle map postupu v Počítání
 (src/games/counting/maps/: gem-stone, mushroom, castle, spiral-shell,
-ringed-planet) a klíč za dokončenou mapu v Počítání
-(src/games/counting/icons/: key) jsou obrázky ze sady Noto Emoji, autor
+ringed-planet) jsou obrázky ze sady Noto Emoji, autor
 Google Inc.,
 https://github.com/googlefonts/noto-emoji
 Copyright Google Inc.

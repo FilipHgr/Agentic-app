@@ -6,18 +6,13 @@ import { keyRewardMomentAt } from '../logic/mapAnimation';
 import type { MapRect } from '../logic/progressMapLayout';
 import { PROGRESS_MAP_SHAPE } from '../logic/theme';
 import type { ProgressMapStyle } from '../logic/theme';
-import { flatKeyTexture } from './mapPictureTextures';
+import { keyHalfTextures } from './mapPictureTextures';
 
 /**
- * Kde leží vodorovný klíč v otočené textuře (`flatKeyTexture`), v dílech
- * strany původního obrázku: změřeno na neprůhledných bodech klíče Noto
- * s malou rezervou. Půlky se dělí uprostřed mezi levým a pravým okrajem.
+ * Poměr délky klíče k jeho výšce: rozměr obrázků půlek klíče
+ * (`icons/key-head.webp` a `icons/key-blade.webp`, 256 × 127 px).
  */
-const FLAT_KEY_BOUNDS = { left: 0.085, right: 1.235, top: 0.37, bottom: 1.04 };
-
-/** Poměr délky klíče k jeho výšce. */
-const KEY_ASPECT =
-  (FLAT_KEY_BOUNDS.right - FLAT_KEY_BOUNDS.left) / (FLAT_KEY_BOUNDS.bottom - FLAT_KEY_BOUNDS.top);
+const KEY_ASPECT = 256 / 127;
 
 /** Okraj štítku kolem klíče jako díl výšky štítku. */
 const BADGE_PADDING_SHARE = 0.14;
@@ -28,7 +23,7 @@ const MAX_APART_SHARE = 0.3;
 /** Nejmenší rozestup půlek, pro který se klíč zkrátí, když je štítek úzký (díl výšky štítku). */
 const MIN_APART_SHARE = 0.15;
 
-/** Chybějící čepel u samotné půlky klíče: šedá silueta, velmi slabá (jen „tady něco chybí“). */
+/** Chybějící dřík u samotné půlky klíče: šedá silueta, velmi slabá (jen „tady něco chybí“). */
 const MISSING_HALF_ALPHA = 0.12;
 const MISSING_HALF_COLOR = 0x6e6e73;
 
@@ -36,14 +31,13 @@ const MISSING_HALF_COLOR = 0x6e6e73;
 const JOIN_PULSE_SCALE = 1.15;
 const JOIN_PULSE_MS = 180;
 
-/** Půlka klíče: obrázek, nebo emoji, když se SVG nenačetlo. */
+/** Půlka klíče: obrázek, nebo emoji, když se obrázek nenačetl. */
 type KeyHalf = Phaser.GameObjects.Image | Phaser.GameObjects.Text;
 
 /**
  * Půlka klíče u cíle mapy (#139 AC2) na světlém štítku jako symbol cíle.
- * U `'half'` je vidět hlava klíče s očkem (pravá půlka) a místo čepele jen
- * šedá silueta, u `'wholeKey'`
- * se objeví obě půlky kousek od sebe, přiblíží se, spojí a klíč poskočí.
+ * U `'half'` je vidět hlava klíče s hvězdou (levá půlka po spoj skládačky)
+ * a místo dříku jen šedá silueta, u `'wholeKey'` se objeví obě půlky kousek od sebe, přiblíží se, spojí a klíč poskočí.
  * Kdy co je vidět, řídí časová osa `keyRewardMomentAt` podle času od
  * ukázání mapy, takže po otočení se štítek překreslí ve stejném okamžiku.
  */
@@ -78,8 +72,8 @@ export class GoalKeyBadge {
     this.left = left;
     this.right = right;
     if (reward === 'half') {
-      // Čepel chybí: šedá silueta tvaru čepele, ne bledý celý klíč.
-      left.setTintFill(MISSING_HALF_COLOR).setAlpha(MISSING_HALF_ALPHA);
+      // Dřík chybí: šedá silueta tvaru dříku, ne bledý celý klíč.
+      right.setTintFill(MISSING_HALF_COLOR).setAlpha(MISSING_HALF_ALPHA);
     }
     this.parts = scene.add.container(0, 0, [left, right]);
     this.container = scene.add.container(rect.x, rect.y, [
@@ -114,31 +108,21 @@ export class GoalKeyBadge {
     this.scene.tweens.killTweensOf(this.parts);
   }
 
-  /** Levá a pravá půlka klíče délky `keyLength`, spojené se středem v počátku. */
+  /**
+   * Levá (hlava) a pravá (dřík) půlka klíče délky `keyLength`. Obě mají
+   * rozměr celého klíče se středem v počátku, takže bez rozestupu se spojí.
+   */
   private drawHalves(keyLength: number): [KeyHalf, KeyHalf] {
-    const flat = flatKeyTexture(this.scene);
-    if (flat === null) {
+    const textures = keyHalfTextures(this.scene);
+    if (textures === null) {
       return this.drawEmojiHalves(keyLength / KEY_ASPECT);
     }
-    const pixels = flat.symbolPixels;
-    const side = this.scene.textures.get(flat.key).getSourceImage().width;
-    const left = FLAT_KEY_BOUNDS.left * pixels;
-    const right = FLAT_KEY_BOUNDS.right * pixels;
-    const top = FLAT_KEY_BOUNDS.top * pixels;
-    const height = (FLAT_KEY_BOUNDS.bottom - FLAT_KEY_BOUNDS.top) * pixels;
-    const middle = (left + right) / 2;
-    const originY = (top + height / 2) / side;
-    const scale = keyLength / (right - left);
-    const half = (cropLeft: number, cropWidth: number): Phaser.GameObjects.Image =>
-      this.scene.add
-        .image(0, 0, flat.key)
-        .setOrigin(middle / side, originY)
-        .setScale(scale)
-        .setCrop(cropLeft, top, cropWidth, height);
-    return [half(left, middle - left), half(middle, right - middle)];
+    const half = (texture: string): Phaser.GameObjects.Image =>
+      this.scene.add.image(0, 0, texture).setDisplaySize(keyLength, keyLength / KEY_ASPECT);
+    return [half(textures.head), half(textures.blade)];
   }
 
-  /** Bez načteného SVG systémové emoji klíče (symbol, ne text jazyka), rozdělené napůl. */
+  /** Bez načtených obrázků systémové emoji klíče (symbol, ne text jazyka), rozdělené napůl. */
   private drawEmojiHalves(keyHeight: number): [KeyHalf, KeyHalf] {
     const half = (side: 'left' | 'right'): Phaser.GameObjects.Text => {
       const text = this.scene.add

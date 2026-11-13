@@ -64,13 +64,20 @@ export const TRASH_ICON_FILE = 'wastebasket.svg';
 export const CONTINUE_ICON_FILE = `${TOOL_EMOJI.brush}.svg`;
 
 /**
- * Zámek zamčené omalovánky 🔒 (U+1F512, „locked“), otevřený zámek 🔓
- * (U+1F513, „unlocked“) po odemčení a klíč 🔑 (U+1F511, „key“) ukazatele
- * klíčů na výběru (#140) ze stejné sady.
+ * Zámek zamčené omalovánky 🔒 (U+1F512, „locked“) a otevřený zámek 🔓
+ * (U+1F513, „unlocked“) po odemčení (#140) ze stejné sady.
  */
 export const LOCK_ICON_FILE = 'locked.svg';
 export const UNLOCKED_ICON_FILE = 'unlocked.svg';
-export const KEY_ICON_FILE = 'key.svg';
+
+/**
+ * Klíč ukazatele klíčů na výběru (#140) jako u cíle mapy v Počítání
+ * (#139, návrh B z ElevenLabs): celý vodorovný klíč a jeho levá půlka,
+ * hlava s hvězdou po spoj skládačky. Obrázky WebP s průhledností, čtverec
+ * 256 px s klíčem uprostřed.
+ */
+export const KEY_ICON_FILE = 'key.webp';
+export const KEY_HEAD_ICON_FILE = 'key-head.webp';
 
 /**
  * Koště 🧹 (U+1F9F9, „broom“) v malování (#142) ze stejné sady: podržením

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import keySvg from '../../../src/games/counting/icons/key.svg?raw';
 import { MAP_STEPS } from '../../../src/games/counting/logic/progressMap';
 import { MAP_PATH_WIDTH_SHARE } from '../../../src/games/counting/logic/progressMapLayout';
 import { LAYOUT_RULES } from '../../shared/layoutRules';
@@ -11,14 +10,15 @@ import { cornerItems, isOwnSurrounding, visibleAreaOf } from './layoutScenes';
 import { MARKER_NAME, placeName } from './mapLayoutScenes';
 import { drawnMarkerSize, drawnPlaceSize, pictureMapCases } from './mapPictureLayoutScenes';
 import type { PictureMapCase } from './mapPictureLayoutScenes';
-import { licenceParagraphsWith } from './mapPictureHelpers';
+import { bytesOf, licenceParagraphsWith, webpHeader } from './mapPictureHelpers';
 
 /**
  * Testy k #139 AC2 (rozložení): půlka klíče stojí na štítku vedle
  * slavícího cíle a nepřekrývá cíl, místa na cestě, značku v cíli, roh
  * kolečka a domečku ani okraj. Každé společné pravidlo rozložení má jeden
- * test, který v cyklu projde všechna okna mapy a 5 map. Klíč ze sady Noto
- * je uložený v repozitáři a jeho původ je v `public/licence.txt`.
+ * test, který v cyklu projde všechna okna mapy a 5 map. Půlky klíče
+ * (návrh B z ElevenLabs, po připomínce vlastníka) jsou uložené v repozitáři
+ * a jejich původ je v `public/licence.txt`.
  * Vzhled půlky a spojení půlek je ruční kontrola.
  */
 
@@ -139,21 +139,45 @@ describe('#139 AC2: půlka klíče stojí u cíle a nic nepřekrývá', () => {
   });
 });
 
-describe('#139 AC2: klíč je obrázek Noto Emoji uložený v repozitáři', () => {
-  it('soubor klíče je SVG bez odkazů na cizí servery', () => {
-    expect(keySvg.startsWith('<svg')).toBe(true);
-    const references = (keySvg.match(/(?:href|src|url)\s*[=(]\s*["']?[^"')\s>]+/g) ?? []).filter(
-      (reference) => !reference.includes('#'),
-    );
-    expect(references).toEqual([]);
+/**
+ * Upraveno k #139/#140 po připomínce vlastníka: klíč Noto (`key.svg`)
+ * nahradil obrázek B z ElevenLabs, uložený jako dvě půlky WebP. Test SVG
+ * bez odkazů a licence Noto proto hlídá soubory WebP a licenci ElevenLabs.
+ */
+const KEY_FILES: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(
+    import.meta.glob<string>('../../../src/games/counting/icons/*', {
+      query: '?inline',
+      import: 'default',
+      eager: true,
+    }),
+  ).map(([path, dataUrl]) => [path.replace('../../../src/games/counting/icons/', ''), dataUrl]),
+);
+
+/** Nejvýš tolik bajtů smí mít půlka klíče (malý obrázek, rychlé stažení). */
+const MAX_KEY_HALF_BYTES = 10_240;
+
+describe('#139 AC2: klíč je malý obrázek uložený v repozitáři', () => {
+  it('ve složce ikon jsou jen dvě půlky klíče jako WebP stejně velké', () => {
+    expect(Object.keys(KEY_FILES).sort()).toEqual(['key-blade.webp', 'key-head.webp']);
+    const sizes = Object.entries(KEY_FILES).map(([file, dataUrl]) => {
+      const bytes = bytesOf(dataUrl);
+      expect(bytes.length, file).toBeLessThanOrEqual(MAX_KEY_HALF_BYTES);
+      const header = webpHeader(bytes);
+      expect(header, `${file} je WebP`).not.toBeNull();
+      return header;
+    });
+    expect(sizes[0], 'půlky se položí přes sebe').toEqual(sizes[1]);
   });
 
-  it('licence uvádí klíč u obrázků Noto Emoji s licencí Apache-2.0', () => {
-    const paragraph = licenceParagraphsWith('Noto Emoji').find((text) =>
-      text.includes('src/games/counting/icons/'),
-    );
+  it('licence uvádí klíč jako obrázek vytvořený službou ElevenLabs', () => {
+    const paragraph = licenceParagraphsWith('src/games/counting/icons/key-head.webp')[0];
     expect(paragraph, 'odstavec s klíčem').toBeDefined();
-    expect(paragraph ?? '', 'jméno ikony Noto').toMatch(/\bkey\b/);
-    expect(paragraph ?? '', 'licence').toMatch(/Apache License, Version 2\.0/);
+    expect(paragraph ?? '', 'půlka dříku').toContain('key-blade.webp');
+    expect(paragraph ?? '', 'služba').toMatch(/ElevenLabs/);
+    expect(paragraph ?? '', 'model').toMatch(/GPT Image 2\.5/);
+    expect(licenceParagraphsWith('Noto Emoji').join('\n'), 'klíč už není z Noto').not.toMatch(
+      /src\/games\/counting\/icons\//,
+    );
   });
 });

@@ -1,8 +1,8 @@
 /**
- * Ukazatel klíčů na výběru omalovánky (#140 AC3): klíč 🔑 z Noto Emoji
- * a vedle číslice celých klíčů (symbol, ne text jazyka). Když má dítě
- * i půlku, je za číslicí (na šířku pod nimi) malá půlka klíče (hlava
- * s očkem jako u cíle mapy v Počítání). S 0 klíči je klíč jen šedý obrys a číslice 0 šedá. Na
+ * Ukazatel klíčů na výběru omalovánky (#140 AC3): vodorovný zlatý klíč
+ * (#139, návrh B) a vedle číslice celých klíčů (symbol, ne text jazyka).
+ * Když má dítě i půlku, je za číslicí (na šířku pod nimi) malá půlka
+ * klíče (hlava s hvězdou jako u cíle mapy v Počítání). S 0 klíči je klíč jen šedý obrys a číslice 0 šedá. Na
  * ťuknutí ukazatel nereaguje, umí se jen zhoupnout (AC4).
  */
 
@@ -12,10 +12,10 @@ import { FONT_FAMILY } from '../../../shared/logic/theme';
 import type { LayoutRect } from '../logic/coloringLayout';
 import type { KeyIndicatorState } from '../logic/pictureLocks';
 import { KEY_INDICATOR_STYLE } from '../logic/theme';
-import { KEY_ICON_FILE } from '../logic/toolIcons';
+import { KEY_HEAD_ICON_FILE, KEY_ICON_FILE } from '../logic/toolIcons';
 import { iconFileTexture, iconVariantTexture } from './toolIconTextures';
 
-/** Klíč bez načteného SVG: systémové emoji (symbol, ne text jazyka). */
+/** Klíč bez načteného obrázku: systémové emoji (symbol, ne text jazyka). */
 const KEY_SYMBOL = '🔑';
 
 export class KeyIndicatorView {
@@ -113,7 +113,7 @@ export class KeyIndicatorView {
     this.container = null;
   }
 
-  /** Klíč (s 0 klíči jen obrys) se stranou `side`; bez SVG emoji. */
+  /** Klíč (s 0 klíči jen obrys) se stranou `side`; bez obrázku emoji. */
   private keyImage(
     side: number,
     cssScale: number,
@@ -140,14 +140,14 @@ export class KeyIndicatorView {
     return this.scene.add.image(0, 0, key).setDisplaySize(side, side);
   }
 
-  /** Malá půlka klíče (hlava s očkem) se stranou `side`; bez SVG malé průhlednější emoji. */
+  /** Malá půlka klíče (hlava s hvězdou) se stranou `side`; bez obrázku malé průhlednější emoji. */
   private halfImage(
     side: number,
     cssScale: number,
   ): Phaser.GameObjects.Image | Phaser.GameObjects.Text {
     const key = iconVariantTexture(
       this.scene,
-      KEY_ICON_FILE,
+      KEY_HEAD_ICON_FILE,
       side * cssScale,
       'keyHead',
       KEY_INDICATOR_STYLE.digitColor,

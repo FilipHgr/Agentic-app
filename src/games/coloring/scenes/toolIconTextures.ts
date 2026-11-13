@@ -1,6 +1,6 @@
 /**
  * Ikony nástrojů (#106), fotoaparátu a knihy (#126): hotová SVG z Google Noto Emoji ze složky
- * `src/games/coloring/icons/`. Vite je přibalí ke hře jako samostatné
+ * `src/games/coloring/icons/`, klíč (#139/#140) jako obrázek WebP. Vite je přibalí ke hře jako samostatné
  * soubory (`?no-inline`, nikdy ne z cizího serveru) a scéna je načte
  * v `preload`. Pro každou zobrazenou velikost se SVG vykreslí do vlastní
  * textury v obrazových bodech plátna, aby byla ikona ostrá i na retině
@@ -24,6 +24,17 @@ const ICON_URLS: Readonly<Record<string, string>> = Object.fromEntries(
   ).map(([path, url]) => [path.replace('../icons/', ''), url]),
 );
 
+/** Adresy obrázků WebP (klíč z #139/#140) podle jména souboru. */
+const BITMAP_ICON_URLS: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(
+    import.meta.glob<string>('../icons/*.webp', {
+      query: '?no-inline',
+      import: 'default',
+      eager: true,
+    }),
+  ).map(([path, url]) => [path.replace('../icons/', ''), url]),
+);
+
 /** Velikost, ve které Phaser SVG načte; ostré velikosti se z něj kreslí znovu. */
 const SOURCE_SIZE_PX = 128;
 
@@ -31,10 +42,13 @@ function sourceKey(file: string): string {
   return `coloringIcon:${file}`;
 }
 
-/** Načte SVG všech ikon; volá se v `preload` scény. */
+/** Načte SVG a obrázky WebP všech ikon; volá se v `preload` scény. */
 export function preloadToolIcons(scene: Phaser.Scene): void {
   for (const [file, url] of Object.entries(ICON_URLS)) {
     scene.load.svg(sourceKey(file), url, { width: SOURCE_SIZE_PX, height: SOURCE_SIZE_PX });
+  }
+  for (const [file, url] of Object.entries(BITMAP_ICON_URLS)) {
+    scene.load.image(sourceKey(file), url);
   }
 }
 
@@ -71,7 +85,9 @@ export function iconFileTexture(scene: Phaser.Scene, file: string, sideCss: numb
   if (texture === null) {
     return null;
   }
-  // SVG obrázek se v plátně vykreslí vektorově přímo ve velikosti textury.
+  // SVG obrázek se v plátně vykreslí vektorově přímo ve velikosti textury,
+  // WebP se zmenší (čtvercový obrázek, poměr stran zůstane).
+  texture.context.imageSmoothingQuality = 'high';
   texture.context.drawImage(image, 0, 0, pixels, pixels);
   texture.refresh();
   return key;
@@ -100,7 +116,7 @@ export function showToolIcon(
     .setVisible(true);
 }
 
-/** Jak se ikona překreslí: jen obrys tvaru (#140, 0 klíčů), nebo jen hlava klíče (půlka). */
+/** Jak se ikona překreslí: jen obrys tvaru (#140, 0 klíčů), nebo posunutá doprostřed (půlka klíče). */
 export type IconVariant = 'outline' | 'keyHead';
 
 /** Tloušťka obrysu jako díl strany ikony a kolik posunů ho skládá. */
@@ -121,8 +137,8 @@ const OPAQUE_ALPHA = 8;
  * Klíč ostré textury ikony `file` překreslené jako `variant` pro čtverec
  * o straně `sideCss` CSS px, nebo `null`, když se SVG nenačetlo:
  * - `'outline'` jen obrys tvaru ikony v barvě `color` (ukazatel s 0 klíči),
- * - `'keyHead'` jen pravá horní polovina šikmého klíče Noto, hlava s očkem
- *   (půlka klíče jako u cíle mapy v Počítání, #139).
+ * - `'keyHead'` kresba ikony posunutá doprostřed čtverce bez zvětšení
+ *   (pro `key-head.webp` půlka klíče jako u cíle mapy v Počítání, #139).
  */
 export function iconVariantTexture(
   scene: Phaser.Scene,
@@ -192,43 +208,29 @@ function drawOutline(
 }
 
 /**
- * Hlava šikmého klíče: část ikony nad úhlopříčkou z levého horního do
- * pravého dolního rohu, oříznutá podle kresby a zvětšená na celý čtverec
- * (se zachovaným poměrem stran, uprostřed).
+ * Kresba ikony (u půlky klíče hlava s hvězdou) posunutá doprostřed
+ * čtverce ve stejném měřítku, takže hlava je velká jako v celém klíči.
  */
 function drawKeyHead(context: CanvasRenderingContext2D, source: HTMLCanvasElement): void {
   const pixels = source.width;
-  const half = document.createElement('canvas');
-  half.width = pixels;
-  half.height = pixels;
-  const halfContext = half.getContext('2d');
-  if (halfContext === null) {
+  const sourceContext = source.getContext('2d');
+  if (sourceContext === null) {
     return;
   }
-  halfContext.beginPath();
-  halfContext.moveTo(0, 0);
-  halfContext.lineTo(pixels, 0);
-  halfContext.lineTo(pixels, pixels);
-  halfContext.closePath();
-  halfContext.clip();
-  halfContext.drawImage(source, 0, 0);
-  const bounds = opaqueBounds(halfContext, pixels);
+  const bounds = opaqueBounds(sourceContext, pixels);
   if (bounds === null) {
     return;
   }
-  const scale = pixels / Math.max(bounds.width, bounds.height);
-  const width = bounds.width * scale;
-  const height = bounds.height * scale;
   context.drawImage(
-    half,
+    source,
     bounds.left,
     bounds.top,
     bounds.width,
     bounds.height,
-    (pixels - width) / 2,
-    (pixels - height) / 2,
-    width,
-    height,
+    (pixels - bounds.width) / 2,
+    (pixels - bounds.height) / 2,
+    bounds.width,
+    bounds.height,
   );
 }
 

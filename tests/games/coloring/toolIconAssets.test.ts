@@ -4,6 +4,7 @@ import {
   BOOK_ICON_FILE,
   BROOM_ICON_FILE,
   CAMERA_ICON_FILE,
+  KEY_HEAD_ICON_FILE,
   KEY_ICON_FILE,
   LOCK_ICON_FILE,
   TRASH_ICON_FILE,
@@ -84,15 +85,14 @@ describe('#106 AC1: každý nástroj má ikonu z hotové sady Google Noto Emoji'
     );
     expect(limited(missing)).toEqual([]);
     // Upraveno k #126: ve složce jsou navíc ikony fotoaparátu a knihy (cameraBookIcons.test.ts),
-    // k #129 ikona koše u velkého obrázku z alba, k #140 zámky a klíč na výběru,
-    // k #142 koště v malování.
+    // k #129 ikona koše u velkého obrázku z alba, k #140 zámky na výběru,
+    // k #142 koště v malování. Klíč z #140 je k #139/#140 obrázek WebP (test níž).
     const buttonIcons = [
       CAMERA_ICON_FILE,
       BOOK_ICON_FILE,
       TRASH_ICON_FILE,
       LOCK_ICON_FILE,
       UNLOCKED_ICON_FILE,
-      KEY_ICON_FILE,
       BROOM_ICON_FILE,
     ].map((file) => `${ICON_FOLDER}/${file}`);
     expect(iconFolderFiles(), `soubory ve složce ${ICON_FOLDER}`).toEqual(
@@ -153,5 +153,54 @@ describe('#106 AC1: licence ikon je uvedená v public/licence.txt', () => {
     expect(licence, 'licence Apache 2.0').toMatch(/Apache[- ]?(License,? )?(Version )?2\.0/i);
     expect(licence, 'odkaz na text licence').toMatch(/apache\.org\/licenses\/LICENSE-2\.0/);
     expect(licence, 'složka s ikonami').toContain(ICON_FOLDER);
+  });
+});
+
+/**
+ * K #139/#140 po připomínce vlastníka: klíč ukazatele klíčů už není Noto
+ * `key.svg`, ale obrázek B z ElevenLabs uložený ve složce ikon jako WebP
+ * (celý klíč a půlka s hlavou), malý a s průhledností.
+ */
+const KEY_WEBP_FILES: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(
+    import.meta.glob<string>('../../../src/games/coloring/icons/*.webp', {
+      query: '?inline',
+      import: 'default',
+      eager: true,
+    }),
+  ).map(([path, dataUrl]) => [path.replace('../../../src/games/coloring/icons/', ''), dataUrl]),
+);
+
+/** Nejvýš tolik bajtů smí mít obrázek klíče (malý asset). */
+const MAX_KEY_BYTES = 10_240;
+
+function bytesOfDataUrl(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+}
+
+function asciiOf(bytes: Uint8Array, start: number, length: number): string {
+  return String.fromCharCode(...bytes.slice(start, start + length));
+}
+
+describe('#140 AC3: klíč ukazatele je malý obrázek WebP uložený u hry', () => {
+  it('celý klíč i půlka jsou malé WebP s průhledností a žádné jiné WebP tam nejsou', () => {
+    expect(Object.keys(KEY_WEBP_FILES).sort()).toEqual([KEY_HEAD_ICON_FILE, KEY_ICON_FILE].sort());
+    for (const [file, dataUrl] of Object.entries(KEY_WEBP_FILES)) {
+      const bytes = bytesOfDataUrl(dataUrl);
+      expect(bytes.length, file).toBeLessThanOrEqual(MAX_KEY_BYTES);
+      expect(asciiOf(bytes, 0, 4) + asciiOf(bytes, 8, 4), `${file} je WebP`).toBe('RIFFWEBP');
+      expect(asciiOf(bytes, 12, 4), `${file} má rozšířenou hlavičku`).toBe('VP8X');
+      expect((bytes[20] ?? 0) & 0x10, `${file} má průhlednost`).toBe(0x10);
+    }
+  });
+
+  it('licence uvádí klíč jako obrázek vytvořený službou ElevenLabs', () => {
+    const paragraph = LICENCE_TEXT.split(/\n\s*\n/).find((text) =>
+      text.includes(`${ICON_FOLDER}/${KEY_ICON_FILE}`),
+    );
+    expect(paragraph, 'odstavec s klíčem').toBeDefined();
+    expect(paragraph ?? '', 'půlka klíče').toContain(KEY_HEAD_ICON_FILE);
+    expect(paragraph ?? '', 'služba a model').toMatch(/ElevenLabs[\s\S]*GPT Image 2\.5/);
   });
 });
