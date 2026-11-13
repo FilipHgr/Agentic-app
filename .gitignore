@@ -15,6 +15,7 @@ coverage/
 # Stav rozpracovaného úkolu a místní nastavení Claude Code
 .claude/state/
 .claude/settings.local.json
+.claude/worktrees/
 
 # Snímky obrazovky z tools/screenshots (jen ke kontrole, necommitují se)
 snimky/
