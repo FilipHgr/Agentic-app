@@ -107,6 +107,11 @@ export interface ColoringSceneOptions {
   readonly album: () => Promise<AlbumContents>;
   /** Obrázek se uložil do alba (#126); výběr album přečte znovu. Platí i po odchodu z malování. */
   readonly onAlbumSaved: () => void;
+  /**
+   * Přesun do alba vyřídil stránku omalovánky (#141); malování ji čte až
+   * potom, aby nezačalo se stránkou, kterou přesun vzápětí vyčistí.
+   */
+  readonly pageSettled: () => Promise<void>;
 }
 
 /**
@@ -144,6 +149,9 @@ export interface ColoringSceneOptions {
  * po potvrzeném uložení překreslí čistou stránku a po selhání fotoaparát
  * zhoupne. Ukládání doběhne i po odchodu z malování, scéna pak už nic
  * nekreslí a jen dá výběru vědět.
+ *
+ * Od #141 odchod domečkem malování předá výběru (`savedColoring`), který
+ * ho ukončí, uloží a obrázek přesune do alba.
  */
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -196,6 +204,14 @@ export class ColoringScene extends Phaser.Scene {
     this.photoView = new CameraPhotoView(this, `${options.key}:photo`);
   }
 
+  /**
+   * Malování, ze kterého dítě odchází domečkem (#141): výběr ho ukončí,
+   * uloží a přesune do alba. `null`, dokud se obrázek připravuje.
+   */
+  savedColoring(): SavedColoring | null {
+    return this.coloring;
+  }
+
   /** Návrat na výběr nebo odchod z hry: tah skončí, kam došel, obrázek se uloží. */
   finishPainting(): void {
     this.stop();
@@ -242,7 +258,10 @@ export class ColoringScene extends Phaser.Scene {
   /** Počká na obrys a mapu oblastí od výběru a připraví vrstvu barev. */
   private async preparePicture(): Promise<void> {
     const albumReading = this.options.album();
-    const { outline, regions } = await this.options.prepared;
+    const [{ outline, regions }] = await Promise.all([
+      this.options.prepared,
+      this.options.pageSettled(),
+    ]);
     if (!this.sys.isActive()) {
       // Dítě odešlo dřív, než se obrázek připravil.
       return;

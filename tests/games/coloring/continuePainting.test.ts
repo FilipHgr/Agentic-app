@@ -9,7 +9,7 @@ import { PREVIEW_TAP_TONES } from '../../../src/games/coloring/logic/pictureChoi
 import { openColoring } from '../../../src/games/coloring/logic/savedPicture';
 import type { SavedColoring } from '../../../src/games/coloring/logic/savedPicture';
 import { HOME_WOBBLE_TONES, HOLD_TO_GO_HOME_MS } from '../../../src/shared/logic/homeButton';
-import { paintLeft, takePhoto, openWithAlbum } from './albumHelpers';
+import { paintLeft, settle, takePhoto, openWithAlbum } from './albumHelpers';
 import {
   CIRCLES,
   EMA,
@@ -160,13 +160,15 @@ describe('#131 AC1: ťuknutí na štětec otevře malování obrázku z alba', (
     expect(pixelsOf(game, prepared.page.regions)).toEqual(prepared.a);
   });
 
-  it('podržení domečku 1 s vrátí dítě na výběr a náhled domku pak ukazuje obrázek z alba', async () => {
+  // #141 AC3 nahrazuje poslední odrážku #131 AC1 („Náhled té omalovánky pak ukazuje A.“).
+  it('podržení domečku 1 s vrátí dítě na výběr, náhled domku ukazuje jen obrys a obrázek z alba je v albu jako nejnovější', async () => {
     const prepared = await prepareSwap();
     const game = await continueToPainting(prepared);
 
     vi.advanceTimersByTime(HOLD_TO_GO_HOME_MS);
     expect(prepared.page.choice.holdHome(), 'domeček vede na výběr').toBe('toPicker');
-    game.suspend();
+    await prepared.page.choice.paintingLeft(game);
+    await settle();
 
     const size = { width: 40, height: 30 };
     const shown = loadPicturePreview({
@@ -175,12 +177,15 @@ describe('#131 AC1: ťuknutí na štětec otevře malování obrázku z alba', (
       regions: prepared.page.regions,
       ...size,
     });
-    const expected = previewOfColors({
-      colors: prepared.entry.colors,
+    const outline = previewOfColors({
+      colors: { colorAt: () => null },
       regions: prepared.page.regions,
       ...size,
     });
-    expect(previewPixels(shown)).toEqual(previewPixels(expected));
+    expect(previewPixels(shown), 'náhled domku je jen obrys').toEqual(previewPixels(outline));
+    const album = await albumPixels(prepared.device);
+    expect(album[0], 'obrázek z alba je v albu jako nejnovější').toEqual(prepared.a);
+    expect(timesIn(album, prepared.a), 'a je tam jednou').toBe(1);
   });
 });
 

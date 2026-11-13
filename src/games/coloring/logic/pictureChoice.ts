@@ -43,6 +43,15 @@
  *   (AC4). S celým klíčem ťuknutí klíč utratí, zámek se otevře
  *   a omalovánka se otevírá jako po ťuknutí na odemčenou (AC5). Během
  *   otevírání se další ťuknutí nepočítá, takže se utratí jen jeden klíč (AC6).
+ * - Rozmalovaný obrázek jde do alba sám (#141, `pageToAlbum.ts`): scéna
+ *   při otevření Omalovánek po `settleAlbumSwap` volá `movePagesToAlbum`
+ *   a po podržení domečku v malování `paintingLeft`, který malování
+ *   ukončí, uloží a pak přesune všechny stránky. Přesuny běží po jednom
+ *   za sebou (`pageMoveQueue.ts`), takže souběžné volání nic neuloží
+ *   dvakrát. Náhled se jen zhoupne s tónem domečku u stránky, kterou
+ *   přesun právě zpracovává. Omalovánku, jejíž malování je vidět, přesun
+ *   přeskočí, dokud z něj dítě neodejde (i do menu u jediné omalovánky).
+ *   Přesun nikdy nevyhodí výjimku.
  */
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
@@ -57,8 +66,10 @@ import type { AlbumContents, AlbumEntry, AlbumPicture } from './album';
 import { planAlbumSwap, runAlbumSwap, swapBlocksPicture } from './albumSwap';
 import { readPendingSwap } from './albumSwapRecord';
 import type { SwapRun } from './albumSwap';
+import { createPageMoveQueue } from './pageMoveQueue';
+import type { PageMove } from './pageToAlbum';
 import type { PictureLocks } from './pictureLocks';
-import type { PictureIdentity } from './savedPicture';
+import type { PictureIdentity, SavedColoring } from './savedPicture';
 
 /**
  * Co je vidět: výběr, otevírání omalovánky, malování, album (#126), nebo
@@ -196,6 +207,24 @@ export interface PictureChoice {
   homeHolding(holding: boolean): void;
   /** Ťuknutí na štětec na velkém obrázku (#131). */
   tapContinue(): ContinueTap;
+  /**
+   * Při otevření Omalovánek, po `settleAlbumSwap` (#141 AC4): přesune
+   * rozmalované stránky do alba v pořadí sady. Vrátí stránky, které
+   * zkusil přesunout; nikdy neskončí zamítnutým slibem.
+   */
+  movePagesToAlbum(): Promise<readonly PageMove[]>;
+  /**
+   * Po podržení domečku v malování (`toPicker`, u jediné omalovánky
+   * i `toMenu`, #141 AC1): ukončí tah, uloží malování `game`, počká na
+   * rozběhnuté ukládání fotoaparátem a přesune všechny stránky do alba.
+   */
+  paintingLeft(game: SavedColoring): Promise<readonly PageMove[]>;
+  /**
+   * Skončí, až přesuny do alba, které běží nebo čekají, vyřídí stránku
+   * omalovánky `picture`; jinak hned (#141). Malování čte stránku až po
+   * něm, aby nezačalo se stránkou, kterou přesun vzápětí vyčistí.
+   */
+  pageSettled(picture: PictureIdentity): Promise<void>;
 }
 
 export interface PictureChoiceOptions {
@@ -291,6 +320,29 @@ export function startPictureChoice(
       swap.pictureVersion === picture.version
     );
   };
+
+  /**
+   * Odešlo už dítě z malování, které je vidět (`paintingLeft`, i po
+   * podržení domečku do menu u jediné omalovánky)? (#141)
+   */
+  let paintingEnded = false;
+
+  /**
+   * Maluje se právě v omalovánce (malování je vidět a dítě z něj ještě
+   * neodešlo)? Přesun ji přeskočí; otevírající se omalovánku ne (#141).
+   */
+  const isOpen = (picture: PictureIdentity): boolean =>
+    screen.kind === 'painting' &&
+    !paintingEnded &&
+    pictureKey(screen.picture) === pictureKey(picture);
+
+  /** Přesuny rozmalovaných stránek do alba po jednom (#141). */
+  const pageMoves = createPageMoveQueue({
+    storage: options.storage,
+    records: options.records,
+    pictures: albumPictures,
+    isOpen,
+  });
 
   /** Začalo podržení až ve chvíli, kdy bylo malování nebo velký obrázek vidět? */
   const heldSinceShown = (): boolean => now() - shownAt >= HOLD_TO_GO_HOME_MS;
@@ -417,7 +469,8 @@ export function startPictureChoice(
       if (screen.kind !== 'picker' || picture === undefined) {
         return { kind: 'ignored' };
       }
-      if (previewBlocked(picture)) {
+      if (pageMoves.isMoving(picture) || previewBlocked(picture)) {
+        // Stránka jde do alba (#141 AC4), nebo se výměna může vrátit (#131 AC5).
         return { kind: 'wobble', tones: HOME_WOBBLE_TONES };
       }
       const unlock =
@@ -436,6 +489,7 @@ export function startPictureChoice(
         return;
       }
       screen = { kind: 'painting', picture: screen.picture };
+      paintingEnded = false;
       shownAt = now();
     },
     tapBook: (album) => {
@@ -471,6 +525,12 @@ export function startPictureChoice(
       homeHeld = holding;
     },
     tapContinue,
+    movePagesToAlbum: () => pageMoves.enqueue(Promise.resolve()),
+    paintingLeft: (game) => {
+      paintingEnded = true;
+      return pageMoves.enqueue(game.leave());
+    },
+    pageSettled: (picture) => pageMoves.pageSettled(picture),
     holdHome: () => {
       switch (screen.kind) {
         case 'album':

@@ -100,6 +100,27 @@ export const CAMERA_PHOTO_STYLE = {
 } as const;
 
 /**
+ * Odlet rozmalovaného obrázku z náhledu do knihy (#141 AC7), ve stylu
+ * odletu fotky do fotoaparátu (#126): náhled se zmenší a natočí, pak
+ * po mírném oblouku doletí do knihy, na konci zmizí a kniha poskočí
+ * (`CAMERA_PHOTO_STYLE.bounceScale`). Bez zvuku.
+ */
+export const BOOK_FLIGHT_STYLE = {
+  durationMs: 750,
+  /** Zmenšování trvá do `flyStart`, pak náhled letí. */
+  flyStart: 0.3,
+  /** Náhled po zmenšení: díl velikosti a natočení ve stupních. */
+  shrunkScale: 0.8,
+  shrunkAngle: -6,
+  /** Natočení u knihy. */
+  landedAngle: -14,
+  /** Výška oblouku letu jako díl výšky náhledu. */
+  arcShare: 0.3,
+  /** Náhled zmizí v posledním dílu letu. */
+  fadeShare: 0.2,
+} as const;
+
+/**
  * Panel nástrojů (#96): bílá karta se stínem a zaoblenými rohy, mezi
  * oddílem barev a nástrojů jemná čára. Zástupný vzhled, konečný přijde
  * s ikonami (mimo rozsah #96).

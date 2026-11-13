@@ -26,6 +26,7 @@ import type {
   TrashFeedback,
   TrashResult,
 } from '../logic/pictureChoice';
+import type { PageMove } from '../logic/pageToAlbum';
 import {
   albumPreviewAt,
   bigPictureContinueAt,
@@ -66,6 +67,12 @@ const NO_PAGE: ColoringPage = {
 
 /** Kniha je nad dlaždicemi výběru. */
 const BOOK_DEPTH = 5;
+
+/** Rozestup odletů do knihy, když se přesunulo víc obrázků najednou (#141). */
+const BOOK_FLIGHT_GAP_MS = 170;
+
+/** Jak velký doletí náhled do knihy jako díl strany knihy (#141). */
+const BOOK_FLIGHT_SHARE = 0.6;
 
 /** Počká na další snímek, aby příprava omalovánek nezdržela vykreslení. */
 function nextFrame(): Promise<void> {
@@ -122,6 +129,11 @@ interface PictureAssets {
  * doby se ťuknutí na zámek jen zhoupne a klíč se neutratí. Bez klíče se
  * zámek i ukazatel zhoupnou s tónem domečku, s klíčem se zámek otevře
  * a otevře se malování.
+ *
+ * Od #141 jde rozmalovaný obrázek do alba sám (`pageToAlbum.ts`): po
+ * odemčení zdarma při otevření Omalovánek a po návratu z malování
+ * domečkem. Náhled přesunuté omalovánky se překreslí na čistý obrys a jeho
+ * kopie s barvami odletí do knihy, která poskočí (bez zvuku).
  */
 export class PickerScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -163,6 +175,10 @@ export class PickerScene extends Phaser.Scene {
   private trashHoldStartedAt = 0;
   /** Prst, který stiskl koš a ještě z něj nesjel ani se nezvedl. */
   private trashPointer: number | null = null;
+  /** Kopie náhledů, které právě letí do knihy (#141). */
+  private flights: PreviewTileView[] = [];
+  /** Číslo další kopie letící do knihy. */
+  private flightCount = 0;
   /** Velký obrázek, který se právě zmenšuje zpátky do alba nebo po smazání. */
   private leavingTile: PreviewTileView | null = null;
   /** Otevřené malování; `null` na výběru. */
@@ -241,6 +257,8 @@ export class PickerScene extends Phaser.Scene {
     if (this.painting === null && this.choice.screen().kind === 'picker') {
       this.showLocks();
     }
+    // Až po odemčení zdarma, aby se rozmalovaná stránka neschovala do alba nepřečtená (#141).
+    void this.showMoves(this.choice.movePagesToAlbum());
   }
 
   private readHost(): GameHost | undefined {
@@ -808,6 +826,10 @@ export class PickerScene extends Phaser.Scene {
       tile.destroy();
     }
     this.tiles = [];
+    for (const flight of this.flights) {
+      flight.destroy();
+    }
+    this.flights = [];
     this.bookView.destroy();
     this.keyIndicatorView.destroy();
   }
@@ -965,6 +987,7 @@ export class PickerScene extends Phaser.Scene {
       onShown: () => this.choice.paintingShown(),
       album: () => this.albumReading,
       onAlbumSaved: () => this.onAlbumSaved(),
+      pageSettled: () => this.choice.pageSettled(picture),
     });
     this.painting = painting;
     this.scene.add(key, painting, true);
@@ -988,6 +1011,13 @@ export class PickerScene extends Phaser.Scene {
       // Během mazání se album ukáže až po mazání (afterDeleting).
       this.leaveBigPicture(before.entry, BIG_PICTURE_STYLE.shrinkMs);
     }
+    if (hold === 'toMenu' && before.kind === 'painting') {
+      // Jediná omalovánka: obrázek jde do alba i při odchodu rovnou do menu (#141).
+      const game = this.painting?.savedColoring() ?? null;
+      if (game !== null) {
+        void this.choice.paintingLeft(game);
+      }
+    }
     if (hold === 'toPicker') {
       if (fromAlbum) {
         this.albumToPicker();
@@ -1005,6 +1035,9 @@ export class PickerScene extends Phaser.Scene {
       return;
     }
     this.painting = null;
+    const game = painting.savedColoring();
+    // Malování se ukončí a uloží hned, přesun do alba doběhne potom (#141).
+    const moving = game === null ? this.choice.movePagesToAlbum() : this.choice.paintingLeft(game);
     painting.finishPainting();
     const key = painting.sys.settings.key;
     this.scene.stop(key);
@@ -1012,11 +1045,97 @@ export class PickerScene extends Phaser.Scene {
     this.scene.wake();
     // Obrázky dlaždic se nakreslí znovu z úložiště, rozmalovaná omalovánka s novými barvami.
     this.placeTiles();
+    void this.showMoves(moving);
+  }
+
+  /**
+   * Konec přesunu do alba (#141): album se přečte znovu a náhled každé
+   * vyčištěné stránky odletí do knihy. Mimo výběr se náhledy nakreslí
+   * znovu až při návratu na něj.
+   */
+  private async showMoves(moving: Promise<readonly PageMove[]>): Promise<void> {
+    const moves = await moving;
+    if (!this.running) {
+      return;
+    }
+    if (moves.some((move) => move.result === 'added')) {
+      this.readAlbumAgain();
+    }
+    if (this.painting !== null || this.choice.screen().kind !== 'picker') {
+      return;
+    }
+    moves
+      .filter((move) => move.pageCleared)
+      .forEach((move, order) => {
+        void this.flyToBook(move, order * BOOK_FLIGHT_GAP_MS);
+      });
+  }
+
+  /** Počká `ms` podle hodin scény (po konci scény už nikdy neskončí). */
+  private waitScene(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      this.time.delayedCall(ms, resolve);
+    });
+  }
+
+  /** Kopie náhledu s barvami přesunutého obrázku odletí do knihy, náhled je čistý obrys. */
+  private async flyToBook(move: PageMove, delayMs: number): Promise<void> {
+    if (delayMs > 0) {
+      await this.waitScene(delayMs);
+    }
+    const index = this.choice.previews().findIndex((each) => each.id === move.picture.id);
+    const rect = this.layout.previews[index];
+    const assets = this.assetsOf(move.picture);
+    if (rect === undefined || assets === undefined) {
+      return;
+    }
+    const [image, prepared] = await Promise.all([assets.image, assets.prepared]);
+    const target = this.bookView.center();
+    const side = this.bookView.side();
+    if (
+      !this.running ||
+      this.choice.screen().kind !== 'picker' ||
+      target === null ||
+      side === null
+    ) {
+      return;
+    }
+    this.flightCount += 1;
+    const flight = new PreviewTileView(this, `coloringFlight${this.flightCount}`);
+    flight.setPlace({
+      rect,
+      cornerRadius: this.layout.cornerRadius,
+      cssScale: this.gameArea.scale,
+    });
+    const size = flight.pixelSize();
+    if (size !== null) {
+      flight.show(
+        image,
+        previewOfColors({ colors: move.colors, regions: prepared.regions, ...size }),
+      );
+    }
+    flight.setDepth(BOOK_DEPTH + 1);
+    this.flights.push(flight);
+    void this.showPreview(index);
+    flight.flyInto(target, side * BOOK_FLIGHT_SHARE, () => {
+      flight.destroy();
+      this.flights = this.flights.filter((each) => each !== flight);
+      this.bookView.bounce();
+    });
   }
 
   private onGameAreaChanged(): void {
     this.gameArea = this.readGameArea();
     this.layout = layoutPicker(this.gameArea);
+    // Po otočení by kopie letěla do knihy na starém místě: zmizí a kniha jen poskočí (#141).
+    const flightsCancelled = this.flights.length > 0;
+    for (const flight of this.flights) {
+      flight.destroy();
+    }
+    this.flights = [];
+    if (flightsCancelled) {
+      this.time.delayedCall(0, () => this.bookView.bounce());
+    }
     const screen = this.choice.screen().kind;
     if (screen === 'bigPicture' || screen === 'openingBigPicture') {
       this.redrawBigPicture();

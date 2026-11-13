@@ -10,6 +10,9 @@
  *
  * Od #140 umí zamčená omalovánka ztlumení bílým závojem a zámek uprostřed
  * (`setLocked`): zámek se umí zhoupnout a otevřít.
+ *
+ * Od #141 umí kopie náhledu odletět do knihy (`flyInto`), když se
+ * rozmalovaný obrázek přesune do alba.
  */
 
 import Phaser from 'phaser';
@@ -18,7 +21,7 @@ import { CANVAS_PIXELS_PER_CSS_PX } from '../../../shared/logic/canvasResolution
 import type { LayoutRect } from '../logic/coloringLayout';
 import { previewCellHex } from '../logic/picturePreview';
 import type { PicturePreview, PreviewCell } from '../logic/picturePreview';
-import { PICKER_TILE_STYLE, PICTURE_LOCK_STYLE, rgbOf } from '../logic/theme';
+import { BOOK_FLIGHT_STYLE, PICKER_TILE_STYLE, PICTURE_LOCK_STYLE, rgbOf } from '../logic/theme';
 import { LOCK_ICON_FILE, UNLOCKED_ICON_FILE } from '../logic/toolIcons';
 import { iconFileTexture } from './toolIconTextures';
 
@@ -39,6 +42,20 @@ export interface PreviewTilePlace {
   readonly rect: LayoutRect;
   readonly cornerRadius: number;
   readonly cssScale: number;
+}
+
+/** Zpomalení na konci pohybu. */
+function easeOut(value: number): number {
+  return 1 - (1 - value) * (1 - value);
+}
+
+function between(from: number, to: number, share: number): number {
+  return from + (to - from) * share;
+}
+
+/** Díl úseku animace od `start` do `end` v čase `time` (0 až 1). */
+function shareOf(time: number, start: number, end: number): number {
+  return Math.max(0, Math.min(1, (time - start) / (end - start)));
 }
 
 /** Barva pixelu náhledu jako RGB; barvy se převádějí jen jednou. */
@@ -106,6 +123,8 @@ export class PreviewTileView {
   private textureCount = 0;
   /** Závoj a zámek zamčené omalovánky; `null` u odemčené (#140). */
   private lock: LockLayer | null = null;
+  /** Rozběhnutý odlet do knihy (#141); zastaví se se zrušením dlaždice. */
+  private flight: Phaser.Tweens.Tween | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -370,6 +389,60 @@ export class PreviewTileView {
     });
   }
 
+  /**
+   * Odlet do knihy (#141 AC7): dlaždice se zmenší a natočí, po oblouku
+   * doletí do středu `target` velká jako `targetSide` (herní jednotky)
+   * a zmizí. `onDone` se zavolá po doletu.
+   */
+  flyInto(
+    target: { readonly x: number; readonly y: number },
+    targetSide: number,
+    onDone: () => void,
+  ): void {
+    const place = this.place;
+    if (place === null) {
+      onDone();
+      return;
+    }
+    const style = BOOK_FLIGHT_STYLE;
+    const { rect } = place;
+    const startX = rect.left + rect.width / 2;
+    const startY = rect.top + rect.height / 2;
+    const landedScale = targetSide / Math.max(rect.width, rect.height);
+    const pose = (time: number): void => {
+      if (time < style.flyStart) {
+        const shrink = easeOut(shareOf(time, 0, style.flyStart));
+        this.container
+          .setPosition(startX, startY)
+          .setScale(between(1, style.shrunkScale, shrink))
+          .setAngle(between(0, style.shrunkAngle, shrink))
+          .setAlpha(1);
+        return;
+      }
+      const fly = easeOut(shareOf(time, style.flyStart, 1));
+      // Odlet po mírném oblouku nahoru.
+      const arc = -Math.sin(fly * Math.PI) * rect.height * style.arcShare;
+      this.container
+        .setPosition(between(startX, target.x, fly), between(startY, target.y, fly) + arc)
+        .setScale(between(style.shrunkScale, landedScale, fly))
+        .setAngle(between(style.shrunkAngle, style.landedAngle, fly))
+        .setAlpha(fly > 1 - style.fadeShare ? (1 - fly) / style.fadeShare : 1);
+    };
+    this.scene.tweens.killTweensOf(this.container);
+    this.flight?.remove();
+    pose(0);
+    this.flight = this.scene.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: style.durationMs,
+      onUpdate: (tween) => pose(tween.getValue() ?? 0),
+      onComplete: () => {
+        this.flight = null;
+        onDone();
+      },
+    });
+  }
+
   /** Zhoupnutí po ťuknutí; `onDone` se zavolá, až dlaždice dojde zpátky. */
   wobble(onDone: () => void): void {
     const { wobbleAngle: angle, wobbleMs: ms } = PICKER_TILE_STYLE;
@@ -387,6 +460,8 @@ export class PreviewTileView {
   }
 
   destroy(): void {
+    this.flight?.remove();
+    this.flight = null;
     this.scene.tweens.killTweensOf(this.container);
     this.removeLock();
     this.container.destroy();

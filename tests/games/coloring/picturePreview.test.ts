@@ -240,7 +240,10 @@ describe('#124 AC3: náhled ukazuje rozmalovaný stav', () => {
     expect(colorsIn(previewOf(storage, regions, CIRCLES)), 'kruhy').not.toEqual([]);
   });
 
-  it('po návratu z malování domečkem ukazuje náhled na výběru, co dítě namalovalo', () => {
+  // #141 mění #124 AC3: s albem jde obrázek po odchodu do alba a náhled je obrys
+  // (`pageToAlbum.test.ts`). Rozmalovaný náhled po návratu zůstává jen bez alba
+  // (dočasný profil, #141 AC5), jako tady: výběr nemá záznamy alba.
+  it('bez alba (dočasný profil) ukazuje náhled po návratu z malování domečkem, co dítě namalovalo', () => {
     const store = openProfiles(new DeviceStorage());
     const regions = twoHalves();
     const choice = enterPicker(THREE_PICTURES);

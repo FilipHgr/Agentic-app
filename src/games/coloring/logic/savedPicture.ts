@@ -69,6 +69,10 @@
  * a tloušťka zůstanou a historie Zpět se vyprázdní. Ukládání doběhne
  * i po odchodu z malování. Odložená stránka z výměny s albem (#131), která
  * do alba ještě přibude, se do plného alba počítá.
+ *
+ * Odchod domečkem (`leave`, #141) ukončí tah, uloží obrázek a počká na
+ * rozběhnuté ukládání fotoaparátem; potom malování nic nepřijme, takže
+ * stránku, kterou výběr přesune do alba, už nic znovu nerozmaluje.
  * Čistý TypeScript bez Phaseru.
  */
 
@@ -253,8 +257,16 @@ export interface SavedColoring {
   pointerUp(pointerId: number): void;
   /** Systém tah přerušil: tah skončí tam, kam došel, a uloží se. */
   interrupt(): void;
-  /** Odchod domečkem, schování nebo zavření stránky: ukončí tah a uloží obrázek. */
+  /** Schování nebo zavření stránky: ukončí tah a uloží obrázek. */
   suspend(): void;
+  /**
+   * Odchod z malování domečkem (#141): ukončí tah tam, kam prst došel,
+   * a uloží obrázek. Potom malování už nic nepřijme (tah, schování
+   * stránky), jen doběhne rozběhnuté ukládání fotoaparátem. Vrátí slib,
+   * který skončí, až ukládání fotoaparátem doběhne. Další volání vrátí
+   * stejný slib a nic znovu neuloží.
+   */
+  leave(): Promise<void>;
   /**
    * Ťuknutí na barvu: dá ji jen nástroji, který barvu dostává (#110 AC1,
    * AC3), a vybere ho: po gumě naposledy vybraný malovací nástroj (#90 AC4,
@@ -654,6 +666,10 @@ export function openColoring(options: {
   const albumRecords = options.album?.records;
   /** Ukládá se do alba (od cvaku po potvrzení)? */
   let savingToAlbum = false;
+  /** Rozběhnuté ukládání fotoaparátem; odchod na něj počká (#141). */
+  let cameraSaving: Promise<unknown> = Promise.resolve();
+  /** Odchod z malování domečkem (#141); `null`, dokud dítě maluje. */
+  let leaving: Promise<void> | null = null;
   /** Barva každého malovacího nástroje, pamatuje se podle profilu (#110 AC5). */
   let toolColors: ToolColors = openingToolColors(
     loadToolColors(storage, picture.id, paletteSize),
@@ -808,8 +824,26 @@ export function openColoring(options: {
     return afterAlbumSaved(result.id, layer);
   };
 
+  /** Odchod z malování: tah skončí, obrázek se uloží a počká se na fotoaparát. */
+  const leave = (): Promise<void> => {
+    if (leaving === null) {
+      endStroke();
+      leaving = cameraSaving.then(
+        () => undefined,
+        (error: unknown) => {
+          console.warn('Omalovánky: ukládání fotoaparátem při odchodu selhalo', error);
+        },
+      );
+    }
+    return leaving;
+  };
+
   return {
     pointerDown(pointer) {
+      if (leaving !== null) {
+        // Po odchodu z malování se nic nenamaluje (#141 AC6).
+        return null;
+      }
       if (savingToAlbum) {
         // Během ukládání do alba se nemaluje (rozhodnutí koordinátora 3 k #126):
         // tah by se po uložení ztratil spolu se stránkou.
@@ -824,19 +858,36 @@ export function openColoring(options: {
     },
 
     pointerMove(pointer) {
+      if (leaving !== null) {
+        return null;
+      }
       return noteChange(coloring.pointerMove(pointer));
     },
 
     pointerUp(pointerId) {
+      if (leaving !== null) {
+        return;
+      }
       coloring.pointerUp(pointerId);
       if (strokePointer === pointerId) {
         finishStroke();
       }
     },
 
-    interrupt: endStroke,
+    interrupt() {
+      if (leaving === null) {
+        endStroke();
+      }
+    },
 
-    suspend: endStroke,
+    suspend() {
+      // Po odchodu je obrázek uložený a stránku může přesun do alba vyčistit (#141).
+      if (leaving === null) {
+        endStroke();
+      }
+    },
+
+    leave,
 
     tapColor(index) {
       if (strokePointer !== null) {
@@ -943,7 +994,7 @@ export function openColoring(options: {
     },
 
     tapCamera() {
-      if (strokePointer !== null) {
+      if (strokePointer !== null || leaving !== null) {
         return { kind: 'ignored' };
       }
       const layer = coloring.colorLayer().slice();
@@ -953,11 +1004,9 @@ export function openColoring(options: {
         return { kind: 'wobble', tones: CAMERA_WOBBLE_TONES };
       }
       savingToAlbum = true;
-      return {
-        kind: 'saving',
-        tones: CAMERA_CLICK_TONES,
-        done: saveToAlbum(albumRecords, data, layer),
-      };
+      const done = saveToAlbum(albumRecords, data, layer);
+      cameraSaving = done;
+      return { kind: 'saving', tones: CAMERA_CLICK_TONES, done };
     },
 
     savingToAlbum: () => savingToAlbum,
