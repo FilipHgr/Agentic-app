@@ -80,9 +80,7 @@ export interface ProfileSceneHost {
   readonly menu: Menu;
   /** Text menu podle klíče v aktuálním jazyce. */
   translate(key: string): string;
-  /** Je výběr profilu nebo formulář otevřený? Při startu podle `startScreen` (#76). */
-  isOpen(): boolean;
-  /** Scéna se vytvořila; když je obrazovka profilů otevřená, menu se uspí. */
+  /** Scéna se vytvořila; stránka nechá vidět jen menu, nebo jen výběr profilu. */
   onCreated(): void;
 }
 
@@ -232,10 +230,8 @@ export class ProfileScene extends Phaser.Scene {
       this.events.once(ending, () => this.syncKeyboard(false));
     }
     this.events.on(Phaser.Scenes.Events.WAKE, () => this.requestRedraw());
-    this.host.onCreated();
-    if (!this.host.isOpen()) {
-      this.scene.sleep();
-    }
+    // Až po vytvoření (scéna už běží), jinak by ji stránka brala jako načítanou.
+    this.events.once(Phaser.Scenes.Events.CREATE, () => this.host.onCreated());
   }
 
   override update(): void {

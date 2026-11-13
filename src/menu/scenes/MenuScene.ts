@@ -60,6 +60,8 @@ export interface MenuSceneHost {
   layout(): MenuLayout;
   /** Po každém zvednutí prstu. */
   onTapped(): void;
+  /** Scéna se vytvořila; stránka nechá vidět jen menu, nebo jen výběr profilu. */
+  onCreated(): void;
 }
 
 /** Prvek menu, který se dá zmáčknout, zhoupnout nebo zatřást. */
@@ -184,6 +186,8 @@ export class MenuScene extends Phaser.Scene {
     this.listenToFingers();
     this.loadTileImages();
     this.showMenuWhenReady();
+    // Až po vytvoření (scéna už běží), jinak by ji stránka brala jako načítanou.
+    this.events.once(Phaser.Scenes.Events.CREATE, () => this.host.onCreated());
   }
 
   override update(): void {

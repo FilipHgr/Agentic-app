@@ -39,6 +39,8 @@ import { createMenuTouch } from '../logic/menuTouch';
 import { createPageUpdate } from '../logic/pageUpdate';
 import type { PageUpdate } from '../logic/pageUpdate';
 import { createProfileScreens } from '../logic/profileScreens';
+import { shownSceneFor, showOnlyScene } from '../logic/menuSceneVisibility';
+import type { MenuSceneName, MenuSceneState } from '../logic/menuSceneVisibility';
 import { createTileImages } from '../logic/tileImages';
 import { MENU_SCENE_KEY, MENU_UNITS_PER_CSS_PX, MenuScene } from '../scenes/MenuScene';
 import { PROFILE_SCENE_KEY, ProfileScene } from '../scenes/ProfileScene';
@@ -207,22 +209,42 @@ export function startMenuPage(options: MenuPageOptions): void {
     tileImages,
     layout,
     onTapped: () => scene.redrawIfSelectionChanged(),
+    onCreated: () => showOnlyCurrentScene(),
   });
   view.scene = scene;
   const profileScene = new ProfileScene({
     screens,
     menu,
     translate,
-    isOpen: () => screens.screen() !== 'closed',
-    onCreated: () => {
-      if (screens.screen() !== 'closed') {
-        menuGame.scene.sleep(MENU_SCENE_KEY);
-      }
-    },
+    onCreated: () => showOnlyCurrentScene(),
   });
   view.profileScene = profileScene;
 
   const menuGame = createMenuGame([scene, profileScene]);
+
+  const sceneKeys: Record<MenuSceneName, string> = {
+    menu: MENU_SCENE_KEY,
+    profiles: PROFILE_SCENE_KEY,
+  };
+  const sceneState = (name: MenuSceneName): MenuSceneState => {
+    const key = sceneKeys[name];
+    if (menuGame.scene.isSleeping(key)) {
+      return 'sleeping';
+    }
+    return menuGame.scene.isActive(key) ? 'running' : 'loading';
+  };
+  /**
+   * Vidět je jen menu, nebo jen výběr profilu. Volá se po vytvoření každé
+   * scény (vlajky se načítají různě dlouho) a po otevření a zavření výběru.
+   */
+  function showOnlyCurrentScene(): void {
+    showOnlyScene(shownSceneFor(screens.screen() !== 'closed'), {
+      state: sceneState,
+      sleep: (name) => menuGame.scene.sleep(sceneKeys[name]),
+      wake: (name) => menuGame.scene.wake(sceneKeys[name]),
+    });
+  }
+
   showPageLanguage(document, currentLanguage());
   unlockAudioOnTouch();
 
@@ -248,14 +270,12 @@ export function startMenuPage(options: MenuPageOptions): void {
 
   view.openProfiles = () => {
     screens.open();
-    menuGame.scene.wake(PROFILE_SCENE_KEY);
+    showOnlyCurrentScene();
     profileScene.requestRedraw();
-    menuGame.scene.sleep(MENU_SCENE_KEY);
   };
 
   view.closeProfiles = () => {
-    menuGame.scene.sleep(PROFILE_SCENE_KEY);
-    menuGame.scene.wake(MENU_SCENE_KEY);
+    showOnlyCurrentScene();
     scene.requestRedraw();
   };
 
