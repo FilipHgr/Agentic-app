@@ -1,34 +1,68 @@
 /**
- * Ukazatel klíčů na výběru omalovánky (#140 AC3): vodorovný zlatý klíč
- * (#139, návrh B) a vedle číslice celých klíčů (symbol, ne text jazyka).
- * Když má dítě i půlku, je za číslicí (na šířku pod nimi) malá půlka
- * klíče (hlava s hvězdou jako u cíle mapy v Počítání). S 0 klíči je klíč jen šedý obrys a číslice 0 šedá. Na
- * ťuknutí ukazatel nereaguje, umí se jen zhoupnout (AC4).
+ * Ukazatel klíčů na výběru omalovánky (#140 AC3, od #159 AC1): vodorovný
+ * zlatý klíč (#139, návrh B), vedle číslice celých klíčů (symbol, ne text
+ * jazyka) a za ní (na šířku pod nimi) obrys celého klíče, prázdný, nebo
+ * při půlce se zlatou hlavou (`key-head.webp` leží v obrázku na stejném
+ * místě jako hlava v `key.webp`). S 0 klíči je klíč jen šedý obrys (při
+ * půlce se zlatou hlavou) a číslice 0 šedá, obrys vedle není. Na ťuknutí
+ * ukazatel nereaguje, umí se jen zhoupnout (#140 AC4).
+ *
+ * Od #159 ukazatel kreslí i klíč, který letí do zámku náhledu (`sendKey`),
+ * v zámku poskakuje, aby zval k druhému ťuknutí, při odemčení se otočí
+ * (`turnKey`) a jinak se vrátí do ukazatele (`returnKey`). Klíč se otáčí
+ * kolem hrotu v klíčové dírce (`KEY_IN_LOCK.tipShare`).
  */
 
 import Phaser from 'phaser';
 
 import { FONT_FAMILY } from '../../../shared/logic/theme';
 import type { LayoutRect } from '../logic/coloringLayout';
+import { KEY_IN_LOCK } from '../logic/pickerLayout';
+import { KEY_FLIGHT_MS } from '../logic/pictureChoice';
 import type { KeyIndicatorState } from '../logic/pictureLocks';
-import { KEY_INDICATOR_STYLE } from '../logic/theme';
+import { KEY_INDICATOR_STYLE, KEY_IN_LOCK_STYLE } from '../logic/theme';
 import { KEY_HEAD_ICON_FILE, KEY_ICON_FILE } from '../logic/toolIcons';
 import { iconFileTexture, iconVariantTexture } from './toolIconTextures';
 
 /** Klíč bez načteného obrázku: systémové emoji (symbol, ne text jazyka). */
 const KEY_SYMBOL = '🔑';
 
+/** Kde je zlatý klíč ukazatele (střed a strana v herních jednotkách). */
+interface KeySpot {
+  readonly x: number;
+  readonly y: number;
+  readonly side: number;
+}
+
+/** Klíč mimo ukazatel (#159): letí, je v zámku, otáčí se, nebo se vrací. */
+interface LooseKey {
+  readonly image: Phaser.GameObjects.Image | Phaser.GameObjects.Text;
+  /** Strana klíče při měřítku 1. */
+  readonly unitSide: number;
+  state: 'flying' | 'inLock' | 'turning' | 'returning';
+  /** Co se zavolá po doletu do zámku (i když se let dokončí hned). */
+  onLanded: (() => void) | null;
+}
+
 export class KeyIndicatorView {
   private container: Phaser.GameObjects.Container | null = null;
+  /** Zlatý klíč ukazatele, odkud klíč vylétá a kam se vrací. */
+  private keySpot: KeySpot | null = null;
+  private looseKey: LooseKey | null = null;
+  /** Zlatý klíč ukazatele; ztlumí se, když je klíč mimo ukazatel. */
+  private goldKeyImage: Phaser.GameObjects.Image | Phaser.GameObjects.Text | null = null;
+  private depth = 0;
 
   constructor(private readonly scene: Phaser.Scene) {}
 
   /**
    * Nakreslí ukazatel se stavem `state` na místo `rect` v hloubce `depth`;
-   * `null` ukazatel schová (žádná zamčená omalovánka).
+   * `null` ukazatel schová (žádná zamčená omalovánka). Klíč mimo ukazatel
+   * zůstane, kde je.
    */
   show(state: KeyIndicatorState | null, rect: LayoutRect, cssScale: number, depth: number): void {
-    this.destroy();
+    this.destroyIndicator();
+    this.depth = depth;
     if (state === null) {
       return;
     }
@@ -40,17 +74,27 @@ export class KeyIndicatorView {
       rect.top + rect.height / 2,
     );
     container.setDepth(depth);
-    // Široký ukazatel: klíč, číslice a půlka v řadě; úzký: půlka pod nimi.
+    // Široký ukazatel: klíč, číslice a obrys v řadě; úzký: obrys pod nimi.
+    // Velikost klíče počítá vždy s obrysem, aby se po utracení klíče nezměnila.
     const inRow = rect.width >= rect.height * style.rowMinAspect;
-    const rowWidthShare = 1 + style.digitWidthShare + (inRow ? style.halfShare : 0);
-    const rowHeight = inRow ? rect.height : rect.height / (1 + style.halfShare);
+    const rowWidthShare = 1 + style.digitWidthShare + (inRow ? style.progressShare : 0);
+    const rowHeight = inRow ? rect.height : rect.height / (1 + style.progressShare);
     const keySide = Math.min(rowHeight * style.keyShare, rect.width / rowWidthShare);
-    const halfSide = keySide * style.halfShare;
-    const rowWidth = keySide * rowWidthShare;
+    const progressSide = keySide * style.progressShare;
+    const withProgress = !empty;
+    const rowWidth =
+      keySide * (1 + style.digitWidthShare + (inRow && withProgress ? style.progressShare : 0));
     const rowY = inRow ? 0 : -rect.height / 2 + rowHeight / 2;
     const keyX = -rowWidth / 2 + keySide / 2;
     const digitX = -rowWidth / 2 + keySide + (keySide * style.digitWidthShare) / 2;
-    container.add(this.keyImage(keySide, cssScale, empty).setPosition(keyX, rowY));
+    this.goldKeyImage = empty ? null : this.goldKey(keySide, cssScale);
+    const mainKey =
+      this.goldKeyImage === null
+        ? this.outlineKey(keySide, cssScale, state.hasHalf)
+        : [this.goldKeyImage];
+    for (const part of mainKey) {
+      container.add(part.setPosition(keyX, rowY));
+    }
     container.add(
       this.scene.add
         .text(digitX, rowY, String(state.wholeKeys), {
@@ -61,12 +105,143 @@ export class KeyIndicatorView {
         })
         .setOrigin(0.5),
     );
-    if (state.hasHalf) {
-      const halfX = inRow ? rowWidth / 2 - halfSide / 2 : 0;
-      const halfY = inRow ? 0 : rect.height / 2 - halfSide / 2;
-      container.add(this.halfImage(halfSide, cssScale).setPosition(halfX, halfY));
+    if (withProgress) {
+      const progressX = inRow ? rowWidth / 2 - progressSide / 2 : 0;
+      // Úzký ukazatel: obrys hned pod řadou klíče s číslicí.
+      const progressY = inRow ? 0 : rowY + keySide * style.columnProgressDrop;
+      for (const part of this.outlineKey(progressSide, cssScale, state.hasHalf)) {
+        container.add(part.setPosition(progressX, progressY));
+      }
     }
     this.container = container;
+    this.keySpot = { x: container.x + keyX, y: container.y + rowY, side: keySide };
+    this.dimGoldKey();
+  }
+
+  /** Zlatý klíč ukazatele je ztlumený, dokud je klíč mimo ukazatel (letí, je v zámku, vrací se). */
+  private dimGoldKey(): void {
+    this.goldKeyImage?.setAlpha(this.looseKey === null ? 1 : KEY_IN_LOCK_STYLE.indicatorAwayAlpha);
+  }
+
+  /**
+   * Klíč letí za `KEY_FLIGHT_MS` do zámku na místo `target` (čtverec
+   * obrázku klíče, `keyInLockAt`): z ukazatele, nebo odtud, kde právě je
+   * (přelet k jiné zamčené omalovánce). Po doletu zavolá `onLanded`
+   * a začne poskakovat (#159 AC2).
+   */
+  sendKey(target: LayoutRect, cssScale: number, onLanded: () => void): void {
+    const fresh = !this.hasKeyInPlay();
+    const key = this.looseKeyFor(target, cssScale);
+    if (key === null) {
+      onLanded();
+      return;
+    }
+    this.scene.tweens.killTweensOf(key.image);
+    const start = fresh ? this.keySpot : null;
+    if (start !== null) {
+      const startSide = start.side;
+      key.image
+        .setPosition(start.x + (KEY_IN_LOCK.tipShare - 0.5) * startSide, start.y)
+        .setScale(startSide / key.unitSide);
+    }
+    key.image.setAngle(0).setAlpha(1);
+    key.state = 'flying';
+    key.onLanded = onLanded;
+    this.dimGoldKey();
+    const end = tipOf(target);
+    this.scene.tweens.add({
+      targets: key.image,
+      x: end.x,
+      y: end.y,
+      scale: target.width / key.unitSide,
+      duration: KEY_FLIGHT_MS,
+      ease: 'Sine.easeInOut',
+      onComplete: () => this.land(key),
+    });
+  }
+
+  /**
+   * Klíč v zámku po změně okna nebo novém nakreslení výběru: hned na místě
+   * `target`. Let se dokončí hned a zavolá `onLanded` (i u klíče, který
+   * se nakreslil znovu rovnou v zámku).
+   */
+  placeKey(target: LayoutRect, cssScale: number, onLanded: () => void): void {
+    const fresh = !this.hasKeyInPlay();
+    const key = this.looseKeyFor(target, cssScale);
+    if (key === null || key.state === 'turning' || key.state === 'returning') {
+      return;
+    }
+    if (fresh || key.state === 'flying') {
+      key.onLanded = onLanded;
+    }
+    this.scene.tweens.killTweensOf(key.image);
+    const end = tipOf(target);
+    key.image
+      .setPosition(end.x, end.y)
+      .setScale(target.width / key.unitSide)
+      .setAngle(0);
+    this.land(key);
+  }
+
+  /** Je klíč na cestě do zámku nebo v zámku (ne v ukazateli, neotáčí se ani nevrací)? */
+  hasKeyInPlay(): boolean {
+    return (
+      this.looseKey !== null &&
+      (this.looseKey.state === 'flying' || this.looseKey.state === 'inLock')
+    );
+  }
+
+  /**
+   * Klíč se v zámku otočí a zmizí (#159 AC3), pak se zavolá `onDone`
+   * (bez klíče hned).
+   */
+  turnKey(onDone: () => void): void {
+    const key = this.looseKey;
+    if (key === null || key.state === 'returning') {
+      onDone();
+      return;
+    }
+    this.scene.tweens.killTweensOf(key.image);
+    key.state = 'turning';
+    key.onLanded = null;
+    this.scene.tweens.add({
+      targets: key.image,
+      angle: KEY_IN_LOCK_STYLE.turnAngle,
+      duration: KEY_IN_LOCK_STYLE.turnMs,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        this.destroyLooseKey();
+        onDone();
+      },
+    });
+  }
+
+  /** Klíč odletí zpátky do ukazatele a zmizí (#159 AC4). */
+  returnKey(): void {
+    const key = this.looseKey;
+    if (key === null || key.state === 'returning' || key.state === 'turning') {
+      return;
+    }
+    this.scene.tweens.killTweensOf(key.image);
+    key.state = 'returning';
+    key.onLanded = null;
+    const spot = this.keySpot;
+    const target =
+      spot === null
+        ? { alpha: 0 }
+        : {
+            x: spot.x + (KEY_IN_LOCK.tipShare - 0.5) * spot.side,
+            y: spot.y,
+            scale: spot.side / key.unitSide,
+            angle: 0,
+          };
+    this.scene.tweens.add({
+      targets: key.image,
+      ...target,
+      duration: KEY_IN_LOCK_STYLE.returnMs,
+      ease: 'Sine.easeInOut',
+      onComplete: () => this.destroyLooseKey(),
+    });
   }
 
   /** Zhoupnutí: na jednu stranu, na druhou a zpět (bez klíče, #140 AC4). */
@@ -105,61 +280,149 @@ export class KeyIndicatorView {
     });
   }
 
+  /** Zahodí ukazatel i klíč mimo něj. */
   destroy(): void {
+    this.destroyIndicator();
+    this.destroyLooseKey();
+  }
+
+  private destroyIndicator(): void {
     if (this.container !== null) {
       this.scene.tweens.killTweensOf(this.container);
       this.container.destroy();
     }
     this.container = null;
+    this.keySpot = null;
   }
 
-  /** Klíč (s 0 klíči jen obrys) se stranou `side`; bez obrázku emoji. */
-  private keyImage(
+  private destroyLooseKey(): void {
+    const key = this.looseKey;
+    if (key === null) {
+      return;
+    }
+    this.scene.tweens.killTweensOf(key.image);
+    key.image.destroy();
+    this.looseKey = null;
+    this.dimGoldKey();
+  }
+
+  /** Klíč doletěl: zavolá, co čeká na dolet, a poskakuje, aby zval k ťuknutí. */
+  private land(key: LooseKey): void {
+    key.state = 'inLock';
+    const onLanded = key.onLanded;
+    key.onLanded = null;
+    this.dimGoldKey();
+    const style = KEY_IN_LOCK_STYLE;
+    const scale = key.image.scale;
+    const angle = style.inviteTurnAngle;
+    // Poskočení a pootočení tam a zpět kolem hrotu, pořád dokola: napoví, že se klíčem otáčí.
+    this.scene.tweens.chain({
+      targets: key.image,
+      loop: -1,
+      loopDelay: style.invitePauseMs,
+      tweens: [
+        {
+          scale: scale * style.invitePulseScale,
+          duration: style.invitePulseMs,
+          ease: 'Sine.easeInOut',
+          yoyo: true,
+        },
+        { angle, duration: style.inviteTurnMs, ease: 'Sine.easeOut' },
+        { angle: -angle, duration: 2 * style.inviteTurnMs, ease: 'Sine.easeInOut' },
+        { angle: 0, duration: style.inviteTurnMs, ease: 'Sine.easeIn' },
+      ],
+    });
+    onLanded?.();
+  }
+
+  /**
+   * Klíč mimo ukazatel, a když ještě není, nový (v zámku na místě `target`,
+   * odkud ho `sendKey` přesune do ukazatele); `null`, když nejde nakreslit.
+   */
+  private looseKeyFor(target: LayoutRect, cssScale: number): LooseKey | null {
+    if (this.looseKey !== null && this.looseKey.state !== 'returning') {
+      return this.looseKey;
+    }
+    this.destroyLooseKey();
+    const side = target.width;
+    if (side <= 0) {
+      return null;
+    }
+    const texture = iconFileTexture(this.scene, KEY_ICON_FILE, side * cssScale);
+    const image =
+      texture === null
+        ? this.scene.add
+            .text(0, 0, KEY_SYMBOL, {
+              fontSize: `${Math.round(side * KEY_INDICATOR_STYLE.fallbackSymbolShare)}px`,
+            })
+            .setOrigin(KEY_IN_LOCK.tipShare, 0.5)
+        : this.scene.add.image(0, 0, texture).setOrigin(KEY_IN_LOCK.tipShare, 0.5);
+    const unitSide = image.width;
+    const end = tipOf(target);
+    image
+      .setPosition(end.x, end.y)
+      .setScale(side / unitSide)
+      .setDepth(this.depth + 1);
+    this.looseKey = { image, unitSide, state: 'inLock', onLanded: null };
+    return this.looseKey;
+  }
+
+  /** Zlatý klíč se stranou `side`; bez obrázku emoji. */
+  private goldKey(
     side: number,
     cssScale: number,
-    empty: boolean,
   ): Phaser.GameObjects.Image | Phaser.GameObjects.Text {
+    const key = iconFileTexture(this.scene, KEY_ICON_FILE, side * cssScale);
+    if (key === null) {
+      return this.fallbackKey(side, 1);
+    }
+    return this.scene.add.image(0, 0, key).setDisplaySize(side, side);
+  }
+
+  /**
+   * Šedý obrys celého klíče se stranou `side`, při půlce (`withHead`) se
+   * zlatou hlavou pod obrysem; bez obrázku průhledné emoji.
+   */
+  private outlineKey(
+    side: number,
+    cssScale: number,
+    withHead: boolean,
+  ): (Phaser.GameObjects.Image | Phaser.GameObjects.Text)[] {
     const sideCss = side * cssScale;
-    const key = empty
-      ? iconVariantTexture(
-          this.scene,
-          KEY_ICON_FILE,
-          sideCss,
-          'outline',
-          KEY_INDICATOR_STYLE.emptyColor,
-        )
-      : iconFileTexture(this.scene, KEY_ICON_FILE, sideCss);
-    if (key === null) {
-      const text = this.scene.add
-        .text(0, 0, KEY_SYMBOL, {
-          fontSize: `${Math.round(side * KEY_INDICATOR_STYLE.fallbackSymbolShare)}px`,
-        })
-        .setOrigin(0.5);
-      return empty ? text.setAlpha(KEY_INDICATOR_STYLE.emptyFallbackAlpha) : text;
+    const outline = iconVariantTexture(
+      this.scene,
+      KEY_ICON_FILE,
+      sideCss,
+      'outline',
+      KEY_INDICATOR_STYLE.outlineColor,
+    );
+    const head = withHead ? iconFileTexture(this.scene, KEY_HEAD_ICON_FILE, sideCss) : null;
+    if (outline === null) {
+      return [this.fallbackKey(side, KEY_INDICATOR_STYLE.emptyFallbackAlpha)];
     }
-    return this.scene.add.image(0, 0, key).setDisplaySize(side, side);
+    const parts: Phaser.GameObjects.Image[] = [];
+    if (head !== null) {
+      parts.push(this.scene.add.image(0, 0, head).setDisplaySize(side, side));
+    }
+    parts.push(this.scene.add.image(0, 0, outline).setDisplaySize(side, side));
+    return parts;
   }
 
-  /** Malá půlka klíče (hlava s hvězdou) se stranou `side`; bez obrázku malé průhlednější emoji. */
-  private halfImage(
-    side: number,
-    cssScale: number,
-  ): Phaser.GameObjects.Image | Phaser.GameObjects.Text {
-    const key = iconVariantTexture(
-      this.scene,
-      KEY_HEAD_ICON_FILE,
-      side * cssScale,
-      'keyHead',
-      KEY_INDICATOR_STYLE.digitColor,
-    );
-    if (key === null) {
-      return this.scene.add
-        .text(0, 0, KEY_SYMBOL, {
-          fontSize: `${Math.round(side * KEY_INDICATOR_STYLE.halfFallbackSymbolShare)}px`,
-        })
-        .setOrigin(0.5)
-        .setAlpha(KEY_INDICATOR_STYLE.halfFallbackAlpha);
-    }
-    return this.scene.add.image(0, 0, key).setDisplaySize(side, side);
+  /** Klíč jako emoji se stranou `side` a průhledností `alpha`. */
+  private fallbackKey(side: number, alpha: number): Phaser.GameObjects.Text {
+    return this.scene.add
+      .text(0, 0, KEY_SYMBOL, {
+        fontSize: `${Math.round(side * KEY_INDICATOR_STYLE.fallbackSymbolShare)}px`,
+      })
+      .setOrigin(0.5)
+      .setAlpha(alpha);
   }
+}
+
+/** Hrot klíče v klíčové dírce: bod otáčení klíče v zámku `target`. */
+function tipOf(target: LayoutRect): { readonly x: number; readonly y: number } {
+  return {
+    x: target.left + target.width * KEY_IN_LOCK.tipShare,
+    y: target.top + target.height / 2,
+  };
 }

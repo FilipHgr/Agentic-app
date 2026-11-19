@@ -310,9 +310,10 @@ export const PICTURE_LOCK_STYLE = {
 } as const;
 
 /**
- * Ukazatel klíčů na výběru (#140): klíč a vedle něj číslice celých klíčů,
- * půlka klíče za číslicí (široký ukazatel), nebo pod nimi (úzký). S 0 klíči
- * je klíč jen šedý obrys.
+ * Ukazatel klíčů na výběru (#140, od #159 s obrysem celého klíče): zlatý
+ * klíč, číslice celých klíčů a vedle (úzký ukazatel pod nimi) obrys celého
+ * klíče, prázdný, nebo při půlce se zlatou hlavou. S 0 klíči je klíč jen
+ * šedý obrys (při půlce se zlatou hlavou) a obrys vedle není.
  */
 export const KEY_INDICATOR_STYLE = {
   /** Strana klíče jako díl řady (výšky řady klíče s číslicí). */
@@ -321,23 +322,47 @@ export const KEY_INDICATOR_STYLE = {
   digitShare: 0.7,
   /** Šířka místa číslice jako díl strany klíče. */
   digitWidthShare: 0.55,
-  /** Strana půlky klíče jako díl strany klíče. */
-  halfShare: 0.85,
-  /** Půlka jako emoji, když se SVG nenačetlo: průhlednější. */
-  halfFallbackAlpha: 0.6,
+  /** Strana obrysu celého klíče jako díl strany klíče. */
+  progressShare: 1,
   /** Klíč jako emoji bez SVG: velikost písma jako díl strany klíče. */
   fallbackSymbolShare: 0.8,
-  /** Klíč jako emoji s 0 klíči: průhledný místo obrysu. */
+  /** Klíč jako emoji místo obrysu: průhledný. */
   emptyFallbackAlpha: 0.35,
-  /** Půlka jako emoji: velikost písma jako díl strany půlky. */
-  halfFallbackSymbolShare: 0.6,
-  /** Od tohoto poměru šířky k výšce jsou klíč, číslice a půlka v jedné řadě. */
+  /** Od tohoto poměru šířky k výšce jsou klíč, číslice a obrys v jedné řadě. */
   rowMinAspect: 1.4,
   /** Poskočení ukazatele po utracení klíče (zvětšení tam a zpět). */
   spendPulseScale: 1.2,
   spendPulseMs: 160,
   digitColor: TEXT,
   emptyColor: SECONDARY,
+  /** Obrys klíče: tmavší než šedá číslice 0, aby byl dobře vidět (#159). */
+  outlineColor: '#5C5C61',
+  /** Úzký ukazatel: střed obrysu pod středem řady klíče jako díl strany klíče. */
+  columnProgressDrop: 0.75,
   wobbleAngle: 8,
   wobbleMs: 90,
+} as const;
+
+/**
+ * Klíč, který letí z ukazatele do zámku (#159): v zámku zve k druhému
+ * ťuknutí opakovaným poskočením, při odemčení se otočí a zmizí, při
+ * návratu odletí do ukazatele a zmizí.
+ */
+export const KEY_IN_LOCK_STYLE = {
+  /**
+   * V zámku pořád dokola jednou za 1,2 s: poskočení (zvětšení tam a zpět),
+   * pootočení o ±15° kolem hrotu a chvíle klidu.
+   */
+  invitePulseScale: 1.15,
+  invitePulseMs: 200,
+  inviteTurnAngle: 15,
+  inviteTurnMs: 150,
+  invitePauseMs: 200,
+  /** Zlatý klíč ukazatele, když je klíč mimo něj (v zámku je vidět jen jeden zlatý klíč). */
+  indicatorAwayAlpha: 0.35,
+  /** Otočení v zámku při odemčení (stupně po směru hodinových ručiček). */
+  turnAngle: 90,
+  turnMs: 240,
+  /** Návrat do ukazatele. */
+  returnMs: 300,
 } as const;

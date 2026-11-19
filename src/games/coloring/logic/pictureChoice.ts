@@ -40,9 +40,18 @@
  *   vrácení přepsalo.
  * - Zamčená omalovánka (#140, volba `locks`) se bez celého klíče neotevře:
  *   zámek a ukazatel klíčů se zhoupnou s tónem domečku a nic se nezmění
- *   (AC4). S celým klíčem ťuknutí klíč utratí, zámek se otevře
- *   a omalovánka se otevírá jako po ťuknutí na odemčenou (AC5). Během
- *   otevírání se další ťuknutí nepočítá, takže se utratí jen jeden klíč (AC6).
+ *   (AC4). S celým klíčem (#159, nahrazuje odemčení jedním ťuknutím z #140
+ *   AC5) první ťuknutí klíč nespotřebuje, jen ho pošle z ukazatele do
+ *   zámku (`keyToLock`); scéna po letu hlásí `keyLanded`. Ťuknutí na
+ *   stejnou omalovánku za letu nic neudělá. Druhé ťuknutí po doletu klíč
+ *   utratí, zámek se otevře a omalovánka se otevírá jako po ťuknutí na
+ *   odemčenou. Během otevírání se další ťuknutí nepočítá, takže se utratí
+ *   jen jeden klíč (#140 AC6). Ťuknutí na jinou zamčenou omalovánku pošle
+ *   klíč k ní, cokoli jiného na výběru (odemčená omalovánka, prázdné místo,
+ *   šipky, listování, kniha, domeček) klíč vrátí do ukazatele a proběhne
+ *   jako dřív. Klíč se vrátí i 5 s po doletu bez ťuknutí (`keyInLock`
+ *   pak vrátí `null`). Klíč v zámku se nikam neukládá, nový výběr (po
+ *   obnovení stránky) ho má v ukazateli.
  * - Rozmalovaný obrázek jde do alba sám (#141, `pageToAlbum.ts`): scéna
  *   při otevření Omalovánek po `settleAlbumSwap` volá `movePagesToAlbum`
  *   a po podržení domečku v malování `paintingLeft`, který malování
@@ -98,6 +107,7 @@ import { createPageTurner, pageCountOf, pageItemsOf } from './pageTurner';
 import type { AlbumDirection, AlbumPoint, AlbumTurn } from './pageTurner';
 import { PICKER_PLACES } from './pickerLayout';
 import type { PictureLocks } from './pictureLocks';
+import { TOOL_PICK_TONES } from './toolPanel';
 import type { ChangedArea } from './coloring';
 import type { PictureIdentity, SavedColoring } from './savedPicture';
 
@@ -201,8 +211,9 @@ export type BroomFeedback =
 /**
  * Co udělá ťuknutí na náhled: otevře omalovánku s tónem, zhoupne se
  * s tónem domečku (výměna s albem, která se může vrátit, #131 AC5),
- * zhoupne zámek a ukazatel klíčů (zamčená bez klíče, #140 AC4), odemkne
- * zamčenou klíčem a otevře ji (#140 AC5), nebo nic.
+ * zhoupne zámek a ukazatel klíčů (zamčená bez klíče, #140 AC4), pošle
+ * klíč do zámku zamčené (#159 AC2), odemkne zamčenou klíčem v zámku
+ * a otevře ji (#140 AC5, #159 AC3), nebo nic.
  */
 export type PreviewTap =
   | {
@@ -213,6 +224,16 @@ export type PreviewTap =
     }
   | { readonly kind: 'wobble'; readonly tones: readonly Tone[] }
   | { readonly kind: 'locked'; readonly index: number; readonly tones: readonly Tone[] }
+  /**
+   * Klíč letí do zámku omalovánky na místě `index` z ukazatele (`from`
+   * je `null`), nebo ze zámku náhledu na místě `from`; nic se nespotřebuje.
+   */
+  | {
+      readonly kind: 'keyToLock';
+      readonly index: number;
+      readonly from: number | null;
+      readonly tones: readonly Tone[];
+    }
   | {
       readonly kind: 'unlocked';
       readonly index: number;
@@ -241,6 +262,13 @@ export type ContinueTap =
   /** Ťuknutí se nepočítá. */
   | { readonly kind: 'ignored' };
 
+/** Kde je klíč, který dítě poslalo do zámku (#159): omalovánka, místo na stránce a jestli už doletěl. */
+export interface KeyInLock {
+  readonly picture: PictureIdentity;
+  readonly index: number;
+  readonly landed: boolean;
+}
+
 /** Kam vede podržení domečku: na výběr, do menu, do alba (#129), nebo nikam. */
 export type HomeHold = 'toPicker' | 'toMenu' | 'toAlbum' | 'ignored';
 
@@ -249,6 +277,18 @@ export const TRASH_HOLD_MS = 1000;
 
 /** Jak dlouho se drží koště, aby vrátilo stránku na začátek (#142 AC1, jako koš). */
 export const BROOM_HOLD_MS = TRASH_HOLD_MS;
+
+/** Jak dlouho letí klíč z ukazatele do zámku (#159 AC2). */
+export const KEY_FLIGHT_MS = 500;
+
+/** Jak dlouho klíč v zámku čeká na druhé ťuknutí, počítáno od doletu (#159 AC4). */
+export const KEY_WAIT_MS = 5000;
+
+/**
+ * Tón prvního ťuknutí na zamčenou omalovánku, kdy klíč letí do zámku
+ * (#159): krátký tón výběru nástroje, jiný než otevření omalovánky.
+ */
+export const KEY_SEND_TONES: readonly Tone[] = TOOL_PICK_TONES;
 
 /** Tón ťuknutí na náhled: krátký vzestupný dvojtón. */
 export const PREVIEW_TAP_TONES: readonly Tone[] = [
@@ -281,6 +321,10 @@ export interface PictureChoice {
   pickerPageShown(): void;
   /** Scéna ukázala malování otevírané omalovánky. */
   paintingShown(): void;
+  /** Klíč doletěl do zámku (#159 AC2); do té doby ho druhé ťuknutí neutratí. */
+  keyLanded(): void;
+  /** Kde je klíč poslaný do zámku; `null`, když je v ukazateli (#159). */
+  keyInLock(): KeyInLock | null;
   /** Domeček se držel 1 s. */
   holdHome(): HomeHold;
   /** Ťuknutí na knihu s albem, jak ho scéna přečetla; `null`, když ještě není přečtené. */
@@ -661,19 +705,72 @@ export function startPictureChoice(
     turnTones: PREVIEW_TAP_TONES,
   });
 
-  /** Ťuknutí na místo `place` na stránce výběru, která je vidět (#124, #150). */
-  const tapPreview = (place: number): PreviewTap => {
-    const onPage = Number.isInteger(place) && place >= 0 && place < PICKER_PAGE_SIZE;
-    const picture = onPage ? pickerPictures[pickerPage * PICKER_PAGE_SIZE + place] : undefined;
-    if (screen.kind !== 'picker' || pickerPages.isTurning() || picture === undefined) {
+  /**
+   * Klíč poslaný do zámku (#159): omalovánka, místo na stránce, kdy vyletěl
+   * a kdy doletěl (`null` za letu). V ukazateli je klíč, když je `null`.
+   */
+  let sentKey: {
+    readonly picture: PictureIdentity;
+    readonly index: number;
+    readonly sentAt: number;
+    readonly landedAt: number | null;
+  } | null = null;
+
+  /**
+   * Klíč poslaný do zámku, nebo `null`. Po 5 s v zámku bez ťuknutí se
+   * vrátí do ukazatele (#159 AC4). Klíč, o jehož doletu scéna nedala
+   * vědět (scéna skončila), se vrátí po stejné době od doletu podle plánu.
+   */
+  const currentKey = (): typeof sentKey => {
+    if (sentKey === null) {
+      return null;
+    }
+    const returnsAt =
+      sentKey.landedAt === null
+        ? sentKey.sentAt + KEY_FLIGHT_MS + KEY_WAIT_MS
+        : sentKey.landedAt + KEY_WAIT_MS;
+    if (now() >= returnsAt) {
+      sentKey = null;
+    }
+    return sentKey;
+  };
+
+  /** Klíč se vrátí do ukazatele (ťuknutí jinam, listování, kniha, domeček, #159 AC4). */
+  const returnKey = (): void => {
+    sentKey = null;
+  };
+
+  /**
+   * Ťuknutí na zamčenou omalovánku `picture` na místě `place` (#140, #159):
+   * bez celého klíče se zhoupne, s klíčem v jejím zámku se odemkne, jinak
+   * k ní klíč vyletí.
+   */
+  const tapLocked = (picture: PictureIdentity, place: number): PreviewTap => {
+    const key = currentKey();
+    const keyHere = key !== null && pictureKey(key.picture) === pictureKey(picture);
+    if (keyHere && key.landedAt === null) {
+      // Ťuknutí za letu klíče nic nespotřebuje (#159 AC3).
       return { kind: 'ignored' };
     }
-    if (pageMoves.isMoving(picture) || previewBlocked(picture)) {
-      // Stránka jde do alba (#141 AC4), nebo se výměna může vrátit (#131 AC5).
-      return { kind: 'wobble', tones: HOME_WOBBLE_TONES };
+    if (!keyHere) {
+      // Klíč vyletí, jen když ho druhé ťuknutí může utratit (#159 AC5, #140 AC2).
+      if (options.locks?.canUnlock(picture) !== true) {
+        returnKey();
+        return { kind: 'locked', index: place, tones: HOME_WOBBLE_TONES };
+      }
+      sentKey = { picture, index: place, sentAt: now(), landedAt: null };
+      return {
+        kind: 'keyToLock',
+        index: place,
+        from: key?.index ?? null,
+        tones: KEY_SEND_TONES,
+      };
     }
-    const unlock = options.locks?.isLocked(picture) === true ? options.locks.unlock(picture) : null;
+    returnKey();
+    const unlock = options.locks?.unlock(picture) ?? 'alreadyUnlocked';
     if (unlock === 'noKey') {
+      // Celý klíč mezitím utratil jiný panel (#140 AC6), nebo jde odemknout jen
+      // později (#140 AC2): klíč se vrátí do ukazatele a zámek se jen zhoupne (AC4).
       return { kind: 'locked', index: place, tones: HOME_WOBBLE_TONES };
     }
     screen = { kind: 'opening', picture };
@@ -684,16 +781,58 @@ export function startPictureChoice(
     return { kind: 'open', index: place, picture, tones: PREVIEW_TAP_TONES };
   };
 
+  /** Ťuknutí na místo `place` na stránce výběru, která je vidět (#124, #150). */
+  const tapPreview = (place: number): PreviewTap => {
+    const onPage = Number.isInteger(place) && place >= 0 && place < PICKER_PAGE_SIZE;
+    const picture = onPage ? pickerPictures[pickerPage * PICKER_PAGE_SIZE + place] : undefined;
+    if (screen.kind !== 'picker' || pickerPages.isTurning() || picture === undefined) {
+      return { kind: 'ignored' };
+    }
+    if (pageMoves.isMoving(picture) || previewBlocked(picture)) {
+      // Stránka jde do alba (#141 AC4), nebo se výměna může vrátit (#131 AC5).
+      returnKey();
+      return { kind: 'wobble', tones: HOME_WOBBLE_TONES };
+    }
+    if (options.locks?.isLocked(picture) === true) {
+      return tapLocked(picture, place);
+    }
+    returnKey();
+    screen = { kind: 'opening', picture };
+    pickerPages.forgetPointers();
+    return { kind: 'open', index: place, picture, tones: PREVIEW_TAP_TONES };
+  };
+
+  /**
+   * Zvednutí prstu na výběru: ťuknutí na náhled je `tapPreview`, cokoli
+   * jiného (tah, ťuknutí na prázdné místo) vrátí klíč do ukazatele (#159 AC4).
+   */
+  const pickerPointerUp = (pointerId: number, point: AlbumPoint): PickerPointerResult => {
+    let tappedPreview = false;
+    const result = pickerPages.pointerUp(pointerId, point, (place) => {
+      tappedPreview = true;
+      return tapPreview(place);
+    });
+    if (!tappedPreview && screen.kind === 'picker') {
+      returnKey();
+    }
+    return result;
+  };
+
   return {
     previews: () => pickerPictures,
     pickerPage: () => pickerPage,
     pagePreviews: () => pageItemsOf(pickerPictures, pickerPage, PICKER_PAGE_SIZE),
     screen: () => screen,
     tapPreview,
-    tapPickerArrow: (direction) => pickerPages.arrow(direction),
+    tapPickerArrow: (direction) => {
+      if (screen.kind === 'picker') {
+        returnKey();
+      }
+      return pickerPages.arrow(direction);
+    },
     pickerPointerDown: (pointerId, point, place) =>
       pickerPages.pointerDown(pointerId, point, place),
-    pickerPointerUp: (pointerId, point) => pickerPages.pointerUp(pointerId, point, tapPreview),
+    pickerPointerUp,
     pickerPointerCancel: (pointerId) => pickerPages.pointerCancel(pointerId),
     pickerPageShown: () => pickerPages.pageShown(),
     paintingShown: () => {
@@ -704,11 +843,23 @@ export function startPictureChoice(
       paintingEnded = false;
       shownAt = now();
     },
+    keyLanded: () => {
+      if (sentKey !== null && sentKey.landedAt === null) {
+        sentKey = { ...sentKey, landedAt: now() };
+      }
+    },
+    keyInLock: () => {
+      const key = currentKey();
+      return key === null
+        ? null
+        : { picture: key.picture, index: key.index, landed: key.landedAt !== null };
+    },
     tapBook: (album) => {
       // Během listování výběru ťuknutí nic neotevře (#150 AC4).
       if (screen.kind !== 'picker' || pickerPages.isTurning()) {
         return { kind: 'ignored' };
       }
+      returnKey();
       if (album === null || album.status !== 'read' || album.entries.length === 0) {
         return { kind: 'wobble', tones: HOME_WOBBLE_TONES };
       }
@@ -762,6 +913,7 @@ export function startPictureChoice(
           screen = { kind: 'picker' };
           return 'toPicker';
         case 'picker':
+          returnKey();
           return 'toMenu';
         case 'opening':
         case 'openingBigPicture':

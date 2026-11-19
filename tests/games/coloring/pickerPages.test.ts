@@ -525,6 +525,9 @@ describe('#150 AC4: dotyky na výběru', () => {
     const locks = testLocks(['page-20'], 1);
     const choice = enterPagedPicker(TWENTY_FIVE_PICTURES, { locks });
     turnToPage(choice, 1);
+    // Od #159 první ťuknutí pošle klíč do zámku, odemkne až druhé.
+    expect(choice.tapPreview(7)).toMatchObject({ kind: 'keyToLock', index: 7 });
+    choice.keyLanded();
 
     expect(choice.tapPreview(7)).toMatchObject({
       kind: 'unlocked',

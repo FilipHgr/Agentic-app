@@ -201,6 +201,11 @@ export function lockClock(): number {
   return clock.now;
 }
 
+/** Posune zkušební hodiny výběru o `ms` (klíč čeká v zámku 5 s, #159 AC4). */
+export function advanceLockClock(ms: number): void {
+  clock.now += ms;
+}
+
 /** Výběr se zámky nad celou sadou (bez alba a výměny s ním). */
 export function choiceWith(locks: PictureLocks): PictureChoice {
   return startPictureChoice(COLORING_PICTURES, { now: lockClock, locks });
@@ -234,12 +239,42 @@ export function paintAndReturn(choice: PictureChoice): void {
 }
 
 /**
- * Dítě odemkne omalovánku `id` klíčem ťuknutím na výběru a vrátí se na
- * výběr. Selže, když se omalovánka neodemkla.
+ * Dítě ťukne na zamčenou omalovánku `id` a klíč z ukazatele doletí do
+ * jejího zámku (#159 AC2): výběr vrátí `keyToLock` a scéna po letu hlásí
+ * `keyLanded`. Selže, když klíč nevyletěl. Vrátí výsledek ťuknutí.
+ */
+export function sendKeyTo(choice: PictureChoice, id: string): PreviewTap {
+  const tap = tapPicture(choice, id);
+  expect(tap.kind, `klíč letí do zámku ${id}`).toBe('keyToLock');
+  choice.keyLanded();
+  return tap;
+}
+
+/**
+ * Dítě ťukne na omalovánku `id`, a když klíč vyletí do zámku, počká, až
+ * doletí, a ťukne na ni podruhé (#159 AC3). Vrátí výsledek posledního
+ * ťuknutí (bez klíče v zámku výsledek prvního). Do #159 odemykalo
+ * omalovánku jedno ťuknutí (#140 AC5).
+ */
+export function tapTwice(choice: PictureChoice, id: string): PreviewTap {
+  const first = tapPicture(choice, id);
+  if (first.kind !== 'keyToLock') {
+    return first;
+  }
+  choice.keyLanded();
+  return tapPicture(choice, id);
+}
+
+/**
+ * Dítě odemkne omalovánku `id` klíčem na výběru a vrátí se na výběr.
+ * Od #159 dvěma ťuknutími (první pošle klíč do zámku, druhé odemkne),
+ * nahrazuje odemčení jedním ťuknutím z #140 AC5. Selže, když se
+ * omalovánka neodemkla.
  */
 export function unlockByTap(choice: PictureChoice, id: string): void {
+  sendKeyTo(choice, id);
   const tap = tapPicture(choice, id);
-  expect(tap.kind, `${id} se odemkne`).toBe('unlocked');
+  expect(tap.kind, `${id} se odemkne druhým ťuknutím`).toBe('unlocked');
   paintAndReturn(choice);
 }
 

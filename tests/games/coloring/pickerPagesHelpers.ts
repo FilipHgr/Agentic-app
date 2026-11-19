@@ -111,10 +111,15 @@ export function openedId(result: PickerPointerResult): string | null {
 /**
  * Dítě ťukne na místo `place` na stránce, která je vidět, malování se
  * ukáže a po chvíli malování podrží domeček 1 s: je zpátky na výběru.
- * Vrátí omalovánku, která se otevřela.
+ * Vrátí omalovánku, která se otevřela. Zamčenou omalovánku s klíčem
+ * odemkne od #159 až druhé ťuknutí po doletu klíče do zámku.
  */
 export function paintAndReturn(choice: PictureChoice, place: number): string {
-  const tap = choice.tapPreview(place);
+  let tap = choice.tapPreview(place);
+  if (tap.kind === 'keyToLock') {
+    choice.keyLanded();
+    tap = choice.tapPreview(place);
+  }
   if (tap.kind !== 'open' && tap.kind !== 'unlocked') {
     throw new Error(`místo ${place + 1} omalovánku neotevřelo (${tap.kind})`);
   }
@@ -140,6 +145,7 @@ export function testLocks(
   return {
     isLocked: (picture) => stillLocked.has(picture.id),
     keyIndicator: () => (stillLocked.size === 0 ? null : { wholeKeys: keys, hasHalf: false }),
+    canUnlock: (picture) => stillLocked.has(picture.id) && keys > 0,
     unlock: (picture) => {
       if (!stillLocked.has(picture.id)) {
         return 'alreadyUnlocked';

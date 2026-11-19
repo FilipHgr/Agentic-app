@@ -56,6 +56,11 @@ export interface PictureLocks {
   isLocked(picture: PictureIdentity): boolean;
   /** Stav ukazatele klíčů; `null`, když není zamčená žádná omalovánka (ukazatel zmizí). */
   keyIndicator(): KeyIndicatorState | null;
+  /**
+   * Odemkl by ji teď celý klíč (#159)? Omalovánka je zamčená, její stránka
+   * je zkontrolovaná (#140 AC2) a dítě má celý klíč. Nic nemění.
+   */
+  canUnlock(picture: PictureIdentity): boolean;
   /** Odemkne omalovánku jedním celým klíčem. */
   unlock(picture: PictureIdentity): PictureUnlock;
 }
@@ -256,6 +261,8 @@ export function openPictureLocks(options: {
   return {
     isLocked,
     keyIndicator: () => (pictures.some(isLocked) ? indicatorOf(keyRewards) : null),
+    canUnlock: (picture) =>
+      isLocked(picture) && pageChecked(picture) && indicatorOf(keyRewards).wholeKeys >= 1,
     unlock: (picture) => {
       if (!isLocked(picture)) {
         return 'alreadyUnlocked';

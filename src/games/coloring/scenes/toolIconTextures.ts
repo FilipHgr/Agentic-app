@@ -117,11 +117,11 @@ export function showToolIcon(
     .setVisible(true);
 }
 
-/** Jak se ikona překreslí: jen obrys tvaru (#140, 0 klíčů), nebo posunutá doprostřed (půlka klíče). */
-export type IconVariant = 'outline' | 'keyHead';
+/** Jak se ikona překreslí: jen obrys tvaru (#140 ukazatel s 0 klíči, #159 obrys celého klíče). */
+export type IconVariant = 'outline';
 
 /** Tloušťka obrysu jako díl strany ikony a kolik posunů ho skládá. */
-const OUTLINE_WIDTH_SHARE = 0.035;
+const OUTLINE_WIDTH_SHARE = 0.05;
 const OUTLINE_STEPS = 16;
 
 /**
@@ -131,15 +131,10 @@ const OUTLINE_STEPS = 16;
  */
 const latestVariantKeys = new Map<string, string>();
 
-/** Alfa, od které bod půlky klíče patří kresbě (ořez hlavy podle obsahu). */
-const OPAQUE_ALPHA = 8;
-
 /**
  * Klíč ostré textury ikony `file` překreslené jako `variant` pro čtverec
  * o straně `sideCss` CSS px, nebo `null`, když se SVG nenačetlo:
- * - `'outline'` jen obrys tvaru ikony v barvě `color` (ukazatel s 0 klíči),
- * - `'keyHead'` kresba ikony posunutá doprostřed čtverce bez zvětšení
- *   (pro `key-head.webp` půlka klíče jako u cíle mapy v Počítání, #139).
+ * `'outline'` jen obrys tvaru ikony v barvě `color` (ukazatel klíčů).
  */
 export function iconVariantTexture(
   scene: Phaser.Scene,
@@ -170,11 +165,7 @@ export function iconVariantTexture(
   if (texture === null) {
     return null;
   }
-  if (variant === 'outline') {
-    drawOutline(texture.context, source, color);
-  } else {
-    drawKeyHead(texture.context, source);
-  }
+  drawOutline(texture.context, source, color);
   texture.refresh();
   latestVariantKeys.set(family, key);
   return key;
@@ -206,54 +197,4 @@ function drawOutline(
   context.globalCompositeOperation = 'destination-out';
   context.drawImage(silhouette, 0, 0);
   context.globalCompositeOperation = 'source-over';
-}
-
-/**
- * Kresba ikony (u půlky klíče hlava s hvězdou) posunutá doprostřed
- * čtverce ve stejném měřítku, takže hlava je velká jako v celém klíči.
- */
-function drawKeyHead(context: CanvasRenderingContext2D, source: HTMLCanvasElement): void {
-  const pixels = source.width;
-  const sourceContext = source.getContext('2d');
-  if (sourceContext === null) {
-    return;
-  }
-  const bounds = opaqueBounds(sourceContext, pixels);
-  if (bounds === null) {
-    return;
-  }
-  context.drawImage(
-    source,
-    bounds.left,
-    bounds.top,
-    bounds.width,
-    bounds.height,
-    (pixels - bounds.width) / 2,
-    (pixels - bounds.height) / 2,
-    bounds.width,
-    bounds.height,
-  );
-}
-
-/** Nejmenší obdélník s kresbou v plátně o straně `pixels`; `null` u prázdného. */
-function opaqueBounds(
-  context: CanvasRenderingContext2D,
-  pixels: number,
-): { left: number; top: number; width: number; height: number } | null {
-  const data = context.getImageData(0, 0, pixels, pixels).data;
-  let left = pixels;
-  let top = pixels;
-  let right = -1;
-  let bottom = -1;
-  for (let y = 0; y < pixels; y += 1) {
-    for (let x = 0; x < pixels; x += 1) {
-      if ((data[(y * pixels + x) * 4 + 3] ?? 0) >= OPAQUE_ALPHA) {
-        left = Math.min(left, x);
-        right = Math.max(right, x);
-        top = Math.min(top, y);
-        bottom = Math.max(bottom, y);
-      }
-    }
-  }
-  return right < 0 ? null : { left, top, width: right - left + 1, height: bottom - top + 1 };
 }

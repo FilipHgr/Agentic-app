@@ -40,6 +40,7 @@ import {
   bookAt,
   layoutAlbum,
   layoutBigPicture,
+  keyInLockAt,
   layoutPicker,
   pickerArrowAt,
   previewAt,
@@ -161,6 +162,13 @@ interface PictureAssets {
  * (`pageCard` z `layoutAlbum`) a volná místa stránky jsou prázdná okénka
  * (`albumEmptyPlaces`). Ťuknutí na okénko ho jen zhoupne s tónem domečku,
  * při listování okénka odjíždějí s náhledy, karta zůstává.
+ *
+ * Od #159 odemyká zamčenou omalovánku až druhé ťuknutí: první pošle klíč
+ * z ukazatele do zámku (`keyToLock`, `keyInLockAt`), scéna po letu hlásí
+ * `keyLanded` a zámek se zhoupne. Druhé ťuknutí klíč v zámku otočí, pak
+ * se zámek otevře. Když výběr klíč vrátí (`keyInLock` je `null`: ťuknutí
+ * jinam, listování, 5 s bez ťuknutí), scéna v dalším snímku klíč pošle
+ * zpátky do ukazatele.
  */
 export class PickerScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -318,12 +326,13 @@ export class PickerScene extends Phaser.Scene {
 
   /**
    * Zámky pro výběr: do odemčení zdarma (#140 AC2) se zamčená omalovánka
-   * neodemkne klíčem (zámek se jen zhoupne a klíč se neutratí).
+   * neodemkne klíčem (zámek se jen zhoupne, klíč nevyletí ani se neutratí).
    */
   private choiceLocks(): PictureLocks {
     return {
       isLocked: (picture) => this.locks.isLocked(picture),
       keyIndicator: () => this.locks.keyIndicator(),
+      canUnlock: (picture) => this.locksReady && this.locks.canUnlock(picture),
       unlock: (picture) => (this.locksReady ? this.locks.unlock(picture) : 'noKey'),
     };
   }
@@ -431,7 +440,7 @@ export class PickerScene extends Phaser.Scene {
     this.pickerNextArrow.place(this.layout.nextArrow, this.gameArea.scale);
   }
 
-  /** Zámky na zamčených náhledech a ukazatel klíčů podle aktuálního stavu (#140). */
+  /** Zámky na zamčených náhledech, ukazatel klíčů a klíč v zámku podle aktuálního stavu (#140, #159). */
   private showLocks(): void {
     const previews = this.choice.pagePreviews();
     this.tiles.forEach((tile, index) => {
@@ -439,6 +448,34 @@ export class PickerScene extends Phaser.Scene {
       tile.setLocked(picture !== undefined && this.locks.isLocked(picture));
     });
     this.showKeyIndicator();
+    const key = this.choice.keyInLock();
+    if (key !== null) {
+      // Po změně okna nebo novém nakreslení výběru je klíč hned v zámku na novém místě.
+      this.keyIndicatorView.placeKey(keyInLockAt(this.layout, key.index), this.gameArea.scale, () =>
+        this.choice.keyLanded(),
+      );
+    }
+  }
+
+  /**
+   * Klíč, který výběr vrátil do ukazatele (ťuknutí jinam, listování, 5 s
+   * bez ťuknutí, #159 AC4), odletí zpátky; volá se v každém snímku.
+   */
+  private returnKeyIfBack(): void {
+    if (this.keyIndicatorView.hasKeyInPlay() && this.choice.keyInLock() === null) {
+      this.keyIndicatorView.returnKey();
+    }
+  }
+
+  /** Klíč letí do zámku náhledu na místě `place`; po doletu se zámek zhoupne (#159 AC2). */
+  private sendKey(place: number): void {
+    this.keyIndicatorView.sendKey(keyInLockAt(this.layout, place), this.gameArea.scale, () => {
+      if (!this.running) {
+        return;
+      }
+      this.choice.keyLanded();
+      this.tiles[place]?.wobbleLock();
+    });
   }
 
   /** Ukazatel klíčů vedle knihy; bez zamčených omalovánek zmizí (#140 AC3). */
@@ -1233,6 +1270,7 @@ export class PickerScene extends Phaser.Scene {
     this.game.events.on(Phaser.Core.Events.HIDDEN, this.onTouchCancel);
     this.registry.events.on(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
     this.events.on(Phaser.Scenes.Events.UPDATE, this.drawTrashRing, this);
+    this.events.on(Phaser.Scenes.Events.UPDATE, this.returnKeyIfBack, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.running = false;
       canvas.removeEventListener('pointercancel', this.onTouchCancel);
@@ -1242,6 +1280,7 @@ export class PickerScene extends Phaser.Scene {
       this.touches.clear();
       this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
       this.events.off(Phaser.Scenes.Events.UPDATE, this.drawTrashRing, this);
+      this.events.off(Phaser.Scenes.Events.UPDATE, this.returnKeyIfBack, this);
       this.choice.trashButton.dispose();
       this.choice.broomButton.dispose();
       this.stop();
@@ -1403,20 +1442,22 @@ export class PickerScene extends Phaser.Scene {
         tile?.wobbleLock();
         this.keyIndicatorView.wobble();
         return;
-      case 'unlocked':
-        // Klíč se utratil (#140 AC5): ukazatel ubere klíč, zámek se otevře a pak malování.
+      case 'keyToLock':
+        // Klíč letí z ukazatele (nebo ze zámku jiné omalovánky) do zámku, nic se neutratí (#159 AC2).
         this.sounds.play(tap.tones);
-        this.showKeyIndicator();
-        this.keyIndicatorView.pulse();
-        if (tile === undefined) {
-          this.openPainting(tap.picture);
-          return;
-        }
-        tile.openLock(() => {
-          // Zámek zmizí i se zrušenou dlaždicí (odchod ze hry): malování jen v běžící scéně.
-          if (this.running) {
-            this.openPainting(tap.picture);
+        this.sendKey(tap.index);
+        return;
+      case 'unlocked':
+        // Druhé ťuknutí (#159 AC3): klíč se v zámku otočí, ukazatel ubere klíč,
+        // zámek se otevře a pak malování.
+        this.sounds.play(tap.tones);
+        this.keyIndicatorView.turnKey(() => {
+          if (!this.running) {
+            return;
           }
+          this.showKeyIndicator();
+          this.keyIndicatorView.pulse();
+          this.openUnlocked(tap.picture, tile);
         });
         return;
       case 'open':
@@ -1430,6 +1471,20 @@ export class PickerScene extends Phaser.Scene {
       case 'ignored':
         return;
     }
+  }
+
+  /** Zámek odemčené omalovánky se otevře a pak se otevře malování (#140 AC5). */
+  private openUnlocked(picture: PictureIdentity, tile: PreviewTileView | undefined): void {
+    if (tile === undefined) {
+      this.openPainting(picture);
+      return;
+    }
+    tile.openLock(() => {
+      // Zámek zmizí i se zrušenou dlaždicí (odchod ze hry): malování jen v běžící scéně.
+      if (this.running) {
+        this.openPainting(picture);
+      }
+    });
   }
 
   /**

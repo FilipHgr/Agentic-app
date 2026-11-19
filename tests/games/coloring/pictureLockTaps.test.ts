@@ -21,14 +21,16 @@ import {
   pictureOf,
   previewIndexOf,
   setPictures,
+  sendKeyTo,
   snapshotOf,
   tapPicture,
+  tapTwice,
   unlockByTap,
 } from './pictureLocksHelpers';
 
 /**
- * Testy k #140 AC4 (bez klíče), AC5 (odemčení klíčem), AC6 (dvojí ťuknutí,
- * druhý prst, dva panely) a AC7 (odemčení, které se nepodaří uložit). Dítě
+ * Testy k #140 AC4 (bez klíče), AC5 (odemčení klíčem, od #159 dvěma
+ * ťuknutími), AC6 (dvojí ťuknutí, druhý prst, dva panely) a AC7 (odemčení, které se nepodaří uložit). Dítě
  * ťuká na náhledy výběru (`PictureChoice.tapPreview`), výběr dostane zámky
  * volbou `startPictureChoice(pictures, { locks })`.
  *
@@ -95,12 +97,20 @@ describe('#140 AC4: bez celého klíče se zamčená omalovánka neotevře', () 
   });
 });
 
-describe('#140 AC5: celý klíč odemkne omalovánku a ta se hned otevře', () => {
-  it('s celým klíčem ťuknutí spotřebuje klíč a otevře omalovánku k malování', async () => {
+/*
+ * #159 AC2 a AC3 nahrazují spotřebu klíče jedním ťuknutím z #140 AC5:
+ * první ťuknutí pošle klíč do zámku a nic nespotřebuje, odemkne až druhé
+ * ťuknutí po doletu klíče (podrobně `keyToLock.test.ts`). Testy níž jsou
+ * původní testy #140 AC5 a AC6 přepsané na dvě ťuknutí (`unlockByTap`,
+ * `sendKeyTo`), nic z toho, co hlídaly, nezmizelo.
+ */
+describe('#140 AC5 (od #159 dvěma ťuknutími): celý klíč odemkne omalovánku a ta se hned otevře', () => {
+  it('s celým klíčem druhé ťuknutí spotřebuje klíč a otevře omalovánku k malování', async () => {
     const page = loadPage(lockDevice());
     completeMaps(page.keys, 2);
     const locks = await enterColoring(page);
     const choice = choiceWith(locks);
+    sendKeyTo(choice, 'car');
 
     const tap = tapPicture(choice, 'car');
 
@@ -158,12 +168,13 @@ describe('#140 AC5: celý klíč odemkne omalovánku a ta se hned otevře', () =
   });
 });
 
-describe('#140 AC6: během odemykání se utratí jen jeden klíč', () => {
+describe('#140 AC6 (od #159 dvěma ťuknutími): během odemykání se utratí jen jeden klíč', () => {
   it('dvojí ťuknutí, druhý prst i ťuknutí na jinou zamčenou omalovánku během odemykání nic neudělá', async () => {
     const page = loadPage(lockDevice());
     completeMaps(page.keys, 6);
     const locks = await enterColoring(page);
     const choice = choiceWith(locks);
+    sendKeyTo(choice, 'car');
 
     expect(tapPicture(choice, 'car').kind).toBe('unlocked');
     expect(tapPicture(choice, 'car'), 'dvojí ťuknutí').toEqual({ kind: 'ignored' });
@@ -184,7 +195,7 @@ describe('#140 AC6: během odemykání se utratí jen jeden klíč', () => {
     const first = choiceWith(firstLocks);
     const second = choiceWith(secondLocks);
 
-    expect(tapPicture(first, 'car').kind, '1. panel').toBe('unlocked');
+    unlockByTap(first, 'car');
     expect(tapPicture(second, 'butterfly'), '2. panel').toEqual({
       kind: 'locked',
       index: previewIndexOf('butterfly'),
@@ -207,7 +218,7 @@ describe('#140 AC6: během odemykání se utratí jen jeden klíč', () => {
     const secondPage = loadPage(device);
     const second = choiceWith(await enterColoring(secondPage));
 
-    expect(tapPicture(first, 'car').kind, '1. panel').toBe('unlocked');
+    unlockByTap(first, 'car');
     expect(tapPicture(second, 'car').kind, '2. panel, stejná omalovánka').toBe('open');
 
     expect(secondPage.keys.balance().wholeKeys, 'zbyl jeden klíč').toBe(1);
@@ -226,7 +237,7 @@ describe('#140 AC6: během odemykání se utratí jen jeden klíč', () => {
         if (choice === undefined) {
           return;
         }
-        const tap = tapPicture(choice, id);
+        const tap = tapTwice(choice, id);
         if (tap.kind === 'unlocked') {
           paintAndReturn(choice);
         }
@@ -252,6 +263,7 @@ describe('#140 AC7: odemčení, které se nepodaří uložit', () => {
     device.storage.failWrite = () => true;
     const choice = choiceWith(locks);
 
+    sendKeyTo(choice, 'car');
     expect(tapPicture(choice, 'car').kind, 'dítě nevidí chybu, omalovánka se otevře').toBe(
       'unlocked',
     );
@@ -305,8 +317,8 @@ describe('#140 AC2: album, velký obrázek a Malovat dál fungují se zámky jak
  * odemčení zdarma (`unlockPaintedPictures`) jen omalovánky s obrysem.
  * Omalovánku bez obrysu nejde zkontrolovat, takže se klíčem odemknout
  * nesmí, dokud se nezkontroluje. Kontrola se dokončí při dalším otevření,
- * kdy obrysy jsou. Ťuknutí na takovou omalovánku klíč nevezme (výsledek
- * není `unlocked`).
+ * kdy obrysy jsou. Ťuknutí na takovou omalovánku klíč nevezme: od #159
+ * klíč ani nevyletí do zámku a zámek se jen zhoupne (`locked`).
  */
 describe('#140 AC2: když se obrys nestáhne, rozmalovaná omalovánka se klíčem neplatí', () => {
   it('když se obrys jedné omalovánky nestáhne, rozmalované auto se klíčem neplatí', async () => {
@@ -316,9 +328,15 @@ describe('#140 AC2: když se obrys nestáhne, rozmalovaná omalovánka se klíč
     completeMaps(page.keys, 2);
     const locks = await enterColoring(page, { missingOutlines: ['fish'] });
 
-    const tap = tapPicture(choiceWith(locks), 'car');
+    const choice = choiceWith(locks);
+    const tap = tapPicture(choice, 'car');
 
-    expect(tap.kind, 'auto se klíčem neodemkne').not.toBe('unlocked');
+    // Auto má obrys, odemklo se zdarma a rovnou se otevře; klíč nevyletí (#159).
+    expect(tap, 'auto se otevře bez klíče').toMatchObject({
+      kind: 'open',
+      index: previewIndexOf('car'),
+    });
+    expect(choice.keyInLock(), 'auto: klíč nevyletěl').toBeNull();
     expect(page.keys.balance().wholeKeys, 'klíč zůstane').toBe(1);
     expect(page.keys.spentItems(), 'nic se neutratilo').toEqual([]);
     const reopened = await enterColoring(loadPage(device));
@@ -337,9 +355,15 @@ describe('#140 AC2: když se obrys nestáhne, rozmalovaná omalovánka se klíč
     completeMaps(page.keys, 2);
     const locks = await enterColoring(page, { missingOutlines: ['fish'] });
 
-    const tap = tapPicture(choiceWith(locks), 'fish');
+    const choice = choiceWith(locks);
+    const tap = tapPicture(choice, 'fish');
 
-    expect(tap.kind, 'rybka se klíčem neodemkne').not.toBe('unlocked');
+    // Od #159: bez staženého obrysu klíč do zámku ani nevyletí, zámek se jen zhoupne.
+    expect(tap, 'rybka se klíčem neodemkne').toMatchObject({
+      kind: 'locked',
+      index: previewIndexOf('fish'),
+    });
+    expect(choice.keyInLock(), 'rybka: klíč nevyletěl').toBeNull();
     expect(page.keys.balance().wholeKeys, 'klíč zůstane').toBe(1);
     expect(page.keys.spentItems(), 'nic se neutratilo').toEqual([]);
     const reopened = await enterColoring(loadPage(device));

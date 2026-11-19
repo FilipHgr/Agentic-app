@@ -25,7 +25,11 @@
  * Od #150 má výběr s víc než 12 omalovánkami šipky ◀ ▶ na listování na
  * podobných místech vůči mřížce jako album (#149). Kniha a ukazatel klíčů
  * zůstanou na svém místě, náhledy stejně velké kromě 5 úzkých telefonů na
- * výšku (viz `layoutPicker`). Čistý TypeScript bez Phaseru.
+ * výšku (viz `layoutPicker`).
+ *
+ * Od #159 doletí klíč z ukazatele do zámku náhledu (`keyInLockAt`): leží
+ * vodorovně hlavou vlevo a hrotem v klíčové dírce zámku uprostřed náhledu.
+ * Čistý TypeScript bez Phaseru.
  */
 
 import { homeButtonInFreeArea } from '../../../shared/logic/homeButton';
@@ -35,6 +39,7 @@ import { albumPageCount } from './album';
 import { pageCountOf } from './pageTurner';
 import { PICTURE_ASPECT, layoutColoring, pictureWithoutBroom } from './coloringLayout';
 import type { LayoutRect } from './coloringLayout';
+import { PICTURE_LOCK_STYLE } from './theme';
 
 /**
  * Míst pro náhledy: 12 v mřížce na šířku 4 × 3, na výšku 3 × 4 nebo 2 × 6 (#132).
@@ -181,6 +186,43 @@ function placeAt(places: readonly LayoutRect[], x: number, y: number): number | 
       x >= rect.left && x < rect.left + rect.width && y >= rect.top && y < rect.top + rect.height,
   );
   return place < 0 ? null : place;
+}
+
+// ---------------------------------------------------------------------------
+// Klíč v zámku (#159)
+// ---------------------------------------------------------------------------
+
+/**
+ * Klíč v zámku (#159): strana čtverce obrázku klíče jako díl strany
+ * zámku, klíčová dírka pod středem zámku jako díl jeho strany (podle
+ * `locked.svg`) a hrot klíče jako díl šířky obrázku od levého okraje.
+ */
+export const KEY_IN_LOCK = {
+  sideShare: 1,
+  keyholeDropShare: 0.21,
+  tipShare: 0.95,
+} as const;
+
+/**
+ * Kam se kreslí klíč v zámku náhledu na místě `place` (0–11) stránky
+ * výběru (herní jednotky): čtverec obrázku klíče, jehož hrot je
+ * v klíčové dírce zámku uprostřed náhledu (#159 AC6).
+ */
+export function keyInLockAt(layout: PickerLayout, place: number): LayoutRect {
+  const preview = layout.previews[place];
+  if (preview === undefined) {
+    return { left: 0, top: 0, width: 0, height: 0 };
+  }
+  const lockSide = Math.min(preview.width, preview.height) * PICTURE_LOCK_STYLE.lockShare;
+  const side = lockSide * KEY_IN_LOCK.sideShare;
+  const keyholeX = preview.left + preview.width / 2;
+  const keyholeY = preview.top + preview.height / 2 + lockSide * KEY_IN_LOCK.keyholeDropShare;
+  return {
+    left: keyholeX - side * KEY_IN_LOCK.tipShare,
+    top: keyholeY - side / 2,
+    width: side,
+    height: side,
+  };
 }
 
 // ---------------------------------------------------------------------------

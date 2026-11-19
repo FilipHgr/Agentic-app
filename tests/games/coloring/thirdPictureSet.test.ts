@@ -52,8 +52,10 @@ import {
   paintAndReturn,
   paintPage,
   pictureOf,
+  sendKeyTo,
   snapshotOf,
   tapPicture,
+  previewIndexOf,
   unlockByTap,
 } from './pictureLocksHelpers';
 import type { LockPage } from './pictureLocksHelpers';
@@ -127,6 +129,9 @@ async function unlockAllBefore152(page: LockPage): Promise<PictureLocks> {
   const choice = startPictureChoice(SET_BEFORE_152, { now: lockClock, locks });
   for (const id of LOCKED_IDS.filter((each) => !THIRD_SET_IDS.some((added) => added === each))) {
     const index = SET_BEFORE_152.findIndex((picture) => picture.id === id);
+    // Od #159 odemyká až druhé ťuknutí po doletu klíče do zámku.
+    expect(choice.tapPreview(index).kind, `před #152: klíč letí k ${id}`).toBe('keyToLock');
+    choice.keyLanded();
     expect(choice.tapPreview(index).kind, `před #152: ${id} se odemkne`).toBe('unlocked');
     paintAndReturn(choice);
   }
@@ -283,6 +288,8 @@ describe('#152 AC3: nové omalovánky jsou zamčené a odemkne je klíč (#140)'
       completeMaps(page.keys, 2);
       const locks = await enterColoring(page);
       const choice = choiceWith(locks);
+      // Od #159 první ťuknutí pošle klíč do zámku, odemkne až druhé.
+      sendKeyTo(choice, id);
 
       const tap = tapPicture(choice, id);
 
@@ -393,6 +400,9 @@ describe('#152 AC3: nové omalovánky jsou zamčené a odemkne je klíč (#140)'
     const locks = await enterColoringBefore152(page);
     const choice = startPictureChoice(SET_BEFORE_152, { now: lockClock, locks });
     const car = SET_BEFORE_152.findIndex((picture) => picture.id === 'car');
+    // Od #159 odemyká až druhé ťuknutí po doletu klíče do zámku.
+    expect(choice.tapPreview(car).kind, 'před #152: klíč letí k autu').toBe('keyToLock');
+    choice.keyLanded();
     expect(choice.tapPreview(car).kind, 'před #152: auto se odemkne klíčem').toBe('unlocked');
     const keysBefore = loadPage(device).keys.balance();
 
@@ -410,9 +420,15 @@ describe('#152 AC4: nenačtený obrys nové omalovánky (#128 AC4, #140 AC2)', (
     completeMaps(page.keys, 2);
     const locks = await enterColoring(page, { missingOutlines: [...THIRD_SET_IDS] });
 
-    const tap = tapPicture(choiceWith(locks), 'dinosaur');
+    const choice = choiceWith(locks);
+    const tap = tapPicture(choice, 'dinosaur');
 
-    expect(tap.kind, 'dinosaurus se klíčem neodemkne').not.toBe('unlocked');
+    // Od #159: bez staženého obrysu klíč do zámku ani nevyletí, zámek se jen zhoupne.
+    expect(tap, 'dinosaurus se klíčem neodemkne').toMatchObject({
+      kind: 'locked',
+      index: previewIndexOf('dinosaur'),
+    });
+    expect(choice.keyInLock(), 'dinosaurus: klíč nevyletěl').toBeNull();
     expect(page.keys.balance().wholeKeys, 'klíč zůstane').toBe(1);
     expect(page.keys.spentItems(), 'nic se neutratilo').toEqual([]);
 
