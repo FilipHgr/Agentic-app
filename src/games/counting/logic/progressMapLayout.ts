@@ -277,6 +277,10 @@ function withGoal(
       ...places.map((place, step) =>
         squareRect({ ...place, size: drawnPlaceSize(step, placeSize, markerSize) }),
       ),
+      // Klíč nepřekryje ani podložku místa (#147 AC3), ta je větší než místo.
+      ...places.map((place) =>
+        squareRect({ ...place, size: placeSize * PROGRESS_MAP_SHAPE.placePadMaxShare }),
+      ),
     ],
     // Štítek drží odstup od čáry cesty po oblouku a nezasáhne do pruhu
     // širokého jako značka (#146 AC2).

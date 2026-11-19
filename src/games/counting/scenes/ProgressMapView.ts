@@ -19,6 +19,7 @@ import {
   markerTrailAt,
 } from '../logic/mapAnimation';
 import { layoutMapFootprints, mapFootprintStyleFor } from '../logic/mapFootprints';
+import { layoutMapPlacePads, mapPlacePadStyleFor } from '../logic/mapPlacePads';
 import { layoutMapScenery } from '../logic/mapScenery';
 import {
   MAP_ARRIVAL_PULSE_SCALE,
@@ -40,6 +41,7 @@ import type { ProgressMapStyle } from '../logic/theme';
 import { GoalKeyBadge } from './GoalKeyBadge';
 import { drawFootprints } from './MapFootprintPieces';
 import type { DrawnFootprints } from './MapFootprintPieces';
+import { drawPlacePads } from './MapPlacePadPieces';
 import { drawScenery, moveScenery } from './MapSceneryPieces';
 import type { DrawnSceneryPiece } from './MapSceneryPieces';
 import { goalSymbolTextureKey, mapPictureTextureKey } from './mapPictureTextures';
@@ -221,7 +223,7 @@ interface MapDrawing {
  * varianta V2): karta má bílý okraj, stín a zaoblené rohy, které obsah
  * mapy (i konfety cíle) oříznou. Obrázek prostředí přes celou kartu,
  * nad ním cesta ze stop podle tématu (#144) na jemné čáře, start, 2 zastávky, cíl se
- * symbolem tématu a značka hráče.
+ * symbolem tématu a značka hráče. Místa leží na podložkách podle tématu (#147).
  * Bez staženého obrázku zástupný vzhled v barvě mapy (#134 AC4).
  * Nad pozadím (obrázkem i zástupným) a pod cestou se jemně hýbe prostředí
  * podle tématu (#136, `logic/mapScenery.ts`).
@@ -432,6 +434,12 @@ export class ProgressMapView {
       mapFootprintStyleFor(move.theme, look),
       this.scene.cameras.main.zoom,
     );
+    const pads = drawPlacePads(
+      this.scene,
+      move.theme,
+      layoutMapPlacePads(area, move.theme, layout),
+      mapPlacePadStyleFor(move.theme, look),
+    );
     const trail = this.scene.add.graphics();
     const places = layout.places.map((_, step) =>
       this.drawPlace(layout, style, step, isPlaceLitAt(move, step, elapsed)),
@@ -451,6 +459,7 @@ export class ProgressMapView {
         ...scenery.map(({ graphics }) => graphics),
         path,
         ...footprints.objects,
+        pads,
         ...places,
         trail,
         goal,

@@ -285,6 +285,66 @@ export const MAP_SCENERY_COLORS = {
   cometTail: '#FFD633',
 } as const;
 
+/** Barvy podložky místa (#147): plocha, na které leží kruh místa, a okraj. */
+interface PlacePadColors {
+  readonly fillColor: string;
+  readonly outlineColor: string;
+}
+
+/**
+ * Podložky zastávek podle mapy (#147): s obrázkem a v zástupném vzhledu.
+ * Plocha je světlá, aby na ní byl vidět tmavý okraj zhasnutého místa
+ * i modré rozsvícené místo; tmavý okraj odliší podložku od obrázku. Ve
+ * vesmíru je na tmavém obrázku planetka tmavá s bílým okrajem (bílý okraj
+ * míst na ní je vidět). `details` jsou barvy kresby (letokruhy, řasa,
+ * krátery), na kontrastu nezávisí.
+ */
+export const MAP_PLACE_PAD_COLORS: Readonly<
+  Record<
+    MapThemeId,
+    {
+      readonly picture: PlacePadColors;
+      readonly placeholder: PlacePadColors;
+      readonly details: readonly string[];
+    }
+  >
+> = {
+  /** Pařez: světlé dřevo řezu, tmavá kůra, letokruhy a kořeny. */
+  forest: {
+    picture: { fillColor: '#F0D6B0', outlineColor: '#3D2600' },
+    placeholder: { fillColor: '#F0D6B0', outlineColor: '#3D2600' },
+    details: ['#C49A6C', '#8A5A2B'],
+  },
+  /** Písečný kopeček: světlý písek s hnědým okrajem, zrnka a šedé kamínky. */
+  island: {
+    picture: { fillColor: '#FFF0C8', outlineColor: '#5A3A10' },
+    placeholder: { fillColor: '#FFF0C8', outlineColor: '#5A3A10' },
+    details: ['#E3C27E', '#B8B2A6'],
+  },
+  /** Kamenná dlaždice: světle šedý kámen se spárou. */
+  castle: {
+    picture: { fillColor: '#E4E4EA', outlineColor: '#2E2E36' },
+    placeholder: { fillColor: '#E4E4EA', outlineColor: '#2E2E36' },
+    details: ['#A9A9B4'],
+  },
+  /** Kámen s řasou: světlý modrošedý kámen, za ním zelené řasy. */
+  underwater: {
+    picture: { fillColor: '#DCEBEF', outlineColor: '#1F2A36' },
+    placeholder: { fillColor: '#DCEBEF', outlineColor: '#1F2A36' },
+    details: ['#2E8B57', '#A7C4CC'],
+  },
+  /**
+   * Planetka: na tmavém vesmíru nejsvětlejší fialová, na které je modré
+   * rozsvícené místo vidět aspoň 3 : 1 (#3A2D63 by mělo jen 2,1 : 1),
+   * s bílým okrajem; bez obrázku světlá. Krátery a zlatý prstenec.
+   */
+  space: {
+    picture: { fillColor: '#1B0E3B', outlineColor: '#FFFFFF' },
+    placeholder: { fillColor: '#EFE9FF', outlineColor: '#3A2D63' },
+    details: ['#A898E0', '#F5B800'],
+  },
+};
+
 /** Šířka okraje jako díl průměru: místo, cíl a značka hráče. */
 export const PROGRESS_MAP_SHAPE = {
   placeBorderShare: 0.08,
@@ -303,6 +363,11 @@ export const PROGRESS_MAP_SHAPE = {
    * O tento díl průměru zvětšeného podkladu je slavící cíl i se září větší.
    */
   goalGlowShare: 0.3,
+  /**
+   * Podložka místa (#147 AC2): největší vnější rozměr jako násobek
+   * průměru místa. Klíč u cíle drží odstup od celé podložky.
+   */
+  placePadMaxShare: 1.5,
 } as const;
 
 /**
