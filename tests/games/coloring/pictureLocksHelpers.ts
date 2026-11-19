@@ -20,7 +20,7 @@
  * a otevře zámky (`openPictureLocks`) nad úložištěm hry a klíči od
  * stránky. Výběr (`startPictureChoice`) dostane zámky volbou `locks`.
  *
- * Testy pracují se skutečnou sadou 11 omalovánek (`COLORING_PICTURES`),
+ * Testy pracují se skutečnou sadou (`COLORING_PICTURES`, od #151 papír a 11 omalovánek),
  * protože AC1 jmenuje, které tři jsou odemčené. Obrys mají všechny
  * zkušební (`twoHalves()`), logika zámků obrys nezná.
  *

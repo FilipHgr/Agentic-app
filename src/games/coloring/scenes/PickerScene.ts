@@ -15,6 +15,7 @@ import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import { albumPageEntries, ALBUM_PAGE_SIZE, readAlbum } from '../logic/album';
 import type { AlbumContents, AlbumEntry, AlbumPicture } from '../logic/album';
 import { settleAlbumSwap } from '../logic/albumSwap';
+import { isBlankPaper } from '../logic/blankPaper';
 import { COLORING_GAME_AREA_FIT } from '../logic/coloringLayout';
 import { startColoringSession } from '../logic/coloringSession';
 import type { ColoringPage } from '../logic/coloringSession';
@@ -452,7 +453,8 @@ export class PickerScene extends Phaser.Scene {
     if (!this.isTileShown(tile)) {
       return;
     }
-    tile.show(image, null);
+    const paperMark = isBlankPaper(picture);
+    tile.show(image, null, paperMark);
     const prepared = await assets.prepared;
     const size = tile.pixelSize();
     if (!this.isTileShown(tile) || size === null) {
@@ -466,7 +468,7 @@ export class PickerScene extends Phaser.Scene {
       width: size.width,
       height: size.height,
     });
-    tile.show(image, preview);
+    tile.show(image, preview, paperMark);
   }
 
   /** Je dlaždice pořád na výběru (scéna neskončila a dlaždice se nezahodila)? */

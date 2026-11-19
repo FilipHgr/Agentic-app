@@ -132,8 +132,10 @@ describe('#124 AC1: po otevření Omalovánek vidí dítě výběr omalovánek',
   });
 
   // #128 AC1 nahrazuje 2 zástupné omalovánky pěti skutečnými (realPictureSet.test.ts).
-  it('sada ve hře začíná omalovánkou domku s označením house verze 1 a omalovánky mají různá označení', () => {
-    expect(COLORING_PICTURES[0], 'domek je první').toEqual(HOUSE);
+  // Upraveno k #151 AC1: na 1. místě je papír, domek je hned za ním.
+  it('sada ve hře začíná papírem a za ním omalovánkou domku s označením house verze 1 a omalovánky mají různá označení', () => {
+    expect(COLORING_PICTURES[0], 'papír je první').toEqual({ id: 'paper', version: 1 });
+    expect(COLORING_PICTURES[1], 'domek je hned za papírem').toEqual(HOUSE);
     const ids = COLORING_PICTURES.map((picture) => picture.id);
     expect(new Set(ids).size, 'každá omalovánka má vlastní označení').toBe(ids.length);
   });

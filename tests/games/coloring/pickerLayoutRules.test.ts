@@ -25,7 +25,7 @@ import { COLORING_WINDOWS, HOME_NAME, boxOfRect, isLandscapeArea } from './color
 
 /**
  * Testy k #124 AC6 (rozložení výběru) a AC5 (ťuknutí mimo náhledy), od #132
- * AC4 pro 11 omalovánek: pravidla v cyklu pro všechna okna testů rozložení
+ * AC4 pro 11 omalovánek a od #151 AC1 pro 12 náhledů (papír a 11 omalovánek): pravidla v cyklu pro všechna okna testů rozložení
  * Omalovánek (`COLORING_WINDOWS`), jeden test na pravidlo, měří se pro 11
  * náhledů (#132 AC4).
  *
@@ -53,8 +53,18 @@ import { COLORING_WINDOWS, HOME_NAME, boxOfRect, isLandscapeArea } from './color
 /** Míst v mřížce výběru od #132 (mřížka alba z #126). */
 const GRID_PLACES = 12;
 
-/** Náhledů se měří 11, kolik má sada omalovánek (#132 AC4). */
-const MEASURED_PREVIEWS = 11;
+/**
+ * Náhledů se měří tolik, kolik má sada: 11 omalovánek (#132 AC4) a od
+ * #151 AC1 navíc papír na 1. místě, takže sada zaplní všech 12 míst.
+ */
+const MEASURED_PREVIEWS = 12;
+
+/**
+ * Sada s 11 omalovánkami, jakou hra měla před #151 (bez papíru): s ní
+ * zůstane 12. místo prázdné (#132 AC4). Pravidlo prázdného místa platí dál
+ * pro každou sadu s méně omalovánkami, než je míst.
+ */
+const ELEVEN_PICTURES = COLORING_PICTURES.slice(1);
 
 /** Sloupce a řady mřížky podle schválených obrázků #132. */
 const LANDSCAPE_GRID = { columns: 4, rows: 3 };
@@ -81,7 +91,7 @@ interface PickerCase {
   readonly home: Box;
   /** Všech 12 míst mřížky v CSS px. */
   readonly places: readonly Box[];
-  /** 11 náhledů omalovánek (místa 1–11) v CSS px. */
+  /** Náhledy sady (od #151 AC1 12: papír a 11 omalovánek, místa 1–12) v CSS px. */
   readonly previews: readonly Box[];
   readonly scene: LayoutScene;
 }
@@ -164,7 +174,8 @@ describe('#124 a #132 AC4: výběr omalovánky dodrží společná pravidla rozl
     expect(cases().some((testCase) => !testCase.landscape)).toBe(true);
   });
 
-  it('výběr má 12 míst pro náhledy ve všech oknech a měří se 11 náhledů sady', () => {
+  // Upraveno k #151 AC1: s papírem se měří všech 12 náhledů sady.
+  it('výběr má 12 míst pro náhledy ve všech oknech a měří se 12 náhledů sady (papír a 11 omalovánek)', () => {
     expect(COLORING_PICTURES.length, 'omalovánek v sadě').toBe(MEASURED_PREVIEWS);
     for (const testCase of cases()) {
       expect(testCase.places.length, testCase.scene.label).toBe(GRID_PLACES);
@@ -181,8 +192,8 @@ describe('#124 a #132 AC4: výběr omalovánky dodrží společná pravidla rozl
   }
 });
 
-describe('#132 AC4: všech 11 náhledů se vejde bez posouvání', () => {
-  it('všech 11 náhledů je uvnitř bezpečné plochy, kde je hra vidět', () => {
+describe('#132 AC4 a #151 AC1: všechny náhledy sady (12) se vejdou bez posouvání', () => {
+  it('všechny náhledy sady jsou uvnitř bezpečné plochy, kde je hra vidět', () => {
     for (const testCase of cases()) {
       testCase.previews.forEach((preview, index) => {
         expect(
@@ -457,7 +468,9 @@ describe('#124 AC5: ťuknutí mimo náhledy nic neudělá', () => {
   });
 });
 
-describe('#132 AC4: 12. místo mřížky je prázdné', () => {
+// Upraveno k #151 AC1: dnešní sada s papírem 12. místo zaplní, prázdné místo se proto
+// hlídá se sadou 11 omalovánek (ELEVEN_PICTURES).
+describe('#132 AC4: 12. místo mřížky je prázdné, když má sada 11 omalovánek', () => {
   it('ťuknutí na 12. místo nic neotevře a dítě zůstane na výběru', () => {
     for (const testCase of cases()) {
       const rect = testCase.layout.previews[GRID_PLACES - 1];
@@ -470,7 +483,7 @@ describe('#132 AC4: 12. místo mřížky je prázdné', () => {
         rect.top + rect.height / 2,
       );
       expect(place, `${testCase.scene.label}: místo pod prstem`).toBe(GRID_PLACES - 1);
-      const choice = startPictureChoice(COLORING_PICTURES, { now: () => 0 });
+      const choice = startPictureChoice(ELEVEN_PICTURES, { now: () => 0 });
       expect(choice.tapPreview(place ?? -1), `${testCase.scene.label}: ťuknutí`).toEqual({
         kind: 'ignored',
       });
@@ -479,12 +492,33 @@ describe('#132 AC4: 12. místo mřížky je prázdné', () => {
   });
 
   it('na 12. místě není žádná omalovánka sady (náhled se tam nekreslí)', () => {
-    expect(COLORING_PICTURES[GRID_PLACES - 1]).toBeUndefined();
-    const choice = startPictureChoice(COLORING_PICTURES, { now: () => 0 });
+    expect(ELEVEN_PICTURES[GRID_PLACES - 1]).toBeUndefined();
+    const choice = startPictureChoice(ELEVEN_PICTURES, { now: () => 0 });
     expect(choice.previews().length, 'náhledů na výběru').toBe(GRID_PLACES - 1);
   });
 
-  it('ťuknutí na každé z míst 1–11 otevře právě omalovánku na tom místě', () => {
+  it('#151 AC1: s papírem je na 12. místě poslední omalovánka sady a ťuknutí ji otevře', () => {
+    expect(COLORING_PICTURES.length, 'papír a 11 omalovánek').toBe(GRID_PLACES);
+    for (const testCase of cases()) {
+      const rect = testCase.layout.previews[GRID_PLACES - 1];
+      if (rect === undefined) {
+        throw new Error(`${testCase.scene.label}: chybí 12. místo`);
+      }
+      const place = previewAt(
+        testCase.layout,
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+      );
+      const choice = startPictureChoice(COLORING_PICTURES, { now: () => 0 });
+      expect(choice.tapPreview(place ?? -1), testCase.scene.label).toMatchObject({
+        kind: 'open',
+        picture: COLORING_PICTURES[GRID_PLACES - 1],
+      });
+    }
+  });
+
+  // Od #151 AC1 jsou to místa 1–12 (papír a 11 omalovánek).
+  it('ťuknutí na každé z míst 1–12 otevře právě omalovánku na tom místě', () => {
     for (const testCase of cases()) {
       testCase.layout.previews.slice(0, MEASURED_PREVIEWS).forEach((rect, index) => {
         const place = previewAt(

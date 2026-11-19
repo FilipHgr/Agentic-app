@@ -7,8 +7,11 @@
  * `tools/design/outline-from-image.mjs`. Všechny jsou v repozitáři a stáhnou
  * se až s hrou z vlastního serveru, nic se nestahuje z cizích serverů.
  * Při změně obrysu se v `logic/pictureSet.ts` zvýší verze omalovánky (#92).
+ * Prázdný papír (#151) obrys nemá: jeho plátno zůstane průhledné a mapa
+ * oblastí je celá plocha jako jedna oblast (`blankPaperRegions`).
  */
 
+import { blankPaperRegions, isBlankPaper } from '../logic/blankPaper';
 import { buildRegionMap, outlineFromImage } from '../logic/regionMap';
 import type { RegionMap } from '../logic/regionMap';
 import type { PictureIdentity } from '../logic/savedPicture';
@@ -60,6 +63,10 @@ export interface PreparedPicture {
 
 /** Načte obrázek obrysu omalovánky; `null`, když nejde načíst. */
 export async function loadOutlineImage(picture: PictureIdentity): Promise<HTMLImageElement | null> {
+  if (isBlankPaper(picture)) {
+    // Papír nemá obrys, není co načítat.
+    return null;
+  }
   const svg = OUTLINE_SVGS[picture.id];
   if (svg !== undefined) {
     return loadSvgOutline(svg);
@@ -129,7 +136,25 @@ export function preparePicture(
   width: number,
   height: number,
 ): PreparedPicture {
+  if (isBlankPaper(picture)) {
+    return prepareBlankPaper(picture, width, height);
+  }
   const outline = drawPictureOutline(image, width, height);
   const regions = buildRegionMap(outlineFromImage(snapshotOf(outline.canvas)));
   return { picture, image, outline, regions };
+}
+
+/**
+ * Papír (#151): průhledné plátno bez obrysu, které je přesto „vykreslené“
+ * (papír se ukládá a patří do alba), a mapa oblastí papíru.
+ */
+function prepareBlankPaper(
+  picture: PictureIdentity,
+  width: number,
+  height: number,
+): PreparedPicture {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return { picture, image: null, outline: { canvas, drawn: true }, regions: blankPaperRegions() };
 }

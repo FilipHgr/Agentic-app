@@ -5,12 +5,15 @@
  * omalovánce v sadě se výběr přeskočí a hra se otevře rovnou v malování.
  * Od #128 jsou v sadě skutečné omalovánky; zástupné kruhy a hvězda zmizely
  * (jejich uložené obrázky zůstanou v úložišti, jen se nikde neukážou).
+ * Od #151 je na 1. místě prázdný papír na volné kreslení (`blankPaper.ts`).
  * Čistý TypeScript bez Phaseru.
  */
 
+import { BLANK_PAPER } from './blankPaper';
 import type { PictureIdentity } from './savedPicture';
 
 export const COLORING_PICTURES: readonly PictureIdentity[] = [
+  BLANK_PAPER,
   // Domek má dál dnešní označení, aby se dnešní uložené obrázky otevřely (#124 AC2).
   { id: 'house', version: 1 },
   { id: 'cat', version: 1 },

@@ -61,8 +61,14 @@ describe('#140 AC1: nový profil má odemčené první 3 omalovánky', () => {
     }
   });
 
-  it('sada má 11 omalovánek a odemčené jsou první 3 v pořadí náhledů', () => {
-    expect(COLORING_PICTURES.map((picture) => picture.id)).toEqual([...FREE_IDS, ...LOCKED_IDS]);
+  // Upraveno k #151 AC1: před 11 omalovánkami je papír, který se do zámků nepočítá,
+  // odemčené jsou dál první 3 omalovánky za ním.
+  it('sada má papír a 11 omalovánek a odemčené jsou první 3 omalovánky za papírem v pořadí náhledů', () => {
+    expect(COLORING_PICTURES.map((picture) => picture.id)).toEqual([
+      'paper',
+      ...FREE_IDS,
+      ...LOCKED_IDS,
+    ]);
   });
 
   it('profil, který hrál jen Počítání, má odemčené jen první 3 a klíče mu zůstanou', async () => {

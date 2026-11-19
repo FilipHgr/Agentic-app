@@ -1,7 +1,8 @@
 /// <reference types="vite/client" />
 /**
- * Pomůcky pro testy k #128 (pět skutečných omalovánek místo kruhů a hvězdy)
- * a #132 (pět dalších omalovánek, celkem 11).
+ * Pomůcky pro testy k #128 (pět skutečných omalovánek místo kruhů a hvězdy),
+ * #132 (pět dalších omalovánek, celkem 11) a #151 (prázdný papír na
+ * 1. místě, celkem 12 náhledů).
  *
  * Obrysy jsou soubory `src/games/coloring/pictures/<id>.png` (doporučení
  * k otázce 1: PNG s paletou a 16 úrovněmi průhlednosti). Testy je čtou přes
@@ -38,11 +39,25 @@ export const FIRST_SIX_SET: readonly PictureIdentity[] = [
   ...NEW_PICTURE_IDS.map((id) => ({ id, version: 1 })),
 ];
 
-/** Celá sada ve hře v pořadí náhledů (#132 AC1): prvních 6 a pět nových na konci, verze 1. */
-export const EXPECTED_SET: readonly PictureIdentity[] = [
+/**
+ * Prázdný papír na volné kreslení (#151): bez obrysu, v sadě na 1. místě.
+ * Označení je navržené v testech #151 (`paper` verze 1), schválně opsané,
+ * ne konstanta z kódu.
+ */
+export const PAPER: PictureIdentity = { id: 'paper', version: 1 };
+
+/** 11 omalovánek s obrysem v pořadí sady (#132 AC1): prvních 6 a pět nových na konci, verze 1. */
+export const OUTLINE_SET: readonly PictureIdentity[] = [
   ...FIRST_SIX_SET,
   ...SECOND_SET_IDS.map((id) => ({ id, version: 1 })),
 ];
+
+/**
+ * Celá sada ve hře v pořadí náhledů. Od #151 AC1 je na 1. místě papír
+ * a 11 omalovánek s obrysem se posunulo o jedno místo (před #151 byla
+ * sada jen `OUTLINE_SET`).
+ */
+export const EXPECTED_SET: readonly PictureIdentity[] = [PAPER, ...OUTLINE_SET];
 
 /** Rozměr obrysu a vrstvy barev v malování (AC2). */
 export const OUTLINE_WIDTH = 1024;

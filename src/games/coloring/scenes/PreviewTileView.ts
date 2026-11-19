@@ -18,16 +18,26 @@
 import Phaser from 'phaser';
 
 import { CANVAS_PIXELS_PER_CSS_PX } from '../../../shared/logic/canvasResolution';
+import { FONT_FAMILY } from '../../../shared/logic/theme';
 import type { LayoutRect } from '../logic/coloringLayout';
 import { previewCellHex } from '../logic/picturePreview';
 import type { PicturePreview, PreviewCell } from '../logic/picturePreview';
-import { BOOK_FLIGHT_STYLE, PICKER_TILE_STYLE, PICTURE_LOCK_STYLE, rgbOf } from '../logic/theme';
+import {
+  BOOK_FLIGHT_STYLE,
+  PAPER_MARK_STYLE,
+  PICKER_TILE_STYLE,
+  PICTURE_LOCK_STYLE,
+  rgbOf,
+} from '../logic/theme';
 import { LOCK_ICON_FILE, UNLOCKED_ICON_FILE } from '../logic/toolIcons';
 import { iconFileTexture } from './toolIconTextures';
 
 /** Zámek bez načteného SVG: systémové emoji (symbol, ne text jazyka). */
 const LOCK_SYMBOL = '🔒';
 const UNLOCKED_SYMBOL = '🔓';
+
+/** Značka prázdného papíru na výběru (#151): tužka bez emoji podoby (symbol, ne text jazyka). */
+const PAPER_MARK_SYMBOL = '✎';
 
 /** Závoj a zámek zamčené omalovánky (#140). */
 interface LockLayer {
@@ -86,6 +96,16 @@ function roundedRectPath(
   context.arcTo(0, height, 0, 0, r);
   context.arcTo(0, 0, width, 0, r);
   context.closePath();
+}
+
+/** Šedá tužka ✎ uprostřed dlaždice prázdného papíru (#151). */
+function drawPaperMark(context: CanvasRenderingContext2D, width: number, height: number): void {
+  const size = Math.round(Math.min(width, height) * PAPER_MARK_STYLE.sizeShare);
+  context.fillStyle = PAPER_MARK_STYLE.color;
+  context.font = `${size}px ${FONT_FAMILY}`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(PAPER_MARK_SYMBOL, width / 2, height / 2);
 }
 
 /** Plátno s barvami náhledu (pozadí, obrys a barvy dítěte bez míchání). */
@@ -297,8 +317,13 @@ export class PreviewTileView {
   /**
    * Nakreslí obrázek dlaždice: bílá plocha, barvy náhledu (když jsou)
    * a nad nimi ostře zmenšený obrys. Bez obrysu zůstane bílá dlaždice.
+   * S `paperMark` je navrch šedá tužka prázdného papíru (#151).
    */
-  show(outline: HTMLImageElement | null, colors: PicturePreview | null): void {
+  show(
+    outline: HTMLImageElement | null,
+    colors: PicturePreview | null,
+    paperMark: boolean = false,
+  ): void {
     const size = this.pixelSize();
     if (this.place === null || size === null) {
       return;
@@ -325,6 +350,9 @@ export class PreviewTileView {
       context.imageSmoothingEnabled = true;
       context.imageSmoothingQuality = 'high';
       context.drawImage(outline, 0, 0, size.width, size.height);
+    }
+    if (paperMark) {
+      drawPaperMark(context, size.width, size.height);
     }
     this.setCanvas(canvas);
   }

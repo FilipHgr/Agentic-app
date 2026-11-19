@@ -262,6 +262,16 @@ export const PICKER_TILE_STYLE = {
 } as const;
 
 /**
+ * Dlaždice prázdného papíru na výběru (#151): bílý list a uprostřed šedá
+ * tužka ✎, aby se papír na první pohled lišil od rozmalované omalovánky.
+ */
+export const PAPER_MARK_STYLE = {
+  color: SECONDARY,
+  /** Výška značky jako díl kratší strany dlaždice. */
+  sizeShare: 0.6,
+} as const;
+
+/**
  * Zamčená omalovánka na výběru (#140): náhled ztlumený bílým závojem
  * a uprostřed zámek. Bez klíče se zámek zhoupne, s klíčem se vymění za
  * otevřený zámek, poskočí a se závojem zmizí, pak se otevře malování.

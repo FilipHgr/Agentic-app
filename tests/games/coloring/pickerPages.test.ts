@@ -51,7 +51,8 @@ describe('#150 AC1: výběr ukazuje omalovánky po 12 ve stálém pořadí sady'
   it('testovací sady mají 13 a 25 omalovánek a do hry nepřibyl žádný obrázek (AC3)', () => {
     expect(THIRTEEN_PICTURES.length).toBe(13);
     expect(TWENTY_FIVE_PICTURES.length).toBe(25);
-    expect(COLORING_PICTURES.length, 'omalovánek ve hře').toBe(11);
+    // #151 AC1: ve hře je papír a 11 omalovánek.
+    expect(COLORING_PICTURES.length, 'papír a omalovánky ve hře').toBe(12);
   });
 
   it('výběr se otevře na 1. stránce s 1. až 12. omalovánkou', () => {
@@ -261,14 +262,17 @@ describe('#150 AC1: při 12 a méně omalovánkách se nelistuje a výběr je ja
     }
   });
 
-  it('dnešní sada 11 omalovánek je celá na jediné stránce ve stejném pořadí', () => {
+  // Od #151 AC1 má dnešní sada papír a 11 omalovánek, pořád jen jednu stránku.
+  it('dnešní sada s papírem a 11 omalovánkami je celá na jediné stránce ve stejném pořadí', () => {
     const choice = enterPagedPicker(COLORING_PICTURES);
 
     expect(choice.pagePreviews()).toEqual(COLORING_PICTURES);
     expect(choice.previews()).toEqual(COLORING_PICTURES);
   });
 
-  it('s dnešní sadou otevře ťuknutí na místa 1 až 11 stejnou omalovánku jako dnes a 12. místo nic', () => {
+  // Upraveno k #151 AC1: sada zaplní všech 12 míst (místo 1 papír), místo za
+  // stránkou nic neotevře. Prázdné 12. místo s 11 omalovánkami hlídá test výše (2, 11, 12).
+  it('s dnešní sadou otevře ťuknutí na místa 1 až 12 omalovánku sady na tom místě a místo za stránkou nic', () => {
     COLORING_PICTURES.forEach((picture, place) => {
       const choice = enterPagedPicker(COLORING_PICTURES);
       expect(choice.tapPreview(place), `místo ${place + 1}`).toEqual({
@@ -278,7 +282,11 @@ describe('#150 AC1: při 12 a méně omalovánkách se nelistuje a výběr je ja
         tones: PREVIEW_TAP_TONES,
       });
     });
-    expect(enterPagedPicker(COLORING_PICTURES).tapPreview(11)).toEqual({ kind: 'ignored' });
+    expect(enterPagedPicker(COLORING_PICTURES).tapPreview(12)).toEqual({ kind: 'ignored' });
+    expect(
+      enterPagedPicker(testPictures(11)).tapPreview(11),
+      '12. místo s 11 omalovánkami',
+    ).toEqual({ kind: 'ignored' });
   });
 
   it('s jedinou omalovánkou se výběr přeskočí jako dnes a nelistuje se', () => {

@@ -53,11 +53,11 @@ import { at } from './strokeHelpers';
  * domeček do menu. Druhý prst ani dvojí podržení obrázek neuloží dvakrát.
  * Každý profil mění jen své album a své stránky.
  *
- * Zámky se testují se skutečnou sadou 11 omalovánek a správou profilů
+ * Zámky se testují se skutečnou sadou (od #151 papír a 11 omalovánek) a správou profilů
  * (`pictureLocksHelpers.ts`), protože #140 jmenuje, které jsou odemčené.
  */
 
-/** Výběr nad sadou 11 omalovánek s albem a úložištěm profilu, bez zámků. */
+/** Výběr nad celou sadou (od #151 s papírem) s albem a úložištěm profilu, bez zámků. */
 function choiceOnPage(page: LockPage): PictureChoice {
   return startPictureChoice(COLORING_PICTURES, {
     now: lockClock,

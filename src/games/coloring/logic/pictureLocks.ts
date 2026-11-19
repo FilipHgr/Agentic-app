@@ -19,12 +19,16 @@
  * obrysu odemčenou omalovánku nezamkla. Stav se čte znovu při každém
  * volání, takže dva panely vidí stejné odemčení i klíče (AC6). Selhání
  * úložiště ani klíčů hra nikdy nevyhodí (AC7).
+ *
+ * Prázdný papír (#151) není nikdy zamčený: klíč nebere a ukazatel klíčů
+ * ho nepočítá.
  */
 
 import type { KeyRewards } from '../../../shared/logic/keyRewards';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import { NO_COLOR } from './coloring';
 import type { AlbumContents, AlbumPicture } from './album';
+import { isBlankPaper } from './blankPaper';
 import { COLORING_PICTURES } from './pictureSet';
 import { readStoredPage } from './savedPicture';
 import type { PictureIdentity } from './savedPicture';
@@ -236,6 +240,7 @@ export function openPictureLocks(options: {
   const { pictures, storage, keyRewards } = options;
 
   const isLocked = (picture: PictureIdentity): boolean =>
+    !isBlankPaper(picture) &&
     !FREE_PICTURE_IDS.includes(picture.id) &&
     !readUnlocks(storage).unlocked.includes(picture.id) &&
     !spentItemsOf(keyRewards).includes(SPEND_ITEM_PREFIX + picture.id);

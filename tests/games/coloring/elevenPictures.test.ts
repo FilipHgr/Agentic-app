@@ -94,9 +94,11 @@ describe('#132 AC1: prvních 6 omalovánek se po rozšíření sady ukáže stej
     });
 
     FIRST_SIX_SET.forEach((picture, index) => {
-      expect(indexInSet(picture), `${picture.id} je na stejné pozici`).toBe(index);
+      // #151 AC1: před omalovánkami je papír, omalovánka je o jedno místo dál.
+      const place = indexInSet(picture);
+      expect(place, `${picture.id} je za papírem ve stejném pořadí`).toBe(index + 1);
       const choice = enterPicker(COLORING_PICTURES);
-      const game = openFromPicker(choice, index, coloringStorage(openProfiles(device)), regions);
+      const game = openFromPicker(choice, place, coloringStorage(openProfiles(device)), regions);
       expect(pixelsOf(game, regions), `${picture.id}: obrázek pixel po pixelu`).toEqual(
         before[index]?.pixels,
       );
@@ -118,9 +120,10 @@ describe('#132 AC1: prvních 6 omalovánek se po rozšíření sady ukáže stej
     const shownBefore = FIRST_SIX_SET.map((picture) =>
       previewCells(loadPicturePreview({ storage, picture, regions, width: 40, height: 30 })),
     );
+    // #151 AC1: prvních 6 omalovánek je za papírem na místech 2–7.
     enterPicker(COLORING_PICTURES)
       .previews()
-      .slice(0, 6)
+      .slice(1, 7)
       .forEach((picture, index) => {
         expect(
           previewCells(loadPicturePreview({ storage, picture, regions, width: 40, height: 30 })),
@@ -159,7 +162,8 @@ describe('#132 AC1: prvních 6 omalovánek se po rozšíření sady ukáže stej
 });
 
 describe('#132 AC5: ťuknutí na náhled nové omalovánky', () => {
-  it('ťuknutí na kterýkoli z 11 náhledů otevře právě tuto omalovánku', () => {
+  // Od #151 AC1 je náhledů 12 (papír a 11 omalovánek).
+  it('ťuknutí na kterýkoli z 12 náhledů otevře právě tuto omalovánku', () => {
     expect(COLORING_PICTURES).toEqual(EXPECTED_SET);
     COLORING_PICTURES.forEach((picture, index) => {
       const choice = enterPicker(COLORING_PICTURES);
@@ -346,7 +350,9 @@ describe('#132 AC5: plné úložiště platí pro každou z 11 omalovánek zvlá
     const device = new DeviceStorage();
     const regions = twoHalves();
     const choice = enterPicker(COLORING_PICTURES);
-    const cat = openFromPicker(choice, 1, coloringStorage(openProfiles(device)), regions);
+    // #151 AC1: kočka je za papírem a domkem, místo se hledá podle označení.
+    const catPlace = indexInSet({ id: 'cat', version: 1 });
+    const cat = openFromPicker(choice, catPlace, coloringStorage(openProfiles(device)), regions);
     paint(cat, [at(20, 100), at(140, 100)]);
     const catPixels = pixelsOf(cat, regions);
     backToPicker(choice, cat);
@@ -365,7 +371,12 @@ describe('#132 AC5: plné úložiště platí pro každou z 11 omalovánek zvlá
 
     device.failWrite = () => false;
     const reloaded = enterPicker(COLORING_PICTURES);
-    const again = openFromPicker(reloaded, 1, coloringStorage(openProfiles(device)), regions);
+    const again = openFromPicker(
+      reloaded,
+      catPlace,
+      coloringStorage(openProfiles(device)),
+      regions,
+    );
     expect(pixelsOf(again, regions), 'kočka po obnovení').toEqual(catPixels);
     for (const picture of newPictures()) {
       const game = openFromPicker(

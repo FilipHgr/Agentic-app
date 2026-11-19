@@ -39,7 +39,9 @@ import {
   FIRST_SIX_SET,
   OUTLINE_HEIGHT,
   OUTLINE_PICTURE_IDS,
+  OUTLINE_SET,
   OUTLINE_WIDTH,
+  PAPER,
   PICTURE_FILES,
   SECOND_SET_IDS,
   outlineFileName,
@@ -116,12 +118,14 @@ function cellsOf(preview: PicturePreview): PreviewCell[] {
 }
 
 describe('#128 a #132 AC1: na výběru je 11 skutečných omalovánek', () => {
-  it('sada má 11 omalovánek ve stálém pořadí: domek, kočka, pejsek, auto, motýl, rybka, moře, mořská panna, duha, vánoční baňka, jednorožec', () => {
+  // Upraveno k #151 AC1: před 11 omalovánkami je na 1. místě papír.
+  it('sada má papír a za ním 11 omalovánek ve stálém pořadí: domek, kočka, pejsek, auto, motýl, rybka, moře, mořská panna, duha, vánoční baňka, jednorožec', () => {
     expect(COLORING_PICTURES).toEqual(EXPECTED_SET);
-    expect(COLORING_PICTURES.length, 'omalovánek v sadě').toBe(11);
+    expect(COLORING_PICTURES.length, 'papír a 11 omalovánek').toBe(12);
+    expect(COLORING_PICTURES.slice(1), 'omalovánky s obrysem').toEqual(OUTLINE_SET);
   });
 
-  it('výběr ve hře ukáže náhledy všech 11 omalovánek v pořadí sady', () => {
+  it('výběr ve hře ukáže náhledy papíru a všech 11 omalovánek v pořadí sady', () => {
     const choice = enterPicker(COLORING_PICTURES);
     expect(choice.screen()).toEqual({ kind: 'picker' });
     expect(choice.previews()).toEqual(EXPECTED_SET);
@@ -148,32 +152,45 @@ describe('#128 a #132 AC1: na výběru je 11 skutečných omalovánek', () => {
     expect(new Set(ids).size, 'každá omalovánka má vlastní označení').toBe(ids.length);
   });
 
-  it('každá omalovánka sady má obrys: domek house.svg, nové omalovánky <id>.png', () => {
-    for (const picture of COLORING_PICTURES) {
+  // Upraveno k #151: papír obrys nemá (nepotřebuje žádný obrázek), ostatní ano.
+  it('každá omalovánka sady má obrys: domek house.svg, nové omalovánky <id>.png, papír žádný', () => {
+    const files = Object.keys(PICTURE_FILES).filter((name) => name.startsWith(`${PAPER.id}.`));
+    expect(files, 'papír nemá soubor obrysu').toEqual([]);
+    for (const picture of COLORING_PICTURES.filter((each) => each.id !== PAPER.id)) {
       const file = picture.id === 'house' ? 'house.svg' : outlineFileName(picture.id);
       expect(PICTURE_FILES[file], `${picture.id}: ${file}`).toBeDefined();
     }
   });
 
-  it('všech 11 omalovánek se vejde do 12 míst mřížky výběru bez posouvání a 12. místo zůstane prázdné', () => {
+  // Upraveno k #151 AC1: papír a 11 omalovánek zaplní všech 12 míst, 12. místo
+  // už není prázdné a otevře jednorožce. Prázdné 12. místo se sadou 11 omalovánek
+  // dál hlídá pickerLayoutRules.test.ts.
+  it('papír a 11 omalovánek zaplní všech 12 míst mřížky výběru bez listování a 12. místo otevře jednorožce', () => {
     for (const window of COLORING_WINDOWS) {
       const layout = layoutPicker(gameAreaFor(viewportOf(window), COLORING_GAME_AREA_FIT));
       expect(layout.previews.length, `${window.name}: míst v mřížce`).toBe(12);
+      const paged = layoutPicker(gameAreaFor(viewportOf(window), COLORING_GAME_AREA_FIT), {
+        pictureCount: COLORING_PICTURES.length,
+      });
+      expect(paged.arrows, `${window.name}: šipky listování nejsou`).toBe(false);
     }
-    expect(COLORING_PICTURES.length, 'omalovánek je o jednu méně než míst').toBe(11);
-    expect(enterPicker(COLORING_PICTURES).tapPreview(11), '12. místo').toEqual({
-      kind: 'ignored',
+    expect(COLORING_PICTURES.length, 'náhledů je stejně jako míst').toBe(12);
+    expect(enterPicker(COLORING_PICTURES).tapPreview(11), '12. místo').toMatchObject({
+      kind: 'open',
+      picture: { id: 'unicorn', version: 1 },
     });
   });
 
-  it('prvních 6 omalovánek zůstane na pozicích 1–6 se stejným označením jako před #132', () => {
-    expect(COLORING_PICTURES.slice(0, 6)).toEqual(FIRST_SIX_SET);
+  // Upraveno k #151 AC1: omalovánky se posunuly o jedno místo, prvních 6 je na pozicích 2–7.
+  it('prvních 6 omalovánek zůstane za papírem ve stejném pořadí se stejným označením jako před #132', () => {
+    expect(COLORING_PICTURES.slice(1, 7)).toEqual(FIRST_SIX_SET);
     const choice = enterPicker(COLORING_PICTURES);
-    expect(choice.previews().slice(0, 6), 'náhledy 1–6').toEqual(FIRST_SIX_SET);
+    expect(choice.previews().slice(1, 7), 'náhledy 2–7').toEqual(FIRST_SIX_SET);
   });
 
-  it('nové omalovánky moře, mořská panna, duha, vánoční baňka a jednorožec jsou na konci, na pozicích 7–11', () => {
-    expect(COLORING_PICTURES.slice(6).map((picture) => picture.id)).toEqual([...SECOND_SET_IDS]);
+  // Upraveno k #151 AC1: posun o jedno místo, nové omalovánky jsou na pozicích 8–12.
+  it('nové omalovánky moře, mořská panna, duha, vánoční baňka a jednorožec jsou na konci, na pozicích 8–12', () => {
+    expect(COLORING_PICTURES.slice(7).map((picture) => picture.id)).toEqual([...SECOND_SET_IDS]);
   });
 
   it('ťuknutí doprostřed náhledu otevře jeho omalovánku ve všech oknech', () => {
