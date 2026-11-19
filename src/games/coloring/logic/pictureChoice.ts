@@ -590,6 +590,8 @@ export function startPictureChoice(
     },
     homeHolding: (holding) => {
       homeHeld = holding;
+      // Během držení domečku tlačítka rychlého přepínání v malování nic nedělají (#148 AC6).
+      painting?.homeHolding(holding);
     },
     tapContinue,
     movePagesToAlbum: () => pageMoves.enqueue(Promise.resolve()),

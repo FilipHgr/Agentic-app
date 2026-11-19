@@ -111,7 +111,7 @@ describe('#93 AC1: fix a pastelka jsou na vyhrazených místech v panelu', () =>
         testCase.handle,
         testCase.undo,
         ...testCase.sizeButtons,
-        ...testCase.recentColors,
+        ...testCase.quickTools,
       ];
       for (const { name, index } of newToolPlaces(testCase)) {
         const box = testCase.tools[index];

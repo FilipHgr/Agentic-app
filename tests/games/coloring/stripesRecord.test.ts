@@ -25,7 +25,6 @@ import {
 } from './legacyP2RecordFixture';
 import {
   LEGACY_P3_DOTS_LINE_SIZE,
-  LEGACY_P3_DOTS_RECENT_COLORS,
   LEGACY_P3_DOTS_RECORD,
   LEGACY_P3_DOTS_SELECTED_COLOR,
   LEGACY_P3_DOTS_STORAGE,
@@ -55,6 +54,7 @@ import {
 } from './savedPictureHelpers';
 import { STRIPES, stripePixels } from './stripesHelpers';
 import { at } from './strokeHelpers';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #102 AC5 (uložení): vzorek proužků přes vzor V se vejde do
@@ -247,7 +247,7 @@ describe('#102 AC5: dříve uložené obrázky se otevřou beze změny', () => {
     }
   });
 
-  it('dítě po otevření hry vidí obrázek s puntíky uložený před proužkovým fixem i s barvou, nedávnými barvami a velikostí', () => {
+  it('dítě po otevření hry vidí obrázek s puntíky uložený před proužkovým fixem i s barvou a velikostí, bez nedávných barev (#148)', () => {
     const regions = legacyP3DotsRegions();
 
     const game = openOn(storageWith(LEGACY_P3_DOTS_STORAGE), regions);
@@ -257,7 +257,10 @@ describe('#102 AC5: dříve uložené obrázky se otevřou beze změny', () => {
       'obrázek',
     ).toEqual([]);
     expect(game.palette().selected, 'vybraná barva').toBe(LEGACY_P3_DOTS_SELECTED_COLOR);
-    expect(game.recentColors(), 'nedávné barvy').toEqual(LEGACY_P3_DOTS_RECENT_COLORS);
+    expect(
+      firstButton(game),
+      'první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
+    ).toBeNull();
     expect(game.lineSize(), 'velikost').toBe(LEGACY_P3_DOTS_LINE_SIZE);
   });
 

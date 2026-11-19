@@ -8,7 +8,6 @@ import { PROFILE_COLORS } from '../../../src/shared/logic/profiles';
 import { openProfiles } from '../../../src/shared/storage/profileStorage';
 import { DeviceStorage, forbiddenStorage } from '../../shared/profileFixtures';
 import {
-  LEGACY_P2_RECENT_COLORS,
   LEGACY_P2_SELECTED_COLOR,
   LEGACY_P2_STORAGE,
   legacyP2Pixels,
@@ -16,7 +15,6 @@ import {
 } from './legacyP2RecordFixture';
 import {
   LEGACY_P3_DOTS_LINE_SIZE,
-  LEGACY_P3_DOTS_RECENT_COLORS,
   LEGACY_P3_DOTS_SELECTED_COLOR,
   LEGACY_P3_DOTS_STORAGE,
   legacyP3DotsPixels,
@@ -24,7 +22,6 @@ import {
 } from './legacyP3DotsRecordFixture';
 import {
   LEGACY_P3_GLITTER_LINE_SIZE,
-  LEGACY_P3_GLITTER_RECENT_COLORS,
   LEGACY_P3_GLITTER_SELECTED_COLOR,
   LEGACY_P3_GLITTER_STORAGE,
   legacyP3GlitterPixels,
@@ -32,7 +29,6 @@ import {
 } from './legacyP3GlitterRecordFixture';
 import {
   LEGACY_P3_LINE_SIZE,
-  LEGACY_P3_RECENT_COLORS,
   LEGACY_P3_SELECTED_COLOR,
   LEGACY_P3_STORAGE,
   legacyP3Pixels,
@@ -40,7 +36,6 @@ import {
 } from './legacyP3RecordFixture';
 import {
   LEGACY_P3_STRIPES_LINE_SIZE,
-  LEGACY_P3_STRIPES_RECENT_COLORS,
   LEGACY_P3_STRIPES_SELECTED_COLOR,
   LEGACY_P3_STRIPES_STORAGE,
   legacyP3StripesPixels,
@@ -52,7 +47,7 @@ import {
   legacyPixels,
   legacyRegions,
 } from './legacyRecordFixture';
-import { pick, seededRandom } from './recentColorsHelpers';
+import { pick, seededRandom } from './randomHelpers';
 import { at } from './strokeHelpers';
 import {
   PICTURE,
@@ -69,7 +64,6 @@ import {
 import {
   BLACK,
   BLUE,
-  MARKER_BLUE,
   BROWN,
   COLOR_TOOLS,
   DEFAULT_TOOL_COLORS,
@@ -86,12 +80,13 @@ import {
 } from './toolColorsHelpers';
 import type { ColorTool } from './toolColorsHelpers';
 import { ALL_COLOR_COUNT } from './toolColorSetsHelpers';
+import { firstButton, tapPrevious } from './quickToolsHelpers';
 
 /**
  * Testy k #110 AC5 (pamatování a výchozí barvy) a AC6 (staré uložené stavy
  * a špatný záznam), s doporučeními story-revieweru z komentáře k issue:
  * - nedávné barvy zůstanou po návratu stejné, i když se jedna shoduje
- *   s barvou štětce,
+ *   s barvou štětce (od #148 místo nich předchozí nástroj se svou barvou),
  * - poškozený záznam obrázku a platný záznam barev nástrojů: platí uložené
  *   barvy nástrojů (obrázek je prázdný),
  * - po ztrátě záznamu barev nástrojů dostanou všechny nástroje naposledy
@@ -106,7 +101,7 @@ import { ALL_COLOR_COUNT } from './toolColorSetsHelpers';
  *
  * Navržené rozhraní: viz `toolColors.test.ts`. Záznam barev nástrojů je
  * samostatný záznam v úložišti hry profilu vedle obrázku podle omalovánky
- * (jako nedávné barvy, #99), zapíše se hned po výběru barvy a s každým
+ * (jako dřív nedávné barvy, #99), zapíše se hned po výběru barvy a s každým
  * uložením obrázku. Tvar záznamu obrázku se nemění, jako vybraná barva se
  * do něj ukládá naposledy vybraná barva (kterémukoli nástroji).
  */
@@ -205,14 +200,17 @@ describe('#110 AC5: barvy nástrojů se pamatují podle profilu a omalovánky', 
     expect(toolColorsOf(again)).toEqual({ ...DEFAULT_TOOL_COLORS, crayon: BROWN, glitter: PINK });
   });
 
-  it('nedávná barva daná nástroji v pruhu se uloží hned', () => {
+  // Nahrazuje k #148 test „nedávná barva daná nástroji v pruhu se uloží
+  // hned“ (#99, #110): nástroj vybraný v pruhu a jeho nová barva.
+  it('barva daná nástroji vybranému prvním tlačítkem v pruhu se uloží hned', () => {
     const storage = new RecordingStorage();
     const regions = twoHalves();
     const game = openOn(storage, regions);
-    giveColor(game, 'brush', YELLOW);
     pickTool(game, 'stamp');
-    game.tapHandle();
-    game.tapRecentColor(0);
+    giveColor(game, 'brush', YELLOW);
+    tapPrevious(game);
+    expect(game.selectedTool(), 'kontrola: razítkový fix z pruhu').toBe('stamp');
+    game.tapColor(RED);
     expect(toolColorsOf(game).stamp, 'razítkový fix dostal červenou').toBe(RED);
 
     const again = openOn(storage, regions);
@@ -326,20 +324,21 @@ describe('#110 AC5: barvy nástrojů se pamatují podle profilu a omalovánky', 
     expect(toolColorsOf(openOn(storage, regions)), 'první omalovánka').toEqual(CHOSEN);
   });
 
-  it('nedávné barvy zůstanou po návratu stejné, i když se jedna shoduje s barvou štětce', () => {
+  // Nahrazuje k #148 test „nedávné barvy zůstanou po návratu stejné …“:
+  // předchozí nástroj zůstane i se svou barvou, i když ji má i štětec.
+  it('předchozí nástroj zůstane po návratu stejný i se svou barvou, i když stejnou barvu má štětec', () => {
     const storage = new RecordingStorage();
     const regions = twoHalves();
     const game = openOn(storage, regions);
-    giveColor(game, 'marker', RED);
+    giveColor(game, 'crayon', RED);
     giveColor(game, 'marker', GREEN);
-    // Upraveno k #116: výchozí modrá fixu je ze sady fixu (MARKER_BLUE).
-    expect(game.recentColors(), 'nedávné [červená, modrá]').toEqual([RED, MARKER_BLUE]);
+    expect(firstButton(game), 'pastelka v červené').toEqual({ tool: 'crayon', color: RED });
     game.suspend();
 
     const again = openOn(storage, regions);
 
     expect(again.handleView(), 'štětec je červený').toMatchObject({ tool: 'brush', color: RED });
-    expect(again.recentColors(), 'pořád [červená, modrá]').toEqual([RED, MARKER_BLUE]);
+    expect(firstButton(again), 'pořád pastelka v červené').toEqual({ tool: 'crayon', color: RED });
   });
 
   it('při plném úložišti jde vybírat barvy dál bez chyby a platí aspoň do odchodu', () => {
@@ -413,7 +412,6 @@ describe('#110 AC6: obrázky uložené před tímto úkolem', () => {
     regions: RegionMap;
     pixels: Array<number | null>;
     selected: number;
-    recent: readonly (number | null)[];
     size: string;
   }> => [
     {
@@ -422,7 +420,6 @@ describe('#110 AC6: obrázky uložené před tímto úkolem', () => {
       regions: legacyRegions(),
       pixels: legacyPixels(),
       selected: LEGACY_SELECTED_COLOR,
-      recent: [null, null],
       size: 'medium',
     },
     {
@@ -431,7 +428,6 @@ describe('#110 AC6: obrázky uložené před tímto úkolem', () => {
       regions: legacyP2Regions(),
       pixels: legacyP2Pixels(),
       selected: LEGACY_P2_SELECTED_COLOR,
-      recent: LEGACY_P2_RECENT_COLORS,
       size: 'medium',
     },
     {
@@ -440,7 +436,6 @@ describe('#110 AC6: obrázky uložené před tímto úkolem', () => {
       regions: legacyP3Regions(),
       pixels: legacyP3Pixels(),
       selected: LEGACY_P3_SELECTED_COLOR,
-      recent: LEGACY_P3_RECENT_COLORS,
       size: LEGACY_P3_LINE_SIZE,
     },
     {
@@ -449,7 +444,6 @@ describe('#110 AC6: obrázky uložené před tímto úkolem', () => {
       regions: legacyP3DotsRegions(),
       pixels: legacyP3DotsPixels(),
       selected: LEGACY_P3_DOTS_SELECTED_COLOR,
-      recent: LEGACY_P3_DOTS_RECENT_COLORS,
       size: LEGACY_P3_DOTS_LINE_SIZE,
     },
     {
@@ -458,7 +452,6 @@ describe('#110 AC6: obrázky uložené před tímto úkolem', () => {
       regions: legacyP3StripesRegions(),
       pixels: legacyP3StripesPixels(),
       selected: LEGACY_P3_STRIPES_SELECTED_COLOR,
-      recent: LEGACY_P3_STRIPES_RECENT_COLORS,
       size: LEGACY_P3_STRIPES_LINE_SIZE,
     },
     {
@@ -467,7 +460,6 @@ describe('#110 AC6: obrázky uložené před tímto úkolem', () => {
       regions: legacyP3GlitterRegions(),
       pixels: legacyP3GlitterPixels(),
       selected: LEGACY_P3_GLITTER_SELECTED_COLOR,
-      recent: LEGACY_P3_GLITTER_RECENT_COLORS,
       size: LEGACY_P3_GLITTER_LINE_SIZE,
     },
   ];
@@ -484,12 +476,14 @@ describe('#110 AC6: obrázky uložené před tímto úkolem', () => {
     }
   });
 
-  it('obrázek pixel po pixelu, nedávné barvy i velikost čáry zůstanou stejné', () => {
-    for (const { name, storage, regions, pixels, recent, size } of legacyStates()) {
+  // Upraveno k #148 AC5: starý záznam nedávných barev se nepoužije,
+  // první tlačítko je prázdné.
+  it('obrázek pixel po pixelu i velikost čáry zůstanou stejné a první tlačítko je prázdné', () => {
+    for (const { name, storage, regions, pixels, size } of legacyStates()) {
       const game = openOn(storage, regions);
 
       expect(pixelsOf(game, regions), `${name}: obrázek`).toEqual(pixels);
-      expect(game.recentColors(), `${name}: nedávné barvy`).toEqual(recent);
+      expect(firstButton(game), `${name}: první tlačítko`).toBeNull();
       expect(game.lineSize(), `${name}: velikost čáry`).toBe(size);
     }
   });
@@ -672,7 +666,8 @@ describe('#110 AC6: chybějící nebo špatný záznam barev nástrojů', () => 
     expect(toolColorsOf(game)).toEqual({ ...DEFAULT_TOOL_COLORS, brush: YELLOW, marker: GRAY });
   });
 
-  it('po ztrátě záznamu barev nástrojů dostanou všechny nástroje naposledy vybranou barvu, i z pruhu', () => {
+  // Upraveno k #148: barva se dává v panelu (nedávné barvy v pruhu nejsou).
+  it('po ztrátě záznamu barev nástrojů dostanou všechny nástroje naposledy vybranou barvu', () => {
     const regions = twoHalves();
     const storage = new RecordingStorage();
     const game = openOn(storage, regions);
@@ -680,8 +675,8 @@ describe('#110 AC6: chybějící nebo špatný záznam barev nástrojů', () => 
     giveColor(game, 'glitter', PINK);
     pickTool(game, 'marker');
     game.tapHandle();
-    game.tapRecentColor(0);
-    expect(toolColorsOf(game).marker, 'fix dostal z pruhu').toBe(DEFAULT_TOOL_COLORS.glitter);
+    game.tapColor(DEFAULT_TOOL_COLORS.glitter);
+    expect(toolColorsOf(game).marker, 'fix dostal barvu').toBe(DEFAULT_TOOL_COLORS.glitter);
     paint(game, [at(20, 100), at(140, 100)]);
     game.suspend();
     keepOnlyRecordsBefore110(storage);

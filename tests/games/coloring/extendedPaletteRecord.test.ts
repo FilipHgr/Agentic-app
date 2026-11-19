@@ -23,7 +23,6 @@ import {
   worstCaseOutlines,
 } from './extendedPaletteHelpers';
 import {
-  LEGACY_P2_RECENT_COLORS,
   LEGACY_P2_RECORD,
   LEGACY_P2_SELECTED_COLOR,
   LEGACY_P2_STORAGE,
@@ -36,7 +35,7 @@ import {
   legacyPixels,
   legacyRegions,
 } from './legacyRecordFixture';
-import { seededRandom, pick } from './recentColorsHelpers';
+import { seededRandom, pick } from './randomHelpers';
 import { RAINBOW } from './rainbowHelpers';
 import { at } from './strokeHelpers';
 import {
@@ -49,6 +48,7 @@ import {
   pixelsOf,
   twoHalves,
 } from './savedPictureHelpers';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #100 AC3 (staré obrázky), AC4 (uložení a limit 50 000 znaků)
@@ -167,7 +167,7 @@ describe('#100 AC3: obrázek uložený verzí s 8 barvami se otevře beze změny
     ).toEqual([]);
   });
 
-  it('dítě po otevření hry vidí obrázek staré verze s vybranou barvou i nedávnými barvami', () => {
+  it('dítě po otevření hry vidí obrázek staré verze s vybranou barvou, bez nedávných barev (#148)', () => {
     const regions = legacyP2Regions();
 
     const game = openOn(storageWithLegacyP2(), regions);
@@ -177,7 +177,7 @@ describe('#100 AC3: obrázek uložený verzí s 8 barvami se otevře beze změny
       'starý obrázek',
     ).toEqual([]);
     expect(game.palette().selected, 'vybraná barva').toBe(LEGACY_P2_SELECTED_COLOR);
-    expect(game.recentColors(), 'nedávné barvy').toEqual(LEGACY_P2_RECENT_COLORS);
+    expect(firstButton(game), 'první tlačítko prázdné (#148 AC5)').toBeNull();
   });
 
   it('dítě po otevření hry vidí obrázek ze záznamu p1 s vybranou barvou', () => {
@@ -225,19 +225,20 @@ describe('#100 AC3: obrázek uložený verzí s 8 barvami se otevře beze změny
     }
   });
 
-  it('starý stav s nedávnými barvami se po výběru nové barvy posune podle pravidla z #99', () => {
+  // Nahrazuje k #148 test posunu starých nedávných barev podle #99: starý
+  // záznam se ignoruje, nesmaže a výběr nové barvy ho nezmění (#148 AC5).
+  it('starý stav s nedávnými barvami: výběr nové barvy první tlačítko nezmění a starý záznam zůstane', () => {
     const regions = legacyP2Regions();
     const storage = storageWithLegacyP2();
+    const oldRecent = storage.data.get('recentColors.house');
     const game = openOn(storage, regions);
 
     game.tapColor(GRAY);
 
-    expect(game.recentColors()).toEqual([LEGACY_P2_SELECTED_COLOR, LEGACY_P2_RECENT_COLORS[0]]);
+    expect(firstButton(game), 'první tlačítko').toBeNull();
     game.suspend();
-    expect(openOn(storage, regions).recentColors()).toEqual([
-      LEGACY_P2_SELECTED_COLOR,
-      LEGACY_P2_RECENT_COLORS[0],
-    ]);
+    expect(firstButton(openOn(storage, regions)), 'po návratu').toBeNull();
+    expect(storage.data.get('recentColors.house'), 'starý záznam beze změny').toBe(oldRecent);
   });
 });
 
@@ -413,22 +414,18 @@ describe('#100 AC5: záznam s neznámou barvou se ukáže jako prázdná omalov�
     }
   });
 
-  it('nedávné barvy mimo barvy hry se neukážou, nové barvy ano', () => {
+  // Nahrazuje k #148 test nedávných barev mimo barvy hry (#100, #116):
+  // starý záznam nedávných barev se nepoužije, ať je v něm cokoli.
+  it('starý záznam nedávných barev s barvami hry i mimo ně první tlačítko nezaplní a hru nezastaví', () => {
     const regions = legacyP2Regions();
-    for (const [record, expected] of [
-      // Upraveno k #116: hra zná 46 barev (barvy 12 a 13 jsou ze sady fixu),
-      // neznámé jsou až barvy od 46.
-      ['46,50', [null, null]],
-      ['99,8', [PINK, null]],
-      ['9,11', [SKIN, LIGHT_BLUE]],
-    ] as const) {
+    for (const record of ['46,50', '99,8', '9,11', '']) {
       const storage = storageWithLegacyP2();
       storage.data.set('recentColors.house', record);
-      let recent: readonly (number | null)[] = [];
+      let first: ReturnType<typeof firstButton> = { tool: 'brush', color: null };
       expect(() => {
-        recent = openOn(storage, regions).recentColors();
+        first = firstButton(openOn(storage, regions));
       }, `záznam ${record}: hra se nezastaví`).not.toThrow();
-      expect(recent, `záznam ${record}`).toEqual(expected);
+      expect(first, `záznam ${record}`).toBeNull();
     }
   });
 

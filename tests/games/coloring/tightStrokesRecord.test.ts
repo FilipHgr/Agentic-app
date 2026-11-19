@@ -56,7 +56,6 @@ import {
 } from './legacyP3StripesRecordFixture';
 import {
   LEGACY_P4_LINE_SIZE,
-  LEGACY_P4_RECENT_COLORS,
   LEGACY_P4_RECORD,
   LEGACY_P4_SELECTED_COLOR,
   LEGACY_P4_STORAGE,
@@ -84,7 +83,7 @@ import {
   rewrittenRecord,
 } from './manyColorsHelpers';
 import { drawing } from './outlineFixtures';
-import { pick, seededRandom } from './recentColorsHelpers';
+import { pick, seededRandom } from './randomHelpers';
 import {
   PICTURE,
   RecordingStorage,
@@ -107,6 +106,7 @@ import {
   decodeInOrder,
 } from './tightStrokesHelpers';
 import { pickTool } from './toolColorsHelpers';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #119 (obrázek s těsnými tahy se vejde do limitu uložení), které
@@ -389,14 +389,17 @@ describe('#119 AC3: staré obrázky', () => {
     }
   });
 
-  it('obrázek p4 z dnešní verze se otevře i s barvami nástrojů, nedávnými barvami a tloušťkou', () => {
+  it('obrázek p4 z dnešní verze se otevře i s barvami nástrojů a tloušťkou, bez nedávných barev (#148)', () => {
     const game = openOn(storageWith(LEGACY_P4_STORAGE), legacyP4Regions());
     for (const tool of PAINTING_TOOLS) {
       expect(game.toolColor(tool), `barva nástroje ${TOOL_NAMES[tool]}`).toBe(
         LEGACY_P4_TOOL_COLORS[tool],
       );
     }
-    expect(game.recentColors(), 'nedávné barvy').toEqual(LEGACY_P4_RECENT_COLORS);
+    expect(
+      firstButton(game),
+      'první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
+    ).toBeNull();
     expect(game.lineSize(), 'tloušťka').toBe(LEGACY_P4_LINE_SIZE);
   });
 

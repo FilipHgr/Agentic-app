@@ -32,19 +32,14 @@ import type { PaletteState } from '../logic/palette';
 import type { BroomFeedback } from '../logic/pictureChoice';
 import { BROOM_HOLD_MS } from '../logic/pictureChoice';
 import { holdRingAround } from '../logic/pickerLayout';
-import { noRecentColors } from '../logic/recentColors';
-import {
-  CAMERA_WOBBLE_TONES,
-  RECENT_COLOR_WOBBLE_TONES,
-  UNDO_WOBBLE_TONES,
-  openColoring,
-} from '../logic/savedPicture';
+import { QUICK_TOOL_WOBBLE_TONES } from '../logic/quickTools';
+import type { QuickToolButton, QuickToolTap } from '../logic/quickTools';
+import { CAMERA_WOBBLE_TONES, UNDO_WOBBLE_TONES, openColoring } from '../logic/savedPicture';
 import type {
   CameraSaveResult,
   CameraTap,
   PaintingOrigin,
   PictureIdentity,
-  RecentColorTap,
   SavedColoring,
   UndoResult,
 } from '../logic/savedPicture';
@@ -68,7 +63,7 @@ import { GlitterShineView } from './GlitterShineView';
 import { HandleButtonView } from './HandleButtonView';
 import { IconButtonView } from './IconButtonView';
 import { PaintLayer } from './PaintLayer';
-import { RecentColorsView } from './RecentColorsView';
+import { QuickToolsView } from './QuickToolsView';
 import type { PreparedPicture } from './pictureCanvas';
 import { preloadToolIcons } from './toolIconTextures';
 import { ToolPanelView } from './ToolPanelView';
@@ -143,7 +138,9 @@ export interface ColoringSceneOptions {
  * (úchyt, Zpět, panel, obrázek), rozhoduje `touchTargetAt`; malovat se
  * smí jen u dotyku na obrázku. Stav panelu, vybraný nástroj (štětec nebo
  * guma, #90) i velikost čáry (#91) drží `savedPicture.ts`. Vedle úchytu
- * jsou dvě nedávné barvy (#99), jejich pořadí řídí také `savedPicture.ts`.
+ * jsou od #148 místo nedávných barev (#99) dvě tlačítka rychlého přepínání:
+ * předchozí nástroj a guma. Přepnou hned při dotyku prstu, co ukazují
+ * a co vyberou, řídí také `savedPicture.ts`.
  *
  * Od #105 je panel ve dvou krocích (nástroje, pak barva), krok drží také
  * `savedPicture.ts`. Ťuknutí se vyhodnotí hned při dotyku (`POINTER_DOWN`)
@@ -194,7 +191,9 @@ export class ColoringScene extends Phaser.Scene {
   private readonly panelView = new ToolPanelView(this);
   private readonly handleView = new HandleButtonView(this);
   private readonly undoView = new UndoButtonView(this);
-  private readonly recentView = new RecentColorsView(this);
+  private readonly quickToolsView = new QuickToolsView(this);
+  /** Prst, který drží tlačítko rychlého přepínání (#148 AC6); zvednutí logice předá scéna. */
+  private quickPointer: number | null = null;
   private readonly cameraView = new IconButtonView(this, CAMERA_ICON_FILE);
   private readonly photoView: CameraPhotoView;
   private readonly broomView = new IconButtonView(this, BROOM_ICON_FILE);
@@ -213,6 +212,7 @@ export class ColoringScene extends Phaser.Scene {
   private readonly onPointerCancel = (): void => {
     this.interruptStroke();
     this.cancelBroom();
+    this.releaseQuickTool();
   };
   /** Schovaná stránka (přepnutí aplikace, zamčení iPadu) obrázek uloží (#92). */
   private readonly onVisibilityChange = (): void => {
@@ -383,8 +383,12 @@ export class ColoringScene extends Phaser.Scene {
     this.handleView.place(this.layout, this.gameArea.scale, STRIP_DEPTH);
     this.showHandle(view !== 'closed');
     this.undoView.place(this.layout.undoButton, this.gameArea.scale, STRIP_DEPTH);
-    this.recentView.place(this.layout.recentColors, this.gameArea.scale, STRIP_DEPTH);
-    this.showRecentColors();
+    this.quickToolsView.place(
+      { previousTool: this.layout.previousToolButton, eraser: this.layout.quickEraserButton },
+      this.gameArea.scale,
+      STRIP_DEPTH,
+    );
+    this.showQuickTools();
     // Po otočení by fotka letěla na staré místo: animace skončí, ukládání doběhne.
     this.photoView.cancel();
     this.cameraView.place(this.layout.cameraButton, this.gameArea.scale, STRIP_DEPTH);
@@ -538,16 +542,19 @@ export class ColoringScene extends Phaser.Scene {
     this.showHandle(this.isPanelOpen());
   }
 
-  /** Vybraná barva, nástroj a velikost v panelu i v úchytu, nedávné barvy v pruhu. */
+  /** Vybraná barva, nástroj a velikost v panelu i v úchytu, předchozí nástroj a guma v pruhu. */
   private showSelection(): void {
     this.panelView.mark(this.panelSelection());
     this.showHandle(this.isPanelOpen());
-    this.showRecentColors();
+    this.showQuickTools();
   }
 
-  /** Nedávné barvy v pruhu; dokud se obrázek připravuje, jsou místa prázdná. */
-  private showRecentColors(): void {
-    this.recentView.show(this.coloring?.recentColors() ?? noRecentColors());
+  /** Předchozí nástroj a guma v pruhu; dokud se obrázek připravuje, je první tlačítko prázdné. */
+  private showQuickTools(): void {
+    this.quickToolsView.show({
+      previous: this.coloring?.previousTool() ?? null,
+      eraserSelected: this.selectedTool() === 'eraser',
+    });
   }
 
   /**
@@ -639,28 +646,49 @@ export class ColoringScene extends Phaser.Scene {
     this.showPanel();
   }
 
+  // -------------------------------------------------------------------------
+  // Předchozí nástroj a guma v pruhu (#148)
+  // -------------------------------------------------------------------------
+
   /**
-   * Ťuknutí na nedávnou barvu (#99 AC1): vybere ji s tónem a panel nechá,
-   * jak byl. Prázdné místo se jen zhoupne s tichým tónem, druhý prst během
-   * tahu nic nedělá. Dokud se obrázek připravuje, jsou místa prázdná.
+   * Prst na tlačítku rychlého přepínání: nástroj se vybere hned s krátkým
+   * tónem, úchyt i otevřený panel ukážou nový nástroj (AC2). Prázdné místo
+   * a už vybraná guma se jen zhoupnou s tónem domečku (AC3). Když jiný prst
+   * maluje nebo drží tlačítko, ukládá se do alba nebo se drží domeček či
+   * koště, nic (AC6). Dokud se obrázek připravuje, tlačítko se jen zhoupne.
    */
-  private onRecentColorTapped(index: number): void {
-    const result: RecentColorTap = this.coloring?.tapRecentColor(index) ?? {
+  private onQuickToolPressed(button: QuickToolButton, pointer: Phaser.Input.Pointer): void {
+    const result: QuickToolTap = this.coloring?.pressQuickTool(button, pointer.id) ?? {
       kind: 'wobble',
-      tones: RECENT_COLOR_WOBBLE_TONES,
+      tones: QUICK_TOOL_WOBBLE_TONES,
     };
     switch (result.kind) {
       case 'picked':
+        this.quickPointer = pointer.id;
         this.sounds.play(result.tones);
+        this.quickToolsView.press(button);
         this.showSelection();
+        this.showPanel();
         return;
       case 'wobble':
-        this.recentView.wobble(index);
+        if (this.coloring !== null) {
+          this.quickPointer = pointer.id;
+        }
+        this.quickToolsView.wobble(button);
         this.sounds.play(result.tones);
         return;
       case 'ignored':
         return;
     }
+  }
+
+  /** Prst z tlačítka rychlého přepínání se zvedl, nebo dotyk přerušil systém. */
+  private releaseQuickTool(pointerId: number | null = this.quickPointer): void {
+    if (pointerId === null || pointerId !== this.quickPointer) {
+      return;
+    }
+    this.quickPointer = null;
+    this.coloring?.releaseQuickTool(pointerId);
   }
 
   // -------------------------------------------------------------------------
@@ -852,6 +880,7 @@ export class ColoringScene extends Phaser.Scene {
     });
     const onUp = (pointer: Phaser.Input.Pointer): void => {
       this.onBroomPointerUp(pointer);
+      this.releaseQuickTool(pointer.id);
       this.coloring?.pointerUp(pointer.id);
       this.shineView.end(pointer.id);
     };
@@ -895,8 +924,11 @@ export class ColoringScene extends Phaser.Scene {
       case 'backToTools':
         this.onBackToToolsTapped();
         return;
-      case 'recentColor':
-        this.onRecentColorTapped(target.index);
+      case 'previousTool':
+        this.onQuickToolPressed('previousTool', pointer);
+        return;
+      case 'quickEraser':
+        this.onQuickToolPressed('eraser', pointer);
         return;
       case 'panel':
       case 'none':
@@ -974,6 +1006,7 @@ export class ColoringScene extends Phaser.Scene {
       this.photoView.destroy();
       this.sweepView.destroy();
       this.cancelBroom();
+      this.releaseQuickTool();
       this.stop();
     });
     // Textury patří jen této scéně; další otevření omalovánky má vlastní.

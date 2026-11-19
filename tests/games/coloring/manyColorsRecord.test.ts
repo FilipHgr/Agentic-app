@@ -67,7 +67,7 @@ import {
   pixelsFrom,
   rewrittenRecord,
 } from './manyColorsHelpers';
-import { pick, seededRandom } from './recentColorsHelpers';
+import { pick, seededRandom } from './randomHelpers';
 import { PICTURE, RecordingStorage, openOn, paint, twoHalves } from './savedPictureHelpers';
 import { at } from './strokeHelpers';
 

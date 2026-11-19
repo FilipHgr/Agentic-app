@@ -31,6 +31,7 @@ import {
 } from './pageToAlbumHelpers';
 import { timesIn } from './continuePaintingHelpers';
 import { BLUE, GREEN, RED } from './toolColorsHelpers';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #141 AC1 (uložení při odchodu domečkem) a AC2 (kdy do alba nic
@@ -100,19 +101,22 @@ describe('#141 AC1: obrázek se při odchodu domečkem uloží do alba', () => {
     expect(previewColors(reloaded.storage), 'po obnovení stránky dál jen obrys').toEqual([]);
   });
 
-  it('barvy nástrojů, nedávné barvy a tloušťka čáry zůstanou', async () => {
+  // Upraveno k #148 AC5: místo nedávných barev zůstane předchozí nástroj.
+  it('barvy nástrojů, předchozí nástroj a tloušťka čáry zůstanou', async () => {
     const device = await deviceWithAlbum(0);
     const page = await openGame(device);
     const game = await openPainting(page);
     game.tapColor(GREEN);
     paintLeft(game, PAGE_COLOR);
+    choose(game, 'crayon');
     choose(game, 'marker');
     game.tapColor(BLUE);
     game.tapColor(RED);
     game.tapLineSize('large');
     const tools = ['brush', 'marker', 'crayon', 'glitter'] as const;
     const toolColors = tools.map((tool) => game.toolColor(tool));
-    const recent = game.recentColors();
+    const first = firstButton(game);
+    expect(first?.tool, 'kontrola: pastelka na prvním tlačítku').toBe('crayon');
 
     await leavePainting(page, game);
     const again = await openPainting(page);
@@ -121,7 +125,7 @@ describe('#141 AC1: obrázek se při odchodu domečkem uloží do alba', () => {
       tools.map((tool) => again.toolColor(tool)),
       'barvy nástrojů',
     ).toEqual(toolColors);
-    expect(again.recentColors(), 'nedávné barvy').toEqual(recent);
+    expect(firstButton(again), 'předchozí nástroj').toEqual(first);
     expect(again.lineSize(), 'tloušťka čáry').toBe('large');
   });
 

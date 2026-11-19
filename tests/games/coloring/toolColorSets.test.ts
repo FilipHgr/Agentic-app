@@ -7,7 +7,7 @@ import type { ToolId } from '../../../src/games/coloring/logic/toolPanel';
 import { choose } from './drawingToolHelpers';
 import { usedColors } from './extendedPaletteHelpers';
 import { TOOL_NAMES } from './lineSizeHelpers';
-import { pick, seededRandom } from './recentColorsHelpers';
+import { pick, seededRandom } from './randomHelpers';
 import {
   RecordingStorage,
   openOn,
@@ -38,11 +38,12 @@ import {
   stepHexes,
   tapPlace,
 } from './toolColorSetsHelpers';
+import { firstButton, tapQuickEraser } from './quickToolsHelpers';
 
 /**
  * Testy k #116 AC1 (krok barev ukazuje sadu nástroje), AC3 (tah maluje
  * přesně zvolenou barvou a vzor se nemění) a AC4 (každý nástroj si pamatuje
- * svou barvu, výchozí barvy, nedávné barvy). Pravidla nad tabulkou (AC2)
+ * svou barvu, výchozí barvy, nedávné barvy; ty od #148 nejsou). Pravidla nad tabulkou (AC2)
  * jsou v `toolColorSetsTable.test.ts`, starší stavy a obnovení obrázku
  * (AC5, AC6) v `toolColorSetsRecord.test.ts`, limit (AC6)
  * v `toolColorSetsLimit.test.ts`. AC7 je ruční kontrola.
@@ -373,14 +374,14 @@ describe('#116 AC4: každý nástroj si pamatuje svou barvu ze sady', () => {
         giveToolPlace(game, 'brush', 2);
         giveToolPlace(game, tool, place);
         const colors = toolColorsOf(game);
-        const recent = [...game.recentColors()];
+        const first = firstButton(game);
 
         pickTool(game, tool);
         tapPlace(game, place);
 
         const what = `${TOOL_NAMES[tool]}, ${placeName(place)}`;
         expect(toolColorsOf(game), `${what}: barvy nástrojů`).toEqual(colors);
-        expect([...game.recentColors()], `${what}: nedávné barvy`).toEqual(recent);
+        expect(firstButton(game), `${what}: předchozí nástroj`).toEqual(first);
         expect(game.selectedTool(), `${what}: nástroj`).toBe(tool);
         pickTool(game, tool);
         expect(game.markedColorPlace(), `${what}: označené místo`).toBe(place);
@@ -388,38 +389,34 @@ describe('#116 AC4: každý nástroj si pamatuje svou barvu ze sady', () => {
     }
   });
 
-  it('výběr barvy ze sady posune nedávné barvy podle #99 a předchozí barva nástroje je první', () => {
+  // Nahrazuje k #148 test posunu nedávných barev podle #99 (nedávné barvy
+  // nejsou): výběr barvy ze sady první tlačítko nezmění, změní ho jen
+  // přepnutí nástroje (#148 AC4).
+  it('výběr barvy ze sady změní první tlačítko jen přepnutím nástroje, ne barvou', () => {
     for (const seed of [99, 116, 4242]) {
       const random = seededRandom(seed);
       const game = fresh();
       for (let step = 0; step < 200; step += 1) {
         const tool = COLOR_TOOLS[pick(random, COLOR_TOOLS.length)] ?? 'brush';
         const place = pick(random, SET_SIZE);
-        const before = [...game.recentColors()];
-        const own = game.toolColor(tool);
-        const picked = colorAtPlace(game, tool, place);
+        const before = firstButton(game);
+        const selectedBefore = game.selectedTool();
 
         giveToolPlace(game, tool, place);
 
-        const after = [...game.recentColors()];
-        const label = `seed ${seed}, krok ${step + 1}: ${TOOL_NAMES[tool]}, ${placeName(place)}, před [${before.join(', ')}]`;
-        const filled = after.filter((color): color is number => color !== null);
-        expect(new Set(filled).size, `${label}: místa se neopakují`).toBe(filled.length);
-        if (picked === own) {
-          expect(after, `${label}: nedávné beze změny`).toEqual(before);
-          continue;
-        }
-        expect(after[0], `${label}: předchozí barva nástroje je první`).toBe(own);
-        expect(after, `${label}: vybraná barva není v nedávných`).not.toContain(picked);
-        if (own !== null && !before.includes(own)) {
-          const kept = before.find((color) => color !== picked) ?? null;
-          expect(after, `${label}: pořadí podle #99 AC2`).toEqual([own, kept]);
-        }
+        const label = `seed ${seed}, krok ${step + 1}: ${TOOL_NAMES[selectedBefore]} → ${TOOL_NAMES[tool]}, ${placeName(place)}`;
+        expect(firstButton(game), label).toEqual(
+          tool === selectedBefore
+            ? before
+            : { tool: selectedBefore, color: game.toolColor(selectedBefore) },
+        );
       }
     }
   });
 
-  it('nedávná barva po gumě dá barvu naposledy vybranému nástroji, po duze štětci (#110 AC3)', () => {
+  // Nahrazuje k #148 test „nedávná barva po gumě …“ (#110 AC3): guma
+  // vybraná v pruhu se k barvě ze sady chová jako guma z panelu.
+  it('barva ze sady po gumě z pruhu dá barvu naposledy vybranému nástroji, po duze štětci (#110 AC3)', () => {
     for (const [last, between, receiving] of [
       ['crayon', 'eraser', 'crayon'],
       ['spray', 'eraser', 'spray'],
@@ -427,20 +424,23 @@ describe('#116 AC4: každý nástroj si pamatuje svou barvu ze sady', () => {
       ['glitter', 'rainbow', 'brush'],
     ] as const) {
       const game = fresh();
-      giveToolPlace(game, 'stamp', 3);
-      const recent = game.recentColors()[0] ?? null;
-      expect(recent, 'kontrola: nedávná barva je výchozí barva razítkového fixu').not.toBeNull();
       pickTool(game, last);
-      pickTool(game, between);
+      if (between === 'eraser') {
+        tapQuickEraser(game);
+      } else {
+        pickTool(game, between);
+      }
       const what = `${TOOL_NAMES[last]} → ${TOOL_NAMES[between]}`;
+      expect(game.selectedTool(), `${what}: kontrola`).toBe(between);
       expect(stepHexes(game), `${what}: krok barev patří nástroji, který barvu dostane`).toEqual(
         TOOL_SETS[receiving],
       );
+      const color = game.colorStep()[3];
 
-      game.tapRecentColor(0);
+      tapPlace(game, 3);
 
       expect(game.selectedTool(), `${what}: vybraný nástroj`).toBe(receiving);
-      expect(game.toolColor(receiving), `${what}: barvu dostal`).toBe(recent);
+      expect(game.toolColor(receiving), `${what}: barvu dostal`).toBe(color);
     }
   });
 });

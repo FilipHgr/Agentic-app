@@ -10,7 +10,6 @@ import type { ColoringCase } from './coloringLayoutScenes';
 import { choose } from './drawingToolHelpers';
 import {
   LEGACY_BEFORE_111_LINE_SIZE,
-  LEGACY_BEFORE_111_RECENT_COLORS,
   LEGACY_BEFORE_111_STORAGE,
   LEGACY_BEFORE_111_TOOL_COLORS,
   legacyBefore111Pixels,
@@ -39,6 +38,7 @@ import {
   openToolStep,
   pickTool,
 } from './toolColorsHelpers';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #127 AC2 (vzorek tahu je v uloženém obrázku stejný na výšku i na
@@ -308,11 +308,14 @@ describe('#127 AC4: obrázek uložený před #111 se otevře beze změny', () =>
     return storage;
   }
 
-  it('pevný záznam se otevře pixel po pixelu stejně, s nedávnými barvami, velikostí a barvami nástrojů', () => {
+  it('pevný záznam se otevře pixel po pixelu stejně, s velikostí a barvami nástrojů, bez nedávných barev (#148)', () => {
     const regions = legacyBefore111Regions();
     const game = openOn(legacyStorage(), regions);
     expect(differingPixels(pixelsOf(game, regions), legacyBefore111Pixels()), 'pixely').toBe(0);
-    expect(game.recentColors(), 'nedávné barvy').toEqual(LEGACY_BEFORE_111_RECENT_COLORS);
+    expect(
+      firstButton(game),
+      'první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
+    ).toBeNull();
     expect(game.lineSize(), 'velikost čáry').toBe(LEGACY_BEFORE_111_LINE_SIZE);
     for (const tool of PANEL_TOOLS) {
       expect(game.toolColor(tool), `barva nástroje ${tool}`).toBe(

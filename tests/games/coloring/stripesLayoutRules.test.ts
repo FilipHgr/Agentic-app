@@ -91,7 +91,7 @@ describe('#102 AC1: proužkový fix je na vyhrazeném místě v panelu', () => {
         testCase.handle,
         testCase.undo,
         ...testCase.sizeButtons,
-        ...testCase.recentColors,
+        ...testCase.quickTools,
       ];
       for (const control of strip) {
         expect(overlaps(box, control), `${name}: překryv s pruhem`).toBe(false);

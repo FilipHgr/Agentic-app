@@ -19,7 +19,7 @@ import {
   boxOfRect,
   coloringCases,
   isOpen,
-  recentColorName,
+  quickToolName,
 } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
 import { PICTURE_BEFORE_142, PICTURE_MAY_MOVE_IN } from './layoutBefore142Fixture';
@@ -57,7 +57,7 @@ const ONE_COLUMN_WINDOWS: readonly string[] = [
   'iPad na šířku z plochy (stavový řádek 24, lišta 20)',
 ];
 
-/** Kolik ploch má pruh na šířku v jednom sloupci: domeček, úchyt, Zpět, 2 nedávné barvy, fotoaparát. */
+/** Kolik ploch má pruh na šířku v jednom sloupci: domeček, úchyt, Zpět, předchozí nástroj a guma (#148, dřív 2 nedávné barvy), fotoaparát. */
 const ONE_COLUMN_CONTROLS_ABOVE_BROOM = 6;
 
 interface BroomCase extends ColoringCase {
@@ -173,12 +173,12 @@ describe('#142 AC6: velikost a místo koštěte', () => {
     }
   });
 
-  it('od úchytu, Zpět, nedávných barev, obrázku a panelu v každém kroku je koště aspoň 8 px', () => {
+  it('od úchytu, Zpět, předchozího nástroje a gumy, obrázku a panelu v každém kroku je koště aspoň 8 px', () => {
     for (const testCase of cases()) {
       const others: ReadonlyArray<readonly [string, Box]> = [
         [HANDLE_NAME, testCase.handle],
         [UNDO_NAME, testCase.undo],
-        ...testCase.recentColors.map((box, index) => [recentColorName(index), box] as const),
+        ...testCase.quickTools.map((box, index) => [quickToolName(index), box] as const),
         [PICTURE_NAME, testCase.picture],
         [PANEL_NAME, testCase.panelBox],
       ];

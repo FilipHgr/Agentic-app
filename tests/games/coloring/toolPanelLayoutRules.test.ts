@@ -13,7 +13,13 @@ import {
   widthOf,
 } from '../../shared/viewportFixtures';
 import type { Box } from '../../shared/viewportFixtures';
-import { RECENT_COLOR_PLACES, boxOfRect, coloringCases, isOpen } from './coloringLayoutScenes';
+import {
+  QUICK_TOOL_PLACES,
+  boxOfRect,
+  coloringCases,
+  isOpen,
+  quickToolName,
+} from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
 
 /**
@@ -21,7 +27,7 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * AC1 obrázek a úzký pruh, AC2 úchyt, AC3 obsah panelu, AC4 dotyk na
  * panelu nemaluje a domeček je volný, AC6 pravidla rozložení v cyklu.
  * Rozložení L-A (pruh vlevo, panel vyjíždí zleva) a P-A (pruh dole, úchyt
- * uprostřed, Zpět vpravo, nedávné barvy vlevo, panel vyjíždí zdola) podle
+ * uprostřed, Zpět vpravo, nedávné barvy vlevo (od #148 předchozí nástroj a guma), panel vyjíždí zdola) podle
  * schválení vlastníka v komentáři k issue. Každý test projde v cyklu
  * všechna okna se zavřeným panelem i v obou krocích panelu (#105);
  * obrazovku skládá
@@ -81,7 +87,7 @@ function openCases(): ColoringCase[] {
  * nahoře zrcadlově k domečku, mimo pruh.
  */
 function stripControls(testCase: ColoringCase): Box[] {
-  const controls = [testCase.handle, testCase.undo, ...testCase.recentColors];
+  const controls = [testCase.handle, testCase.undo, ...testCase.quickTools];
   if (!testCase.landscape) {
     return controls;
   }
@@ -179,11 +185,11 @@ function gapPointsIn(testCase: ColoringCase): Array<{ x: number; y: number }> {
 }
 
 describe('#96 AC1: obrázek je přes celou obrazovku, vedle něj jen úzký pruh', () => {
-  it('v pruhu je domeček, úchyt, Zpět a místo pro 2 nedávné barvy, nic z nich neleží na obrázku', () => {
+  it('v pruhu je domeček, úchyt, Zpět, předchozí nástroj a guma (#148), nic z nich neleží na obrázku', () => {
     for (const testCase of cases()) {
       const { label } = testCase.scene;
-      expect(testCase.recentColors.length, `${label}: míst pro nedávné barvy`).toBe(
-        RECENT_COLOR_PLACES,
+      expect(testCase.quickTools.length, `${label}: tlačítek předchozího nástroje a gumy`).toBe(
+        QUICK_TOOL_PLACES,
       );
       for (const control of [testCase.home, ...stripControls(testCase)]) {
         expect(overlaps(control, testCase.picture), `${label}: plocha pruhu na obrázku`).toBe(
@@ -280,7 +286,7 @@ describe('#96 AC2: úchyt jde trefit prstem a leží mimo obrázek', () => {
     }
   });
 
-  it('na výšku je úchyt dole uprostřed, nedávné barvy vlevo od něj a Zpět vpravo (P-A)', () => {
+  it('na výšku je úchyt dole uprostřed, předchozí nástroj a guma vlevo od něj a Zpět vpravo (P-A, #148)', () => {
     for (const testCase of cases().filter((each) => !each.landscape)) {
       const { label } = testCase.scene;
       const handleCenter = (testCase.handle.left + testCase.handle.right) / 2;
@@ -289,10 +295,10 @@ describe('#96 AC2: úchyt jde trefit prstem a leží mimo obrázek', () => {
         Math.abs(handleCenter - visibleCenter),
         `${label}: úchyt mimo střed`,
       ).toBeLessThanOrEqual(MAX_HANDLE_OFF_CENTER);
-      testCase.recentColors.forEach((recent, index) => {
+      testCase.quickTools.forEach((quickTool, index) => {
         expect(
-          recent.right,
-          `${label}: nedávná barva ${index + 1} vlevo od úchytu`,
+          quickTool.right,
+          `${label}: ${quickToolName(index)} vlevo od úchytu`,
         ).toBeLessThanOrEqual(testCase.handle.left + TOLERANCE);
       });
       expect(testCase.undo.left, `${label}: Zpět vpravo od úchytu`).toBeGreaterThanOrEqual(
@@ -309,17 +315,14 @@ describe('#96 AC3, AC6: otevřený panel se v obou krocích vejde vedle pruhu', 
     }
   });
 
-  it('otevřený panel v obou krocích nepřekryje domeček, úchyt, Zpět ani nedávné barvy', () => {
+  it('otevřený panel v obou krocích nepřekryje domeček, úchyt, Zpět, předchozí nástroj ani gumu v pruhu', () => {
     for (const testCase of openCases()) {
       const { label } = testCase.scene;
       const strip: Array<[string, Box]> = [
         ['domeček', testCase.home],
         ['úchyt', testCase.handle],
         ['Zpět', testCase.undo],
-        ...testCase.recentColors.map((box, index): [string, Box] => [
-          `nedávná barva ${index + 1}`,
-          box,
-        ]),
+        ...testCase.quickTools.map((box, index): [string, Box] => [quickToolName(index), box]),
       ];
       for (const [name, box] of strip) {
         expect(overlaps(testCase.panelBox, box), `${label}: panel překrývá ${name}`).toBe(false);
@@ -335,7 +338,7 @@ describe('#96 AC3, AC6: otevřený panel se v obou krocích vejde vedle pruhu', 
       const strip = boundsOf([
         testCase.handle,
         testCase.undo,
-        ...testCase.recentColors,
+        ...testCase.quickTools,
         ...(testCase.landscape ? [broom] : []),
       ]);
       const gap = testCase.landscape

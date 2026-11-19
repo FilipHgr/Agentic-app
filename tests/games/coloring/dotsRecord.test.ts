@@ -19,7 +19,6 @@ import {
   worstCaseOutlines,
 } from './extendedPaletteHelpers';
 import {
-  LEGACY_P2_RECENT_COLORS,
   LEGACY_P2_RECORD,
   LEGACY_P2_SELECTED_COLOR,
   LEGACY_P2_STORAGE,
@@ -28,7 +27,6 @@ import {
 } from './legacyP2RecordFixture';
 import {
   LEGACY_P3_LINE_SIZE,
-  LEGACY_P3_RECENT_COLORS,
   LEGACY_P3_RECORD,
   LEGACY_P3_SELECTED_COLOR,
   LEGACY_P3_STORAGE,
@@ -50,6 +48,7 @@ import {
   twoHalves,
 } from './savedPictureHelpers';
 import { at } from './strokeHelpers';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #101 AC5 (uložení): vzorek puntíků přes vzor V se vejde do
@@ -221,7 +220,7 @@ describe('#101 AC5: dříve uložené obrázky se otevřou beze změny', () => {
     ).toEqual([]);
   });
 
-  it('dítě po otevření hry vidí obrázek uložený před puntíkovým fixem i s barvou, nedávnými barvami a velikostí', () => {
+  it('dítě po otevření hry vidí obrázek uložený před puntíkovým fixem i s barvou a velikostí, bez nedávných barev (#148)', () => {
     const regions = legacyP3Regions();
 
     const game = openOn(storageWith(LEGACY_P3_STORAGE), regions);
@@ -231,7 +230,10 @@ describe('#101 AC5: dříve uložené obrázky se otevřou beze změny', () => {
       'obrázek',
     ).toEqual([]);
     expect(game.palette().selected, 'vybraná barva').toBe(LEGACY_P3_SELECTED_COLOR);
-    expect(game.recentColors(), 'nedávné barvy').toEqual(LEGACY_P3_RECENT_COLORS);
+    expect(
+      firstButton(game),
+      'první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
+    ).toBeNull();
     expect(game.lineSize(), 'velikost').toBe(LEGACY_P3_LINE_SIZE);
   });
 
@@ -273,7 +275,10 @@ describe('#101 AC5: dříve uložené obrázky se otevřou beze změny', () => {
       pixelDifferences(pixelsOf(p2, legacyP2Regions()), legacyP2Pixels(), legacyP2Regions().width),
       'p2',
     ).toEqual([]);
-    expect(p2.recentColors(), 'p2: nedávné barvy').toEqual(LEGACY_P2_RECENT_COLORS);
+    expect(
+      firstButton(p2),
+      'p2: první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
+    ).toBeNull();
 
     const p1 = openOn(storageWithLegacyP1(), legacyRegions());
     expect(

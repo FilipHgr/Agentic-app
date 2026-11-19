@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { COLOR_PICK_TONES, PALETTE } from '../../../src/games/coloring/logic/palette';
+import { PALETTE } from '../../../src/games/coloring/logic/palette';
 import type { RegionMap } from '../../../src/games/coloring/logic/regionMap';
 import type { SavedColoring } from '../../../src/games/coloring/logic/savedPicture';
 import { handleColorDotFill } from '../../../src/games/coloring/logic/toolIcons';
 import type { ToolId } from '../../../src/games/coloring/logic/toolPanel';
 import { choose, endOf } from './drawingToolHelpers';
 import { TOOL_NAMES } from './lineSizeHelpers';
-import { pick, seededRandom } from './recentColorsHelpers';
+import { pick, seededRandom } from './randomHelpers';
 import { at } from './strokeHelpers';
 import { RecordingStorage, openOn, paint, startStroke, twoHalves } from './savedPictureHelpers';
 import {
@@ -32,17 +32,21 @@ import {
   toolColorsOf,
 } from './toolColorsHelpers';
 import type { ColorTool } from './toolColorsHelpers';
+import { firstButton, tapPrevious, tapQuickEraser } from './quickToolsHelpers';
 
 /**
  * Testy k #110 (každý nástroj v Omalovánkách si pamatuje svou barvu):
  * AC1 každý malovací nástroj má svou barvu, AC2 barva nástroje je vidět
  * (část, kterou jde ověřit logikou), AC3 barva po gumě a duze a AC7
- * okrajové případy. Nedávné barvy (AC4) jsou v `toolColorsRecent.test.ts`,
- * pamatování a staré záznamy (AC5, AC6) v `toolColorsRecord.test.ts`.
+ * okrajové případy. Nedávné barvy (AC4) od #148 nejsou, jejich testy
+ * (`toolColorsRecent.test.ts`) nahradily testy předchozího nástroje
+ * (`quickTools*.test.ts`); pamatování a staré záznamy (AC5, AC6) jsou
+ * v `toolColorsRecord.test.ts`.
  *
  * Ťuknutí scéna hlásí jako dnes (#105): úchyt `tapHandle()`, nástroj
- * `tapTool(i)`, barva v kroku barev `tapColor(i)`, nedávná barva
- * `tapRecentColor(i)`, Zpět `tapUndo()`. Zkušební obrázek 300 × 200 má
+ * `tapTool(i)`, barva v kroku barev `tapColor(i)`, od #148 předchozí
+ * nástroj a guma v pruhu (`quickToolsHelpers.ts`), Zpět `tapUndo()`.
+ * Zkušební obrázek 300 × 200 má
  * oblast A vlevo a B vpravo od čáry x 150. Nový profil začíná výchozími
  * barvami z tabulky v AC5 (štětec červený, fix modrý, …).
  *
@@ -56,7 +60,7 @@ import type { ColorTool } from './toolColorsHelpers';
  *   vybraného malovacího nástroje, po gumě naposledy vybraného malovacího
  *   nástroje, po duze štětce. V kroku barev je to tedy barva nástroje na
  *   prvním místě a `markedColors(palette())` ji označí.
- * - `tapColor(i)` a `tapRecentColor(i)` dají barvu jen tomuto nástroji.
+ * - `tapColor(i)` dá barvu jen tomuto nástroji.
  * - `pointerDown` maluje barvou vybraného nástroje.
  * Výchozí barvy může kód mít třeba jako `DEFAULT_TOOL_COLORS` v novém
  * `src/games/coloring/logic/toolColors.ts`; testy mají vlastní opis
@@ -90,16 +94,16 @@ function colorsBetween(
   return [...found];
 }
 
-/** Co dítě vidí z barev: barvy nástrojů, nedávné barvy, vybraný nástroj a velikost. */
+/** Co dítě vidí z barev: barvy nástrojů, předchozí nástroj (#148), vybraný nástroj a velikost. */
 function snapshotOf(game: SavedColoring): {
   colors: Record<ColorTool, number | null>;
-  recent: (number | null)[];
+  first: ReturnType<typeof firstButton>;
   tool: ToolId;
   size: string;
 } {
   return {
     colors: toolColorsOf(game),
-    recent: [...game.recentColors()],
+    first: firstButton(game),
     tool: game.selectedTool(),
     size: game.lineSize(),
   };
@@ -192,7 +196,8 @@ describe('#110 AC1: každý malovací nástroj má svou barvu', () => {
     expect(colorsBetween(game, regions, 152, 299), 'fix').toEqual([BROWN]);
   });
 
-  it('dlouhá náhodná řada ťuknutí na nástroje, barvy a nedávné barvy mění barvu jen jednoho nástroje', () => {
+  // Upraveno k #148: místo nedávných barev ťuká dítě na předchozí nástroj.
+  it('dlouhá náhodná řada ťuknutí na nástroje, barvy a předchozí nástroj mění barvu jen jednoho nástroje', () => {
     const allTools: readonly ToolId[] = [...COLOR_TOOLS, ...TOOLS_WITHOUT_COLOR];
     for (const seed of [110, 2026, 4242]) {
       const random = seededRandom(seed);
@@ -216,10 +221,13 @@ describe('#110 AC1: každý malovací nástroj má svou barvu', () => {
           game.tapColor(picked);
           what = `barva ${picked}`;
         } else {
-          const place = pick(random, 2);
-          picked = game.recentColors()[place] ?? null;
-          game.tapRecentColor(place);
-          what = `nedávné místo ${place + 1} (${String(picked)})`;
+          const shown = firstButton(game);
+          tapPrevious(game);
+          if (shown !== null) {
+            tool = shown.tool;
+            paintingTool = shown.tool;
+          }
+          what = `předchozí nástroj (${shown === null ? 'prázdné' : TOOL_NAMES[shown.tool]})`;
         }
         if (picked !== null) {
           // Barvu dostane vybraný malovací nástroj, po gumě naposledy vybraný, po duze štětec (AC3).
@@ -335,14 +343,16 @@ describe('#110 AC3: barva po gumě a duze', () => {
     }
   });
 
-  it('s gumou dá nedávná barva barvu naposledy vybranému malovacímu nástroji', () => {
+  // Nahrazuje k #148 test „s gumou dá nedávná barva barvu …“ (#99, #110):
+  // guma vybraná v pruhu se k barvě chová stejně jako guma z panelu.
+  it('s gumou vybranou v pruhu dá barva barvu naposledy vybranému malovacímu nástroji', () => {
     const game = fresh();
     giveColor(game, 'brush', YELLOW);
-    expect(game.recentColors()[0], 'nedávná je červená').toBe(RED);
     pickTool(game, 'crayon');
-    pickTool(game, 'eraser');
+    tapQuickEraser(game);
+    expect(game.selectedTool(), 'kontrola: guma').toBe('eraser');
 
-    game.tapRecentColor(0);
+    game.tapColor(RED);
 
     expect(game.selectedTool()).toBe('crayon');
     expect(toolColorsOf(game)).toEqual({ ...DEFAULT_TOOL_COLORS, brush: YELLOW, crayon: RED });
@@ -371,23 +381,19 @@ describe('#110 AC3: barva po gumě a duze', () => {
     expect(toolColorsOf(game)).toEqual(defaultsWithBrush(GRAY));
   });
 
-  it('s duhou dá nedávná barva barvu štětci', () => {
+  // Nahrazuje k #148 test „s duhou dá nedávná barva barvu štětci“ (#99,
+  // #110): duha vybraná prvním tlačítkem se k barvě chová jako z panelu.
+  it('s duhou vybranou prvním tlačítkem dá barva barvu štětci', () => {
     const game = fresh();
-    giveColor(game, 'spray', YELLOW);
-    // Upraveno k #116: výchozí barva spreje je fialová ze sady spreje (do #116 černá).
-    expect(game.recentColors()[0], 'nedávná je předchozí barva spreje').toBe(
-      DEFAULT_TOOL_COLORS.spray,
-    );
     pickTool(game, 'rainbow');
+    giveColor(game, 'spray', YELLOW);
+    tapPrevious(game);
+    expect(game.selectedTool(), 'kontrola: duha').toBe('rainbow');
 
-    game.tapRecentColor(0);
+    game.tapColor(GRAY);
 
     expect(game.selectedTool()).toBe('brush');
-    expect(toolColorsOf(game)).toEqual({
-      ...DEFAULT_TOOL_COLORS,
-      spray: YELLOW,
-      brush: DEFAULT_TOOL_COLORS.spray,
-    });
+    expect(toolColorsOf(game)).toEqual({ ...DEFAULT_TOOL_COLORS, spray: YELLOW, brush: GRAY });
   });
 
   it('po gumě a duze se maluje hned nástrojem, který barvu dostal, a jen jeho barvou', () => {
@@ -407,17 +413,20 @@ describe('#110 AC3: barva po gumě a duze', () => {
 });
 
 describe('#110 AC7: okrajové případy', () => {
-  it('ťuknutí druhým prstem během tahu na nástroj, barvu nebo nedávnou barvu se nepočítá a tah pokračuje', () => {
+  // Upraveno k #148: místo nedávné barvy předchozí nástroj a guma v pruhu.
+  it('ťuknutí druhým prstem během tahu na nástroj, barvu, předchozí nástroj nebo gumu v pruhu se nepočítá a tah pokračuje', () => {
     const taps: ReadonlyArray<[string, (game: SavedColoring) => unknown]> = [
       ['nástroj', (game) => choose(game, 'marker')],
       ['barva', (game) => game.tapColor(GRAY)],
-      ['nedávná barva', (game) => game.tapRecentColor(0)],
+      ['předchozí nástroj', (game) => tapPrevious(game)],
+      ['guma v pruhu', (game) => tapQuickEraser(game)],
     ];
     for (const [what, tap] of taps) {
       const regions = twoHalves();
       const game = openOn(new RecordingStorage(), regions);
+      pickTool(game, 'crayon');
       giveColor(game, 'brush', YELLOW);
-      expect(game.recentColors()[0], `${what}: nedávná je červená`).toBe(RED);
+      expect(firstButton(game)?.tool, `${what}: pastelka na prvním tlačítku`).toBe('crayon');
       startStroke(game, [at(20, 100), at(60, 100)]);
       const before = snapshotOf(game);
 
@@ -430,7 +439,7 @@ describe('#110 AC7: okrajové případy', () => {
     }
   });
 
-  it('Zpět vrací jen tahy, barvy nástrojů ani nedávné barvy nemění', () => {
+  it('Zpět vrací jen tahy, barvy nástrojů ani předchozí nástroj nemění', () => {
     const regions = twoHalves();
     const game = openOn(new RecordingStorage(), regions);
     giveColor(game, 'brush', YELLOW);
@@ -465,52 +474,51 @@ describe('#110 AC7: okrajové případy', () => {
     }
   });
 
-  it('ťuknutí na výchozí barvu nástroje v novém profilu zavře panel a nedávné barvy nechá prázdné', () => {
+  // Upraveno k #148: místo prázdných nedávných barev se nezmění první tlačítko.
+  it('ťuknutí na výchozí barvu nástroje v novém profilu zavře panel a první tlačítko nezmění', () => {
     for (const tool of COLOR_TOOLS) {
       const game = fresh();
       pickTool(game, tool);
+      const first = firstButton(game);
 
       game.tapColor(DEFAULT_TOOL_COLORS[tool]);
 
       expect(game.panelView(), TOOL_NAMES[tool]).toBe('closed');
-      expect(game.recentColors(), TOOL_NAMES[tool]).toEqual([null, null]);
+      expect(firstButton(game), TOOL_NAMES[tool]).toEqual(first);
       expect(toolColorsOf(game), TOOL_NAMES[tool]).toEqual(DEFAULT_TOOL_COLORS);
     }
   });
 
-  it('ťuknutí na prázdné nedávné místo se jen zhoupne a žádnému nástroji barvu nedá', () => {
-    for (const tool of [...COLOR_TOOLS, ...TOOLS_WITHOUT_COLOR]) {
-      const game = fresh();
-      pickTool(game, tool);
-      game.tapHandle();
-      const before = snapshotOf(game);
+  // Nahrazuje k #148 test prázdného nedávného místa (#99, #110).
+  it('ťuknutí na prázdné první tlačítko se jen zhoupne a žádnému nástroji barvu nedá', () => {
+    const game = fresh();
+    const before = snapshotOf(game);
+    expect(before.first, 'kontrola: prázdné').toBeNull();
 
-      for (const place of [0, 1]) {
-        const result = game.tapRecentColor(place);
-        expect(result.kind, `${TOOL_NAMES[tool]}, místo ${place + 1}`).toBe('wobble');
-      }
-
-      expect(snapshotOf(game), TOOL_NAMES[tool]).toEqual(before);
+    for (let tap = 1; tap <= 2; tap += 1) {
+      expect(tapPrevious(game).kind, `${tap}. ťuknutí`).toBe('wobble');
     }
+
+    expect(snapshotOf(game)).toEqual(before);
   });
 
-  it('ťuknutí na nedávnou barvu, kterou už nástroj má, zahraje tón výběru a nic nezmění', () => {
+  // Nahrazuje k #148 test „nedávná barva, kterou už nástroj má“ (#110):
+  // ťuknutí na první tlačítko vybere nástroj a žádnou barvu nezmění.
+  it('ťuknutí na první tlačítko vybere předchozí nástroj a barvy nástrojů ani tloušťku nezmění', () => {
     const game = fresh();
     giveColor(game, 'marker', RED);
     giveColor(game, 'marker', GREEN);
-    // Upraveno k #116: výchozí modrá fixu je ze sady fixu.
-    expect(game.recentColors(), 'nedávné červená a modrá').toEqual([
-      RED,
-      DEFAULT_TOOL_COLORS.marker,
-    ]);
     pickTool(game, 'brush');
     game.tapHandle();
-    expect(game.handleView().color, 'štětec je červený jako první nedávné místo').toBe(RED);
     const before = snapshotOf(game);
 
-    const result = game.tapRecentColor(0);
+    const result = tapPrevious(game);
 
-    expect(result).toEqual({ kind: 'picked', tones: COLOR_PICK_TONES });
-    expect(snapshotOf(game)).toEqual(before);
+    expect(result.kind).toBe('picked');
+    expect(snapshotOf(game)).toEqual({
+      ...before,
+      tool: 'marker',
+      first: { tool: 'brush', color: before.colors.brush },
+    });
   });
 });

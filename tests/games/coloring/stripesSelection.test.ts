@@ -12,6 +12,7 @@ import { TOOL_NAMES } from './lineSizeHelpers';
 import { RecordingStorage, openOn, startStroke, twoHalves } from './savedPictureHelpers';
 import { STRIPES } from './stripesHelpers';
 import { at } from './strokeHelpers';
+import { tapPrevious } from './quickToolsHelpers';
 
 /**
  * Testy k #102 AC1: výběr proužkového fixu v panelu a co ukazuje úchyt.
@@ -149,16 +150,18 @@ describe('#102 AC1: proužkový fix se vybírá v panelu jako ostatní nástroje
     }
   });
 
-  it('nedávná barva v pruhu nechá proužkový fix vybraný a úchyt ukáže proužky v ní', () => {
+  // Nahrazuje k #148 test nedávné barvy v pruhu (#99): nedávné barvy
+  // nejsou, první tlačítko vrátí nástroj i s jeho barvou.
+  it('první tlačítko v pruhu vrátí proužkový fix i s jeho barvou a úchyt ukáže proužky v ní', () => {
     const game = fresh();
-    game.tapColor(PINK);
-    game.tapColor(BLUE);
     choose(game, STRIPES);
+    game.tapColor(PINK);
+    choose(game, 'brush');
 
-    game.tapRecentColor(0);
+    const result = tapPrevious(game);
 
+    expect(result.kind).toBe('picked');
     expect(game.selectedTool()).toBe(STRIPES);
-    expect(game.palette().selected, 'vybraná nedávná barva').toBe(PINK);
     expect(game.handleView()).toMatchObject({ tool: STRIPES, color: PINK });
   });
 

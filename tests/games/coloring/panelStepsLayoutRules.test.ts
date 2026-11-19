@@ -27,6 +27,9 @@ import {
   coloringCases,
   colorName,
   lineSizeName,
+  quickToolName,
+  quickToolRects,
+  quickToolTarget,
   toolName,
 } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
@@ -181,10 +184,7 @@ function stripControls(testCase: ColoringCase): Array<[string, Box]> {
     ['domeček a 8 px kolem', homeSurrounding],
     ['úchyt', testCase.handle],
     ['Zpět', testCase.undo],
-    ...testCase.recentColors.map((box, index): [string, Box] => [
-      `nedávná barva ${index + 1}`,
-      box,
-    ]),
+    ...testCase.quickTools.map((box, index): [string, Box] => [quickToolName(index), box]),
   ];
 }
 
@@ -276,7 +276,7 @@ describe('#105 AC6: pravidla rozložení z #96 platí pro oba kroky ve všech ok
     }
   });
 
-  it('krok nepřekryje domeček ani 8 px kolem něj, úchyt, Zpět ani nedávné barvy', () => {
+  it('krok nepřekryje domeček ani 8 px kolem něj, úchyt, Zpět, předchozí nástroj ani gumu v pruhu', () => {
     for (const testCase of stepCases()) {
       for (const [name, control] of stripControls(testCase)) {
         expect(
@@ -484,19 +484,19 @@ describe('#105 AC2, AC4, AC5: kam patří dotyk v krocích panelu', () => {
     }
   });
 
-  it('Zpět a obě nedávné barvy jdou ťuknout se zavřeným panelem i v obou krocích', () => {
+  it('Zpět, předchozí nástroj a guma v pruhu jdou ťuknout se zavřeným panelem i v obou krocích', () => {
     for (const testCase of cases()) {
       const undo = center(testCase.layout.undoButton);
       expect(
         touchTargetAt(testCase.layout, testCase.panel, undo.x, undo.y),
         `${testCase.scene.label}: Zpět`,
       ).toEqual({ kind: 'undo' });
-      testCase.layout.recentColors.forEach((recent, index) => {
-        const { x, y } = center(recent);
+      quickToolRects(testCase.layout).forEach((quickTool, index) => {
+        const { x, y } = center(quickTool);
         expect(
           touchTargetAt(testCase.layout, testCase.panel, x, y),
-          `${testCase.scene.label}: nedávná barva ${index + 1}`,
-        ).toEqual({ kind: 'recentColor', index });
+          `${testCase.scene.label}: ${quickToolName(index)}`,
+        ).toEqual(quickToolTarget(index));
       });
     }
   });

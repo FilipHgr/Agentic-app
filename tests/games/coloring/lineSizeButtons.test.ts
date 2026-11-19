@@ -30,6 +30,7 @@ import {
   pickTool,
   toolColorsOf,
 } from './toolColorsHelpers';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy chování k #112 (tři tlačítka tloušťky čáry v Omalovánkách místo
@@ -91,7 +92,7 @@ function everythingButSize(game: SavedColoring): unknown {
     panel: game.panelView(),
     palette: game.palette(),
     toolColors: toolColorsOf(game),
-    recent: game.recentColors(),
+    first: firstButton(game),
     handleTool: game.handleView().tool,
     handleColor: game.handleView().color,
   };

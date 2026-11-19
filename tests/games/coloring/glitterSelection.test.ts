@@ -11,6 +11,7 @@ import { choose, endOf } from './drawingToolHelpers';
 import { GLITTER } from './glitterHelpers';
 import { RecordingStorage, openOn, startStroke, twoHalves } from './savedPictureHelpers';
 import { at } from './strokeHelpers';
+import { tapPrevious } from './quickToolsHelpers';
 
 /**
  * Testy k #103 AC1: výběr třpytek v panelu a co ukazuje úchyt. Místo
@@ -172,16 +173,18 @@ describe('#103 AC1: třpytky se vybírají v panelu jako ostatní nástroje', ()
     }
   });
 
-  it('nedávná barva v pruhu nechá třpytky vybrané a úchyt ukáže třpytky v ní', () => {
+  // Nahrazuje k #148 test nedávné barvy v pruhu (#99): nedávné barvy
+  // nejsou, první tlačítko vrátí nástroj i s jeho barvou.
+  it('první tlačítko v pruhu vrátí třpytky i s jejich barvou a úchyt ukáže třpytky v ní', () => {
     const game = fresh();
-    game.tapColor(PINK);
-    game.tapColor(BLUE);
     choose(game, GLITTER);
+    game.tapColor(PINK);
+    choose(game, 'brush');
 
-    game.tapRecentColor(0);
+    const result = tapPrevious(game);
 
+    expect(result.kind).toBe('picked');
     expect(game.selectedTool()).toBe(GLITTER);
-    expect(game.palette().selected, 'vybraná nedávná barva').toBe(PINK);
     expect(game.handleView()).toMatchObject({ tool: GLITTER, color: PINK });
   });
 

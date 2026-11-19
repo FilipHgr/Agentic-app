@@ -76,6 +76,7 @@ import {
   giveToolPlace,
   hexOf,
 } from './toolColorSetsHelpers';
+import { tapPrevious } from './quickToolsHelpers';
 
 /**
  * Testy k #116 AC5 (starší uložené stavy) a AC6 první část (obrázek
@@ -281,39 +282,39 @@ describe('#116 AC5: starší uložené stavy', () => {
     }
   });
 
-  it('nedávnou barvu mimo sadu nástroj po ťuknutí dostane tak, jak je, a maluje jí', () => {
-    const regions = twoHalves();
-    for (const tool of COLOR_TOOLS) {
-      for (let brushPlace = 0; brushPlace < SET_SIZE; brushPlace += 1) {
-        const brushHex = BRUSH_SET[brushPlace] ?? '';
-        if (TOOL_SETS[tool].includes(brushHex) || tool === 'brush') {
-          continue;
-        }
-        const game = openOn(new RecordingStorage(), regions);
-        // Štětec dostane barvu z místa `brushPlace` a pak jinou, barva štětce je nedávná.
-        giveToolPlace(game, 'brush', brushPlace);
-        const recentColor = game.toolColor('brush');
-        giveToolPlace(game, 'brush', brushPlace === 0 ? 1 : 0);
-        const slot = game.recentColors().indexOf(recentColor);
-        expect(slot, `kontrola: ${brushHex} je mezi nedávnými`).toBeGreaterThanOrEqual(0);
-        pickTool(game, tool);
-        game.tapHandle();
-
-        game.tapRecentColor(slot);
-
-        const what = `${TOOL_NAMES[tool]}, nedávná ${brushHex}`;
-        expect(game.selectedTool(), `${what}: nástroj`).toBe(tool);
-        expect(game.toolColor(tool), `${what}: barva tak, jak je`).toBe(recentColor);
-        expect(hexOf(game.toolColor(tool)), `${what}: odstín`).toBe(brushHex);
-        pickTool(game, tool);
-        expect(game.markedColorPlace(), `${what}: nic označeného`).toBeNull();
-        game.tapHandle();
-        const before = pixelsOf(game, regions);
-        paint(game, STROKE);
-        expect(strokeColors(before, pixelsOf(game, regions)), `${what}: tah`).toEqual([
-          recentColor,
-        ]);
+  // Nahrazuje k #148 test „nedávnou barvu mimo sadu nástroj dostane“
+  // (#116 AC5): nedávné barvy nejsou, barvu mimo sadu má nástroj jen ze
+  // staršího záznamu. Po přepnutí prvním tlačítkem v pruhu ji má dál
+  // a maluje jí.
+  it('barvu mimo sadu ze staršího záznamu má nástroj i po přepnutí prvním tlačítkem a maluje jí', () => {
+    const regions = legacyBefore111Regions();
+    const outside = COLOR_TOOLS.filter((tool) => {
+      const hex = hexOf(LEGACY_BEFORE_111_TOOL_COLORS[tool]);
+      return tool !== 'brush' && hex !== null && !TOOL_SETS[tool].includes(hex);
+    });
+    expect(outside.length, 'kontrola: některý nástroj má barvu mimo sadu').toBeGreaterThan(0);
+    for (const tool of outside) {
+      const storage = new RecordingStorage();
+      for (const [key, value] of LEGACY_BEFORE_111_STORAGE) {
+        storage.data.set(key, value);
       }
+      const game = openOn(storage, regions);
+      const color = LEGACY_BEFORE_111_TOOL_COLORS[tool];
+      pickTool(game, tool);
+      pickTool(game, 'brush');
+      game.tapHandle();
+
+      expect(tapPrevious(game).kind, `${TOOL_NAMES[tool]}: první tlačítko`).toBe('picked');
+
+      const what = `${TOOL_NAMES[tool]}, barva ${String(color)} mimo sadu`;
+      expect(game.selectedTool(), `${what}: nástroj`).toBe(tool);
+      expect(game.toolColor(tool), `${what}: barva tak, jak je`).toBe(color);
+      pickTool(game, tool);
+      expect(game.markedColorPlace(), `${what}: nic označeného`).toBeNull();
+      game.tapHandle();
+      const before = pixelsOf(game, regions);
+      paint(game, STROKE);
+      expect(strokeColors(before, pixelsOf(game, regions)), `${what}: tah`).toEqual([color]);
     }
   });
 

@@ -47,7 +47,6 @@ import {
 } from './legacyP3RecordFixture';
 import {
   LEGACY_P3_STRIPES_LINE_SIZE,
-  LEGACY_P3_STRIPES_RECENT_COLORS,
   LEGACY_P3_STRIPES_RECORD,
   LEGACY_P3_STRIPES_SELECTED_COLOR,
   LEGACY_P3_STRIPES_STORAGE,
@@ -71,6 +70,7 @@ import {
 import { bigBlank, widthOf } from './stampHelpers';
 import { at } from './strokeHelpers';
 import type { Point } from './outlineFixtures';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #103 AC3 (uložený i vrácený obrázek obsahuje jen jiskry ze
@@ -387,7 +387,7 @@ describe('#103 AC5: dříve uložené obrázky se otevřou beze změny', () => {
     }
   });
 
-  it('dítě po otevření hry vidí obrázek s proužky uložený před třpytkami i s barvou, nedávnými barvami a velikostí', () => {
+  it('dítě po otevření hry vidí obrázek s proužky uložený před třpytkami i s barvou a velikostí, bez nedávných barev (#148)', () => {
     const regions = legacyP3StripesRegions();
 
     const game = openOn(storageWith(LEGACY_P3_STRIPES_STORAGE), regions);
@@ -397,7 +397,10 @@ describe('#103 AC5: dříve uložené obrázky se otevřou beze změny', () => {
       'obrázek',
     ).toEqual([]);
     expect(game.palette().selected, 'vybraná barva').toBe(LEGACY_P3_STRIPES_SELECTED_COLOR);
-    expect(game.recentColors(), 'nedávné barvy').toEqual(LEGACY_P3_STRIPES_RECENT_COLORS);
+    expect(
+      firstButton(game),
+      'první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
+    ).toBeNull();
     expect(game.lineSize(), 'velikost').toBe(LEGACY_P3_STRIPES_LINE_SIZE);
   });
 

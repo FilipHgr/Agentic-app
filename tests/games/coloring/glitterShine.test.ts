@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createGlitterShine } from '../../../src/games/coloring/logic/glitterShine';
 import type { GlitterShine, ShineSpark } from '../../../src/games/coloring/logic/glitterShine';
 import type { Point } from './outlineFixtures';
-import { seededRandom } from './recentColorsHelpers';
+import { seededRandom } from './randomHelpers';
 import { at } from './strokeHelpers';
 
 /**

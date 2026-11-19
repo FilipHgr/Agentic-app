@@ -35,7 +35,7 @@ import { ALL_SIZES, SIZE_NAMES } from './lineSizeHelpers';
  * v tlačítku, kontrast nebo obrys, dotyk do mezery), běží se 4 tlačítky
  * v `lineSizeButtonsLayoutRules.test.ts`; společná pravidla (nic se
  * nepřekrývá, 4 px od okraje, panel stejně velký v obou krocích, nepřekryje
- * domeček, úchyt, Zpět ani nedávné barvy) v `coloringLayoutRules.test.ts`
+ * domeček, úchyt, Zpět, předchozí nástroj ani gumu v pruhu) v `coloringLayoutRules.test.ts`
  * a `panelStepsLayoutRules.test.ts`.
  *
  * Platí poslední schválení vlastníka (komentář k issue 2026-11-10):

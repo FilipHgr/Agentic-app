@@ -12,6 +12,7 @@ import { choose, endOf } from './drawingToolHelpers';
 import { TOOL_NAMES } from './lineSizeHelpers';
 import { at } from './strokeHelpers';
 import { RecordingStorage, openOn, startStroke, twoHalves } from './savedPictureHelpers';
+import { tapPrevious } from './quickToolsHelpers';
 
 /**
  * Testy k #101 AC1: výběr puntíkového fixu v panelu a co ukazuje úchyt.
@@ -145,17 +146,19 @@ describe('#101 AC1: puntíkový fix se vybírá v panelu jako ostatní nástroje
     }
   });
 
-  it('nedávná barva v pruhu nechá puntíkový fix vybraný a úchyt ukáže puntíky v ní', () => {
+  // Nahrazuje k #148 test nedávné barvy v pruhu (#99): nedávné barvy
+  // nejsou, první tlačítko vrátí nástroj i s jeho barvou.
+  it('první tlačítko v pruhu vrátí puntíkový fix i s jeho barvou a úchyt ukáže puntíky v ní', () => {
     const game = fresh();
-    game.tapColor(PINK);
-    game.tapColor(BLUE);
     choose(game, DOTS);
+    game.tapColor(PINK);
+    choose(game, 'brush');
 
-    game.tapRecentColor(0);
+    const result = tapPrevious(game);
 
+    expect(result.kind).toBe('picked');
     expect(game.selectedTool()).toBe(DOTS);
-    expect(game.handleView()).toMatchObject({ tool: DOTS, color: game.palette().selected });
-    expect(game.palette().selected, 'vybraná nedávná barva').toBe(PINK);
+    expect(game.handleView()).toMatchObject({ tool: DOTS, color: PINK });
   });
 
   it('po gumě vrátí ťuknutí na barvu puntíkový fix, když s ním dítě malovalo naposledy', () => {

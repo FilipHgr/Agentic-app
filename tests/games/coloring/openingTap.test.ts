@@ -10,6 +10,8 @@ import { PANEL_OPEN_TONES } from '../../../src/games/coloring/logic/toolPanel';
 import type { Tone } from '../../../src/shared/audio/tonePlayer';
 import { slotOf } from './drawingToolHelpers';
 import type { Point } from './outlineFixtures';
+import { firstButton, press, release } from './quickToolsHelpers';
+import type { QuickButton } from './quickToolsHelpers';
 import { at } from './strokeHelpers';
 import {
   PICTURE,
@@ -79,7 +81,8 @@ type Place =
   | { readonly kind: 'handle' }
   | { readonly kind: 'undo' }
   | { readonly kind: 'camera' }
-  | { readonly kind: 'recentColor'; readonly index: number }
+  /** Od #148 místo nedávné barvy: předchozí nástroj, nebo guma v pruhu. */
+  | { readonly kind: 'quickTool'; readonly button: QuickButton }
   /** Místo štětce v panelu; při zavřeném panelu je tam obrázek. */
   | { readonly kind: 'brushSlot' };
 
@@ -120,8 +123,8 @@ function touchAt(game: SavedColoring, id: number, place: Place): TouchResult {
       const result = game.tapCamera();
       return { tones: result.kind === 'ignored' ? [] : result.tones, painted: false };
     }
-    case 'recentColor': {
-      const result = game.tapRecentColor(place.index);
+    case 'quickTool': {
+      const result = press(game, place.button, id);
       return { tones: result.kind === 'ignored' ? [] : result.tones, painted: false };
     }
   }
@@ -131,6 +134,9 @@ function touchAt(game: SavedColoring, id: number, place: Place): TouchResult {
 function tap(game: SavedColoring, id: number, place: Place): TouchResult {
   const result = touchAt(game, id, place);
   game.pointerUp(id);
+  if (place.kind === 'quickTool') {
+    release(game, id);
+  }
   return result;
 }
 
@@ -147,8 +153,8 @@ function move(game: SavedColoring, id: number, path: readonly Point[]): boolean 
 }
 
 /**
- * Profil, který Omalovánky už otevřel (panel začíná zavřený), s dvěma
- * nedávnými barvami (zelená a modrá) z dřívějška.
+ * Profil, který Omalovánky už otevřel (panel začíná zavřený), s barvami
+ * z dřívějška a od #148 s fixem jako předchozím nástrojem.
  */
 function profileWithHistory(): RecordingStorage {
   const storage = new RecordingStorage();
@@ -156,6 +162,13 @@ function profileWithHistory(): RecordingStorage {
   before.tapColor(GREEN);
   before.tapColor(BLUE);
   before.tapColor(RED);
+  before.tapHandle();
+  before.tapTool(slotOf('marker'));
+  before.tapHandle();
+  before.tapTool(slotOf('crayon'));
+  if (before.panelOpen()) {
+    before.tapHandle();
+  }
   before.suspend();
   return storage;
 }
@@ -238,15 +251,15 @@ describe('#130 AC2: ťuknutí, které omalovánku otevřelo, nic nenamaluje ani 
     expect(paintedPixels(game, regions)).toBe(0);
   });
 
-  it('prst z otevírání, který se po obrázku posune a pustí nad nedávnou barvou, Zpět a fotoaparátem, nic nevybere', () => {
+  it('prst z otevírání, který se po obrázku posune a pustí nad předchozím nástrojem, gumou, Zpět a fotoaparátem, nic nevybere', () => {
     const { game } = opened(profileWithHistory());
     const palette = game.palette();
-    const recent = game.recentColors();
+    const first = firstButton(game);
     const tool = game.selectedTool();
     move(game, FINGER, [LEFT_SPOT, at(0, 0), at(-20, 40)]);
     game.pointerUp(FINGER);
     expect(game.palette(), 'barva beze změny').toEqual(palette);
-    expect(game.recentColors(), 'nedávné barvy beze změny').toEqual(recent);
+    expect(firstButton(game), 'předchozí nástroj beze změny').toEqual(first);
     expect(game.selectedTool(), 'nástroj beze změny').toBe(tool);
     expect(game.panelView(), 'panel zůstal zavřený').toBe('closed');
     expect(game.savingToAlbum(), 'fotoaparát nic neukládá').toBe(false);

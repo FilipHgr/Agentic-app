@@ -15,7 +15,7 @@ import {
   UNDO_NAME,
   coloringCases,
   isOpen,
-  recentColorName,
+  quickToolName,
 } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
 import { drawing } from './outlineFixtures';
@@ -305,21 +305,18 @@ describe('#127 AC2: na výšku barví tah přesně místo pod prstem', () => {
 });
 
 describe('#127 AC2 (#111 AC2 beze změny): dotyk na ovládání nikdy nemaluje', () => {
-  /** Ovládání pruhu v herních jednotkách: domeček, úchyt, Zpět a nedávné barvy. */
+  /** Ovládání pruhu v herních jednotkách: domeček, úchyt, Zpět, předchozí nástroj a guma (#148). */
   function controlsOf(testCase: ColoringCase): Array<[string, Box]> {
     const units = (box: Box): Box => unitsOf(testCase, box);
     return [
       [HOME_NAME, units(testCase.home)],
       [HANDLE_NAME, units(testCase.handle)],
       [UNDO_NAME, units(testCase.undo)],
-      ...testCase.recentColors.map((box, index): [string, Box] => [
-        recentColorName(index),
-        units(box),
-      ]),
+      ...testCase.quickTools.map((box, index): [string, Box] => [quickToolName(index), units(box)]),
     ];
   }
 
-  it('dotyk na domečku, úchytu, Zpět ani nedávné barvě nemaluje, se zavřeným panelem ani v obou krocích', () => {
+  it('dotyk na domečku, úchytu, Zpět, předchozím nástroji ani gumě v pruhu nemaluje, se zavřeným panelem ani v obou krocích', () => {
     for (const testCase of cases()) {
       for (const [name, control] of controlsOf(testCase)) {
         for (const point of pointsInside(control, 4)) {

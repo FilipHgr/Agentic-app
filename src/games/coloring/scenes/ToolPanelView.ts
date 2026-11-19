@@ -477,9 +477,10 @@ function strokeRoundLine(
 
 /**
  * Tlačítko nástroje se středem v počátku ve vzhledu A3 jako tlačítko barvy;
- * vybraný nástroj má silný modrý okraj.
+ * vybraný nástroj má silný modrý okraj. Stejně vypadají i tlačítka
+ * rychlého přepínání v pruhu (#148).
  */
-function drawToolButton(
+export function drawToolButton(
   graphics: Phaser.GameObjects.Graphics,
   slot: LayoutRect,
   cssScale: number,

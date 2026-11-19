@@ -92,7 +92,7 @@ describe('#104 AC1: sprej je na vyhrazeném místě v panelu', () => {
         testCase.handle,
         testCase.undo,
         ...testCase.sizeButtons,
-        ...testCase.recentColors,
+        ...testCase.quickTools,
       ];
       for (const control of strip) {
         expect(overlaps(box, control), `${name}: překryv s pruhem`).toBe(false);

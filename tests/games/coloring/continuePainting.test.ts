@@ -32,6 +32,7 @@ import type { PreparedSwap } from './continuePaintingHelpers';
 import { choose } from './drawingToolHelpers';
 import { pixelsOf, twoHalves } from './savedPictureHelpers';
 import { at } from './strokeHelpers';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #131 AC1 (otevření), AC2 (výměna) a AC6 (dotyky): dítě na velkém
@@ -121,7 +122,8 @@ describe('#131 AC1: ťuknutí na štětec otevře malování obrázku z alba', (
     expect(pixelsOf(game, page.regions)).toEqual(prepared.a);
   });
 
-  it('barvy nástrojů, nedávné barvy a tloušťka čáry zůstanou a nástroj je štětec', async () => {
+  // Upraveno k #148 AC5: místo nedávných barev zůstane předchozí nástroj.
+  it('barvy nástrojů, předchozí nástroj a tloušťka čáry zůstanou a nástroj je štětec', async () => {
     const prepared = await prepareSwap();
     const before = openColoring({
       regions: prepared.page.regions,
@@ -129,6 +131,7 @@ describe('#131 AC1: ťuknutí na štětec otevře malování obrázku z alba', (
       storage: prepared.page.storage,
     });
     before.tapColor(GREEN);
+    choose(before, 'crayon');
     choose(before, 'marker');
     before.tapColor(BLUE);
     before.tapColor(RED);
@@ -137,7 +140,8 @@ describe('#131 AC1: ťuknutí na štětec otevře malování obrázku z alba', (
     before.suspend();
     const tools = ['brush', 'marker', 'crayon', 'glitter'] as const;
     const toolColors = tools.map((tool) => before.toolColor(tool));
-    const recent = before.recentColors();
+    const first = firstButton(before);
+    expect(first?.tool, 'kontrola: na prvním tlačítku není štětec').not.toBe('brush');
 
     const game = await continueToPainting(prepared);
 
@@ -145,7 +149,7 @@ describe('#131 AC1: ťuknutí na štětec otevře malování obrázku z alba', (
       tools.map((tool) => game.toolColor(tool)),
       'barvy nástrojů',
     ).toEqual(toolColors);
-    expect(game.recentColors(), 'nedávné barvy').toEqual(recent);
+    expect(firstButton(game), 'předchozí nástroj').toEqual(first);
     expect(game.lineSize(), 'tloušťka čáry').toBe('large');
     expect(game.selectedTool(), 'nástroj je štětec jako při každém otevření').toBe('brush');
   });
@@ -460,7 +464,7 @@ describe('#131 AC6: dotyky na štětci', () => {
     const prepared = await prepareSwap();
     const game = await continueToPainting(prepared);
     const palette = game.palette();
-    const recent = game.recentColors();
+    const first = firstButton(game);
 
     for (const point of [at(40, 60), at(80, 80), at(240, 100), at(-20, 40)]) {
       expect(
@@ -472,7 +476,7 @@ describe('#131 AC6: dotyky na štětci', () => {
 
     expect(pixelsOf(game, twoHalves()), 'obrázek beze změny').toEqual(prepared.a);
     expect(game.palette(), 'barva beze změny').toEqual(palette);
-    expect(game.recentColors(), 'nedávné barvy beze změny').toEqual(recent);
+    expect(firstButton(game), 'předchozí nástroj beze změny').toEqual(first);
     expect(game.panelView(), 'panel zůstal zavřený').toBe('closed');
   });
 });

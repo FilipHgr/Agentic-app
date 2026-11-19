@@ -33,7 +33,6 @@ import {
 } from './legacyP3DotsRecordFixture';
 import {
   LEGACY_P3_GLITTER_LINE_SIZE,
-  LEGACY_P3_GLITTER_RECENT_COLORS,
   LEGACY_P3_GLITTER_RECORD,
   LEGACY_P3_GLITTER_SELECTED_COLOR,
   LEGACY_P3_GLITTER_STORAGE,
@@ -71,6 +70,7 @@ import { SPRAY, sprayPixels, sprayStrokeProblems } from './sprayHelpers';
 import { bigBlank, widthOf } from './stampHelpers';
 import { at } from './strokeHelpers';
 import type { Point } from './outlineFixtures';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #104 AC5 (uložení): vzorek spreje přes vzor V se vejde do
@@ -385,7 +385,7 @@ describe('#104 AC5: dříve uložené obrázky se otevřou beze změny', () => {
     }
   });
 
-  it('dítě po otevření hry vidí obrázek s třpytkami uložený před sprejem i s barvou, nedávnými barvami a velikostí', () => {
+  it('dítě po otevření hry vidí obrázek s třpytkami uložený před sprejem i s barvou a velikostí, bez nedávných barev (#148)', () => {
     const regions = legacyP3GlitterRegions();
 
     const game = openOn(storageWith(LEGACY_P3_GLITTER_STORAGE), regions);
@@ -395,7 +395,10 @@ describe('#104 AC5: dříve uložené obrázky se otevřou beze změny', () => {
       'obrázek',
     ).toEqual([]);
     expect(game.palette().selected, 'vybraná barva').toBe(LEGACY_P3_GLITTER_SELECTED_COLOR);
-    expect(game.recentColors(), 'nedávné barvy').toEqual(LEGACY_P3_GLITTER_RECENT_COLORS);
+    expect(
+      firstButton(game),
+      'první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
+    ).toBeNull();
     expect(game.lineSize(), 'velikost').toBe(LEGACY_P3_GLITTER_LINE_SIZE);
   });
 

@@ -37,6 +37,7 @@ import {
   pixelsOf,
   twoHalves,
 } from './savedPictureHelpers';
+import { firstButton, tapPrevious } from './quickToolsHelpers';
 
 /**
  * Testy k #100 AC1 (nové barvy), AC2 (všechny nástroje) a AC5 druhá část
@@ -161,18 +162,29 @@ describe('#100 AC1: nová barva se vybírá stejně jako ostatní', () => {
     }
   });
 
-  it('nová barva se objeví mezi nedávnými barvami a jde z pruhu znovu vybrat', () => {
+  // Nahrazuje k #148 test „nová barva se objeví mezi nedávnými barvami“
+  // (#99, #100): nedávné barvy nejsou, novou barvu ukáže kolečko prvního
+  // tlačítka u předchozího nástroje a ťuknutí ho vybere i s ní.
+  it('nová barva předchozího nástroje je na prvním tlačítku a jde s ním z pruhu znovu vybrat', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
     game.tapColor(PINK);
     game.tapColor(GRAY);
+    game.tapHandle();
+    choose(game, 'marker');
     game.tapColor(LIGHT_BLUE);
-    expect(game.recentColors(), 'nedávné po výběru tří nových barev').toEqual([GRAY, PINK]);
+    expect(firstButton(game), 'štětec v šedé na prvním tlačítku').toEqual({
+      tool: 'brush',
+      color: GRAY,
+    });
 
-    const tap = game.tapRecentColor(1);
+    const tap = tapPrevious(game);
 
     expect(tap.kind).toBe('picked');
-    expect(game.palette().selected, 'z pruhu se vybrala růžová').toBe(PINK);
-    expect(game.recentColors()).toEqual([LIGHT_BLUE, GRAY]);
+    expect(game.handleView(), 'z pruhu se vybral šedý štětec').toMatchObject({
+      tool: 'brush',
+      color: GRAY,
+    });
+    expect(firstButton(game)).toEqual({ tool: 'marker', color: LIGHT_BLUE });
   });
 
   it('index za 12 barvami barvu nezmění, nezahraje tón a nic neshodí', () => {
@@ -302,18 +314,22 @@ describe('#100 AC5: vybraná nová barva se pamatuje podle profilu', () => {
     expect(enterColoring(reloaded, regions).palette().selected, 'druhý profil').toBe(PINK);
   });
 
-  it('nové barvy mezi nedávnými barvami se pamatují po obnovení stránky', () => {
+  // Nahrazuje k #148 test „nové barvy mezi nedávnými barvami se pamatují“
+  // (#99, #100): pamatuje se předchozí nástroj s novou barvou.
+  it('předchozí nástroj s novou barvou se pamatuje po obnovení stránky', () => {
     const storage = new DeviceStorage();
     const regions = twoHalves();
     const game = enterColoring(openProfiles(storage), regions);
+    game.tapHandle();
+    choose(game, 'marker');
     game.tapColor(SKIN);
-    game.tapColor(GRAY);
+    game.tapHandle();
+    choose(game, 'crayon');
     game.tapColor(PINK);
     game.suspend();
 
     const again = enterColoring(openProfiles(storage), regions);
 
-    expect(again.palette().selected).toBe(PINK);
-    expect(again.recentColors()).toEqual([GRAY, SKIN]);
+    expect(firstButton(again)).toEqual({ tool: 'marker', color: SKIN });
   });
 });

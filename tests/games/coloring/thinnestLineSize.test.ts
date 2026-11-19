@@ -59,6 +59,7 @@ import {
   tapPicture,
 } from './thinnestHelpers';
 import { openToolStep, pickTool, toolColorsOf } from './toolColorsHelpers';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy chování k #118 (čtyři tloušťky čáry v Omalovánkách s novou
@@ -109,7 +110,7 @@ function everythingButSize(game: SavedColoring): unknown {
     panel: game.panelView(),
     palette: game.palette(),
     toolColors: toolColorsOf(game),
-    recent: game.recentColors(),
+    first: firstButton(game),
     handleTool: game.handleView().tool,
     handleColor: game.handleView().color,
   };

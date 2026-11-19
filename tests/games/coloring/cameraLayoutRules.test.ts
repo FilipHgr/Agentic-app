@@ -26,7 +26,7 @@ import {
   UNDO_NAME,
   boxOfRect,
   coloringCases,
-  recentColorName,
+  quickToolName,
 } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
 import { PICTURE_SIZE_BEFORE_126 } from './layoutBefore126Fixture';
@@ -39,7 +39,8 @@ import { PICTURE_SIZE_BEFORE_126 } from './layoutBefore126Fixture';
  * Omalovánek z `coloringLayoutScenes.ts` a navíc fotoaparát.
  *
  * Podle schválených obrázků (komentář k #126, otázka 4) je fotoaparát na
- * šířku v levém pruhu pod nedávnými barvami (v oknech 932×500 a 932×430
+ * šířku v levém pruhu pod nedávnými barvami, od #148 pod tlačítky předchozího
+ * nástroje a gumy na jejich místě (v oknech 932×500 a 932×430
  * přejde pruh do 2 sloupců a obrázek se jen posune), na výšku vpravo
  * nahoře zrcadlově k domečku.
  *
@@ -135,12 +136,12 @@ describe('#126 AC6: velikost a místo fotoaparátu', () => {
     }
   });
 
-  it('od úchytu, Zpět, nedávných barev, obrázku a panelu v každém kroku je fotoaparát aspoň 8 px', () => {
+  it('od úchytu, Zpět, předchozího nástroje a gumy, obrázku a panelu v každém kroku je fotoaparát aspoň 8 px', () => {
     for (const testCase of cases()) {
       const others: ReadonlyArray<readonly [string, Box]> = [
         [HANDLE_NAME, testCase.handle],
         [UNDO_NAME, testCase.undo],
-        ...testCase.recentColors.map((box, index) => [recentColorName(index), box] as const),
+        ...testCase.quickTools.map((box, index) => [quickToolName(index), box] as const),
         [PICTURE_NAME, testCase.picture],
         [PANEL_NAME, testCase.panelBox],
       ];
@@ -153,17 +154,16 @@ describe('#126 AC6: velikost a místo fotoaparátu', () => {
     }
   });
 
-  it('na šířku je fotoaparát v levém pruhu pod nedávnými barvami (schválené obrázky)', () => {
+  it('na šířku je fotoaparát v levém pruhu pod předchozím nástrojem a gumou (schválené obrázky, #148)', () => {
     for (const testCase of cases().filter((each) => each.landscape)) {
       const what = testCase.scene.label;
       expect(testCase.camera.right, `${what}: vlevo od obrázku`).toBeLessThanOrEqual(
         testCase.picture.left + 0.01,
       );
-      for (const [index, recent] of testCase.recentColors.entries()) {
-        expect(
-          testCase.camera.top,
-          `${what}: pod nedávnou barvou ${index + 1}`,
-        ).toBeGreaterThanOrEqual(recent.bottom - 0.01);
+      for (const [index, quickTool] of testCase.quickTools.entries()) {
+        expect(testCase.camera.top, `${what}: pod ${quickToolName(index)}`).toBeGreaterThanOrEqual(
+          quickTool.bottom - 0.01,
+        );
       }
     }
   });

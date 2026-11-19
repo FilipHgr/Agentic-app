@@ -29,6 +29,7 @@ import {
 import { choose, endOf } from './drawingToolHelpers';
 import { RecordingStorage, paint, paintedPixels, pixelsOf, twoHalves } from './savedPictureHelpers';
 import { at } from './strokeHelpers';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #126 AC1 (uložení do alba) a AC2 (kdy se neuloží). Fotoaparát
@@ -161,16 +162,19 @@ describe('#126 AC1: ťuknutí na fotoaparát uloží hotový obrázek do alba', 
     );
   });
 
-  it('po uložení zůstanou barvy nástrojů, nedávné barvy a tloušťka čáry, i po novém otevření', async () => {
+  // Upraveno k #148 AC5: místo nedávných barev zůstane předchozí nástroj.
+  it('po uložení zůstanou barvy nástrojů, předchozí nástroj a tloušťka čáry, i po novém otevření', async () => {
     const storage = new RecordingStorage();
     const records = albumDevice().page();
     const game = await openWithAlbum({ storage, records });
+    choose(game, 'crayon');
     choose(game, 'marker');
     game.tapColor(BLUE);
     game.tapLineSize('large');
     paintLeft(game, LAST_SET_COLOR);
     const toolColors = COLOR_TOOLS.map((tool) => game.toolColor(tool));
-    const recent = game.recentColors();
+    const first = firstButton(game);
+    expect(first?.tool, 'kontrola: pastelka na prvním tlačítku').toBe('crayon');
 
     await takePhoto(game);
 
@@ -178,7 +182,7 @@ describe('#126 AC1: ťuknutí na fotoaparát uloží hotový obrázek do alba', 
       COLOR_TOOLS.map((tool) => game.toolColor(tool)),
       'barvy nástrojů',
     ).toEqual(toolColors);
-    expect(game.recentColors(), 'nedávné barvy').toEqual(recent);
+    expect(firstButton(game), 'předchozí nástroj').toEqual(first);
     expect(game.lineSize(), 'tloušťka čáry').toBe('large');
 
     game.suspend();
@@ -187,7 +191,7 @@ describe('#126 AC1: ťuknutí na fotoaparát uloží hotový obrázek do alba', 
       COLOR_TOOLS.map((tool) => reopened.toolColor(tool)),
       'po otevření',
     ).toEqual(toolColors);
-    expect(reopened.recentColors(), 'nedávné barvy po otevření').toEqual(recent);
+    expect(firstButton(reopened), 'předchozí nástroj po otevření').toEqual(first);
     expect(reopened.lineSize(), 'tloušťka po otevření').toBe('large');
   });
 

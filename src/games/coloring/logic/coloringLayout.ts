@@ -1,12 +1,13 @@
 /**
  * Rozložení obrazovky Omalovánek v herních jednotkách (#88, #96): obrázek
  * přes celou obrazovku (plocha `fullWindow`) a vedle něj jen úzký pruh
- * ovládání: domeček, úchyt panelu, Zpět a místo pro 2 nedávné barvy.
+ * ovládání: domeček, úchyt panelu, Zpět a od #148 místo 2 nedávných barev
+ * tlačítko předchozího nástroje a guma (rychlé přepínání nástrojů).
  *
  * - Na šířku (L-A) je pruh vlevo: v jednom sloupci, když se do výšky vejde,
- *   jinak ve dvou (úchyt a Zpět vedle sebe, nedávné barvy dole). Panel
+ *   jinak ve dvou (úchyt a Zpět vedle sebe, předchozí nástroj a guma dole). Panel
  *   vyjíždí zleva hned vedle pruhu.
- * - Na výšku (P-A) je pruh dole: nedávné barvy vlevo, úchyt uprostřed
+ * - Na výšku (P-A) je pruh dole: předchozí nástroj a guma vlevo, úchyt uprostřed
  *   a Zpět vpravo, domeček zůstává vlevo nahoře. Panel vyjíždí zdola hned
  *   nad pruhem.
  *
@@ -18,7 +19,7 @@
  * pro zavřený panel i oba kroky, obrázek se tedy nikdy neposune. Kam
  * patří dotyk, rozhoduje `touchTargetAt` podle kroku panelu.
  *
- * Fotoaparát (#126) je na šířku v pruhu pod nedávnými barvami, na výšku
+ * Fotoaparát (#126) je na šířku v pruhu pod gumou (#148), na výšku
  * vpravo nahoře zrcadlově k domečku. Obrázek má stejnou velikost jako
  * před #126, jen se může posunout.
  *
@@ -60,8 +61,10 @@ export interface ColoringLayout {
   readonly handle: LayoutRect;
   /** Tlačítko Zpět (#89) v pruhu u úchytu. */
   readonly undoButton: LayoutRect;
-  /** Místa pro 2 nedávné barvy (zatím prázdná). */
-  readonly recentColors: readonly LayoutRect[];
+  /** První tlačítko rychlého přepínání: předchozí nástroj (#148), na místě 1. nedávné barvy. */
+  readonly previousToolButton: LayoutRect;
+  /** Druhé tlačítko rychlého přepínání: guma (#148), na místě 2. nedávné barvy. */
+  readonly quickEraserButton: LayoutRect;
   /** Fotoaparát, uloží hotový obrázek do alba (#126). */
   readonly cameraButton: LayoutRect;
   /** Koště, podržením vrátí stránku na začátek (#142). */
@@ -99,7 +102,10 @@ export type TouchTarget =
   | { readonly kind: 'undo' }
   | { readonly kind: 'camera' }
   | { readonly kind: 'broom' }
-  | { readonly kind: 'recentColor'; readonly index: number }
+  /** První tlačítko v pruhu: předchozí nástroj (#148). */
+  | { readonly kind: 'previousTool' }
+  /** Druhé tlačítko v pruhu: guma (#148). */
+  | { readonly kind: 'quickEraser' }
   | { readonly kind: 'color'; readonly index: number }
   | { readonly kind: 'tool'; readonly index: number }
   /** Tlačítko tloušťky v kroku nástrojů (#112). */
@@ -116,10 +122,11 @@ export const PICTURE_ASPECT = 4 / 3;
 /** Obsah panelu (#96 AC3): barvy v kroku barev, nástroje v kroku nástrojů (#105). */
 export const PANEL_COLOR_PLACES = 12;
 export const PANEL_TOOL_PLACES = 10;
-const RECENT_COLOR_PLACES = 2;
+/** Tlačítka rychlého přepínání v pruhu: předchozí nástroj a guma (#148). */
+const QUICK_TOOL_PLACES = 2;
 
-/** Plochy pruhu na šířku: domeček, úchyt, Zpět, 2 nedávné barvy a fotoaparát (#126). */
-const LANDSCAPE_STRIP_CONTROLS = 4 + RECENT_COLOR_PLACES;
+/** Plochy pruhu na šířku: domeček, úchyt, Zpět, předchozí nástroj, guma a fotoaparát (#126). */
+const LANDSCAPE_STRIP_CONTROLS = 4 + QUICK_TOOL_PLACES;
 
 /** Mezera mezi plochami a mezi pruhem a obrázkem v CSS px. */
 const GAP_CSS = 8;
@@ -313,7 +320,8 @@ function paddingFor(space: number, gridLength: number): number {
 interface Strip {
   readonly handle: LayoutRect;
   readonly undoButton: LayoutRect;
-  readonly recentColors: LayoutRect[];
+  readonly previousToolButton: LayoutRect;
+  readonly quickEraserButton: LayoutRect;
   readonly cameraButton: LayoutRect;
 }
 
@@ -336,28 +344,27 @@ function oneColumnStrip(home: LayoutRect): Strip {
   return {
     handle: square(home.left, below, side),
     undoButton: square(home.left, below + step, side),
-    recentColors: [
-      square(home.left, below + 2 * step, side),
-      square(home.left, below + 3 * step, side),
-    ],
+    previousToolButton: square(home.left, below + 2 * step, side),
+    quickEraserButton: square(home.left, below + 3 * step, side),
     cameraButton: square(home.left, below + 4 * step, side),
   };
 }
 
 /**
  * Pruh ve dvou sloupcích (L-A na telefonu): úchyt a Zpět vedle sebe, pod
- * nimi nedávné barvy a úplně dole fotoaparát (#126).
+ * nimi předchozí nástroj a guma (#148) a úplně dole fotoaparát (#126).
  */
 function twoColumnStrip(home: LayoutRect, height: number): Strip {
   const side = home.width;
   const below = bottomOf(home) + GAP_CSS;
   const secondColumn = home.left + side + GAP_CSS;
   const cameraTop = Math.max(below + 2 * (side + GAP_CSS), height - home.top - side);
-  const recentTop = cameraTop - side - GAP_CSS;
+  const quickTop = cameraTop - side - GAP_CSS;
   return {
     handle: square(home.left, below, side),
     undoButton: square(secondColumn, below, side),
-    recentColors: [square(home.left, recentTop, side), square(secondColumn, recentTop, side)],
+    previousToolButton: square(home.left, quickTop, side),
+    quickEraserButton: square(secondColumn, quickTop, side),
     cameraButton: square(home.left, cameraTop, side),
   };
 }
@@ -384,7 +391,13 @@ function landscapeStrip(home: LayoutRect, height: number): StripWithBroom {
 }
 
 function stripRightOf(strip: Strip): number {
-  return rightEdgeOf([strip.handle, strip.undoButton, ...strip.recentColors, strip.cameraButton]);
+  return rightEdgeOf([
+    strip.handle,
+    strip.undoButton,
+    strip.previousToolButton,
+    strip.quickEraserButton,
+    strip.cameraButton,
+  ]);
 }
 
 function rightEdgeOf(places: readonly LayoutRect[]): number {
@@ -456,7 +469,7 @@ function landscapeLayout(
 // ---------------------------------------------------------------------------
 
 /**
- * Pruh dole: nedávné barvy vlevo, úchyt uprostřed, Zpět vpravo u palce.
+ * Pruh dole: předchozí nástroj a guma vlevo (#148), úchyt uprostřed, Zpět vpravo u palce.
  * Fotoaparát je vpravo nahoře zrcadlově k domečku (#126), koště 16 px
  * vlevo od něj (#142).
  */
@@ -464,15 +477,16 @@ function portraitStrip(width: number, height: number, home: LayoutRect): StripWi
   const side = home.width;
   const top = height - home.top - side;
   const handleLeft = (width - side) / 2;
-  // Nedávné barvy od levého okraje jako domeček, v úzkém okně blíž k okraji.
-  const recentLeft = Math.max(
+  // Předchozí nástroj a guma od levého okraje jako domeček, v úzkém okně blíž k okraji.
+  const quickLeft = Math.max(
     MIN_EDGE_CSS,
-    Math.min(home.left, handleLeft - GAP_CSS - lineLength(RECENT_COLOR_PLACES, side)),
+    Math.min(home.left, handleLeft - GAP_CSS - lineLength(QUICK_TOOL_PLACES, side)),
   );
   return {
     handle: square(handleLeft, top, side),
     undoButton: square(width - home.left - side, top, side),
-    recentColors: [square(recentLeft, top, side), square(recentLeft + side + GAP_CSS, top, side)],
+    previousToolButton: square(quickLeft, top, side),
+    quickEraserButton: square(quickLeft + side + GAP_CSS, top, side),
     cameraButton: square(width - home.left - side, home.top, side),
     broomButton: square(width - home.left - 2 * side - BROOM_GAP_CSS, home.top, side),
   };
@@ -546,7 +560,8 @@ function layoutInUnits(css: CssLayout, unitsPerCss: number): ColoringLayout {
     picture: units(css.picture),
     handle: units(css.handle),
     undoButton: units(css.undoButton),
-    recentColors: css.recentColors.map(units),
+    previousToolButton: units(css.previousToolButton),
+    quickEraserButton: units(css.quickEraserButton),
     cameraButton: units(css.cameraButton),
     broomButton: units(css.broomButton),
     panel: units(css.panel),
@@ -648,9 +663,11 @@ export function touchTargetAt(
   if (contains(layout.broomButton, x, y)) {
     return { kind: 'broom' };
   }
-  const recent = indexContaining(layout.recentColors, x, y);
-  if (recent >= 0) {
-    return { kind: 'recentColor', index: recent };
+  if (contains(layout.previousToolButton, x, y)) {
+    return { kind: 'previousTool' };
+  }
+  if (contains(layout.quickEraserButton, x, y)) {
+    return { kind: 'quickEraser' };
   }
   if (panel !== 'closed' && contains(layout.panel, x, y)) {
     return panel === 'tools' ? toolStepTarget(layout, x, y) : colorStepTarget(layout, x, y);

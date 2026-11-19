@@ -16,7 +16,8 @@ import {
   boxOfRect,
   coloringCases,
   isLandscapeArea,
-  recentColorName,
+  quickToolName,
+  quickToolRects,
 } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
 import { PICTURE_MAY_MOVE_IN } from './layoutBefore142Fixture';
@@ -112,7 +113,7 @@ interface PortraitPicture {
   readonly home: Box;
   readonly handle: Box;
   readonly undo: Box;
-  readonly recentColors: readonly Box[];
+  readonly quickTools: readonly Box[];
 }
 
 function portraitPictureOf(testCase: ColoringCase): PortraitPicture {
@@ -138,7 +139,7 @@ function nearlySquarePicture(): PortraitPicture {
     }),
     handle: css(boxOfRect(layout.handle)),
     undo: css(boxOfRect(layout.undoButton)),
-    recentColors: layout.recentColors.map((rect) => css(boxOfRect(rect))),
+    quickTools: quickToolRects(layout).map((rect) => css(boxOfRect(rect))),
   };
 }
 
@@ -147,9 +148,9 @@ function allPortraitPictures(): PortraitPicture[] {
   return [...portraitCases().map(portraitPictureOf), nearlySquarePicture()];
 }
 
-/** Vršek spodní lišty na výšku: nedávné barvy, úchyt a Zpět. */
+/** Vršek spodní lišty na výšku: předchozí nástroj a guma (#148), úchyt a Zpět. */
 function stripTopOf(portrait: PortraitPicture): number {
-  return Math.min(...[portrait.handle, portrait.undo, ...portrait.recentColors].map((b) => b.top));
+  return Math.min(...[portrait.handle, portrait.undo, ...portrait.quickTools].map((b) => b.top));
 }
 
 /** Volná výška pro obrázek na výšku: mezi domečkem a lištou bez 8 px z obou stran (AC1). */
@@ -167,9 +168,9 @@ function fullWidthFits(portrait: PortraitPicture): boolean {
   return fullWidthOf(portrait) / PICTURE_ASPECT <= freePortraitHeightOf(portrait) + TOLERANCE;
 }
 
-/** Pravý okraj pruhu na šířku: domeček, úchyt, Zpět a nedávné barvy. */
+/** Pravý okraj pruhu na šířku: domeček, úchyt, Zpět, předchozí nástroj a guma. */
 function stripRightOf(testCase: ColoringCase): number {
-  return boundsOf([testCase.home, testCase.handle, testCase.undo, ...testCase.recentColors]).right;
+  return boundsOf([testCase.home, testCase.handle, testCase.undo, ...testCase.quickTools]).right;
 }
 
 /** Místo pro obrázek na šířku: od pruhu + 8 px po pravý okraj − 8 px, celá výška (AC4). */
@@ -210,9 +211,10 @@ describe('#127 AC1: na výšku je obrázek rovně přes šířku okna', () => {
     expect(stripTopOf(portrait), `${label}: lišta leží pod obrázkem`).toBeGreaterThanOrEqual(
       portrait.picture.bottom,
     );
-    expect(portrait.handle.left, `${label}: úchyt je vpravo od nedávných barev`).toBeGreaterThan(
-      Math.max(...portrait.recentColors.map((box) => box.left)),
-    );
+    expect(
+      portrait.handle.left,
+      `${label}: úchyt je vpravo od předchozího nástroje a gumy`,
+    ).toBeGreaterThan(Math.max(...portrait.quickTools.map((box) => box.left)));
     expect(portrait.undo.left, `${label}: Zpět je vpravo od úchytu`).toBeGreaterThan(
       portrait.handle.left,
     );
@@ -320,13 +322,13 @@ describe('#127 AC1: na výšku je obrázek rovně přes šířku okna', () => {
 });
 
 describe('#127 AC3 (#111 AC3 beze změny): obrázek leží mezi lištami, ne pod nimi', () => {
-  it('domeček, úchyt, Zpět a obě nedávné barvy leží ve všech oknech mimo obrázek s mezerou aspoň 8 px', () => {
+  it('domeček, úchyt, Zpět, předchozí nástroj a guma leží ve všech oknech mimo obrázek s mezerou aspoň 8 px', () => {
     for (const testCase of cases()) {
       const controls: Array<[string, Box]> = [
         [HOME_NAME, testCase.home],
         [HANDLE_NAME, testCase.handle],
         [UNDO_NAME, testCase.undo],
-        ...testCase.recentColors.map((box, index): [string, Box] => [recentColorName(index), box]),
+        ...testCase.quickTools.map((box, index): [string, Box] => [quickToolName(index), box]),
       ];
       expect(controls.length, `${testCase.scene.label}: ovládání v pruhu`).toBe(5);
       for (const [name, control] of controls) {

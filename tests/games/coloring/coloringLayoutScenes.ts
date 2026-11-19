@@ -5,10 +5,11 @@
  * hranice a úzký iPad, spuštění z plochy). Prvky jsou v CSS px okna.
  *
  * Od #96 je obrázek přes celou obrazovku a vedle něj jen úzký pruh
- * ovládání: domeček, úchyt panelu, Zpět a místo pro 2 nedávné barvy.
+ * ovládání: domeček, úchyt panelu, Zpět a od #148 místo 2 nedávných barev
+ * tlačítko předchozího nástroje a guma (`quickTools`).
  * Na šířku je pruh vlevo a panel vyjíždí zleva (L-A), na výšku je pruh
- * dole, úchyt uprostřed, Zpět vpravo, nedávné barvy vlevo a panel vyjíždí
- * zdola (P-A). Domeček na výšku zůstává vlevo nahoře.
+ * dole, úchyt uprostřed, Zpět vpravo, předchozí nástroj a guma vlevo a panel
+ * vyjíždí zdola (P-A). Domeček na výšku zůstává vlevo nahoře.
  *
  * Od #105 je panel ve dvou krocích se stejným rozměrem panelu: krok
  * nástrojů (od #112 tlačítka tloušťky v hlavičce, od #118 čtyři, a 10 nástrojů v těle)
@@ -40,7 +41,8 @@
  * - `picture: LayoutRect` plocha omalovánky,
  * - `handle: LayoutRect` úchyt panelu (#96),
  * - `undoButton: LayoutRect` Zpět v pruhu (#89, místo od #96),
- * - `recentColors: readonly LayoutRect[]` 2 místa pro nedávné barvy,
+ * - od #148 `previousToolButton: LayoutRect` a `quickEraserButton: LayoutRect`
+ *   místo `recentColors` (2 místa pro nedávné barvy z #99),
  * - `panel: LayoutRect` pozadí otevřeného panelu,
  * - `paletteColors: readonly LayoutRect[]` 12 míst pro barvy v panelu
  *   (barvy `PALETTE` na prvních místech, ostatní zatím prázdné),
@@ -68,7 +70,11 @@ import {
   COLORING_GAME_AREA_FIT,
   layoutColoring,
 } from '../../../src/games/coloring/logic/coloringLayout';
-import type { ColoringLayout, LayoutRect } from '../../../src/games/coloring/logic/coloringLayout';
+import type {
+  ColoringLayout,
+  LayoutRect,
+  TouchTarget,
+} from '../../../src/games/coloring/logic/coloringLayout';
 import type { PanelView } from '../../../src/games/coloring/logic/toolPanel';
 import { homeButtonFor } from '../../../src/shared/logic/homeButton';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
@@ -141,8 +147,8 @@ export const PLANNED_LINE_SIZES = 4;
  */
 export const MAX_STEP_PLACES = 14;
 
-/** Místa pro nedávné barvy v pruhu (#96 AC1). */
-export const RECENT_COLOR_PLACES = 2;
+/** Tlačítka v pruhu místo 2 nedávných barev (#96 AC1): předchozí nástroj a guma (#148). */
+export const QUICK_TOOL_PLACES = 2;
 
 export const PICTURE_NAME = 'plocha omalovánky';
 export const HOME_NAME = 'domeček a 8 px kolem';
@@ -171,8 +177,26 @@ export function lineSizeName(index: number): string {
  */
 export const PICTURE_EDGE_EXCEPTION = 0;
 
-export function recentColorName(index: number): string {
-  return `nedávná barva ${index + 1}`;
+/** Název tlačítka v pruhu: 0 předchozí nástroj, 1 guma (#148 AC1). */
+export function quickToolName(index: number): string {
+  return index === 0 ? 'předchozí nástroj' : 'guma v pruhu';
+}
+
+/** Kam má patřit dotyk na tlačítko `index` v pruhu (#148). */
+export function quickToolTarget(index: number): TouchTarget {
+  return index === 0 ? { kind: 'previousTool' } : { kind: 'quickEraser' };
+}
+
+/**
+ * Tlačítka předchozího nástroje a gumy v pořadí pruhu (#148). Před
+ * implementací pole chybí a seznam je prázdný; testy #148 pak selžou na
+ * vlastních kontrolách, ne tady.
+ */
+export function quickToolRects(layout: ColoringLayout): LayoutRect[] {
+  const places = [layout.previousToolButton, layout.quickEraserButton] as Array<
+    LayoutRect | undefined
+  >;
+  return places.filter((place): place is LayoutRect => place !== undefined);
 }
 
 export function boxOfRect(rect: LayoutRect): Box {
@@ -255,7 +279,8 @@ export interface ColoringCase {
   readonly home: Box;
   readonly handle: Box;
   readonly undo: Box;
-  readonly recentColors: readonly Box[];
+  /** Předchozí nástroj a guma v pruhu (#148), v pořadí `quickToolName`. */
+  readonly quickTools: readonly Box[];
   /** Pozadí panelu v CSS px okna (vidět jen při otevřeném panelu). */
   readonly panelBox: Box;
   /** Místa pro barvy v panelu v CSS px okna. */
@@ -273,12 +298,12 @@ export interface ColoringCase {
   readonly scene: LayoutScene;
 }
 
-function stripItems(home: Box, handle: Box, undo: Box, recentColors: readonly Box[]): LayoutItem[] {
+function stripItems(home: Box, handle: Box, undo: Box, quickTools: readonly Box[]): LayoutItem[] {
   return [
     { name: HOME_NAME, box: surroundingOf(home, MIN_TAP_GAP), reserved: true },
     { name: HANDLE_NAME, box: handle, tappable: true },
     { name: UNDO_NAME, box: undo, tappable: true },
-    ...recentColors.map((box, index) => ({ name: recentColorName(index), box, tappable: true })),
+    ...quickTools.map((box, index) => ({ name: quickToolName(index), box, tappable: true })),
   ];
 }
 
@@ -333,7 +358,7 @@ export function coloringCase(window: TestWindow, panel: PanelState = 'closed'): 
   const home = homeHitOf(window);
   const handle = css(layout.handle);
   const undo = css(layout.undoButton);
-  const recentColors = layout.recentColors.map(css);
+  const quickTools = quickToolRects(layout).map(css);
   const panelBox = css(layout.panel);
   const colors = layout.paletteColors.map(css);
   const tools = layout.toolSlots.map(css);
@@ -349,7 +374,7 @@ export function coloringCase(window: TestWindow, panel: PanelState = 'closed'): 
     : { name: PICTURE_NAME, box: picture };
   const items: LayoutItem[] = [
     pictureItem,
-    ...stripItems(home, handle, undo, recentColors),
+    ...stripItems(home, handle, undo, quickTools),
     ...panelItems(panel, panelBox, panelPlaces),
   ];
   const stepPlaces = items
@@ -366,7 +391,7 @@ export function coloringCase(window: TestWindow, panel: PanelState = 'closed'): 
     home,
     handle,
     undo,
-    recentColors,
+    quickTools,
     panelBox,
     colors,
     tools,

@@ -40,7 +40,7 @@ import {
 import type { AddFailure, PreparedSwap } from './continuePaintingHelpers';
 import { PICTURE_KEY } from './manyColorsHelpers';
 import { drawing } from './outlineFixtures';
-import { seededRandom } from './recentColorsHelpers';
+import { seededRandom } from './randomHelpers';
 import { pixelsOf, twoHalves } from './savedPictureHelpers';
 
 /**

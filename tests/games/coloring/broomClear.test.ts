@@ -34,6 +34,7 @@ import {
   recordsOf,
   settleLong,
 } from './pageToAlbumHelpers';
+import { firstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #142 AC1 (zrušení) a AC2 (album). Koště je podržení 1 s;
@@ -158,7 +159,8 @@ describe('#142 AC1: podržení koštěte 1 s vrátí stránku na začátek', () 
     expect(isClean(pageOf(device)), 'uložená stránka').toBe(true);
   });
 
-  it('barvy nástrojů, nedávné barvy, tloušťka čáry a vybraný nástroj zůstanou', async () => {
+  // Upraveno k #148 AC5: místo nedávných barev zůstane předchozí nástroj.
+  it('barvy nástrojů, předchozí nástroj, tloušťka čáry a vybraný nástroj zůstanou', async () => {
     const { page, game } = await freshPicker();
     paintLeft(game, PAGE_COLOR);
     choose(game, 'marker');
@@ -167,7 +169,8 @@ describe('#142 AC1: podržení koštěte 1 s vrátí stránku na začátek', () 
     choose(game, 'crayon');
     game.tapColor(THIRD_COLOR);
     const toolColors = PANEL_TOOLS.map((tool) => game.toolColor(tool));
-    const recent = [...game.recentColors()];
+    const first = firstButton(game);
+    expect(first?.tool, 'kontrola: fix na prvním tlačítku').toBe('marker');
     const lineSize = game.lineSize();
     const tool = game.selectedTool();
 
@@ -178,7 +181,7 @@ describe('#142 AC1: podržení koštěte 1 s vrátí stránku na začátek', () 
       PANEL_TOOLS.map((each) => game.toolColor(each)),
       'barvy nástrojů',
     ).toEqual(toolColors);
-    expect([...game.recentColors()], 'nedávné barvy').toEqual(recent);
+    expect(firstButton(game), 'předchozí nástroj').toEqual(first);
     expect(game.lineSize(), 'tloušťka čáry').toBe(lineSize);
     expect(game.selectedTool(), 'vybraný nástroj').toBe(tool);
 
@@ -191,7 +194,7 @@ describe('#142 AC1: podržení koštěte 1 s vrátí stránku na začátek', () 
       PANEL_TOOLS.map((each) => reopened.toolColor(each)),
       'barvy nástrojů po novém otevření',
     ).toEqual(toolColors);
-    expect([...reopened.recentColors()], 'nedávné barvy po novém otevření').toEqual(recent);
+    expect(firstButton(reopened), 'předchozí nástroj po novém otevření').toEqual(first);
     expect(reopened.lineSize(), 'tloušťka po novém otevření').toBe(lineSize);
   });
 

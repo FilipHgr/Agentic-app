@@ -27,6 +27,7 @@ import {
   isColorTool,
   pickTool,
 } from './toolColorsHelpers';
+import { firstButton, tapPrevious } from './quickToolsHelpers';
 
 /**
  * Testy chování k #106 AC6 (úchyt vždy ukazuje aktuální nástroj a barvu)
@@ -37,7 +38,7 @@ import {
  * v `toolIconAssets.test.ts` a `toolIconColorDot.test.ts`). Scéna po
  * každém ťuknutí překreslí úchyt hned v obsluze ťuknutí. „Hned“ se tu
  * ověřuje tak, že správnou ikonu a kolečko jde přečíst ihned po volání
- * `tapTool`, `tapColor` nebo `tapRecentColor`, bez čekání; že je scéna
+ * `tapTool`, `tapColor` nebo ťuknutí na první tlačítko v pruhu (#148), bez čekání; že je scéna
  * nakreslí ve stejném snímku, je ruční kontrola.
  *
  * Jedno „otevření hry“ je `openOn(…)` nad úložištěm hry profilu.
@@ -135,38 +136,46 @@ describe('#106 AC6: úchyt vždy ukazuje aktuální nástroj a barvu', () => {
     }
   });
 
-  // Upraveno k #110 AC4: růžovou i modrou dostane nástroj sám ve svém
-  // kroku barev, nedávná barva je pak jeho předchozí růžová.
-  it('po ťuknutí na nedávnou barvu se zavřeným panelem ukáže úchyt hned nástroj v té barvě (#99)', () => {
+  // Nahrazuje k #148 testy nedávné barvy v úchytu (#99, #110 AC4):
+  // nedávné barvy nejsou, první tlačítko v pruhu vrátí předchozí nástroj.
+  it('po ťuknutí na první tlačítko se zavřeným panelem ukáže úchyt hned předchozí nástroj v jeho barvě (#148)', () => {
     for (const tool of COLOR_TOOLS) {
+      const other = tool === 'brush' ? 'marker' : 'brush';
       const game = returningGame();
       giveColor(game, tool, PINK);
-      giveColor(game, tool, BLUE);
+      giveColor(game, other, BLUE);
       expect(game.panelView(), `${TOOL_NAMES[tool]}: panel zavřený`).toBe('closed');
-      const recent = game.recentColors()[0];
-      expect(recent, `${TOOL_NAMES[tool]}: nedávná barva je růžová`).toBe(PINK);
+      expect(firstButton(game), `${TOOL_NAMES[tool]}: na prvním tlačítku`).toEqual({
+        tool,
+        color: PINK,
+      });
 
-      const result = game.tapRecentColor(0);
+      const result = tapPrevious(game);
 
-      expect(result.kind, `${TOOL_NAMES[tool]}: nedávná barva vybraná`).toBe('picked');
-      expectHandleShows(game, tool, PINK, `${TOOL_NAMES[tool]}, nedávná barva`);
+      expect(result.kind, `${TOOL_NAMES[tool]}: předchozí nástroj vybraný`).toBe('picked');
+      expectHandleShows(game, tool, PINK, `${TOOL_NAMES[tool]}, první tlačítko`);
     }
   });
 
-  it('po ťuknutí na nedávnou barvu po gumě nebo duze ukáže úchyt hned malovací nástroj v té barvě', () => {
+  it('po ťuknutí na první tlačítko s gumou nebo duhou ukáže úchyt hned nástroj z tlačítka v jeho barvě', () => {
     for (const tool of ['eraser', 'rainbow'] as const) {
       const game = returningGame();
-      game.tapColor(PINK);
-      game.tapColor(BLUE);
+      giveColor(game, 'marker', PINK);
       game.tapHandle();
       choose(game, tool);
       expect(game.panelView(), `${TOOL_NAMES[tool]}: panel zavřený`).toBe('closed');
       const before = handleLook(game);
+      const shown = firstButton(game);
+      expect(shown, `${TOOL_NAMES[tool]}: na prvním tlačítku je nástroj`).not.toBeNull();
 
-      game.tapRecentColor(0);
+      tapPrevious(game);
 
-      // Nedávná barva vrátí malovací nástroj (#90, #97), úchyt ho ukáže hned v nové barvě.
-      expectHandleShows(game, game.selectedTool(), PINK, `${TOOL_NAMES[tool]} a nedávná barva`);
+      expectHandleShows(
+        game,
+        shown?.tool ?? 'brush',
+        shown?.color ?? PINK,
+        `${TOOL_NAMES[tool]} a první tlačítko`,
+      );
       expect(
         before,
         `${TOOL_NAMES[tool]}: předtím úchyt s ikonou nástroje bez vybrané barvy`,
