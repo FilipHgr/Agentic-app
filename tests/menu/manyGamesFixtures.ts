@@ -173,6 +173,33 @@ export function manyGamesLayout(
   });
 }
 
+/** Nejvyšší počet her, pro který #156 AC4 zkouší pravidla rozložení. */
+export const FEW_GAMES_MAX = 12;
+
+/** Počty her ve „Vše“, které zkouší #156 (1 až 12). */
+export const FEW_GAME_COUNTS: readonly number[] = Array.from(
+  { length: FEW_GAMES_MAX },
+  (_, index) => index + 1,
+);
+
+/**
+ * Rozložení menu s `gameCount` zkušebními hrami (#156): prvních
+ * `gameCount` her, každá ve vlastní kategorii, takže menu má „Vše“
+ * a `gameCount` kategorií. `selectedCount` je počet dlaždic vybrané
+ * kategorie (bez zadání „Vše“ se všemi hrami).
+ */
+export function fewGamesLayout(
+  window: TestWindow,
+  gameCount: number,
+  selectedCount = gameCount,
+): MenuLayout {
+  return menuLayoutFor(viewportOf(window), {
+    categoryTitles: MANY_MENU_CATEGORY_TITLES.slice(0, gameCount + 1),
+    tileCount: selectedCount,
+    allTileCount: gameCount,
+  });
+}
+
 export interface Point {
   readonly x: number;
   readonly y: number;

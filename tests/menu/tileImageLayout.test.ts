@@ -35,6 +35,8 @@ const EDGE = 8;
 const GAP = 2;
 const TITLE_LINE = 1.2;
 const MIN_IMAGE = 40;
+/** Obrázek má nejvýš 256 CSS px (#156 AC1). */
+const MAX_IMAGE = 256;
 
 interface ImageCase {
   readonly label: string;
@@ -89,6 +91,7 @@ function tileCases(): TileCase[] {
   );
 }
 
+const ZERO: MenuBox = { left: 0, right: 0, top: 0, bottom: 0 };
 const width = (box: MenuBox): number => box.right - box.left;
 const height = (box: MenuBox): number => box.bottom - box.top;
 const centerX = (box: MenuBox): number => (box.left + box.right) / 2;
@@ -160,10 +163,12 @@ describe('#122 AC4: obrázek a název na dlaždici', () => {
     }
   });
 
-  it('velikost obrázku je min(šířka − 16, výška − 8 − 2 − výška názvu − 8)', () => {
+  // #156: obrázek má navíc nejvýš 256 CSS px (ostrý ze zdroje 512 px).
+  it('velikost obrázku je min(256, šířka − 16, výška − 8 − 2 − výška názvu − 8)', () => {
     for (const { label, layout, tile, image } of tileCases()) {
       const titleHeight = TITLE_LINE * layout.tileTitleFontSize;
       const expected = Math.min(
+        MAX_IMAGE,
         width(tile) - 2 * EDGE,
         height(tile) - EDGE - GAP - titleHeight - EDGE,
       );
@@ -177,9 +182,24 @@ describe('#122 AC4: obrázek a název na dlaždici', () => {
     }
   });
 
-  it('na iPadu 1180 × 820 má obrázek 161,6 px', () => {
-    for (const { label, image } of tileCases().filter((c) => c.label.startsWith('iPad 1180×820'))) {
+  // #156: 161,6 px zůstává jen v posouvané mřížce (zkušebních 40 her, AC2
+  // jako dnes). Dnešní menu se 2 hrami se na iPadu vejde, dlaždice jsou
+  // největší, jaké se vejdou, a obrázek dosáhne stropu 256 px.
+  it('na iPadu 1180 × 820 má obrázek v posouvané mřížce 161,6 px', () => {
+    const scrolled = tileCases().filter(
+      (c) => c.label.startsWith('iPad 1180×820') && c.layout.gridScroll.maxOffset > 0,
+    );
+    expect(scrolled.length).toBeGreaterThan(0);
+    for (const { label, image } of scrolled) {
       expect(width(image), label).toBeCloseTo(161.6, 5);
+    }
+  });
+
+  it('na iPadu 1180 × 820 má obrázek v dnešním menu (2 hry) 256 px (#156)', () => {
+    const today = tileCases().filter((c) => c.label.startsWith('iPad 1180×820, dnešní menu'));
+    expect(today.length).toBeGreaterThan(0);
+    for (const { label, image } of today) {
+      expect(width(image), label).toBeCloseTo(MAX_IMAGE, 5);
     }
   });
 
@@ -245,10 +265,20 @@ describe('#122 AC7: po přepnutí kategorie je obrázek stejně velký a na stej
     }
   });
 
-  it('dnešní menu má obrázek dlaždice ve „Vše“ i ve vybrané kategorii stejně velký a na stejném místě', () => {
+  // #156 AC3: v dnešním menu se dlaždice vejdou, po přepnutí kategorie se
+  // blok znovu vystředí, takže obrázek může být jinde. Stejná zůstává
+  // velikost; vystředění hlídá fewGamesLayout.test.ts (#156 AC3).
+  it('dnešní menu má obrázek dlaždice ve „Vše“ i ve vybrané kategorii stejně velký', () => {
     for (const window of WINDOWS) {
-      expect(todaySelectedLayout(window).tileImages[0], window.name).toEqual(
-        todayLayout(window).tileImages[0],
+      const selected = todaySelectedLayout(window).tileImages[0];
+      const all = todayLayout(window).tileImages[0];
+      expect(selected, window.name).toBeDefined();
+      expect(all, window.name).toBeDefined();
+      expect(width(selected?.image ?? ZERO), window.name).toBeCloseTo(width(all?.image ?? ZERO), 5);
+      expect(width(selected?.title ?? ZERO), window.name).toBeCloseTo(width(all?.title ?? ZERO), 5);
+      expect(height(selected?.title ?? ZERO), window.name).toBeCloseTo(
+        height(all?.title ?? ZERO),
+        5,
       );
     }
   });

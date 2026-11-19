@@ -183,7 +183,13 @@ describe('#95 AC1: zavřený výběr jen na telefonu na výšku', () => {
     }
   });
 
-  it('tlačítko je na místě dřívější řady kategorií a lišta ani dlaždice se nepohnou', () => {
+  // #156: když se mřížka posouvá (13 kategorií a 40 her), začíná první
+  // dlaždice přesně jako dřív, 12 px pod tlačítkem výběru. Když se dlaždice
+  // vejdou bez posouvání (dnešní menu), stojí blok uprostřed pod výběrem
+  // a test ověřuje jen to, že první dlaždice je aspoň 8 px pod tlačítkem
+  // (smí být výš než dřívějších 12 px). Vystředění hlídá
+  // fewGamesLayout.test.ts (#156 AC1).
+  it('tlačítko je na místě dřívější řady kategorií, lišta se nepohne a posouvaná mřížka začíná na stejném místě', () => {
     for (const { label, window, layout, picker } of pickerCasesInAllWindows()) {
       const free = freeAreaOf(window);
       expect(picker.button.top - free.top, label).toBeCloseTo(ROW_TOP, 5);
@@ -191,7 +197,14 @@ describe('#95 AC1: zavřený výběr jen na telefonu na výšku', () => {
       expect(picker.button.top - barBottom(layout), label).toBeCloseTo(GRID_GAP, 5);
       const first = layout.tiles[0];
       expect(first, label).toBeDefined();
-      expect((first?.top ?? 0) - free.top, label).toBeCloseTo(ROW_TOP + ROW_HEIGHT + GRID_GAP, 5);
+      const firstTop = (first?.top ?? 0) - free.top;
+      if (layout.gridScroll.maxOffset > 0) {
+        expect(firstTop, label).toBeCloseTo(ROW_TOP + ROW_HEIGHT + GRID_GAP, 5);
+      } else {
+        expect(firstTop, label).toBeGreaterThanOrEqual(
+          ROW_TOP + ROW_HEIGHT + MIN_TAP_GAP - ROUNDING,
+        );
+      }
     }
   });
 

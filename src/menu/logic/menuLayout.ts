@@ -32,6 +32,12 @@
  * jazyků přes mřížku, řádky 64 px s mezerou 8 px; když se nevejdou,
  * posouvají se a z první skryté řádky je vidět 55 %. Lišta ani dlaždice se
  * kvůli výběru nepohnou.
+ *
+ * Pár her (#156): když se dlaždice všech her („Vše“) vejdou bez posouvání,
+ * jsou co největší (obrázek nejvýš 256 px) a blok dlaždic stojí uprostřed
+ * volné plochy vedle kategorií nebo pod výběrem kategorie. Velikost
+ * a počet sloupců se řídí počtem her ve „Vše“, po přepnutí kategorie se
+ * blok jen znovu vystředí. Když se nevejdou, platí posouvání z #69.
  */
 
 import {
@@ -811,11 +817,13 @@ const TILE_IMAGE_EDGE = 8;
 const TILE_IMAGE_GAP = 2;
 /** Výška řádku názvu jako násobek velikosti písma (#122). */
 const TILE_TITLE_LINE = 1.2;
+/** Obrázek dlaždice má nejvýš 256 CSS px, aby zůstal ostrý ze zdroje 512 px (#156). */
+const MAX_TILE_IMAGE = 256;
 
 /**
- * Obrázek a název na dlaždici (#122): obrázek je co největší čtverec, který
- * se s mezerou a názvem vejde do dlaždice s okraji 8 px. Obrázek, mezera
- * a název tvoří skupinu uprostřed dlaždice.
+ * Obrázek a název na dlaždici (#122): obrázek je co největší čtverec
+ * (nejvýš 256 px, #156), který se s mezerou a názvem vejde do dlaždice
+ * s okraji 8 px. Obrázek, mezera a název tvoří skupinu uprostřed dlaždice.
  */
 function tileImageFor(tile: MenuBox, titleFontSize: number): MenuTileImage {
   const width = tile.right - tile.left;
@@ -824,6 +832,7 @@ function tileImageFor(tile: MenuBox, titleFontSize: number): MenuTileImage {
   const size = Math.max(
     0,
     Math.min(
+      MAX_TILE_IMAGE,
       width - 2 * TILE_IMAGE_EDGE,
       height - TILE_IMAGE_EDGE - TILE_IMAGE_GAP - titleHeight - TILE_IMAGE_EDGE,
     ),
@@ -839,6 +848,303 @@ function tileImageFor(tile: MenuBox, titleFontSize: number): MenuTileImage {
     titleHeight,
   );
   return { image, title };
+}
+
+/** Mezi vystředěnými dlaždicemi je aspoň 16 px, kde se to vejde (#156). */
+const MIN_CENTERED_TILE_GAP = 16;
+/** Vystředěný blok je od lišty, kategorií a výběru kategorie aspoň 8 px (#156). */
+const CENTERED_BLOCK_EDGE = 8;
+
+/** Velikost a mezera dlaždic vystředěného bloku (#156). */
+interface CenteredGrid {
+  readonly columns: number;
+  readonly tileWidth: number;
+  readonly tileHeight: number;
+  readonly gap: number;
+}
+
+interface Size {
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * Nejmenší dlaždice, na které má obrázek 256 px, v každém směru aspoň tak
+ * velká jako dnešní. Větší dlaždice by měla jen prázdné místo navíc.
+ */
+function largestUsefulTile(today: Size, titleFontSize: number): Size {
+  const titleHeight = TILE_TITLE_LINE * titleFontSize;
+  return {
+    width: Math.max(today.width, MAX_TILE_IMAGE + 2 * TILE_IMAGE_EDGE),
+    height: Math.max(
+      today.height,
+      MAX_TILE_IMAGE + 2 * TILE_IMAGE_EDGE + TILE_IMAGE_GAP + titleHeight,
+    ),
+  };
+}
+
+/** Dnešní dlaždice zvětšená `scale`krát, v každém směru nejvýš na `largest`. */
+function scaledTile(today: Size, largest: Size, scale: number): Size {
+  return {
+    width: Math.min(largest.width, today.width * scale),
+    height: Math.min(largest.height, today.height * scale),
+  };
+}
+
+/**
+ * Největší zvětšení dnešní dlaždice v jednom směru, se kterým se `count`
+ * dlaždic s mezerou `gap` vejde do `room`; `Infinity`, když se vejdou
+ * i největší dlaždice.
+ */
+function scaleToFit(
+  today: number,
+  largest: number,
+  room: number,
+  count: number,
+  gap: number,
+): number {
+  const gaps = (count - 1) * gap;
+  return count * largest + gaps <= room ? Infinity : (room - gaps) / (count * today);
+}
+
+/** Dnešní dlaždice a největší dlaždice, která má ještě smysl (#156). */
+interface TileSizes {
+  readonly today: Size;
+  readonly largest: Size;
+}
+
+/**
+ * Nejlepší mřížka pro `count` her s mezerou `gap` v ploše `room` (#156):
+ * počet sloupců s největší dlaždicí, při shodě víc sloupců. Dlaždice je
+ * dnešní zvětšená ve stejném poměru stran, v každém směru nejvýš na
+ * `largest`. `undefined`, když se nevejdou ani dnešní dlaždice.
+ */
+function bestGridWithGap(
+  count: number,
+  sizes: TileSizes,
+  room: Size,
+  gap: number,
+): CenteredGrid | undefined {
+  const { today, largest } = sizes;
+  const largestScale = Math.max(largest.width / today.width, largest.height / today.height);
+  let best: { readonly columns: number; readonly scale: number } | undefined;
+  for (let columns = count; columns >= 1; columns -= 1) {
+    const rows = Math.ceil(count / columns);
+    const fitScale = Math.min(
+      scaleToFit(today.width, largest.width, room.width, columns, gap),
+      scaleToFit(today.height, largest.height, room.height, rows, gap),
+    );
+    if (fitScale < 1) {
+      continue;
+    }
+    const scale = Math.min(largestScale, fitScale);
+    if (best === undefined || scale > best.scale) {
+      best = { columns, scale };
+    }
+  }
+  if (best === undefined) {
+    return undefined;
+  }
+  const tile = scaledTile(today, largest, best.scale);
+  return { columns: best.columns, tileWidth: tile.width, tileHeight: tile.height, gap };
+}
+
+/**
+ * Největší dlaždice pro `count` her, které se vejdou do `room` (#156),
+ * nikdy menší než dnes a v každém směru nejvýš tak, aby měl obrázek 256 px.
+ * Nejdřív se zkouší mezera 16 px (nebo dnešní, když je větší), a když se
+ * dnešní dlaždice s ní nevejdou, dnešní mezera (upřesnění 1).
+ * `undefined`, když se dnešní dlaždice nevejdou ani tak.
+ */
+function centeredGridFor(
+  count: number,
+  today: Size,
+  todayGap: number,
+  room: Size,
+  titleFontSize: number,
+): CenteredGrid | undefined {
+  const sizes: TileSizes = { today, largest: largestUsefulTile(today, titleFontSize) };
+  const widerGap = Math.max(MIN_CENTERED_TILE_GAP, todayGap);
+  return (
+    bestGridWithGap(count, sizes, room, widerGap) ?? bestGridWithGap(count, sizes, room, todayGap)
+  );
+}
+
+/** `count` dlaždic mřížky `grid` jako blok uprostřed plochy `area` (#156). */
+function centeredTiles(area: MenuBox, grid: CenteredGrid, count: number): MenuBox[] {
+  const columns = Math.min(count, grid.columns);
+  const rows = Math.ceil(count / grid.columns);
+  const blockWidth = columns * grid.tileWidth + (columns - 1) * grid.gap;
+  const blockHeight = rows * grid.tileHeight + (rows - 1) * grid.gap;
+  const left = area.left + (area.right - area.left - blockWidth) / 2;
+  const top = area.top + (area.bottom - area.top - blockHeight) / 2;
+  return Array.from({ length: count }, (_, index) =>
+    boxAt(
+      left + (index % grid.columns) * (grid.tileWidth + grid.gap),
+      top + Math.floor(index / grid.columns) * (grid.tileHeight + grid.gap),
+      grid.tileWidth,
+      grid.tileHeight,
+    ),
+  );
+}
+
+/**
+ * Nejmenší vodorovný okraj vystředěného bloku (#156): na telefonu na výšku
+ * jako lišta, vedle kategorií menší z mezery ke kategoriím a okraje okna.
+ */
+function centeredBlockMargin(isRow: boolean, metrics: MenuMetrics): number {
+  return isRow ? metrics.sideMargin : Math.min(metrics.columnGap, metrics.sideMargin);
+}
+
+/** Plocha `area` bez okrajů `across` vlevo i vpravo a `down` nahoře i dole. */
+function roomOf(area: MenuBox, across: number, down: number): Size {
+  return {
+    width: area.right - area.left - 2 * across,
+    height: area.bottom - area.top - 2 * down,
+  };
+}
+
+/** Co potřebuje mřížka dlaždic z rozložení menu. */
+interface TileGridInput {
+  readonly mode: LayoutMode;
+  readonly metrics: MenuMetrics;
+  readonly free: MenuBox;
+  /** Mřížka jako před #156 (od ní se posouvá). */
+  readonly grid: GridArea;
+  /** Volná plocha, ve které stojí vystředěný blok (#156). */
+  readonly tileArea: MenuBox;
+  /** Levý okraj ořezu kamery mřížky. */
+  readonly clipLeft: number;
+  /** Spodní okraj lišty, na telefonu na výšku i výběru kategorie. */
+  readonly aboveGrid: number;
+  readonly isRow: boolean;
+  readonly tileCount: number;
+  readonly allTileCount: number;
+}
+
+interface TileGrid {
+  readonly columns: number;
+  readonly tiles: readonly MenuBox[];
+  readonly tileHeight: number;
+  readonly scroll: MenuScrollArea;
+}
+
+/** Dlaždice jako před #156: sloupce, velikost a mezera podle zařízení (#67, #69). */
+interface TodayTiles {
+  readonly columns: number;
+  readonly width: number;
+  readonly height: number;
+  readonly gap: number;
+  /** Viditelná plocha posouvané mřížky. */
+  readonly viewport: MenuBox;
+  /** Vejdou se dlaždice všech her („Vše“) bez posouvání? */
+  readonly allFit: boolean;
+}
+
+function todayTilesFor(input: TileGridInput): TodayTiles {
+  const { mode, metrics, free, grid } = input;
+  const gap = metrics.tileGap;
+  const columns = columnsFor(mode, grid.right - grid.left, gap);
+  const viewport: MenuBox = {
+    left: grid.left - VIEWPORT_EDGE,
+    right: free.right - VIEWPORT_EDGE,
+    top: grid.top - VIEWPORT_EDGE,
+    bottom: free.bottom - VIEWPORT_EDGE,
+  };
+  const allRows = Math.ceil(input.allTileCount / columns);
+  const baseHeight = tileHeightFor(mode, grid, gap);
+  const height =
+    gridBottom(grid, allRows, baseHeight, gap) > viewport.bottom
+      ? scrollingTileHeight(baseHeight, viewport.bottom - grid.top, gap, minScrollTileHeight(mode))
+      : baseHeight;
+  return {
+    columns,
+    width: (grid.right - grid.left - (columns - 1) * gap) / columns,
+    height,
+    gap,
+    viewport,
+    allFit: gridBottom(grid, allRows, height, gap) <= viewport.bottom,
+  };
+}
+
+/** Mřížka jako před #156, když se dlaždice všech her nevejdou (posouvání #69). */
+function scrollingTileGrid(input: TileGridInput, today: TodayTiles): TileGrid {
+  const { grid } = input;
+  const { columns, width, height, gap, viewport } = today;
+  const tiles = Array.from({ length: input.tileCount }, (_, index) =>
+    boxAt(
+      grid.left + (index % columns) * (width + gap),
+      grid.top + Math.floor(index / columns) * (height + gap),
+      width,
+      height,
+    ),
+  );
+  const rows = Math.ceil(input.tileCount / columns);
+  return {
+    columns,
+    tiles,
+    tileHeight: height,
+    scroll: {
+      viewport,
+      clip: {
+        left: input.clipLeft,
+        right: input.free.right,
+        top: Math.max(input.aboveGrid, viewport.top - GRID_CLIP_TOP_RESERVE),
+        bottom: input.free.bottom,
+      },
+      maxOffset:
+        rows === 0
+          ? 0
+          : maxOffsetFor(gridBottom(grid, rows, height, gap), viewport.bottom, grid.bottom),
+    },
+  };
+}
+
+/**
+ * Vystředěný blok (#156) se neposouvá: ťuká se a kreslí v celé volné
+ * ploše pro dlaždice, viditelná plocha je od lišty a kategorií 4 px.
+ */
+function centeredTileGrid(input: TileGridInput, centered: CenteredGrid): TileGrid {
+  const { tileArea, free } = input;
+  return {
+    columns: centered.columns,
+    tiles: centeredTiles(tileArea, centered, input.tileCount),
+    tileHeight: centered.tileHeight,
+    scroll: {
+      viewport: {
+        left: tileArea.left + VIEWPORT_EDGE,
+        right: free.right - VIEWPORT_EDGE,
+        top: tileArea.top + VIEWPORT_EDGE,
+        bottom: free.bottom - VIEWPORT_EDGE,
+      },
+      clip: { left: input.clipLeft, right: free.right, top: input.aboveGrid, bottom: free.bottom },
+      maxOffset: 0,
+    },
+  };
+}
+
+/**
+ * Dlaždice menu: když se dlaždice všech her vejdou bez posouvání, jsou
+ * větší a uprostřed volné plochy (#156), jinak jako dřív a posouvají se (#69).
+ */
+function tileGridFor(input: TileGridInput): TileGrid {
+  const today = todayTilesFor(input);
+  const centered = today.allFit
+    ? centeredGridFor(
+        input.allTileCount,
+        { width: today.width, height: today.height },
+        today.gap,
+        roomOf(
+          input.tileArea,
+          centeredBlockMargin(input.isRow, input.metrics),
+          CENTERED_BLOCK_EDGE,
+        ),
+        input.metrics.tileTitleFontSize,
+      )
+    : undefined;
+  return centered === undefined
+    ? scrollingTileGrid(input, today)
+    : centeredTileGrid(input, centered);
 }
 
 export function menuLayoutFor(viewport: Viewport | undefined, content: MenuContent): MenuLayout {
@@ -909,58 +1215,32 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
         top: free.top + metrics.contentTop,
         bottom: free.bottom - metrics.sideMargin,
       };
-  const gridViewport: MenuBox = {
-    left: grid.left - VIEWPORT_EDGE,
-    right: free.right - VIEWPORT_EDGE,
-    top: grid.top - VIEWPORT_EDGE,
-    bottom: free.bottom - VIEWPORT_EDGE,
-  };
-
-  // Kamera mřížky kreslí i kousek vedle viditelné plochy: nad ní až po
-  // lištu nebo řadu kategorií, do stran a dolů až k okraji volné plochy.
   const barBottom = Math.max(
     profileSlot.bottom,
     languageSlot.bottom,
     ...placeholders.map((box) => box.bottom),
   );
-  const aboveGrid = isRow ? Math.max(barBottom, categoryViewport.bottom) : barBottom;
-  const gridClip: MenuBox = {
-    left: isRow ? free.left : categoryViewport.right,
-    right: free.right,
-    top: Math.max(aboveGrid, gridViewport.top - GRID_CLIP_TOP_RESERVE),
-    bottom: free.bottom,
-  };
-
-  const gap = metrics.tileGap;
-  const gridColumns = columnsFor(mode, grid.right - grid.left, gap);
-  const tileWidth = (grid.right - grid.left - (gridColumns - 1) * gap) / gridColumns;
-  const allTileCount = Math.max(content.tileCount, content.allTileCount ?? content.tileCount);
-  const allRows = Math.ceil(allTileCount / gridColumns);
-  const baseTileHeight = tileHeightFor(mode, grid, gap);
-  const tileHeight =
-    gridBottom(grid, allRows, baseTileHeight, gap) > gridViewport.bottom
-      ? scrollingTileHeight(
-          baseTileHeight,
-          gridViewport.bottom - grid.top,
-          gap,
-          minScrollTileHeight(mode),
-        )
-      : baseTileHeight;
-  const tiles = Array.from({ length: content.tileCount }, (_, index) => {
-    const column = index % gridColumns;
-    const row = Math.floor(index / gridColumns);
-    return boxAt(
-      grid.left + column * (tileWidth + gap),
-      grid.top + row * (tileHeight + gap),
-      tileWidth,
-      tileHeight,
-    );
+  const tileGrid = tileGridFor({
+    mode,
+    metrics,
+    free,
+    grid,
+    // Pár her (#156): volná plocha vedle kategorií od lišty dolů, na
+    // telefonu na výšku přes celou šířku pod tlačítkem výběru kategorie.
+    tileArea: {
+      left: isRow ? free.left : free.left + metrics.sideMargin + metrics.categoryWidth,
+      right: free.right,
+      top: isRow ? free.top + metrics.contentTop + BUTTON_SIZE : barBottom,
+      bottom: free.bottom,
+    },
+    // Kamera mřížky kreslí i kousek vedle viditelné plochy: nad ní až po
+    // lištu nebo řadu kategorií, do stran a dolů až k okraji volné plochy.
+    clipLeft: isRow ? free.left : categoryViewport.right,
+    aboveGrid: isRow ? Math.max(barBottom, categoryViewport.bottom) : barBottom,
+    isRow,
+    tileCount: content.tileCount,
+    allTileCount: Math.max(content.tileCount, content.allTileCount ?? content.tileCount),
   });
-  const rows = Math.ceil(content.tileCount / gridColumns);
-  const gridMaxOffset =
-    rows === 0
-      ? 0
-      : maxOffsetFor(gridBottom(grid, rows, tileHeight, gap), gridViewport.bottom, grid.bottom);
 
   const categoryPicker = isRow
     ? categoryPickerFor(
@@ -985,13 +1265,13 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     categories,
     categoryFontSize: metrics.categoryFontSize,
     categoryTextInset: metrics.categoryTextInset,
-    gridColumns,
-    tiles,
+    gridColumns: tileGrid.columns,
+    tiles: tileGrid.tiles,
     tileRadius: metrics.tileRadius,
-    tileSymbolFontSize: tileSymbolFontSize(mode, tileHeight),
+    tileSymbolFontSize: tileSymbolFontSize(mode, tileGrid.tileHeight),
     tileTitleFontSize: metrics.tileTitleFontSize,
-    tileImages: tiles.map((tile) => tileImageFor(tile, metrics.tileTitleFontSize)),
-    gridScroll: { viewport: gridViewport, clip: gridClip, maxOffset: gridMaxOffset },
+    tileImages: tileGrid.tiles.map((tile) => tileImageFor(tile, metrics.tileTitleFontSize)),
+    gridScroll: tileGrid.scroll,
     categoryScroll: {
       viewport: categoryViewport,
       clip: categoryViewport,

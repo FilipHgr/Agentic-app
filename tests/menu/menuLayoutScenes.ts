@@ -23,11 +23,12 @@ import { GAME_CATEGORIES } from '../../src/shared/logic/gameRegistry';
 import { LANGUAGES } from '../../src/shared/texts/languages';
 import type { Language } from '../../src/shared/texts/languages';
 import { sharedTexts } from '../../src/shared/texts/sharedTexts';
-import { LAYOUT_RULES, textFitViolations } from '../shared/layoutRules';
+import { HOME_SCREEN_WINDOWS, LAYOUT_RULES, textFitViolations } from '../shared/layoutRules';
 import type { LayoutItem, LayoutRule, LayoutScene, LayoutText } from '../shared/layoutRules';
 import { freeAreaOf, isInside, viewportOf } from '../shared/viewportFixtures';
 import type { TestWindow } from '../shared/viewportFixtures';
 import {
+  FEW_GAME_COUNTS,
   MANY_GAMES,
   MANY_GAMES_COUNT,
   MANY_LANGUAGE_CODES,
@@ -35,6 +36,7 @@ import {
   MANY_MENU_CATEGORY_TITLES,
   MANY_TEXTS_CS,
   MENU_WINDOWS,
+  fewGamesLayout,
   manyGamesLayout,
 } from './manyGamesFixtures';
 
@@ -659,6 +661,108 @@ export function scrollScenes(windows: readonly TestWindow[] = MENU_WINDOWS): Lay
       ).map((categoryOffset) => scrollScene(window, name, layout, gridStart, categoryOffset));
       return [...crossed, ...tileReach, ...categoryReach];
     }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pár her: 1 až 12 her, větší dlaždice uprostřed (#156 AC4)
+// ---------------------------------------------------------------------------
+
+/** Okna, ve kterých #156 zkouší pravidla: okna menu a okna z plochy (#78). */
+export const FEW_GAMES_WINDOWS: readonly TestWindow[] = [...MENU_WINDOWS, ...HOME_SCREEN_WINDOWS];
+
+/** Obsah menu s pár hrami: „Vše“ se všemi hrami a vybraná kategorie s jednou hrou. */
+export function fewGamesContents(
+  gameCount: number,
+): ReadonlyArray<{ readonly name: string; readonly selectedCount: number }> {
+  return [
+    { name: `${gameCount} her ve „Vše“`, selectedCount: gameCount },
+    { name: `${gameCount} her, vybraná kategorie s 1 hrou`, selectedCount: 1 },
+  ];
+}
+
+/**
+ * Jeden případ menu s pár hrami (#156). Když se mřížka neposouvá, jsou
+ * dlaždice celé plochy a platí pro ně pravidla bez výjimky (8 px od lišty,
+ * kategorií i výběru kategorie). Když se posouvá (AC2, jako dnes), měří se
+ * viditelná část v ořezu mřížky s výjimkou z #82 (0 px od lišty
+ * a kategorií). Kategorie jako u dnešního menu (`todayCategoryItems`).
+ */
+function fewGamesScene(
+  window: TestWindow,
+  contentName: string,
+  layout: MenuLayout,
+  gridOffset: Offset,
+  categoryOffset: Offset,
+): LayoutScene {
+  const titles = MANY_MENU_CATEGORY_TITLES.slice(0, layout.categories.length);
+  const pickerTitles = MANY_MENU_CATEGORY_TITLES.slice(0, layout.categoryPicker?.rows.length ?? 0);
+  const scrolls = layout.gridScroll.maxOffset > 0;
+  const tiles = layout.tiles.flatMap((tile, index): LayoutItem[] => {
+    const name = `dlaždice ${index + 1}`;
+    const texts: LayoutText[] = [
+      {
+        text: MANY_TEXTS_CS[MANY_GAMES[index]?.titleKey ?? ''] ?? '',
+        fontSize: layout.tileTitleFontSize,
+      },
+    ];
+    if (!scrolls) {
+      return [{ name, box: tile, tappable: true, texts }];
+    }
+    return scrolledItem(name, shiftY(tile, gridOffset.value), layout.gridScroll.clip, texts);
+  });
+  return {
+    label:
+      `pár her (#156), ${window.name}, ${contentName}, ` +
+      `mřížka ${gridOffset.name}, kategorie ${categoryOffset.name}`,
+    free: freeAreaOf(window),
+    items: [
+      ...barItems(layout, LANGUAGES),
+      ...pickerButtonItems(layout, pickerTitles),
+      ...todayCategoryItems(layout, titles, categoryOffset.value),
+      ...tiles,
+    ],
+    minGap: scrolledGap,
+  };
+}
+
+/**
+ * Menu s 1 až 12 hrami ve všech oknech (#156 AC4): „Vše“ i vybraná
+ * kategorie, při zkoušených posunech mřížky a kategorií a při posunech,
+ * po kterých je každá dlaždice a kategorie celá vidět.
+ */
+export function fewGamesScenes(windows: readonly TestWindow[] = FEW_GAMES_WINDOWS): LayoutScene[] {
+  return windows.flatMap((window) =>
+    FEW_GAME_COUNTS.flatMap((gameCount) =>
+      fewGamesContents(gameCount).flatMap(({ name, selectedCount }) => {
+        const layout = fewGamesLayout(window, gameCount, selectedCount);
+        const titles = MANY_MENU_CATEGORY_TITLES.slice(0, layout.categories.length);
+        const gridOffsets = offsetsOf(layout.gridScroll.maxOffset, GRID_OFFSET_FRACTIONS);
+        const categoryOffsets = offsetsOf(layout.categoryScroll.maxOffset, LIST_OFFSET_FRACTIONS);
+        const [gridStart, categoryStart] = [gridOffsets[0], categoryOffsets[0]] as [Offset, Offset];
+        const scene = (gridOffset: Offset, categoryOffset: Offset): LayoutScene =>
+          fewGamesScene(window, name, layout, gridOffset, categoryOffset);
+        const crossed = gridOffsets.flatMap((gridOffset) =>
+          categoryOffsets.map((categoryOffset) => scene(gridOffset, categoryOffset)),
+        );
+        const tileReach = reachOffsets(
+          layout.gridScroll.maxOffset,
+          layout.tiles.map((tile, index) => ({ name: `dlaždice ${index + 1}`, end: tile.bottom })),
+          layout.gridScroll.viewport.bottom,
+          gridOffsets,
+        ).map((gridOffset) => scene(gridOffset, categoryStart));
+        const categoryReach = reachOffsets(
+          layout.categoryScroll.maxOffset,
+          layout.categories.map((category, index) => ({
+            name: `kategorie ${titles[index] ?? index + 1}`,
+            end: categoryEnd(layout, category.hit),
+          })),
+          categoryEnd(layout, layout.categoryScroll.viewport),
+          categoryOffsets,
+        ).map((categoryOffset) => scene(gridStart, categoryOffset));
+        return [...crossed, ...tileReach, ...categoryReach];
+      }),
+    ),
   );
 }
 

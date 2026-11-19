@@ -5,7 +5,7 @@ import { chooseLayoutMode } from '../../src/shared/logic/viewportLayout';
 import type { MenuBox, MenuLayout } from '../../src/menu/logic/menuLayout';
 import { PHONE_WINDOWS, isInside, viewportOf } from '../shared/viewportFixtures';
 import type { TestWindow } from '../shared/viewportFixtures';
-import { MENU_WINDOWS } from './manyGamesFixtures';
+import { MENU_WINDOWS, manyGamesLayout } from './manyGamesFixtures';
 import {
   describeLayoutRules,
   gridScenes,
@@ -227,9 +227,14 @@ describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', 
 });
 
 describe('#67 AC1: telefon na šířku podle obrázku (sloupec kategorií a mřížka o 3 až 4 sloupcích)', () => {
-  it('na každém telefonu na šířku má mřížka 3 nebo 4 sloupce', () => {
+  // #156: když se dlaždice všech her vejdou bez posouvání (dnes 2 hry), jsou
+  // větší a uprostřed a sloupců smí být méně. 3 až 4 sloupce platí dál, když
+  // se dlaždice nevejdou (#156 AC2, zkušebních 40 her). Že se dnešní menu na
+  // telefonu na šířku nezmění k horšímu, hlídá fewGamesLayout.test.ts
+  // (dlaždice nikdy menší než dnes).
+  it('na každém telefonu na šířku má posouvaná mřížka (40 her) 3 nebo 4 sloupce', () => {
     for (const window of PHONE_WINDOWS) {
-      const columns = todayLayout(window).gridColumns;
+      const columns = manyGamesLayout(window).gridColumns;
       expect(columns, window.name).toBeGreaterThanOrEqual(3);
       expect(columns, window.name).toBeLessThanOrEqual(4);
     }
