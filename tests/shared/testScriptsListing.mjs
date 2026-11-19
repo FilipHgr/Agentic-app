@@ -77,6 +77,9 @@ function vitestList(root, script, extraArguments) {
     cwd: root,
     encoding: 'utf8',
     env: childEnv(),
+    // Výpis všech testů má přes 1 MiB (výchozí `maxBuffer` spawnSync), s ním
+    // by výpis skončil chybou ENOBUFS. Rezerva pro další testy.
+    maxBuffer: 64 * 1024 * 1024,
   });
   if (result.status !== 0) {
     throw new Error(`výpis testů skriptu ${script} selhal:\n${result.stdout}\n${result.stderr}`);
