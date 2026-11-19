@@ -67,7 +67,8 @@ import type { TestWindow } from '../../shared/viewportFixtures';
  * herní obrazovky se v #63 vědomě aktualizuje.
  *
  * Ručně (náhled na iPadu, iPhonu a Samsungu): v síti nejsou požadavky na
- * obrázky postav, let hvězdičky a zatřesení po chybě vypadají jako dřív,
+ * obrázky postav, let hvězdičky a odezva po chybě vypadají jako dřív
+ * (zatřesení po chybě nahradilo zešednutí v #155),
  * oslava trvá 2,6 s a konfety nezakryjí příklad nadlouho.
  */
 

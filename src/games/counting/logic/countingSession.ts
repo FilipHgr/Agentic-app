@@ -18,6 +18,7 @@ import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { loadSettingsState, saveSettings } from '../storage/settingsStorage';
 import {
   answerRoundFor,
+  isHintButtonGlowing,
   isHintButtonVisible,
   isHintVisible,
   keepRequestedHint,
@@ -163,6 +164,8 @@ export interface CountingSession {
   hintVisible(): boolean;
   /** Je vidět tlačítko nápovědy (#84)? */
   hintButtonVisible(): boolean;
+  /** Svítí tlačítko nápovědy po 1. chybě (#155)? */
+  hintButtonGlowing(): boolean;
   /** Které tečky nápovědy už dítě spočítalo (#43). */
   dotCounting(): DotCounting;
   starProgress(): StarProgress;
@@ -510,6 +513,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     wrongAnswers: () => round.wrongAnswers,
     hintVisible: () => isHintVisible(round),
     hintButtonVisible: () => isHintButtonVisible(round),
+    hintButtonGlowing: () => isHintButtonGlowing(round),
     dotCounting: () => counting,
     starProgress: () => stars,
     starCount: () => stars.earned,

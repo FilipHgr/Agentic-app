@@ -49,6 +49,9 @@ export const HINT_BUTTON_STYLE = {
   symbolColor: TEXT,
   symbolFontWeight: 700,
   shadowAlpha: 0.08,
+  /** Záře kolem rozzářeného tlačítka po 1. chybě (#155), průhlednost každého jejího kruhu. */
+  glowColor: '#FFCC00',
+  glowAlpha: 0.4,
 } as const;
 
 export type AnswerButtonState = 'idle' | TapOutcome;
@@ -77,9 +80,27 @@ const CORRECT_BUTTON: AnswerButtonLook = {
   interactive: true,
 };
 
-/** Vzhled tlačítka číselníku; chyba nic nebarví, tlačítko se jen zatřese. */
+/**
+ * Tlačítko po špatném ťuknutí (#155): na chvíli šedé, nikdy červené, a číslo
+ * jde dál přečíst (kontrast aspoň 4,5 : 1). Na tlačítko jde ťuknout znovu.
+ */
+const WRONG_BUTTON: AnswerButtonLook = {
+  background: '#E5E5EA',
+  borderColor: '#C7C7CC',
+  borderWidth: KEYPAD_BUTTON_STYLE.borderWidth,
+  digitColor: '#545458',
+  interactive: true,
+};
+
+/**
+ * Vzhled tlačítka číselníku: po správné odpovědi zelené, po špatné na
+ * chvíli šedé (průběh v `wrongAnswerFeedback.ts`), jinak světle modré.
+ */
 export function answerButtonLook(state: AnswerButtonState): AnswerButtonLook {
-  return state === 'correct' ? CORRECT_BUTTON : IDLE_BUTTON;
+  if (state === 'correct') {
+    return CORRECT_BUTTON;
+  }
+  return state === 'wrong' ? WRONG_BUTTON : IDLE_BUTTON;
 }
 
 export const STAR_STYLE = {

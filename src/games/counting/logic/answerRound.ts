@@ -94,6 +94,14 @@ export function isHintButtonVisible(round: AnswerRound): boolean {
 }
 
 /**
+ * Svítí tlačítko nápovědy (#155 AC3, AC4)? Po 1. chybě u příkladu, dokud je
+ * tlačítko vidět: ťuknutí na něj, 2. chyba ani nový příklad ho nerozsvítí.
+ */
+export function isHintButtonGlowing(round: AnswerRound): boolean {
+  return isHintButtonVisible(round) && round.wrongAnswers >= 1;
+}
+
+/**
  * Ťuknutí na tlačítko nápovědy (#84): ukáže tečky, není to odpověď ani
  * chyba. Když tlačítko vidět není, kolo zůstane beze změny.
  */

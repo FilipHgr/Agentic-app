@@ -57,7 +57,8 @@ import {
  *
  * Ručně se kontroluje: světlý vzhled při načítání a kolem hry na iPadu
  * i telefonu (index.html), že hra kvůli písmu nic nestahuje, poskočení
- * a zatřesení tlačítka, poloha a velikost kolečka nastavení (index.html)
+ * a zešednutí tlačítka (zatřesení nahradilo #155), poloha a velikost
+ * kolečka nastavení (index.html)
  * a čitelnost tenkého příkladu v Safari a Chromu.
  */
 
@@ -255,11 +256,17 @@ describe('#52 AC4: odezva tlačítka na odpověď', () => {
     expectColor(answerButtonLook('correct').background, CONFIRM_BUTTON_STYLE.background);
   });
 
+  // #155 AC1 mění dřívější „chyba nic nebarví, tlačítko se jen zatřese“:
+  // tlačítko po špatném ťuknutí na chvíli zešedne (`answerButtonLook('wrong')`
+  // už není stejný jako `'idle'`). Z #52 AC4 zůstává, že nezčervená ani
+  // se nezamkne; průběh zešednutí hlídá `wrongAnswerFeedback.test.ts`.
   it('po špatném ťuknutí tlačítko nezčervená a nezamkne se', () => {
     const { outcome } = tapAnswer(roundThreePlusFour(), 2);
     expect(outcome).toBe('wrong');
-    expect(answerButtonLook(outcome)).toEqual(answerButtonLook('idle'));
-    expect(answerButtonLook(outcome).interactive).toBe(true);
+    const look = answerButtonLook(outcome);
+    expect(isGray(look.background), `pozadí ${look.background} je šedé, ne červené`).toBe(true);
+    expect(isGray(look.borderColor), `okraj ${look.borderColor} je šedý, ne červený`).toBe(true);
+    expect(look.interactive).toBe(true);
   });
 
   it('ani po opakované chybě tlačítko nezčervená a jde na něj dál ťukat', () => {
@@ -267,7 +274,10 @@ describe('#52 AC4: odezva tlačítka na odpověď', () => {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const result = tapAnswer(round, 2);
       expect(result.outcome).toBe('wrong');
-      expect(answerButtonLook(result.outcome)).toEqual(answerButtonLook('idle'));
+      // #155 AC1: stejný zešedlý vzhled po každé chybě, nikdy červený.
+      expect(answerButtonLook(result.outcome)).not.toEqual(answerButtonLook('idle'));
+      expect(isGray(answerButtonLook(result.outcome).background)).toBe(true);
+      expect(answerButtonLook(result.outcome).interactive).toBe(true);
       round = result.round;
     }
     expect(tapAnswer(round, 2).outcome).toBe('wrong');

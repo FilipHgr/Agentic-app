@@ -29,7 +29,7 @@ import type { RecognizerLoadStatus } from '../logic/recognizerLoading';
 import type { GameSettings } from '../logic/settings';
 import { switchToKeypad } from '../logic/twoBoxWriting';
 import type { TwoBoxConfirmResult, TwoBoxRound } from '../logic/twoBoxWriting';
-import { highlightCorrectButton, shakeWrongButton } from './AnswerButton';
+import { highlightCorrectButton } from './AnswerButton';
 import type { AnswerButton } from './AnswerButton';
 import { Confetti } from './Confetti';
 import { ParentPanels } from './ParentPanels';
@@ -383,6 +383,7 @@ export class GameScene extends Phaser.Scene {
 
   override update(time: number): void {
     this.view.writingPad?.update(time);
+    this.view.update(this.time.now);
   }
 
   private currentProgress(): GameProgress {
@@ -408,6 +409,7 @@ export class GameScene extends Phaser.Scene {
       recognizer: session.recognizer(),
       hintIsShown: this.hintIsShown,
       hintButtonVisible: session.hintButtonVisible(),
+      hintButtonGlowing: session.hintButtonGlowing(),
       counting: session.dotCounting(),
     };
     this.view.draw(drawing, writingState, animateHint);
@@ -430,7 +432,10 @@ export class GameScene extends Phaser.Scene {
     const outcome = this.session.answerWritten(result.round.answer, result.outcome);
     this.showOutcome(outcome, pad.confirmPosition, {
       onCorrect: () => pad.lock(),
-      onWrong: () => this.showWrittenNumber(null),
+      onWrong: () => {
+        this.showWrittenNumber(null);
+        this.view.showWrongAnswer(null, this.session.hintButtonGlowing());
+      },
     });
   }
 
@@ -438,7 +443,7 @@ export class GameScene extends Phaser.Scene {
     const outcome = this.session.tapAnswer(button.value);
     this.showOutcome(outcome, button.container, {
       onCorrect: () => highlightCorrectButton(this, button),
-      onWrong: () => shakeWrongButton(this, button),
+      onWrong: () => this.view.showWrongAnswer(button, this.session.hintButtonGlowing()),
     });
   }
 

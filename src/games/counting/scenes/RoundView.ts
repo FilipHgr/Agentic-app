@@ -9,9 +9,15 @@ import { isWritingActive } from '../logic/settings';
 import type { GameSettings } from '../logic/settings';
 import type { TwoBoxConfirmResult, TwoBoxRound } from '../logic/twoBoxWriting';
 import type { DigitRecognizer } from '../logic/writingRound';
-import { createAnswerButton, paintAnswerButton } from './AnswerButton';
+import { hintGlowFrameAt, hintGlowSpread } from '../logic/wrongAnswerFeedback';
+import {
+  createAnswerButton,
+  paintAnswerButton,
+  showWrongButton,
+  updateWrongButton,
+} from './AnswerButton';
 import type { AnswerButton } from './AnswerButton';
-import { createHintButton, swingHintButton } from './HintButton';
+import { createHintButton, setHintButtonGlow, swingHintButton } from './HintButton';
 import type { HintButton } from './HintButton';
 import { drawHintDots, showDotCounted } from './HintDots';
 import type { HintDotsContext } from './HintDots';
@@ -43,6 +49,8 @@ export interface RoundDrawing {
   readonly hintIsShown: boolean;
   /** Je vidět tlačítko nápovědy (#84)? Jen dokud tečky nejsou nakreslené. */
   readonly hintButtonVisible: boolean;
+  /** Svítí tlačítko nápovědy po 1. chybě (#155)? */
+  readonly hintButtonGlowing: boolean;
   readonly counting: DotCounting;
 }
 
@@ -60,6 +68,10 @@ export class RoundView {
   private pad: WritingPad | undefined;
   /** Tlačítko nápovědy, dokud ho tečky nenahradí (#84). */
   private hintButton: HintButton | undefined;
+  /** Kdy se tlačítko nápovědy rozzářilo (#155); `undefined` = nesvítí. */
+  private hintGlowStartMs: number | undefined;
+  /** Tlačítka číselníku, aby šla každý snímek kreslit odezva na chybu (#155). */
+  private answerButtons: AnswerButton[] = [];
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -107,7 +119,47 @@ export class RoundView {
       this.drawHint(round, drawing.counting, animateHint);
     } else if (drawing.hintButtonVisible) {
       this.drawHintButton(round);
+      if (drawing.hintButtonGlowing) {
+        this.glowHintButton(this.scene.time.now);
+      }
     }
+  }
+
+  /**
+   * Odezva na špatnou odpověď (#155): ťuknuté tlačítko číselníku zešedne
+   * a zmenší se (`null` při psaní), „?“ poskočí a žárovka se rozzáří, když
+   * má svítit. Rozzářená žárovka pulzuje dál bez nového začátku.
+   */
+  showWrongAnswer(button: AnswerButton | null, hintButtonGlowing: boolean): void {
+    const now = this.scene.time.now;
+    if (button) {
+      showWrongButton(button, now);
+    }
+    this.problem.hop(this.layouts.scenery(), now);
+    if (hintButtonGlowing) {
+      this.glowHintButton(now);
+    }
+  }
+
+  /** Každý snímek: průběh zešednutí tlačítek, poskoku „?“ a pulzu žárovky. */
+  update(nowMs: number): void {
+    for (const button of this.answerButtons) {
+      updateWrongButton(button, nowMs);
+    }
+    this.problem.update(nowMs);
+    const glowStart = this.hintGlowStartMs;
+    if (this.hintButton && glowStart !== undefined) {
+      setHintButtonGlow(this.hintButton, hintGlowFrameAt(nowMs - glowStart).glow);
+    }
+  }
+
+  /** Žárovka se rozzáří; když už svítí, pulzuje dál. */
+  private glowHintButton(nowMs: number): void {
+    if (!this.hintButton || this.hintGlowStartMs !== undefined) {
+      return;
+    }
+    this.hintGlowStartMs = nowMs;
+    setHintButtonGlow(this.hintButton, hintGlowFrameAt(0).glow);
   }
 
   /** Tlačítko nápovědy na místě, kde se pak ukážou tečky (#84). */
@@ -117,8 +169,12 @@ export class RoundView {
     if (!slot) {
       return;
     }
-    this.hintButton = createHintButton(this.scene, slot, layout.detailScale, () =>
-      this.events.onHintButtonTapped(),
+    this.hintButton = createHintButton(
+      this.scene,
+      slot,
+      layout.detailScale,
+      hintGlowSpread(layout, slot),
+      () => this.events.onHintButtonTapped(),
     );
     this.objects.push(this.hintButton.container);
   }
@@ -132,6 +188,8 @@ export class RoundView {
     if (!button) {
       return;
     }
+    this.hintGlowStartMs = undefined;
+    setHintButtonGlow(button, null);
     swingHintButton(this.scene, button, () => {
       if (this.hintButton === button) {
         this.hideHintButton();
@@ -147,6 +205,7 @@ export class RoundView {
       return;
     }
     this.hintButton = undefined;
+    this.hintGlowStartMs = undefined;
     this.objects = this.objects.filter((object) => object !== button.container);
     this.scene.tweens.killTweensOf(button.container);
     button.container.destroy();
@@ -172,6 +231,8 @@ export class RoundView {
     this.pad?.destroy();
     this.pad = undefined;
     this.hintButton = undefined;
+    this.hintGlowStartMs = undefined;
+    this.answerButtons = [];
     for (const object of this.objects) {
       this.scene.tweens.killTweensOf(object);
       object.destroy();
@@ -196,6 +257,7 @@ export class RoundView {
       if (round.solved && value === round.problem.result) {
         paintAnswerButton(button, 'correct');
       }
+      this.answerButtons.push(button);
       this.objects.push(button.container);
     });
   }

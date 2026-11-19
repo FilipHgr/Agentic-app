@@ -5,6 +5,11 @@ import type { AnswerRound } from '../logic/answerRound';
 import type { DeviceScreenLayout, DeviceWritingLayout } from '../logic/deviceLayout';
 import { FONT_FAMILY } from '../../../shared/logic/theme';
 import { PROBLEM_STYLE } from '../logic/theme';
+import {
+  QUESTION_MARK_HOP_MS,
+  questionMarkLiftAt,
+  questionMarkScaleAt,
+} from '../logic/wrongAnswerFeedback';
 
 /** Výsledek v příkladu po správné odpovědi: zelený jako správné tlačítko. */
 const ANSWER_REVEALED_COLOR = PROBLEM_STYLE.revealedAnswerColor;
@@ -23,6 +28,10 @@ type ProblemLayout = DeviceScreenLayout | DeviceWritingLayout;
 export class ProblemView {
   private equation: Phaser.GameObjects.Text | undefined;
   private answer: Phaser.GameObjects.Text | undefined;
+  /** Kdy začal poskok „?“ po špatné odpovědi (#155); `undefined` = „?“ je v klidu. */
+  private hopStartMs: number | undefined;
+  /** Rozložení, ve kterém „?“ poskakuje (výška poskoku i klidová poloha). */
+  private hopLayout: ProblemLayout | undefined;
 
   constructor(private readonly scene: Phaser.Scene) {}
 
@@ -54,6 +63,7 @@ export class ProblemView {
       .setOrigin(0.5);
     this.equation = equation;
     this.answer = answer;
+    this.hopStartMs = undefined;
     this.center(layout);
     return [equation, answer];
   }
@@ -80,6 +90,9 @@ export class ProblemView {
       return;
     }
     const text = problemText(round);
+    // Rozběhnutý poskok „?“ skončí, zelený výsledek stojí na svém místě.
+    this.hopStartMs = undefined;
+    this.answer.setY(layout.problem.y).setScale(1);
     this.answer.setText(text.answer).setColor(ANSWER_REVEALED_COLOR);
     this.center(layout);
     this.scene.tweens.add({
@@ -89,6 +102,32 @@ export class ProblemView {
       yoyo: true,
       ease: 'Quad.easeOut',
     });
+  }
+
+  /** Po špatné odpovědi „?“ krátce poskočí, na telefonu se i zvětší (#155); průběh kreslí `update`. */
+  hop(layout: ProblemLayout, nowMs: number): void {
+    if (!this.answer) {
+      return;
+    }
+    this.hopStartMs = nowMs;
+    this.hopLayout = layout;
+    this.update(nowMs);
+  }
+
+  /** Posune „?“ podle poskoku v čase `nowMs`; po jeho konci ho vrátí na místo. */
+  update(nowMs: number): void {
+    const startMs = this.hopStartMs;
+    const layout = this.hopLayout;
+    if (!this.answer || startMs === undefined || !layout) {
+      return;
+    }
+    const elapsed = nowMs - startMs;
+    this.answer.y = layout.problem.y - questionMarkLiftAt(elapsed, layout);
+    // Kde na poskok není místo (telefon), se „?“ navíc zvětší kolem středu.
+    this.answer.setScale(questionMarkScaleAt(elapsed, layout));
+    if (elapsed >= QUESTION_MARK_HOP_MS) {
+      this.hopStartMs = undefined;
+    }
   }
 
   /** Vycentruje celý příklad; odpověď může po vyřešení změnit šířku. */

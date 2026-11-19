@@ -40,6 +40,13 @@ const RAYS = {
 const SHADOW_SPREADS = [3, 1.2];
 const SHADOW_OFFSET = 2;
 
+/**
+ * Záře rozzářeného tlačítka (#155) ze soustředných kruhů, které ven
+ * slábnou. Jak daleko sahá, počítá `hintGlowSpread` podle mezery
+ * k ostatním plochám; velikost tlačítka se nemění.
+ */
+const GLOW_RINGS = 3;
+
 /** Zhoupnutí po ťuknutí: úhel v jednom směru a doba jednoho kyvu. */
 const SWING_ANGLE = 12;
 const SWING_MS = 70;
@@ -47,6 +54,28 @@ const SWING_MS = 70;
 /** Tlačítko nápovědy na místě, kde se pak ukážou tečky (#84). */
 export interface HintButton {
   readonly container: Phaser.GameObjects.Container;
+  /** Záře kolem tlačítka po 1. chybě (#155), jinak skrytá. */
+  readonly glow: Phaser.GameObjects.Graphics;
+  /** Šedý stín; když tlačítko září, schová se, aby okraj nebyl špinavý. */
+  readonly shadow: Phaser.GameObjects.Graphics;
+}
+
+/**
+ * Žlutá záře kolem kruhu do vzdálenosti `spread`: i vnější kruh je dobře
+ * vidět, dovnitř se kruhy sčítají. Sílu mění průhlednost celé záře.
+ */
+function drawGlow(
+  scene: Phaser.Scene,
+  radius: number,
+  spread: number,
+): Phaser.GameObjects.Graphics {
+  const glow = scene.add.graphics();
+  for (let ring = GLOW_RINGS; ring >= 1; ring -= 1) {
+    glow
+      .fillStyle(colorNumber(HINT_BUTTON_STYLE.glowColor), HINT_BUTTON_STYLE.glowAlpha)
+      .fillCircle(0, 0, radius + (spread * ring) / GLOW_RINGS);
+  }
+  return glow.setVisible(false);
 }
 
 /** Jemný stín pod kulatým tlačítkem o poloměru `radius`. */
@@ -140,18 +169,23 @@ function drawSymbol(scene: Phaser.Scene, size: number): Phaser.GameObjects.Text 
  * Nakreslí tlačítko nápovědy (varianta C): světle žlutý kruh se žlutým
  * okrajem a uvnitř žárovka s paprsky, šedou paticí a malým tmavým „?“.
  *
+ * @param glowSpread Jak daleko sahá záře po 1. chybě (`hintGlowSpread`).
  * @param onPressed Prst se tlačítka dotkl (co to znamená, rozhoduje scéna).
  */
 export function createHintButton(
   scene: Phaser.Scene,
   slot: ButtonSlot,
   detailScale: number,
+  glowSpread: number,
   onPressed: () => void,
 ): HintButton {
   const { size } = slot;
   const radius = size / 2;
+  const glow = drawGlow(scene, radius, glowSpread);
+  const shadow = drawShadow(scene, radius, detailScale);
   const container = scene.add.container(slot.x, slot.y, [
-    drawShadow(scene, radius, detailScale),
+    glow,
+    shadow,
     drawDisc(scene, radius, detailScale),
     drawRays(scene, size),
     drawBulb(scene, size),
@@ -160,7 +194,21 @@ export function createHintButton(
   ]);
   container.setSize(size, size).setInteractive();
   container.on('pointerdown', onPressed);
-  return { container };
+  return { container, glow, shadow };
+}
+
+/**
+ * Síla záře kolem tlačítka (0 až 1, #155); `null` záři schová.
+ * Tlačítko samo zůstává stejně velké.
+ */
+export function setHintButtonGlow(button: HintButton, glow: number | null): void {
+  if (glow === null) {
+    button.glow.setVisible(false);
+    button.shadow.setVisible(true);
+    return;
+  }
+  button.glow.setVisible(true).setAlpha(glow);
+  button.shadow.setVisible(false);
 }
 
 /** Tlačítko se zhoupne na jednu stranu, na druhou a zpět a pak zavolá `onDone`. */
