@@ -1,7 +1,7 @@
 /**
  * Rozložení menu podle obrázku B (#67 AC1) v CSS px okna, i s výřezem
  * a lištou domů. Nahoře lišta (místo pro profil vlevo, místo pro jazyk
- * a zástupná tlačítka „…“ vpravo), pod ní kategorie (sloupec vlevo, na
+ * úplně vpravo, mezi nimi místo vyhrazené pro budoucí volby, #157), pod ní kategorie (sloupec vlevo, na
  * telefonu na výšku výběr kategorie, #95) a vedle nebo pod nimi mřížka
  * dlaždic.
  * Čistý TypeScript bez Phaseru.
@@ -170,8 +170,12 @@ export interface MenuLayout {
   /** Písmo zkratky jazyka na tlačítku (#70). */
   readonly languageButtonFontSize: number;
   readonly languagePanel: MenuLanguagePanel;
-  readonly placeholders: readonly MenuBox[];
-  readonly placeholderFontSize: number;
+  /**
+   * Místa v liště vyhrazená pro budoucí volby (#157, dřív zástupná kolečka
+   * „…“), mezi profilem a jazykem. Nic se tam nekreslí a ťuknutí na ně nic nedělá, ale jiné části
+   * menu do nich nesmí.
+   */
+  readonly reservedSlots: readonly MenuBox[];
   readonly categoryDirection: 'row' | 'column';
   readonly categories: readonly MenuCategorySlot[];
   readonly categoryFontSize: number;
@@ -256,7 +260,8 @@ interface MenuMetrics {
   /** Mezera mezi tlačítky v liště. */
   readonly barGap: number;
   readonly profileWidth: number;
-  readonly placeholderCount: number;
+  /** Počet míst v liště vyhrazených pro budoucí volby (#157). */
+  readonly reservedSlotCount: number;
   /** Kde začínají kategorie (od horního okraje volné plochy). */
   readonly contentTop: number;
   readonly categoryWidth: number;
@@ -275,7 +280,7 @@ const TABLET_METRICS: MenuMetrics = {
   barTop: 12,
   barGap: 16,
   profileWidth: 240,
-  placeholderCount: 2,
+  reservedSlotCount: 2,
   contentTop: 104,
   categoryWidth: 220,
   categoryFontSize: 17,
@@ -292,7 +297,7 @@ const PHONE_LANDSCAPE_METRICS: MenuMetrics = {
   barTop: 8,
   barGap: 8,
   profileWidth: 220,
-  placeholderCount: 1,
+  reservedSlotCount: 1,
   contentTop: 80,
   categoryWidth: 208,
   categoryFontSize: 16,
@@ -309,7 +314,7 @@ const PHONE_PORTRAIT_METRICS: MenuMetrics = {
   barTop: 12,
   barGap: 16,
   profileWidth: 76,
-  placeholderCount: 1,
+  reservedSlotCount: 1,
   contentTop: 88,
   categoryWidth: 0,
   categoryFontSize: 17,
@@ -1152,7 +1157,8 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
   const metrics = metricsFor(mode);
   const free = freeAreaOf(viewport);
 
-  // Horní lišta: profil vlevo, vpravo místo pro jazyk a zástupná tlačítka.
+  // Horní lišta: profil vlevo, jazyk úplně vpravo a mezi nimi místo
+  // vyhrazené pro budoucí volby (#157), aby vpravo od jazyka nebyla díra.
   const barTop = free.top + metrics.barTop;
   const profileSlot = boxAt(
     free.left + metrics.sideMargin,
@@ -1160,13 +1166,14 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     metrics.profileWidth,
     BUTTON_SIZE,
   );
-  const placeholders: MenuBox[] = [];
   let right = free.right - metrics.sideMargin;
-  for (let index = 0; index < metrics.placeholderCount; index += 1) {
-    placeholders.unshift(boxAt(right - BUTTON_SIZE, barTop, BUTTON_SIZE, BUTTON_SIZE));
+  const languageSlot = boxAt(right - BUTTON_SIZE, barTop, BUTTON_SIZE, BUTTON_SIZE);
+  right -= BUTTON_SIZE + metrics.barGap;
+  const reservedSlots: MenuBox[] = [];
+  for (let index = 0; index < metrics.reservedSlotCount; index += 1) {
+    reservedSlots.unshift(boxAt(right - BUTTON_SIZE, barTop, BUTTON_SIZE, BUTTON_SIZE));
     right -= BUTTON_SIZE + metrics.barGap;
   }
-  const languageSlot = boxAt(right - BUTTON_SIZE, barTop, BUTTON_SIZE, BUTTON_SIZE);
 
   const isRow = mode === 'phonePortrait';
   const direction = isRow ? 'row' : 'column';
@@ -1218,7 +1225,7 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
   const barBottom = Math.max(
     profileSlot.bottom,
     languageSlot.bottom,
-    ...placeholders.map((box) => box.bottom),
+    ...reservedSlots.map((box) => box.bottom),
   );
   const tileGrid = tileGridFor({
     mode,
@@ -1246,7 +1253,7 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     ? categoryPickerFor(
         free,
         profileSlot.left,
-        Math.max(languageSlot.right, ...placeholders.map((box) => box.right)),
+        Math.max(languageSlot.right, ...reservedSlots.map((box) => box.right)),
         free.top + metrics.contentTop,
         content.categoryTitles.length,
       )
@@ -1259,8 +1266,7 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     languageSlot,
     languageButtonFontSize: LANGUAGE_BUTTON_FONT_SIZE,
     languagePanel: languagePanelFor(free, languageSlot, content.languageNames ?? []),
-    placeholders,
-    placeholderFontSize: 22,
+    reservedSlots,
     categoryDirection: direction,
     categories,
     categoryFontSize: metrics.categoryFontSize,

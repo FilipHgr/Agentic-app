@@ -63,12 +63,15 @@ function pickerBoxes(layout: MenuLayout): MenuBox[] {
   return picker === null || picker === undefined ? [] : [picker.button];
 }
 
-/** Všechno v menu i s místy pro profil (#71) a jazyk (#70). */
+/**
+ * Všechno v menu i s místy pro profil (#71) a jazyk (#70). #157: místo
+ * schovaných zástupných tlačítek „…“ zůstává vyhrazené (`reservedSlots`).
+ */
 function allBoxes(layout: MenuLayout): MenuBox[] {
   return [
     layout.profileSlot,
     layout.languageSlot,
-    ...layout.placeholders,
+    ...layout.reservedSlots,
     ...pickerBoxes(layout),
     ...layout.categories.map((category) => category.hit),
     ...layout.tiles,
@@ -88,7 +91,8 @@ function wholeVisibleBoxes(layout: MenuLayout): MenuBox[] {
   return [
     layout.profileSlot,
     layout.languageSlot,
-    ...layout.placeholders,
+    // #157: vyhrazené místo po schovaných „…“.
+    ...layout.reservedSlots,
     ...pickerBoxes(layout),
     ...categories,
     ...layout.tiles,
@@ -126,15 +130,20 @@ describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', 
     }
   });
 
-  it('vpravo nahoře je na telefonu jedno a na iPadu dvě zástupná tlačítka, úplně vpravo vedle jazyka', () => {
+  // #157: zástupná tlačítka „…“ jsou schovaná, jejich místo zůstává
+  // vyhrazené (na telefonu jedno, na iPadu dvě místa po 64 px). Po UX
+  // kontrole #157 je jazyk úplně vpravo a vyhrazená místa mezi profilem
+  // a jazykem, aby vpravo od jazyka nebyla díra. Že nejsou vidět a lišta
+  // se neposunula, hlídá hiddenPlaceholders.test.ts.
+  it('vpravo nahoře je jazyk úplně vpravo a vlevo od něj na telefonu jedno a na iPadu dvě vyhrazená místa', () => {
     for (const window of MENU_WINDOWS) {
       const layout = todayLayout(window);
-      expect(layout.placeholders, window.name).toHaveLength(isPhone(window) ? 1 : 2);
+      expect(layout.reservedSlots, window.name).toHaveLength(isPhone(window) ? 1 : 2);
       const rightmost = Math.max(...wholeVisibleBoxes(layout).map((box) => box.right));
-      const lastPlaceholder = layout.placeholders[layout.placeholders.length - 1];
-      expect(lastPlaceholder?.right, window.name).toBeCloseTo(rightmost, 5);
-      for (const placeholder of layout.placeholders) {
-        expect(placeholder.left, window.name).toBeGreaterThanOrEqual(layout.languageSlot.right);
+      expect(layout.languageSlot.right, window.name).toBeCloseTo(rightmost, 5);
+      for (const reserved of layout.reservedSlots) {
+        expect(reserved.right, window.name).toBeLessThanOrEqual(layout.languageSlot.left);
+        expect(reserved.left, window.name).toBeGreaterThanOrEqual(layout.profileSlot.right);
       }
     }
   });
@@ -161,7 +170,8 @@ describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', 
       const barBottom = Math.max(
         layout.profileSlot.bottom,
         layout.languageSlot.bottom,
-        ...layout.placeholders.map((box) => box.bottom),
+        // #157: vyhrazené místo po schovaných „…“ patří k liště.
+        ...layout.reservedSlots.map((box) => box.bottom),
       );
       for (const box of [
         ...pickerBoxes(layout),

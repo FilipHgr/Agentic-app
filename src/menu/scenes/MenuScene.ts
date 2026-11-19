@@ -13,7 +13,7 @@ import type {
 } from '../logic/menuLayout';
 import { MENU_SOUNDS, menuSoundFor } from '../logic/menuSounds';
 import type { MenuTouch, TouchPoint } from '../logic/menuTouch';
-import { MENU_STYLE, PLACEHOLDER_BORDER_WIDTH } from '../logic/menuTheme';
+import { MENU_STYLE } from '../logic/menuTheme';
 import type { TileImages } from '../logic/tileImages';
 import {
   LANGUAGE_PANEL_SHADOW,
@@ -35,9 +35,6 @@ function tileTextureKey(gameId: string): string {
   return `menu-tile-${gameId}`;
 }
 
-/** Symbol zástupného tlačítka (není to text jazyka). */
-const PLACEHOLDER_SYMBOL = '…';
-const PLACEHOLDER_DASHES = 14;
 /** Barevné kolečko profilu je 48 px v bílém kolečku 64 px (obrázek palety, #71). */
 const PROFILE_COLOR_INSET = 8;
 
@@ -46,9 +43,11 @@ const PRESS = { scale: 0.94, durationMs: 70 };
 const HELD_SCALE = 0.97;
 const PULSE = { scale: 1.05, durationMs: 450 };
 const SHAKE = { distance: 10, durationMs: 50, repeat: 3 };
-const WOBBLE = { angle: 6, durationMs: 90 };
-/** Široká pilulka kategorie se zhoupne méně, aby nesahala k sousední. */
-const CATEGORY_WOBBLE_ANGLE = 2.5;
+/**
+ * Zhoupnutí už vybrané kategorie. Široká pilulka se zhoupne jen málo, aby
+ * nesahala k sousední.
+ */
+const CATEGORY_WOBBLE = { angle: 2.5, durationMs: 90 };
 
 export interface MenuSceneHost {
   readonly menu: Menu;
@@ -98,7 +97,6 @@ export class MenuScene extends Phaser.Scene {
   private readonly sounds = createTonePlayer(sharedToneContext);
   private tiles = new Map<string, Tappable>();
   private categories = new Map<string, Tappable>();
-  private placeholders: Tappable[] = [];
   private languageButton: Tappable | undefined;
   private profileBadge: Tappable | undefined;
   private languageRows = new Map<string, Tappable>();
@@ -415,7 +413,6 @@ export class MenuScene extends Phaser.Scene {
     this.held = undefined;
     this.tiles = new Map();
     this.categories = new Map();
-    this.placeholders = [];
     this.profileBadge = undefined;
     this.drawnSelection = this.selectedCategoryId();
 
@@ -432,7 +429,7 @@ export class MenuScene extends Phaser.Scene {
     }
     this.drawProfileBadge(layout);
     this.drawLanguageButton(layout, layout.languageSlot);
-    layout.placeholders.forEach((box, index) => this.drawPlaceholder(layout, box, index));
+    // Místo vyhrazené v liště (#157) zůstává prázdné, nic se tam nekreslí.
     const categories = this.host.menu.categories();
     categories.forEach((category, index) => {
       const slot = layout.categories[index];
@@ -488,10 +485,8 @@ export class MenuScene extends Phaser.Scene {
         this.requestRedraw();
         break;
       case 'wobble':
-        if (event.target.kind === 'placeholder') {
-          this.wobble(this.placeholders[event.target.index], WOBBLE.angle);
-        } else if (event.target.kind === 'category') {
-          this.wobble(this.categories.get(event.target.categoryId), CATEGORY_WOBBLE_ANGLE);
+        if (event.target.kind === 'category') {
+          this.wobble(this.categories.get(event.target.categoryId));
         }
         // Už vybraná kategorie v seznamu (#95) jen zazní, nic se nehoupe.
         break;
@@ -744,28 +739,6 @@ export class MenuScene extends Phaser.Scene {
     this.languageRows.set(language.code, { container, homeX: x });
   }
 
-  private drawPlaceholder(layout: MenuLayout, box: MenuBox, index: number): void {
-    const item = this.tappable(box, this.barLayer);
-    const radius = ((box.right - box.left) / 2) * MENU_UNITS_PER_CSS_PX;
-    const border = PLACEHOLDER_BORDER_WIDTH * MENU_UNITS_PER_CSS_PX;
-    const ring = this.add.graphics();
-    ring.lineStyle(border, colorNumber(MENU_STYLE.placeholderBorder), 1);
-    // Čárkovaný kruh: střídají se stejně dlouhé čárky a mezery.
-    const step = (2 * Math.PI) / PLACEHOLDER_DASHES;
-    for (let dash = 0; dash < PLACEHOLDER_DASHES; dash += 1) {
-      ring.beginPath();
-      ring.arc(0, 0, radius - border / 2, dash * step, dash * step + step / 2);
-      ring.strokePath();
-    }
-    const symbol = this.text(
-      PLACEHOLDER_SYMBOL,
-      layout.placeholderFontSize,
-      MENU_STYLE.placeholderSymbol,
-    ).setOrigin(0.5);
-    item.container.add([ring, symbol]);
-    this.placeholders[index] = item;
-  }
-
   private drawCategory(
     layout: MenuLayout,
     hit: MenuBox,
@@ -937,18 +910,19 @@ export class MenuScene extends Phaser.Scene {
     });
   }
 
-  /** Zhoupnutí: krátce na jednu stranu, na druhou a zpět. */
-  private wobble(item: Tappable | undefined, angle: number): void {
+  /** Zhoupnutí kategorie: krátce na jednu stranu, na druhou a zpět. */
+  private wobble(item: Tappable | undefined): void {
     if (item === undefined) {
       return;
     }
+    const { angle, durationMs } = CATEGORY_WOBBLE;
     this.settle(item);
     this.tweens.chain({
       targets: item.container,
       tweens: [
-        { angle, duration: WOBBLE.durationMs, ease: 'Sine.easeOut' },
-        { angle: -angle, duration: 2 * WOBBLE.durationMs, ease: 'Sine.easeInOut' },
-        { angle: 0, duration: WOBBLE.durationMs, ease: 'Sine.easeIn' },
+        { angle, duration: durationMs, ease: 'Sine.easeOut' },
+        { angle: -angle, duration: 2 * durationMs, ease: 'Sine.easeInOut' },
+        { angle: 0, duration: durationMs, ease: 'Sine.easeIn' },
       ],
     });
   }

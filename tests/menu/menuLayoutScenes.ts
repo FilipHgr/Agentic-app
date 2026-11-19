@@ -223,10 +223,13 @@ export const GRID_OFFSET_FRACTIONS: readonly number[] = [0, 1 / 3, 1 / 2, 1];
 export const LIST_OFFSET_FRACTIONS: readonly number[] = [0, 1 / 2, 1];
 
 // ---------------------------------------------------------------------------
-// Lišta menu (profil, jazyk, zástupná tlačítka)
+// Lišta menu (profil, jazyk, vyhrazené místo)
 // ---------------------------------------------------------------------------
 
-const BAR_NAMES: readonly string[] = ['místo pro profil', 'tlačítko jazyka', 'zástupné tlačítko'];
+// #157: zástupná tlačítka „…“ jsou schovaná. Jejich místo zůstává v liště
+// vyhrazené (`reservedSlots`): nic se tam nekreslí ani neťuká, ale nic
+// jiného ho nesmí překrýt (pravidlo „nic se nepřekrývá“).
+const BAR_NAMES: readonly string[] = ['místo pro profil', 'tlačítko jazyka', 'vyhrazené místo'];
 
 function barItems(layout: MenuLayout, codes: readonly string[]): LayoutItem[] {
   return [
@@ -237,10 +240,10 @@ function barItems(layout: MenuLayout, codes: readonly string[]): LayoutItem[] {
       tappable: true,
       texts: codeTexts(codes, layout.languageButtonFontSize),
     },
-    ...layout.placeholders.map((box, index) => ({
-      name: `zástupné tlačítko ${index + 1}`,
+    ...layout.reservedSlots.map((box, index) => ({
+      name: `vyhrazené místo ${index + 1}`,
       box,
-      tappable: true,
+      reserved: true,
     })),
   ];
 }

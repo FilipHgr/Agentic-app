@@ -176,12 +176,14 @@ describe('#70 AC1: ťuknutí pod nabídku nic nespustí', () => {
         expect(finger.feedback.filter((event) => event.kind === 'select')).toEqual([]);
       });
 
-      it('zástupné tlačítko s otevřenou nabídkou se nezhoupne', () => {
+      // #157: „…“ jsou schovaná, ťuká se na jejich vyhrazené místo v liště.
+      it('ťuknutí na prázdné vyhrazené místo v liště s otevřenou nabídkou ji zavře a nic se nezhoupne', () => {
         const finger = fingerMenu(window);
         openLanguages(finger);
-        const placeholder = finger.layout().placeholders[0];
-        expect(placeholder).toBeDefined();
-        finger.tap(centerOf(placeholder ?? finger.layout().languageSlot));
+        const reserved = finger.layout().reservedSlots[0];
+        expect(reserved).toBeDefined();
+        finger.tap(centerOf(reserved ?? finger.layout().languageSlot));
+        expect(finger.menu.isLanguageMenuOpen()).toBe(false);
         expect(finger.feedback.filter((event) => event.kind === 'wobble')).toEqual([]);
       });
 

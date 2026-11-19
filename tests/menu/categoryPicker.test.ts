@@ -187,8 +187,8 @@ describe('#95 AC3: výběr a zavření v seznamu', () => {
     test.menu.tapCategory(ALL);
     const swinging = test.feedback.filter(
       (event: MenuFeedback) =>
-        event.kind === 'wobble' &&
-        (event.target.kind === 'category' || event.target.kind === 'placeholder'),
+        // #157: zástupná tlačítka jsou schovaná, houpat se může jen kategorie.
+        event.kind === 'wobble' && event.target.kind === 'category',
     );
     expect(swinging).toEqual([]);
   });
@@ -214,7 +214,8 @@ describe('#95 AC3: výběr a zavření v seznamu', () => {
     ['dlaždici', (test) => test.menu.tapTile('zebra')],
     ['profil', (test) => test.menu.tapProfile()],
     ['tlačítko jazyka', (test) => test.menu.tapLanguageButton()],
-    ['zástupné tlačítko „…“', (test) => test.menu.tapPlaceholder(0)],
+    // #157: „…“ je schované, ťuknutí na jeho prázdné místo s otevřeným
+    // seznamem hlídá categoryPickerTouch.test.ts (seznam se jen zavře).
   ];
 
   for (const [name, tap] of outside) {

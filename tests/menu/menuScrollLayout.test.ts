@@ -96,8 +96,10 @@ function insetBox(outer: MenuBox, margin: number): MenuBox {
   };
 }
 
+// #157: místo schovaných zástupných tlačítek „…“ zůstává v liště vyhrazené
+// (`reservedSlots`), nic se tam nekreslí, ale obsah do něj nesmí.
 function barBoxes(layout: MenuLayout): MenuBox[] {
-  return [layout.profileSlot, layout.languageSlot, ...layout.placeholders];
+  return [layout.profileSlot, layout.languageSlot, ...layout.reservedSlots];
 }
 
 function lastOf<T>(items: readonly T[], window: TestWindow): T {

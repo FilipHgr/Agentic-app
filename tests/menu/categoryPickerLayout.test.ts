@@ -132,8 +132,10 @@ function pickerCasesInAllWindows(): PickerCase[] {
   );
 }
 
+// #157: místo schovaných zástupných tlačítek „…“ zůstává v liště vyhrazené
+// (`reservedSlots`), nic se tam nekreslí, ale obsah do něj nesmí.
 function barBoxes(layout: MenuLayout): MenuBox[] {
-  return [layout.profileSlot, layout.languageSlot, ...layout.placeholders];
+  return [layout.profileSlot, layout.languageSlot, ...layout.reservedSlots];
 }
 
 function barBottom(layout: MenuLayout): number {
@@ -175,7 +177,8 @@ describe('#95 AC1: zavřený výběr jen na telefonu na výšku', () => {
     }
   });
 
-  it('tlačítko je přes celou šířku menu: od levého kraje profilu po pravý kraj „…“', () => {
+  // #157: pravý kraj je kraj vyhrazeného místa po schovaných „…“.
+  it('tlačítko je přes celou šířku menu: od levého kraje profilu po pravý kraj vyhrazeného místa v liště', () => {
     for (const { label, layout, picker } of pickerCasesInAllWindows()) {
       const rightmost = Math.max(...barBoxes(layout).map((box) => box.right));
       expect(picker.button.left, label).toBeCloseTo(layout.profileSlot.left, 5);

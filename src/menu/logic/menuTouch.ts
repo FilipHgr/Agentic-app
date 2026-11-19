@@ -82,7 +82,6 @@ type Axis = 'x' | 'y';
 type TapTarget =
   | { readonly kind: 'tile'; readonly gameId: string }
   | { readonly kind: 'category'; readonly categoryId: string }
-  | { readonly kind: 'placeholder'; readonly index: number }
   | { readonly kind: 'profile' }
   | { readonly kind: 'languageButton' }
   | { readonly kind: 'language'; readonly language: string }
@@ -305,8 +304,8 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
     if (contains(badge.circle, point) || (badge.label !== null && contains(badge.label, point))) {
       return { target: { kind: 'profile' } };
     }
-    const index = layout.placeholders.findIndex((box) => contains(box, point));
-    return index < 0 ? {} : { target: { kind: 'placeholder', index } };
+    // Místo vyhrazené v liště (#157) je prázdné místo: nic nevybere.
+    return {};
   }
 
   function tap(target: TapTarget): void {
@@ -322,9 +321,6 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
         }
         break;
       }
-      case 'placeholder':
-        menu.tapPlaceholder(target.index);
-        break;
       case 'profile':
         menu.tapProfile();
         break;
@@ -538,7 +534,6 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
         case 'language':
         case 'categoryRow':
           return target;
-        case 'placeholder':
         case 'profile':
         case 'languageButton':
         case 'outsideLanguageMenu':

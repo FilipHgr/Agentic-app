@@ -19,7 +19,8 @@ import type { TestMenu } from './menuFixtures';
  * - `press` dlaždice se zmáčkne a zazní zvuk,
  * - `pulse` / `stopPulse` dlaždice pulzuje při stahování delším než 300 ms,
  * - `shake` dlaždice se jemně zatřese a zazní tichý zvuk jako u špatné odpovědi,
- * - `wobble` zhoupnutí a tichý zvuk (zástupné tlačítko, vybraná kategorie).
+ * - `wobble` zhoupnutí a tichý zvuk (vybraná kategorie; zástupná tlačítka
+ *   schoval #157).
  */
 
 const COUNTING = findGame(GAMES, 'counting') as GameEntry;
@@ -418,7 +419,8 @@ describe('#67 AC5: jiné ťuknutí během stahování hru zruší', () => {
   it.each([
     ['na kategorii', (test: TestMenu) => test.menu.tapCategory('logic')],
     ['na už vybranou „Vše“', (test: TestMenu) => test.menu.tapCategory(ALL_CATEGORY.id)],
-    ['na zástupné tlačítko', (test: TestMenu) => test.menu.tapPlaceholder(0)],
+    // #157: zástupné tlačítko je schované. Ťuknutí na jeho prázdné místo
+    // stahování nezruší (hiddenPlaceholders.test.ts, „#157 AC1“).
   ])('ťuknutí %s: hra se po doběhnutí nespustí', async (_where, tapElsewhere) => {
     const test = testMenu();
     test.menu.tapTile('zebra');
@@ -432,7 +434,8 @@ describe('#67 AC5: jiné ťuknutí během stahování hru zruší', () => {
 
   it.each([
     ['na kategorii', (test: TestMenu) => test.menu.tapCategory('logic')],
-    ['na zástupné tlačítko', (test: TestMenu) => test.menu.tapPlaceholder(0)],
+    // #157: zástupné tlačítko je schované, zůstává ťuknutí na už vybranou „Vše“.
+    ['na už vybranou „Vše“', (test: TestMenu) => test.menu.tapCategory(ALL_CATEGORY.id)],
   ])('ťuknutí %s: dlaždice přestane pulzovat bez zatřesení', async (_where, tapElsewhere) => {
     const test = testMenu();
     test.menu.tapTile('zebra');
@@ -456,17 +459,19 @@ describe('#67 AC5: jiné ťuknutí během stahování hru zruší', () => {
     ).toEqual(['logic']);
   });
 
-  it('ťuknutí na zástupné tlačítko se chová jako obvykle: zhoupne se', async () => {
+  // #157: zástupné tlačítko je schované; místo něj se zhoupne už vybraná „Vše“.
+  it('ťuknutí na už vybranou „Vše“ se chová jako obvykle: zhoupne se', async () => {
     const test = testMenu();
     test.menu.tapTile('zebra');
     await wait(1000);
-    test.menu.tapPlaceholder(0);
+    test.menu.tapCategory(ALL_CATEGORY.id);
     expect(test.kinds()).toContain('wobble');
   });
 
   it.each([
     ['na kategorii', (test: TestMenu) => test.menu.tapCategory('adding')],
-    ['na zástupné tlačítko', (test: TestMenu) => test.menu.tapPlaceholder(0)],
+    // #157: zástupné tlačítko je schované, zůstává ťuknutí na už vybranou „Vše“.
+    ['na už vybranou „Vše“', (test: TestMenu) => test.menu.tapCategory(ALL_CATEGORY.id)],
   ])('po ťuknutí %s další ťuknutí na dlaždici hru spustí', async (_where, tapElsewhere) => {
     const test = testMenu();
     test.menu.tapTile('zebra');
@@ -485,7 +490,8 @@ describe('#67 AC5: jiné ťuknutí během stahování hru zruší', () => {
     const test = testMenu();
     test.menu.tapTile('zebra');
     await wait(1000);
-    test.menu.tapPlaceholder(0);
+    // #157: stahování dřív rušilo zástupné tlačítko, teď už vybraná „Vše“.
+    test.menu.tapCategory(ALL_CATEGORY.id);
     test.download.fail();
     await wait();
     expect(test.kinds()).not.toContain('shake');

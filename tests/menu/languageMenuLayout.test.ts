@@ -82,17 +82,25 @@ describe('#82 AC1: posouvání nabídky ukáže každý jazyk', () => {
 });
 
 describe('#70 AC1: tlačítko jazyka v liště vpravo nahoře', () => {
-  it('tlačítko je kulaté, vlevo od zástupných tlačítek (aspoň 8 px) a ve stejné výšce', () => {
+  // #157: zástupná tlačítka jsou schovaná. Po UX kontrole #157 je tlačítko
+  // jazyka úplně vpravo a jejich vyhrazené místo (`reservedSlots`) vlevo
+  // od něj, aby vpravo od jazyka nebyla díra.
+  it('tlačítko je kulaté, úplně vpravo v liště, vpravo od vyhrazeného místa (aspoň 8 px) a ve stejné výšce', () => {
     for (const window of MENU_WINDOWS) {
       const layout = languageLayout(window, TODAY_LANGUAGE_NAMES);
       const button = layout.languageSlot;
-      const firstPlaceholder = layout.placeholders[0];
+      const lastReserved = layout.reservedSlots[layout.reservedSlots.length - 1];
       expect(heightOf(button), window.name).toBeCloseTo(widthOf(button), 5);
-      expect(firstPlaceholder, window.name).toBeDefined();
-      expect(button.right, window.name).toBeLessThanOrEqual(
-        (firstPlaceholder?.left ?? 0) - MIN_TAP_GAP + ROUNDING,
+      expect(lastReserved, window.name).toBeDefined();
+      expect(button.left, window.name).toBeGreaterThanOrEqual(
+        (lastReserved?.right ?? Infinity) + MIN_TAP_GAP - ROUNDING,
       );
-      expect(button.top, window.name).toBeCloseTo(firstPlaceholder?.top ?? 0, 5);
+      expect(button.top, window.name).toBeCloseTo(lastReserved?.top ?? 0, 5);
+      const barRight = Math.max(
+        layout.profileSlot.right,
+        ...layout.reservedSlots.map((box) => box.right),
+      );
+      expect(button.right, window.name).toBeGreaterThan(barRight);
     }
   });
 
@@ -104,7 +112,8 @@ describe('#70 AC1: tlačítko jazyka v liště vpravo nahoře', () => {
         const label = `${name}, ${window.name}`;
         expect(withLanguages.tiles, label).toEqual(without.tiles);
         expect(withLanguages.categories, label).toEqual(without.categories);
-        expect(withLanguages.placeholders, label).toEqual(without.placeholders);
+        // #157: vyhrazené místo po schovaných „…“.
+        expect(withLanguages.reservedSlots, label).toEqual(without.reservedSlots);
         expect(withLanguages.languageSlot, label).toEqual(without.languageSlot);
         expect(withLanguages.gridScroll, label).toEqual(without.gridScroll);
       }

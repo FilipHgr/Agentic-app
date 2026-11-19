@@ -212,10 +212,13 @@ describe('#70 AC1: dokud je nabídka otevřená, dlaždice ani kategorie nereagu
     expect(test.menu.isLanguageMenuOpen()).toBe(false);
   });
 
-  it('ťuknutí na zástupné tlačítko ho nezhoupne, jen nabídku zavře', () => {
+  // #157: zástupné tlačítko je schované. Ťuknutí na jeho prázdné místo
+  // s otevřenou nabídkou hlídá languageMenuTouch.test.ts (nabídka se zavře,
+  // nic se nezhoupne); tady zůstává ťuknutí na už vybranou kategorii.
+  it('ťuknutí na už vybranou kategorii ji nezhoupne, jen nabídku zavře', () => {
     const test = languageMenu();
     test.menu.tapLanguageButton();
-    test.menu.tapPlaceholder(0);
+    test.menu.tapCategory('all');
     expect(test.kinds()).not.toContain('wobble');
     expect(test.menu.isLanguageMenuOpen()).toBe(false);
   });

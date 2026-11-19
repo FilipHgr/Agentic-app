@@ -16,8 +16,6 @@ export const MENU_STYLE = {
   categoryText: TEXT,
   selectedCategoryBackground: BLUE,
   selectedCategoryText: WHITE,
-  placeholderBorder: '#C7C7CC',
-  placeholderSymbol: '#AEAEB2',
   /** Tlačítko jazyka (#70): plné bílé kolečko se stínem jako na obrázku B. */
   languageButtonBackground: WHITE,
   languageButtonText: '#6E6E73',
@@ -52,9 +50,6 @@ export const MENU_STYLE = {
   selectedPickerRowText: BLUE,
   selectedPickerSymbolBackground: WHITE,
 } as const;
-
-/** Tloušťa šedého čárkovaného okraje zástupného tlačítka v CSS px. */
-export const PLACEHOLDER_BORDER_WIDTH = 2;
 
 /**
  * Výběr profilu a formulář nového profilu (#72) podle obrázků 4–7 v barvách

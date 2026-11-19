@@ -8,13 +8,13 @@ import {
   TEST_TEXTS_XX,
   testMenu,
   translatorOf,
-  watchedLocalStorage,
 } from './menuFixtures';
 import type { TestMenu } from './menuFixtures';
 
 /**
- * Testy k #67 AC3 (kategorie a pořadí) a k chování zástupných tlačítek
- * z AC1. Menu (`createMenu`) dostane seznam her, seznam kategorií,
+ * Testy k #67 AC3 (kategorie a pořadí). Chování zástupných tlačítek
+ * z AC1 nahradil #157 (tlačítka jsou schovaná, testy
+ * v hiddenPlaceholders.test.ts). Menu (`createMenu`) dostane seznam her, seznam kategorií,
  * překlad klíčů a funkci, která hru spustí; odezvu (zhoupnutí, tichý zvuk)
  * hlásí jako `feedback`. Testy běží na zkušebním seznamu her a kategorií
  * z `menuFixtures.ts`, jehož abecední pořadí názvů je jiné než pořadí
@@ -187,62 +187,23 @@ describe('#67 AC3: druhé ťuknutí na vybranou kategorii', () => {
     expect(test.menu.tiles()).toEqual(tiles);
   });
 
-  it('dá stejnou odezvu jako zástupné tlačítko: zhoupnutí a tichý zvuk', () => {
+  // #157: zástupná tlačítka jsou schovaná, srovnání s nimi odpadlo,
+  // odezva vybrané kategorie zůstává.
+  it('dá odezvu zhoupnutím a tichým zvukem', () => {
     const category = testMenu();
     category.menu.tapCategory(ALL);
-    const placeholder = testMenu();
-    placeholder.menu.tapPlaceholder(0);
     expect(category.kinds()).toEqual(['wobble']);
-    expect(placeholder.kinds()).toEqual(['wobble']);
+    expect(category.sounds()).toEqual(['wobble']);
   });
 
-  it('ťuknutí na novou kategorii se nehoupe jako zástupné tlačítko', () => {
+  it('ťuknutí na novou kategorii se nezhoupne', () => {
     const test = testMenu();
     test.menu.tapCategory('logic');
     expect(test.kinds()).not.toContain('wobble');
   });
 });
 
-describe('#67 AC1: zástupná tlačítka „…“ jen odpovídají', () => {
-  it('ťuknutí dá okamžitou odezvu (zhoupnutí a tichý zvuk)', () => {
-    const test = testMenu();
-    test.menu.tapPlaceholder(0);
-    expect(test.kinds()).toEqual(['wobble']);
-  });
-
-  it('ťuknutí na druhé zástupné tlačítko také jen zhoupne', () => {
-    const test = testMenu();
-    test.menu.tapPlaceholder(1);
-    expect(test.kinds()).toEqual(['wobble']);
-  });
-
-  it('ťuknutí nic neotevře: menu zůstane, kde bylo, výběr i mřížka beze změny', () => {
-    const test = testMenu();
-    test.menu.tapCategory('adding');
-    const before = { categories: test.menu.categories(), tiles: test.menu.tiles() };
-    test.menu.tapPlaceholder(0);
-    expect(test.menu.categories()).toEqual(before.categories);
-    expect(test.menu.tiles()).toEqual(before.tiles);
-    expect(test.menu.runningGame()).toBeNull();
-    expect(test.download.count).toBe(0);
-    expect(test.game.started).toEqual([]);
-  });
-
-  it('ťuknutí nic neuloží', () => {
-    const storage = watchedLocalStorage();
-    const test = testMenu();
-    test.menu.tapPlaceholder(0);
-    test.menu.tapPlaceholder(1);
-    expect(storage.writes).toEqual([]);
-  });
-
-  it('rychlé dvojí ťuknutí nic neshodí, každé dá svou odezvu', () => {
-    const test = testMenu();
-    expect(() => {
-      test.menu.tapPlaceholder(0);
-      test.menu.tapPlaceholder(0);
-    }).not.toThrow();
-    expect(test.kinds()).toEqual(['wobble', 'wobble']);
-    expect(test.menu.runningGame()).toBeNull();
-  });
-});
+// #157: zástupná tlačítka „…“ jsou schovaná. Testy, že jen odpovídají
+// (zhoupnutí, nic neotevře, nic neuloží, dvojí ťuknutí nic neshodí),
+// nahradily testy ťuknutí na jejich prázdné místo v hiddenPlaceholders.test.ts
+// („#157 AC1“): nic nezhoupne ani nespustí, nic neuloží, dvojí ťuknutí nic neshodí.

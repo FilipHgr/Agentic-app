@@ -271,12 +271,13 @@ describe('#95 AC3: výběr a zavření v seznamu', () => {
         expect(finger.sounds()).toEqual(['select', 'select']);
       });
 
-      it('ťuknutí na „…“ s otevřeným seznamem ho jen zavře, „…“ se nezhoupne', () => {
+      // #157: „…“ jsou schovaná, ťuká se na jejich vyhrazené místo v liště.
+      it('ťuknutí na prázdné vyhrazené místo v liště s otevřeným seznamem ho jen zavře, nic se nezhoupne', () => {
         const finger = new FingerMenu(window);
         openList(finger);
-        const placeholder = finger.layout().placeholders[0];
-        expect(placeholder).toBeDefined();
-        finger.tap(centerOf(placeholder ?? finger.layout().languageSlot));
+        const reserved = finger.layout().reservedSlots[0];
+        expect(reserved).toBeDefined();
+        finger.tap(centerOf(reserved ?? finger.layout().languageSlot));
         expect(finger.menu.isCategoryMenuOpen()).toBe(false);
         expect(finger.feedback.filter((event) => event.kind === 'wobble')).toEqual([]);
         expect(finger.sounds()).toEqual(['select', 'select']);

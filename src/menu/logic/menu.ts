@@ -24,7 +24,7 @@
  * Jazyk (#70): tlačítko se zkratkou aktuálního jazyka otevře nabídku
  * jazyků. Ťuknutí na jazyk ho vybere a nabídku zavře, ťuknutí mimo nabídku
  * nebo znovu na tlačítko ji zavře beze změny. Dokud je nabídka otevřená,
- * dlaždice, kategorie ani zástupná tlačítka nereagují, ťuknutí na ně
+ * dlaždice ani kategorie nereagují, ťuknutí na ně
  * nabídku jen zavře. Jazyk se mění jen v menu, ne během hry.
  *
  * Profil (#71): vlevo nahoře kolečko aktivního profilu v jeho barvě
@@ -34,8 +34,7 @@
  * Výběr kategorie (#95, telefon na výšku): tlačítko se symbolem a názvem
  * vybrané kategorie a šipkou otevře seznam kategorií, otevřený zavře.
  * Ťuknutí na kategorii v seznamu ji vybere a seznam zavře, ťuknutí mimo
- * seznam (dlaždice, profil, jazyk, „…“) ho jen zavře a nic jiného
- * neudělá. Seznam kategorií a nabídka jazyků nejsou nikdy otevřené
+ * seznam ho jen zavře a nic jiného neudělá. Seznam kategorií a nabídka jazyků nejsou nikdy otevřené
  * současně: tlačítko jednoho s otevřeným druhým jen zavře to druhé.
  */
 
@@ -67,13 +66,11 @@ export const CATEGORY_MENU_OPEN_ARROW = '▴';
 const FALLBACK_PROFILE: Profile = { id: DEFAULT_PROFILE_ID, color: DEFAULT_PROFILE_COLOR };
 
 /**
- * Co se zhouplo: zástupné tlačítko, nebo už vybraná kategorie. Ťuknutí na
- * už vybranou kategorii v seznamu (#95) jen zazní, nic se nehoupe.
+ * Co se zhouplo: už vybraná kategorie. Ťuknutí na už vybranou kategorii
+ * v seznamu (#95) jen zazní, nic se nehoupe.
  */
 export type WobbleTarget =
-  | { readonly kind: 'placeholder'; readonly index: number }
-  | { readonly kind: 'category'; readonly categoryId: string }
-  | { readonly kind: 'categoryMenu' };
+  { readonly kind: 'category'; readonly categoryId: string } | { readonly kind: 'categoryMenu' };
 
 /**
  * Odezva menu:
@@ -189,7 +186,6 @@ export interface Menu {
   categories(): MenuCategoryView[];
   tiles(): MenuTileView[];
   tapCategory(categoryId: string): void;
-  tapPlaceholder(index: number): void;
   tapTile(gameId: string): void;
   /** Hra, která naběhla, nebo `null` v menu. */
   runningGame(): GameEntry | null;
@@ -354,7 +350,7 @@ export function createMenu(options: MenuOptions): Menu {
   }
 
   /**
-   * Ťuknutí na dlaždici, kategorii, profil nebo zástupné tlačítko
+   * Ťuknutí na dlaždici, kategorii nebo profil
    * s otevřenou nabídkou jazyků nebo seznamem kategorií (#95) je jen zavře.
    * Vrátí `true`, když ťuknutí spotřebovala.
    */
@@ -454,14 +450,6 @@ export function createMenu(options: MenuOptions): Menu {
       }
       selectedCategoryId = categoryId;
       emit({ kind: 'select', categoryId });
-    },
-
-    tapPlaceholder(index: number): void {
-      if (running !== null || closeOpenMenuInstead()) {
-        return;
-      }
-      cancelDownload();
-      emit({ kind: 'wobble', target: { kind: 'placeholder', index } });
     },
 
     tapTile(gameId: string): void {
