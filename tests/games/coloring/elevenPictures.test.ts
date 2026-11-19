@@ -26,10 +26,12 @@ import {
 import { holdTrash } from './bigPictureHelpers';
 import {
   HOUSE,
+  PLACES_PER_PICKER_PAGE,
   backToPicker,
   coloringStorage,
   enterPicker,
   openFromPicker,
+  tapSetPreview,
 } from './pictureChoiceHelpers';
 import { EXPECTED_SET, FIRST_SIX_SET, SECOND_SET_IDS } from './realPicturesHelpers';
 import { paint, paintedPixels, pixelsOf, twoHalves } from './savedPictureHelpers';
@@ -163,13 +165,15 @@ describe('#132 AC1: prvních 6 omalovánek se po rozšíření sady ukáže stej
 
 describe('#132 AC5: ťuknutí na náhled nové omalovánky', () => {
   // Od #151 AC1 je náhledů 12 (papír a 11 omalovánek).
-  it('ťuknutí na kterýkoli z 12 náhledů otevře právě tuto omalovánku', () => {
+  // Upraveno k #152 AC1: náhledů je 17, náhledy 13–17 jsou na 2. stránce
+  // a `index` výsledku je místo na stránce (#150).
+  it('ťuknutí na kterýkoli ze 17 náhledů otevře právě tuto omalovánku, i na 2. stránce', () => {
     expect(COLORING_PICTURES).toEqual(EXPECTED_SET);
     COLORING_PICTURES.forEach((picture, index) => {
       const choice = enterPicker(COLORING_PICTURES);
-      expect(choice.tapPreview(index), `náhled ${index + 1}`).toMatchObject({
+      expect(tapSetPreview(choice, index), `náhled ${index + 1}`).toMatchObject({
         kind: 'open',
-        index,
+        index: index % PLACES_PER_PICKER_PAGE,
         picture,
       });
       choice.paintingShown();
@@ -320,8 +324,9 @@ describe('#132 AC5: malovat dál funguje i pro nové omalovánky (#131)', () => 
   });
 });
 
-describe('#132 AC5: plné úložiště platí pro každou z 11 omalovánek zvlášť (#92 AC5)', () => {
-  it('při plném úložišti jde malovat v každé z 11 omalovánek bez chyby a po návratu má každá svůj obrázek', () => {
+// Upraveno k #152: cyklus jde přes celou sadu, od #152 papír a 16 omalovánek na 2 stránkách.
+describe('#132 AC5: plné úložiště platí pro každou omalovánku sady zvlášť (#92 AC5)', () => {
+  it('při plném úložišti jde malovat v každé omalovánce sady bez chyby a po návratu má každá svůj obrázek', () => {
     const device = new DeviceStorage();
     const store = openProfiles(device);
     failColoringWrites(device);
@@ -333,7 +338,9 @@ describe('#132 AC5: plné úložiště platí pro každou z 11 omalovánek zvlá
       COLORING_PICTURES.forEach((_, index) => {
         const game = openFromPicker(choice, index, coloringStorage(store), regions);
         game.tapColor(index % 12);
-        paint(game, [at(20, 10 + index * 16), at(140, 10 + index * 16)]);
+        // Upraveno k #152: se 17 náhledy by tahy vyjely z obrázku 300 × 200, řádky se opakují po 12.
+        const y = 10 + (index % 12) * 16;
+        paint(game, [at(20, y), at(140, y)]);
         before.push(pixelsOf(game, regions));
         backToPicker(choice, game);
       });

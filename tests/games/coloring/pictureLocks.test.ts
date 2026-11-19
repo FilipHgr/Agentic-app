@@ -52,7 +52,8 @@ import {
  */
 
 describe('#140 AC1: nový profil má odemčené první 3 omalovánky', () => {
-  it('nový profil má odemčený domek, kočku a pejska, ostatních 8 je zamčených', async () => {
+  // Upraveno k #152 AC3: zamčených je 13 (navíc 5 nových omalovánek).
+  it('nový profil má odemčený domek, kočku a pejska, ostatních 13 je zamčených', async () => {
     const locks = await enterColoring(loadPage(lockDevice()));
 
     expect(lockedIdsOf(locks)).toEqual(LOCKED_IDS);
@@ -63,7 +64,8 @@ describe('#140 AC1: nový profil má odemčené první 3 omalovánky', () => {
 
   // Upraveno k #151 AC1: před 11 omalovánkami je papír, který se do zámků nepočítá,
   // odemčené jsou dál první 3 omalovánky za ním.
-  it('sada má papír a 11 omalovánek a odemčené jsou první 3 omalovánky za papírem v pořadí náhledů', () => {
+  // Upraveno k #152 AC1: omalovánek je 16, odemčené jsou dál první 3.
+  it('sada má papír a 16 omalovánek a odemčené jsou první 3 omalovánky za papírem v pořadí náhledů', () => {
     expect(COLORING_PICTURES.map((picture) => picture.id)).toEqual([
       'paper',
       ...FREE_IDS,

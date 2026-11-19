@@ -63,8 +63,10 @@ const MEASURED_PREVIEWS = 12;
  * Sada s 11 omalovánkami, jakou hra měla před #151 (bez papíru): s ní
  * zůstane 12. místo prázdné (#132 AC4). Pravidlo prázdného místa platí dál
  * pro každou sadu s méně omalovánkami, než je míst.
+ * Upraveno k #152: sada ve hře má za nimi 5 dalších omalovánek, proto jen
+ * místa 2–12 sady (papír a prvních 11 omalovánek je na 1. stránce).
  */
-const ELEVEN_PICTURES = COLORING_PICTURES.slice(1);
+const ELEVEN_PICTURES = COLORING_PICTURES.slice(1, 12);
 
 /** Sloupce a řady mřížky podle schválených obrázků #132. */
 const LANDSCAPE_GRID = { columns: 4, rows: 3 };
@@ -175,8 +177,13 @@ describe('#124 a #132 AC4: výběr omalovánky dodrží společná pravidla rozl
   });
 
   // Upraveno k #151 AC1: s papírem se měří všech 12 náhledů sady.
-  it('výběr má 12 míst pro náhledy ve všech oknech a měří se 12 náhledů sady (papír a 11 omalovánek)', () => {
-    expect(COLORING_PICTURES.length, 'omalovánek v sadě').toBe(MEASURED_PREVIEWS);
+  // Upraveno k #152 AC1: sada má 17 náhledů, na 1. stránce je jich 12
+  // (rozložení se šipkami hlídá pickerPagesLayoutRules.test.ts).
+  it('výběr má 12 míst pro náhledy ve všech oknech a měří se 12 náhledů 1. stránky sady (papír a 11 omalovánek)', () => {
+    expect(
+      startPictureChoice(COLORING_PICTURES, { now: () => 0 }).pagePreviews().length,
+      'náhledů na 1. stránce',
+    ).toBe(MEASURED_PREVIEWS);
     for (const testCase of cases()) {
       expect(testCase.places.length, testCase.scene.label).toBe(GRID_PLACES);
       expect(testCase.previews.length, testCase.scene.label).toBe(MEASURED_PREVIEWS);
@@ -497,8 +504,10 @@ describe('#132 AC4: 12. místo mřížky je prázdné, když má sada 11 omalov�
     expect(choice.previews().length, 'náhledů na výběru').toBe(GRID_PLACES - 1);
   });
 
-  it('#151 AC1: s papírem je na 12. místě poslední omalovánka sady a ťuknutí ji otevře', () => {
-    expect(COLORING_PICTURES.length, 'papír a 11 omalovánek').toBe(GRID_PLACES);
+  // Upraveno k #152 AC1: jednorožec na 12. místě už není poslední omalovánka sady,
+  // ale poslední na 1. stránce.
+  it('#151 AC1: s papírem je na 12. místě 1. stránky jednorožec a ťuknutí ho otevře', () => {
+    expect(COLORING_PICTURES[GRID_PLACES - 1], '12. místo').toEqual({ id: 'unicorn', version: 1 });
     for (const testCase of cases()) {
       const rect = testCase.layout.previews[GRID_PLACES - 1];
       if (rect === undefined) {

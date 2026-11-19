@@ -30,9 +30,12 @@ import {
   STAR,
   THREE_PICTURES,
   backToPicker,
+  PLACES_PER_PICKER_PAGE,
   coloringStorage,
   enterPicker,
   openFromPicker,
+  tapSetPreview,
+  turnPickerTo,
 } from './pictureChoiceHelpers';
 import {
   EXPECTED_SET,
@@ -44,6 +47,7 @@ import {
   PAPER,
   PICTURE_FILES,
   SECOND_SET_IDS,
+  THIRD_SET_IDS,
   outlineFileName,
 } from './realPicturesHelpers';
 import {
@@ -59,7 +63,9 @@ import { at } from './strokeHelpers';
 /**
  * Testy k #128 AC1 (sada omalovánek) a AC4 (uložené obrázky kruhů a hvězdy,
  * výpadek stahování obrysu, opětovné otevření), od #132 pro sadu 11
- * omalovánek (#132 AC1 sada, AC5 nenačtený obrys a opětovné otevření).
+ * omalovánek (#132 AC1 sada, AC5 nenačtený obrys a opětovné otevření),
+ * od #152 pro sadu 16 omalovánek a papíru na 2 stránkách výběru (#152 AC1
+ * sada, AC4 nenačtený obrys).
  *
  * Sada je `COLORING_PICTURES` v `logic/pictureSet.ts`. Logika výběru
  * a ukládání obrys nezná, testy výběru proto dávají všem omalovánkám
@@ -117,15 +123,17 @@ function cellsOf(preview: PicturePreview): PreviewCell[] {
   return cells;
 }
 
-describe('#128 a #132 AC1: na výběru je 11 skutečných omalovánek', () => {
+describe('#128, #132 a #152 AC1: na výběru jsou skutečné omalovánky', () => {
   // Upraveno k #151 AC1: před 11 omalovánkami je na 1. místě papír.
-  it('sada má papír a za ním 11 omalovánek ve stálém pořadí: domek, kočka, pejsek, auto, motýl, rybka, moře, mořská panna, duha, vánoční baňka, jednorožec', () => {
+  // Upraveno k #152 AC1: na konci je navíc dinosaurus, raketa, traktor, hrad a sova.
+  it('sada má papír a za ním 16 omalovánek ve stálém pořadí: domek, kočka, pejsek, auto, motýl, rybka, moře, mořská panna, duha, vánoční baňka, jednorožec, dinosaurus, raketa, traktor, hrad, sova', () => {
     expect(COLORING_PICTURES).toEqual(EXPECTED_SET);
-    expect(COLORING_PICTURES.length, 'papír a 11 omalovánek').toBe(12);
+    expect(COLORING_PICTURES.length, 'papír a 16 omalovánek').toBe(17);
     expect(COLORING_PICTURES.slice(1), 'omalovánky s obrysem').toEqual(OUTLINE_SET);
   });
 
-  it('výběr ve hře ukáže náhledy papíru a všech 11 omalovánek v pořadí sady', () => {
+  // Upraveno k #152 AC1: omalovánek je 16.
+  it('výběr ve hře ukáže náhledy papíru a všech 16 omalovánek v pořadí sady', () => {
     const choice = enterPicker(COLORING_PICTURES);
     expect(choice.screen()).toEqual({ kind: 'picker' });
     expect(choice.previews()).toEqual(EXPECTED_SET);
@@ -165,20 +173,37 @@ describe('#128 a #132 AC1: na výběru je 11 skutečných omalovánek', () => {
   // Upraveno k #151 AC1: papír a 11 omalovánek zaplní všech 12 míst, 12. místo
   // už není prázdné a otevře jednorožce. Prázdné 12. místo se sadou 11 omalovánek
   // dál hlídá pickerLayoutRules.test.ts.
-  it('papír a 11 omalovánek zaplní všech 12 míst mřížky výběru bez listování a 12. místo otevře jednorožce', () => {
+  // Upraveno k #152 AC1: se 17 náhledy už 1. stránka nestačí, jsou vidět šipky
+  // listování (#150) a 12. místo 1. stránky dál otevře jednorožce.
+  it('papír a prvních 11 omalovánek zaplní všech 12 míst 1. stránky výběru, 12. místo otevře jednorožce a šipky listování jsou vidět', () => {
     for (const window of COLORING_WINDOWS) {
       const layout = layoutPicker(gameAreaFor(viewportOf(window), COLORING_GAME_AREA_FIT));
       expect(layout.previews.length, `${window.name}: míst v mřížce`).toBe(12);
       const paged = layoutPicker(gameAreaFor(viewportOf(window), COLORING_GAME_AREA_FIT), {
         pictureCount: COLORING_PICTURES.length,
       });
-      expect(paged.arrows, `${window.name}: šipky listování nejsou`).toBe(false);
+      expect(paged.arrows, `${window.name}: šipky listování jsou vidět`).toBe(true);
     }
-    expect(COLORING_PICTURES.length, 'náhledů je stejně jako míst').toBe(12);
-    expect(enterPicker(COLORING_PICTURES).tapPreview(11), '12. místo').toMatchObject({
+    const choice = enterPicker(COLORING_PICTURES);
+    expect(choice.pagePreviews(), '1. stránka').toEqual(EXPECTED_SET.slice(0, 12));
+    expect(choice.tapPreview(11), '12. místo').toMatchObject({
       kind: 'open',
       picture: { id: 'unicorn', version: 1 },
     });
+  });
+
+  it('#152 AC1: dinosaurus, raketa, traktor, hrad a sova jsou na 2. stránce výběru na místech 1–5 a zbytek stránky je prázdný', () => {
+    const choice = enterPicker(COLORING_PICTURES);
+    turnPickerTo(choice, 1);
+    expect(choice.pagePreviews().map((picture) => picture.id)).toEqual([...THIRD_SET_IDS]);
+    expect(choice.tapPickerArrow('next').kind, '2. stránka je poslední').toBe('edge');
+    expect(choice.pickerPage()).toBe(1);
+    for (const place of [5, 11]) {
+      expect(choice.tapPreview(place), `místo ${place + 1} na 2. stránce`).toEqual({
+        kind: 'ignored',
+      });
+    }
+    expect(choice.screen()).toEqual({ kind: 'picker' });
   });
 
   // Upraveno k #151 AC1: omalovánky se posunuly o jedno místo, prvních 6 je na pozicích 2–7.
@@ -189,15 +214,27 @@ describe('#128 a #132 AC1: na výběru je 11 skutečných omalovánek', () => {
   });
 
   // Upraveno k #151 AC1: posun o jedno místo, nové omalovánky jsou na pozicích 8–12.
-  it('nové omalovánky moře, mořská panna, duha, vánoční baňka a jednorožec jsou na konci, na pozicích 8–12', () => {
-    expect(COLORING_PICTURES.slice(7).map((picture) => picture.id)).toEqual([...SECOND_SET_IDS]);
+  // Upraveno k #152 AC1: za nimi jsou omalovánky z #152, moře až jednorožec
+  // zůstávají na pozicích 8–12.
+  it('omalovánky moře, mořská panna, duha, vánoční baňka a jednorožec jsou na pozicích 8–12', () => {
+    expect(COLORING_PICTURES.slice(7, 12).map((picture) => picture.id)).toEqual([
+      ...SECOND_SET_IDS,
+    ]);
   });
 
-  it('ťuknutí doprostřed náhledu otevře jeho omalovánku ve všech oknech', () => {
+  it('#152 AC1: nové omalovánky dinosaurus, raketa, traktor, hrad a sova jsou na konci sady, na pozicích 13–17', () => {
+    expect(COLORING_PICTURES.slice(12).map((picture) => picture.id)).toEqual([...THIRD_SET_IDS]);
+  });
+
+  // Upraveno k #152: náhledy 13–17 jsou na 2. stránce, dítě ji nejdřív nalistuje.
+  it('ťuknutí doprostřed náhledu otevře jeho omalovánku ve všech oknech, i na 2. stránce', () => {
     for (const window of COLORING_WINDOWS) {
-      const layout = layoutPicker(gameAreaFor(viewportOf(window), COLORING_GAME_AREA_FIT));
+      const layout = layoutPicker(gameAreaFor(viewportOf(window), COLORING_GAME_AREA_FIT), {
+        pictureCount: COLORING_PICTURES.length,
+      });
       COLORING_PICTURES.forEach((picture, index) => {
-        const place = layout.previews[index];
+        const onPage = index % PLACES_PER_PICKER_PAGE;
+        const place = layout.previews[onPage];
         expect(place, `${window.name}: místo náhledu ${picture.id}`).toBeDefined();
         if (place === undefined) {
           return;
@@ -207,9 +244,9 @@ describe('#128 a #132 AC1: na výběru je 11 skutečných omalovánek', () => {
           place.left + place.width / 2,
           place.top + place.height / 2,
         );
-        expect(tapped, `${window.name}: ${picture.id}`).toBe(index);
+        expect(tapped, `${window.name}: ${picture.id}`).toBe(onPage);
         const choice = enterPicker(COLORING_PICTURES);
-        expect(choice.tapPreview(index), `${window.name}: ${picture.id}`).toMatchObject({
+        expect(tapSetPreview(choice, index), `${window.name}: ${picture.id}`).toMatchObject({
           kind: 'open',
           picture,
         });
@@ -301,10 +338,11 @@ describe('#128 AC4: obrys se nenačte (výpadek stahování)', () => {
     expect(game.colorAt(1013, 757), 'konec tahu').not.toBeNull();
   });
 
-  it('#132 AC5: i nová omalovánka bez obrysu se z výběru otevře a maluje se po celé ploše', () => {
+  // Upraveno k #152 AC4: platí i pro dinosaura, raketu, traktor, hrad a sovu (2. stránka).
+  it('#132 a #152 AC4/AC5: i nová omalovánka bez obrysu se z výběru otevře a maluje se po celé ploše', () => {
     const regions = regionsWithoutOutline();
     const storage = new RecordingStorage();
-    for (const id of SECOND_SET_IDS) {
+    for (const id of [...SECOND_SET_IDS, ...THIRD_SET_IDS]) {
       const index = indexInSet({ id, version: 1 });
       expect(index, `${id} je v sadě`).toBeGreaterThanOrEqual(0);
       const choice = enterPicker(COLORING_PICTURES);

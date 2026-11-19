@@ -17,14 +17,19 @@ import type { RegionMap } from '../logic/regionMap';
 import type { PictureIdentity } from '../logic/savedPicture';
 import butterflyUrl from '../pictures/butterfly.png';
 import carUrl from '../pictures/car.png';
+import castleUrl from '../pictures/castle.png';
 import catUrl from '../pictures/cat.png';
+import dinosaurUrl from '../pictures/dinosaur.png';
 import dogUrl from '../pictures/dog.png';
 import fishUrl from '../pictures/fish.png';
 import houseSvg from '../pictures/house.svg?raw';
 import mermaidUrl from '../pictures/mermaid.png';
 import ornamentUrl from '../pictures/ornament.png';
+import owlUrl from '../pictures/owl.png';
 import rainbowUrl from '../pictures/rainbow.png';
+import rocketUrl from '../pictures/rocket.png';
 import seaUrl from '../pictures/sea.png';
+import tractorUrl from '../pictures/tractor.png';
 import unicornUrl from '../pictures/unicorn.png';
 
 /** SVG obrysu podle označení omalovánky ze sady (domek). */
@@ -32,7 +37,7 @@ const OUTLINE_SVGS: Readonly<Record<string, string>> = {
   house: houseSvg,
 };
 
-/** Adresa PNG obrysu podle označení omalovánky ze sady (#128, #132). */
+/** Adresa PNG obrysu podle označení omalovánky ze sady (#128, #132, #152). */
 const OUTLINE_PNG_URLS: Readonly<Record<string, string>> = {
   cat: catUrl,
   dog: dogUrl,
@@ -44,6 +49,11 @@ const OUTLINE_PNG_URLS: Readonly<Record<string, string>> = {
   rainbow: rainbowUrl,
   ornament: ornamentUrl,
   unicorn: unicornUrl,
+  dinosaur: dinosaurUrl,
+  rocket: rocketUrl,
+  tractor: tractorUrl,
+  castle: castleUrl,
+  owl: owlUrl,
 };
 
 /** Plátno s obrysem a jestli se obrys opravdu vykreslil. */

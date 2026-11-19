@@ -52,7 +52,8 @@ describe('#150 AC1: výběr ukazuje omalovánky po 12 ve stálém pořadí sady'
     expect(THIRTEEN_PICTURES.length).toBe(13);
     expect(TWENTY_FIVE_PICTURES.length).toBe(25);
     // #151 AC1: ve hře je papír a 11 omalovánek.
-    expect(COLORING_PICTURES.length, 'papír a omalovánky ve hře').toBe(12);
+    // Upraveno k #152 AC1: do hry přibylo 5 omalovánek, papír a 16 omalovánek.
+    expect(COLORING_PICTURES.length, 'papír a omalovánky ve hře').toBe(17);
   });
 
   it('výběr se otevře na 1. stránce s 1. až 12. omalovánkou', () => {
@@ -263,17 +264,29 @@ describe('#150 AC1: při 12 a méně omalovánkách se nelistuje a výběr je ja
   });
 
   // Od #151 AC1 má dnešní sada papír a 11 omalovánek, pořád jen jednu stránku.
-  it('dnešní sada s papírem a 11 omalovánkami je celá na jediné stránce ve stejném pořadí', () => {
+  // Upraveno k #152 AC1: s 5 novými omalovánkami má sada 17 náhledů na 2 stránkách.
+  it('dnešní sada s papírem a 16 omalovánkami je na 2 stránkách ve stejném pořadí: 12 a 5 nových', () => {
     const choice = enterPagedPicker(COLORING_PICTURES);
 
-    expect(choice.pagePreviews()).toEqual(COLORING_PICTURES);
+    expect(choice.pagePreviews(), '1. stránka').toEqual(COLORING_PICTURES.slice(0, 12));
     expect(choice.previews()).toEqual(COLORING_PICTURES);
+    turnToPage(choice, 1);
+    expect(choice.pagePreviews(), '2. stránka').toEqual(COLORING_PICTURES.slice(12));
+    expect(shownIds(choice), '2. stránka').toEqual([
+      'dinosaur',
+      'rocket',
+      'tractor',
+      'castle',
+      'owl',
+    ]);
   });
 
   // Upraveno k #151 AC1: sada zaplní všech 12 míst (místo 1 papír), místo za
   // stránkou nic neotevře. Prázdné 12. místo s 11 omalovánkami hlídá test výše (2, 11, 12).
+  // Upraveno k #152 AC1: 1. stránka je plná, na 2. stránce otevřou místa 1–5
+  // nové omalovánky a místa 6–12 nic.
   it('s dnešní sadou otevře ťuknutí na místa 1 až 12 omalovánku sady na tom místě a místo za stránkou nic', () => {
-    COLORING_PICTURES.forEach((picture, place) => {
+    COLORING_PICTURES.slice(0, PICKER_PAGE_SIZE).forEach((picture, place) => {
       const choice = enterPagedPicker(COLORING_PICTURES);
       expect(choice.tapPreview(place), `místo ${place + 1}`).toEqual({
         kind: 'open',
@@ -283,6 +296,19 @@ describe('#150 AC1: při 12 a méně omalovánkách se nelistuje a výběr je ja
       });
     });
     expect(enterPagedPicker(COLORING_PICTURES).tapPreview(12)).toEqual({ kind: 'ignored' });
+    COLORING_PICTURES.slice(PICKER_PAGE_SIZE).forEach((picture, place) => {
+      const choice = enterPagedPicker(COLORING_PICTURES);
+      turnToPage(choice, 1);
+      expect(choice.tapPreview(place), `2. stránka, místo ${place + 1}`).toEqual({
+        kind: 'open',
+        index: place,
+        picture,
+        tones: PREVIEW_TAP_TONES,
+      });
+    });
+    const second = enterPagedPicker(COLORING_PICTURES);
+    turnToPage(second, 1);
+    expect(second.tapPreview(5), '2. stránka, místo 6').toEqual({ kind: 'ignored' });
     expect(
       enterPagedPicker(testPictures(11)).tapPreview(11),
       '12. místo s 11 omalovánkami',

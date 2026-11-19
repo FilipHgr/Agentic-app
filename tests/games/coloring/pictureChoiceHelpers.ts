@@ -24,7 +24,7 @@
 import { expect } from 'vitest';
 
 import { startPictureChoice } from '../../../src/games/coloring/logic/pictureChoice';
-import type { PictureChoice } from '../../../src/games/coloring/logic/pictureChoice';
+import type { PictureChoice, PreviewTap } from '../../../src/games/coloring/logic/pictureChoice';
 import type { RegionMap } from '../../../src/games/coloring/logic/regionMap';
 import { openColoring } from '../../../src/games/coloring/logic/savedPicture';
 import type {
@@ -85,9 +85,40 @@ export function coloringStorage(store: ProfileStore): KeyValueStorage {
   return store.gameStorage(COLORING_META.id);
 }
 
+/** Míst na jedné stránce výběru (#150 AC1), schválně opsané, ne konstanta z kódu. */
+export const PLACES_PER_PICKER_PAGE = 12;
+
 /**
- * Dítě na výběru ťukne na náhled `index`, malování se ukáže a omalovánka
- * se otevře nad úložištěm `storage`. Selže, když výběr omalovánku neotevřel.
+ * Dítě nalistuje výběr šipkami ◀ ▶ na stránku `page` (0 je 1. stránka)
+ * a scéna každou stránku ukáže (#150). Na stránce, která už je vidět,
+ * nic nedělá.
+ */
+export function turnPickerTo(choice: PictureChoice, page: number): void {
+  while (choice.pickerPage() !== page) {
+    const direction = choice.pickerPage() < page ? 'next' : 'previous';
+    const turn = choice.tapPickerArrow(direction);
+    expect(turn.kind, `šipka ${direction === 'next' ? '▶' : '◀'} nalistuje`).toBe('turned');
+    choice.pickerPageShown();
+  }
+}
+
+/**
+ * Dítě ťukne na náhled omalovánky, která je v sadě na místě `index`
+ * (0 je 1. omalovánka sady). Od #152 má sada 17 náhledů na 2 stránkách:
+ * když omalovánka není na stránce, která je vidět, dítě nejdřív nalistuje
+ * její stránku a ťukne na její místo na stránce (`tapPreview` dostává
+ * místo na stránce, #150).
+ */
+export function tapSetPreview(choice: PictureChoice, index: number): PreviewTap {
+  turnPickerTo(choice, Math.floor(index / PLACES_PER_PICKER_PAGE));
+  return choice.tapPreview(index % PLACES_PER_PICKER_PAGE);
+}
+
+/**
+ * Dítě na výběru ťukne na náhled omalovánky na místě `index` v sadě
+ * (od #152 i na 2. stránce, viz `tapSetPreview`), malování se ukáže
+ * a omalovánka se otevře nad úložištěm `storage`. Selže, když výběr
+ * omalovánku neotevřel.
  */
 export function openFromPicker(
   choice: PictureChoice,
@@ -95,7 +126,7 @@ export function openFromPicker(
   storage: KeyValueStorage | undefined,
   regions: RegionMap,
 ): SavedColoring {
-  const tap = choice.tapPreview(index);
+  const tap = tapSetPreview(choice, index);
   if (tap.kind !== 'open') {
     throw new Error(`náhled ${index + 1} omalovánku neotevřel`);
   }

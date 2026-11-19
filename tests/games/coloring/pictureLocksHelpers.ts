@@ -20,7 +20,8 @@
  * a otevře zámky (`openPictureLocks`) nad úložištěm hry a klíči od
  * stránky. Výběr (`startPictureChoice`) dostane zámky volbou `locks`.
  *
- * Testy pracují se skutečnou sadou (`COLORING_PICTURES`, od #151 papír a 11 omalovánek),
+ * Testy pracují se skutečnou sadou (`COLORING_PICTURES`, od #151 papír a 11 omalovánek,
+ * od #152 papír a 16 omalovánek na 2 stránkách výběru),
  * protože AC1 jmenuje, které tři jsou odemčené. Obrys mají všechny
  * zkušební (`twoHalves()`), logika zámků obrys nezná.
  *
@@ -55,6 +56,7 @@ import { openProfiles } from '../../../src/shared/storage/profileStorage';
 import type { ProfileStore } from '../../../src/shared/storage/profileStorage';
 import { DeviceStorage } from '../../shared/profileFixtures';
 import { fillAlbum, paintLeft } from './albumHelpers';
+import { PLACES_PER_PICKER_PAGE, tapSetPreview } from './pictureChoiceHelpers';
 import { twoHalves } from './savedPictureHelpers';
 
 /** Označení Omalovánek; úložiště a záznamy hry jsou pod ním. */
@@ -63,7 +65,11 @@ const COLORING = 'coloring';
 /** Omalovánky odemčené od začátku (#140 AC1), schválně opsané, ne konstanta z kódu. */
 export const FREE_IDS: readonly string[] = ['house', 'cat', 'dog'];
 
-/** Zbylých 8 omalovánek sady v pořadí náhledů, na začátku zamčené (#140 AC1). */
+/**
+ * Zbylých 8 omalovánek sady v pořadí náhledů, na začátku zamčené (#140 AC1).
+ * Upraveno k #152 AC3: na konci je navíc 5 nových omalovánek, které jsou
+ * také zamčené (celkem 13).
+ */
 export const LOCKED_IDS: readonly string[] = [
   'car',
   'butterfly',
@@ -73,6 +79,11 @@ export const LOCKED_IDS: readonly string[] = [
   'rainbow',
   'ornament',
   'unicorn',
+  'dinosaur',
+  'rocket',
+  'tractor',
+  'castle',
+  'owl',
 ];
 
 /** Omalovánka sady podle označení. */
@@ -84,13 +95,22 @@ export function pictureOf(id: string): PictureIdentity {
   return picture;
 }
 
-/** Místo náhledu omalovánky na výběru. */
-export function previewIndexOf(id: string): number {
+/** Místo omalovánky v sadě (0 je 1. náhled 1. stránky). */
+function setIndexOf(id: string): number {
   const index = COLORING_PICTURES.findIndex((each) => each.id === id);
   if (index < 0) {
     throw new Error(`v sadě chybí omalovánka ${id}`);
   }
   return index;
+}
+
+/**
+ * Místo náhledu omalovánky na její stránce výběru (0–11, #150), jak ho
+ * hlásí `PreviewTap.index`. Do #152 byla celá sada na 1. stránce a místo
+ * bylo rovnou pořadí v sadě.
+ */
+export function previewIndexOf(id: string): number {
+  return setIndexOf(id) % PLACES_PER_PICKER_PAGE;
 }
 
 /** Omalovánky sady i s (zkušebním) obrysem, jak je scéna dá albu a zámkům. */
@@ -197,9 +217,13 @@ export function choiceWithAlbum(page: LockPage, locks: PictureLocks): PictureCho
   });
 }
 
-/** Dítě ťukne na náhled omalovánky `id`. */
+/**
+ * Dítě ťukne na náhled omalovánky `id`. Od #152 jsou omalovánky 13–17 na
+ * 2. stránce: když není na stránce, která je vidět, dítě ji nejdřív
+ * nalistuje (`tapSetPreview`).
+ */
 export function tapPicture(choice: PictureChoice, id: string): PreviewTap {
-  return choice.tapPreview(previewIndexOf(id));
+  return tapSetPreview(choice, setIndexOf(id));
 }
 
 /** Malování otevírané omalovánky se ukáže a dítě se domečkem vrátí na výběr. */

@@ -55,6 +55,25 @@ v repozitáři, otisky SHA-256 zdrojů:
   ornament: fed6cf479745d8a4b5fc0a170687fb52442b15a9d965e2def02f061c9aada309
   unicorn: d4d0be73e27dd7bea8bf5609ac6987c0cfdb779fb68d71e745927391c7db1086
 
+Obrysy omalovánek dinosaurus, raketa, traktor, hrad a sova
+(src/games/coloring/pictures/dinosaur.png, rocket.png, tractor.png,
+castle.png, owl.png) jsou vytvořené službou ElevenLabs (https://elevenlabs.io),
+model GPT Image 2.5. Použito v rámci komerčního tarifu vlastníka hry, stejně
+jako dlaždice her. Úprava: převedeno na obrys nástrojem v repozitáři
+tools/design/outline-from-image.mjs, zdroje bez dalších úprav. Zdrojové PNG
+nejsou v repozitáři, otisky SHA-256 zdrojů:
+  dinosaur: 4c913c266a4cf87f1864eb872f50e5e586e33e25eb0015419aa48fe36457071e
+  rocket: 84eaf762fc872fe465e4b2fc085cb6b6df07184b9b63e9c92f034e32798ab714
+  tractor: 224693a93d2da0f7f6b23268f1b108ce2c358f4018ee162770533b2ad6a2c32d
+  castle: 8cbc9fbc12b7ecac9e5a8e8c5a903c385648d9da38c17ebc675db5b93a72fe98
+  owl: b29a20ca02d0c5587c0db2e9df0253be9a88a03103493d2676af7716aa1cacd2
+Otisky SHA-256 výsledných obrysů:
+  dinosaur.png: e74149134fdb985e73f18ae0b94eed62d3907b1e4c91c479574c3ef22a9baec1
+  rocket.png: 06d527ee6221e79e23a8861337585fce4827d50796f99552506d5346649e799d
+  tractor.png: f91db2f6a7686897cd16b5d97dc2b189a6910d20e454dbe373027bc58c5ac770
+  castle.png: 3031f3c86c792bb378c012f39dd44da86f99afb60d25c664c804573e87c3b280
+  owl.png: 557728d78fd4471f4cc28d4173bdba0917a69bab76dc02eba4c9b10b781908c5
+
 Obrázky map postupu v Počítání (src/games/counting/maps/island-landscape.webp,
 island-portrait.webp, forest-landscape.webp, forest-portrait.webp,
 castle-landscape.webp, castle-portrait.webp, underwater-landscape.webp,

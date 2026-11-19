@@ -1,8 +1,9 @@
 /// <reference types="vite/client" />
 /**
  * Pomůcky pro testy k #128 (pět skutečných omalovánek místo kruhů a hvězdy),
- * #132 (pět dalších omalovánek, celkem 11) a #151 (prázdný papír na
- * 1. místě, celkem 12 náhledů).
+ * #132 (pět dalších omalovánek, celkem 11), #151 (prázdný papír na
+ * 1. místě, celkem 12 náhledů) a #152 (pět dalších omalovánek na konci,
+ * celkem 17 náhledů na 2 stránkách výběru).
  *
  * Obrysy jsou soubory `src/games/coloring/pictures/<id>.png` (doporučení
  * k otázce 1: PNG s paletou a 16 úrovněmi průhlednosti). Testy je čtou přes
@@ -30,8 +31,22 @@ export const NEW_PICTURE_IDS = ['cat', 'dog', 'car', 'butterfly', 'fish'] as con
  */
 export const SECOND_SET_IDS = ['sea', 'mermaid', 'rainbow', 'ornament', 'unicorn'] as const;
 
-/** Všechny omalovánky s obrysem PNG (#132 AC3: 10 souborů), v pořadí sady. */
-export const OUTLINE_PICTURE_IDS = [...NEW_PICTURE_IDS, ...SECOND_SET_IDS] as const;
+/**
+ * Pět omalovánek z #152 v pořadí sady (AC1): dinosaurus, raketa, traktor,
+ * hrad, sova. Schválně opsané, ne konstanta z kódu. Jména souborů obrysů
+ * jsou `<id>.png` jako u #132.
+ */
+export const THIRD_SET_IDS = ['dinosaur', 'rocket', 'tractor', 'castle', 'owl'] as const;
+
+/**
+ * Všechny omalovánky s obrysem PNG v pořadí sady: 10 souborů od #132 AC3,
+ * od #152 AC2 15 (pět nových z #152 na konci).
+ */
+export const OUTLINE_PICTURE_IDS = [
+  ...NEW_PICTURE_IDS,
+  ...SECOND_SET_IDS,
+  ...THIRD_SET_IDS,
+] as const;
 
 /** Sada před #132: domek a pět omalovánek z #128 na pozicích 1–6, všechny verze 1. */
 export const FIRST_SIX_SET: readonly PictureIdentity[] = [
@@ -46,16 +61,34 @@ export const FIRST_SIX_SET: readonly PictureIdentity[] = [
  */
 export const PAPER: PictureIdentity = { id: 'paper', version: 1 };
 
-/** 11 omalovánek s obrysem v pořadí sady (#132 AC1): prvních 6 a pět nových na konci, verze 1. */
-export const OUTLINE_SET: readonly PictureIdentity[] = [
+/** Pět omalovánek z #152 v pořadí sady, všechny s vlastním označením verze 1 (AC1). */
+export const THIRD_SET: readonly PictureIdentity[] = THIRD_SET_IDS.map((id) => ({
+  id,
+  version: 1,
+}));
+
+/**
+ * Sada ve hře před #152 v pořadí náhledů: papír (#151) a 11 omalovánek
+ * z #128 a #132, schválně opsaná. S ní testy #152 AC1 ověřují, že se
+ * dosavadní omalovánky po rozšíření ukážou stejně.
+ */
+export const SET_BEFORE_152: readonly PictureIdentity[] = [
+  PAPER,
   ...FIRST_SIX_SET,
   ...SECOND_SET_IDS.map((id) => ({ id, version: 1 })),
 ];
 
 /**
+ * Omalovánky s obrysem v pořadí sady: 11 od #132 AC1 (prvních 6 a pět
+ * nových na konci), od #152 AC1 16 (pět dalších na konci), verze 1.
+ */
+export const OUTLINE_SET: readonly PictureIdentity[] = [...SET_BEFORE_152.slice(1), ...THIRD_SET];
+
+/**
  * Celá sada ve hře v pořadí náhledů. Od #151 AC1 je na 1. místě papír
  * a 11 omalovánek s obrysem se posunulo o jedno místo (před #151 byla
- * sada jen `OUTLINE_SET`).
+ * sada jen 11 omalovánek). Od #152 AC1 je na konci pět dalších
+ * omalovánek, celkem 17 náhledů.
  */
 export const EXPECTED_SET: readonly PictureIdentity[] = [PAPER, ...OUTLINE_SET];
 

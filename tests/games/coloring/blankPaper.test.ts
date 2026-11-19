@@ -109,8 +109,10 @@ describe('#151 AC1: papír je na výběru na 1. místě', () => {
     expect(choice.pagePreviews()[PAPER_PLACE], 'první náhled').toEqual(PAPER);
   });
 
+  // Upraveno k #152 AC1: za těmito 11 omalovánkami je navíc 5 nových
+  // (realPictureSet.test.ts), proto se porovnávají místa 2–12.
   it('za papírem je dnešních 11 omalovánek posunutých o jedno místo ve stejném pořadí', () => {
-    expect(COLORING_PICTURES.slice(1).map((picture) => picture.id)).toEqual([
+    expect(COLORING_PICTURES.slice(1, 12).map((picture) => picture.id)).toEqual([
       'house',
       'cat',
       'dog',

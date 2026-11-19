@@ -74,11 +74,12 @@ describe('#151 AC1: papír není nikdy zamčený', () => {
 });
 
 describe('#151 AC1: papír se nepočítá do zámků ani do ukazatele klíčů', () => {
-  it('odemčené od začátku jsou dál domek, kočka a pejsek a zamčených je 8 omalovánek', async () => {
+  // Upraveno k #152 AC3: zamčených je 13 (8 dosavadních a 5 nových).
+  it('odemčené od začátku jsou dál domek, kočka a pejsek a zamčených je 13 omalovánek', async () => {
     const locks = await enterColoring(loadPage(lockDevice()));
 
     expect(lockedIdsOf(locks)).toEqual(LOCKED_IDS);
-    expect(LOCKED_IDS.length).toBe(8);
+    expect(LOCKED_IDS.length).toBe(13);
     for (const id of FREE_IDS) {
       expect(locks.isLocked({ id, version: 1 }), id).toBe(false);
     }
@@ -107,7 +108,8 @@ describe('#151 AC1: papír se nepočítá do zámků ani do ukazatele klíčů',
     expect(page.keys.balance()).toEqual(before);
   });
 
-  it('když dítě odemkne klíči všech 8 zamčených omalovánek, ukazatel klíčů zmizí, i když je v sadě papír', async () => {
+  // Upraveno k #152 AC3: zamčených omalovánek je 13.
+  it('když dítě odemkne klíči všech 13 zamčených omalovánek, ukazatel klíčů zmizí, i když je v sadě papír', async () => {
     const page = loadPage(lockDevice());
     completeMaps(page.keys, LOCKED_IDS.length * 2);
     const locks = await enterColoring(page);
