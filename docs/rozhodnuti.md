@@ -344,3 +344,4 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-19 #154: značka na mapě dojde nejvýš 1,5 s po doletu hvězdiček (nejvýš 2,1 s od ukázání okna, posouvá #135 AC1), klíč a zavření ťuknutím nejpozději 5,6 s od okna (posouvá 5 s z #145 a #139). Konfety padají přes okno s mapou.
 - 2026-11-19 #144 stopy na mapě: pod stopami zůstává velmi jemná čára cesty (krytí 20 %), bez ní se cesta přes místa nedala přečíst (UX kontrola). Neprošlé stopy bílé poloprůhledné s tmavým obrysem, ve vesmíru hvězdička v tmavém kroužku. Čeká na názor vlastníka.
 - 2026-11-19 #152: limit součtu obrysů omalovánek zvýšen na 434 176 B (270 336 + 5 × 32 768) pro 15 obrysů, limit souboru 32 768 B beze změny. Generování sady 3 stálo 365 kreditů.
+- 2026-11-19 #157: tlačítko jazyka v liště menu je úplně vpravo, vyhrazené místo po „…“ je mezi profilem a jazykem (na telefonu na výšku jinak vypadala lišta rozbitě, UX kontrola).
