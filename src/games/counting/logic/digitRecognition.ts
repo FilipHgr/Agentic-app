@@ -4,7 +4,7 @@
  * a vyhraje číslice nejpodobnějších vzorů. Čistý TypeScript bez Phaseru.
  */
 
-import { DIGIT_TEMPLATES } from './digitTemplates';
+import { DIGIT_TEMPLATES, OPEN_NINE_TEMPLATES } from './digitTemplates';
 
 /** Bod tahu v pixelech plochy na psaní, osa y míří dolů. */
 export interface StrokePoint {
@@ -78,16 +78,33 @@ interface Template {
   readonly values: readonly number[];
 }
 
-let decodedTemplates: Template[] | undefined;
+interface TemplateSets {
+  /** Vzory z UCI pro všechny podoby zápisu. */
+  readonly common: readonly Template[];
+  /** Vzory z UCI a vlastní vzory otevřené devítky pro normální podobu. */
+  readonly normal: readonly Template[];
+}
 
-/** Vzory se rozbalí jednou, až při prvním rozpoznání. */
-function templates(): Template[] {
+let decodedTemplates: TemplateSets | undefined;
+
+/**
+ * Vzory se rozbalí jednou, až při prvním rozpoznání. Vlastní vzory
+ * devítky s otevřeným kolečkem (#143) se porovnávají jen s normální
+ * podobou zápisu: zrcadlená sedmička vypadá přesně jako otevřená devítka.
+ */
+function templates(): TemplateSets {
   if (!decodedTemplates) {
-    decodedTemplates = DIGIT_TEMPLATES.flatMap((list, digit) =>
-      list.map((encoded) => ({ digit, values: evenlySpaced(decodeTemplate(encoded)) })),
+    const common = DIGIT_TEMPLATES.flatMap((list, digit) =>
+      list.map((encoded) => decodedTemplate(digit, encoded)),
     );
+    const openNines = OPEN_NINE_TEMPLATES.map((encoded) => decodedTemplate(9, encoded));
+    decodedTemplates = { common, normal: [...common, ...openNines] };
   }
   return decodedTemplates;
+}
+
+function decodedTemplate(digit: number, encoded: string): Template {
+  return { digit, values: evenlySpaced(decodeTemplate(encoded)) };
 }
 
 /** Vzor je 16 čísel 0–100, každé jako dva šestnáctkové znaky. */
@@ -182,6 +199,8 @@ interface FormPoints {
   readonly points: readonly StrokePoint[];
   /** Kolikrát se vzdálenost od vzorů zvětší (přednost normální podoby). */
   readonly distanceFactor: number;
+  /** Vzory, se kterými se tato podoba porovnává. */
+  readonly templates: readonly Template[];
 }
 
 /**
@@ -191,18 +210,21 @@ interface FormPoints {
  */
 function writtenForms(points: readonly StrokePoint[], bounds: Bounds): FormPoints[] {
   const reversed = [...points].reverse();
+  const { common, normal } = templates();
   return [
-    { form: 'normal', points, distanceFactor: 1 },
-    { form: 'reversed', points: reversed, distanceFactor: 1 },
+    { form: 'normal', points, distanceFactor: 1, templates: normal },
+    { form: 'reversed', points: reversed, distanceFactor: 1, templates: common },
     {
       form: 'mirrored',
       points: mirrored(points, bounds),
       distanceFactor: MIRRORED_DISTANCE_FACTOR,
+      templates: common,
     },
     {
       form: 'mirrored',
       points: mirrored(reversed, bounds),
       distanceFactor: MIRRORED_DISTANCE_FACTOR,
+      templates: common,
     },
   ];
 }
@@ -226,10 +248,12 @@ interface FormNeighbours {
 function nearestInForm(written: FormPoints, bounds: Bounds, size: number): FormNeighbours {
   const variants = loopStartVariants(resample(written.points, LOOP_SEARCH_POINTS), size).map(
     (variant) =>
-      nearestTemplates(normalize(resample(variant, SAMPLE_POINTS), bounds)).map((neighbour) => ({
-        digit: neighbour.digit,
-        distance: neighbour.distance * written.distanceFactor,
-      })),
+      nearestTemplates(normalize(resample(variant, SAMPLE_POINTS), bounds), written.templates).map(
+        (neighbour) => ({
+          digit: neighbour.digit,
+          distance: neighbour.distance * written.distanceFactor,
+        }),
+      ),
   );
   const nearest = variants.reduce((winner, candidate) =>
     closestDistance(candidate) < closestDistance(winner) ? candidate : winner,
@@ -445,9 +469,9 @@ interface Neighbour {
 }
 
 /** Nejpodobnější vzory, seřazené od nejbližšího. */
-function nearestTemplates(sample: readonly number[]): Neighbour[] {
+function nearestTemplates(sample: readonly number[], candidates: readonly Template[]): Neighbour[] {
   const nearest: Neighbour[] = [];
-  for (const template of templates()) {
+  for (const template of candidates) {
     const limit = nearest.length < NEIGHBOURS ? Infinity : (nearest[NEIGHBOURS - 1]?.distance ?? 0);
     const templateDistance = distance(sample, template.values, limit);
     if (templateDistance < limit) {
