@@ -346,3 +346,4 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-19 #152: limit součtu obrysů omalovánek zvýšen na 434 176 B (270 336 + 5 × 32 768) pro 15 obrysů, limit souboru 32 768 B beze změny. Generování sady 3 stálo 365 kreditů.
 - 2026-11-19 #157: tlačítko jazyka v liště menu je úplně vpravo, vyhrazené místo po „…“ je mezi profilem a jazykem (na telefonu na výšku jinak vypadala lišta rozbitě, UX kontrola).
 - 2026-11-19 #158: náhledy alba zůstávají přesně na místě z #149, karta stránky se přizpůsobí (okraj 8 px, kde se vejde, jinak nejméně 4 px; od domečku a šipek aspoň 4 px). Ťuknutí na prázdné okénko ho zhoupne s tónem domečku.
+- 2026-11-19 #159: klíč čeká v zámku 5 s od doletu, listování výběru ho vrátí do ukazatele, při nenačteném obrysu klíč nevyletí. Klíč v ukazateli je při letu ztlumený, v zámku poskakuje a pootáčí se. Nahrazuje spotřebu klíče jedním ťuknutím z #140 AC5.
