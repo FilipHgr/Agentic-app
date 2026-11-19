@@ -352,7 +352,9 @@ function rotatedPairs(): Array<[TestWindow, TestWindow]> {
 }
 
 /** Okamžiky otočení během pohybu značky v ms od ukázání karty. */
-const ROTATION_TIMES_MS = [0, 200, 500, 800, 1100, 1400];
+// #154 AC3: značka vyrazí až po letu hvězdiček (nejvýš 0,6 s), proto
+// i okamžiky 1700 a 2000 ms, kdy značka může být teprve na cestě.
+const ROTATION_TIMES_MS = [0, 200, 500, 800, 1100, 1400, 1700, 2000];
 
 describe('#145 AC6: po otočení zařízení se karta rozloží znovu a značka pokračuje', () => {
   it('po otočení stojí značka v nové kartě na stejném dílu cesty jako před ním (#135 AC4)', () => {

@@ -17,6 +17,8 @@ import type { MoveCase } from './mapAnimationHelpers';
  * Testy k #145 AC3 a AC4 na časové ose karty (čistá logika, bez sezení):
  * karta je otevřená 7 s u kroku i u cíle, všechno se do 7 s vejde, klíč
  * doběhne do 5 s a ťuknutím jde kartu zavřít až po doběhnutí animace.
+ * #154 AC3 posouvá limit 5 s i hranici ťuknutí o let hvězdiček do mapy,
+ * nejvýš na 5,6 s od ukázání karty (`starFlight.test.ts`).
  * Každé pravidlo projde v cyklu všechny kroky na všech 5 mapách
  * (`allMoves`), popis případu je ve zprávě `expect`.
  *
@@ -32,8 +34,11 @@ import type { MoveCase } from './mapAnimationHelpers';
 /** Jak dlouho je karta otevřená, když na ni dítě neťukne (AC3). */
 const CARD_OPEN_MS = 7000;
 
-/** Nejpozději tehdy doběhne půlka klíče i spojení půlek (AC3, #139 AC2). */
-const KEY_DONE_MS = 5000;
+/**
+ * Nejpozději tehdy doběhne půlka klíče i spojení půlek (AC3, #139 AC2).
+ * Bylo 5 000 ms; #154 AC3 posouvá limit o let hvězdiček, nejvýš na 5,6 s.
+ */
+const KEY_DONE_MS = 5600;
 
 /** Kdy se časová osa kontroluje: po 1 ms až o 1 s za zavření karty. */
 const CHECK_UNTIL_MS = CARD_OPEN_MS + 1000;
@@ -88,7 +93,8 @@ describe('#145 AC3: karta zůstane otevřená 7 s od ukázání, u kroku i u cí
     }
   });
 
-  it('pohyb značky trvá nejvýš 1,5 s a melodie cíle dohraje dřív, než se karta po 7 s zavře', () => {
+  // #154 AC3: 1,5 s se posouvá o let hvězdiček (`LATEST_ARRIVAL_MS`).
+  it('značka dojde nejvýš 1,5 s po doletu hvězdiček a melodie cíle dohraje dřív, než se karta po 7 s zavře', () => {
     for (const { label, move } of allMoves()) {
       const arrived = firstMs((ms) => markerShareAt(ms) >= 1);
       expect(arrived, label).not.toBeNull();
@@ -99,7 +105,8 @@ describe('#145 AC3: karta zůstane otevřená 7 s od ukázání, u kroku i u cí
     }
   });
 
-  it('půlka klíče naskočí a půlky se spojí nejpozději v 5 s a pak se už nic nemění', () => {
+  // #154 AC3: 5 s se posouvá o let hvězdiček, nejvýš na 5,6 s.
+  it('půlka klíče naskočí a půlky se spojí nejpozději v 5,6 s a pak se už nic nemění', () => {
     for (const reward of ['half', 'wholeKey'] as const) {
       expect(keyLastChangeMs(reward), reward).toBeLessThanOrEqual(KEY_DONE_MS);
       expect(keyRewardMomentAt(reward, KEY_DONE_MS).popShare, reward).toBe(1);
@@ -109,7 +116,8 @@ describe('#145 AC3: karta zůstane otevřená 7 s od ukázání, u kroku i u cí
 });
 
 describe('#145 AC4: ťuknutí kartu zavře až po doběhnutí animace', () => {
-  it('na zastávce jde kartu zavřít, jakmile značka stojí a místo se rozsvítilo, nejpozději od 1,5 s', () => {
+  // #154 AC3: 1,5 s se posouvá o let hvězdiček (`LATEST_ARRIVAL_MS`).
+  it('na zastávce jde kartu zavřít, jakmile značka stojí a místo se rozsvítilo, nejpozději 1,5 s po doletu hvězdiček', () => {
     const moves = stopMoves();
     expect(moves.length).toBeGreaterThan(0);
     for (const { label, move } of moves) {

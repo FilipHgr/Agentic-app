@@ -144,7 +144,8 @@ describe('#135 AC1: značka jde po cestě z minulého místa na nové', () => {
     }
   });
 
-  it('nejpozději za 1,5 s stojí značka na novém místě a do zavření mapy se už nehýbe', () => {
+  // #154 AC3: 1,5 s se posouvá o let hvězdiček do mapy (nejvýš 0,6 s).
+  it('nejpozději 1,5 s po doletu hvězdiček stojí značka na novém místě a do zavření mapy se už nehýbe', () => {
     for (const { label, layout, move } of layoutCases()) {
       const target = layout.places[move.to];
       expect(target, label).toBeDefined();
@@ -169,7 +170,8 @@ describe('#135 AC1: značka jde po cestě z minulého místa na nové', () => {
     }
   });
 
-  it('díl prošlé cesty je od 0 do 1, v čase 0 je 0 a nejpozději v 1,5 s je 1', () => {
+  // #154 AC3: 1,5 s se posouvá o let hvězdiček do mapy (nejvýš 0,6 s).
+  it('díl prošlé cesty je od 0 do 1, v čase 0 je 0 a nejpozději 1,5 s po doletu hvězdiček je 1', () => {
     expect(markerShareAt(0)).toBe(0);
     expect(markerShareAt(LATEST_ARRIVAL_MS)).toBe(1);
     let before = 0;
@@ -302,7 +304,8 @@ describe('#135 AC3: v cíli se symbol cíle zvětší a zazáří, zazní melodi
   });
 
   // #145 AC3: 5 s zobrazení cíle nahrazuje 7 s karty.
-  it('pohyb (nejvýš 1,5 s) i melodie se vejdou do 7 s zobrazení mapy v cíli', () => {
+  // #154 AC3: let hvězdiček (nejvýš 0,6 s) a pohyb (nejvýš 1,5 s) i melodie se vejdou do 7 s.
+  it('let hvězdiček, pohyb i melodie se vejdou do 7 s zobrazení mapy v cíli', () => {
     expect(MAP_GOAL_SHOW_MS).toBeLessThanOrEqual(7000);
     for (const { label, move } of goalMoves()) {
       expect(mapShowMs(move), label).toBe(MAP_GOAL_SHOW_MS);
@@ -351,7 +354,9 @@ function rotatedPairs(): Array<[TestWindow, TestWindow]> {
 }
 
 /** Okamžiky otočení během pohybu značky v ms od ukázání mapy. */
-const ROTATION_TIMES_MS = [0, 200, 500, 800, 1100, 1400];
+// #154 AC3: značka vyrazí až po letu hvězdiček (nejvýš 0,6 s), proto
+// i okamžiky 1700 a 2000 ms, kdy značka může být teprve na cestě.
+const ROTATION_TIMES_MS = [0, 200, 500, 800, 1100, 1400, 1700, 2000];
 
 describe('#135 AC4: po otočení zařízení značka pokračuje ze stejného podílu cesty', () => {
   it('po otočení stojí značka v novém rozložení na stejném dílu cesty jako před ním', () => {

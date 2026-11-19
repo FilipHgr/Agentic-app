@@ -14,8 +14,13 @@ import type { MapPoint } from '../../../src/games/counting/logic/progressMapLayo
 /** Tolerance polohy v herních jednotkách (zaokrouhlení). */
 export const POINT_TOLERANCE = 0.01;
 
-/** Nejpozději tehdy značka dojde na nové místo (AC1), v ms. */
-export const LATEST_ARRIVAL_MS = 1500;
+/**
+ * Nejpozději tehdy značka dojde na nové místo, v ms od ukázání mapy.
+ * #135 AC1 dával 1,5 s; podle #154 AC3 značka vyrazí až po letu hvězdiček
+ * do mapy (nejvýš 0,6 s), takže hranice je 1,5 s + 0,6 s. Že značka dojde
+ * nejvýš 1,5 s po doletu, hlídá `starFlight.test.ts`.
+ */
+export const LATEST_ARRIVAL_MS = 1500 + 600;
 
 /** Po kolika ms se značka a místa kontrolují. */
 export const SAMPLE_STEP_MS = 10;

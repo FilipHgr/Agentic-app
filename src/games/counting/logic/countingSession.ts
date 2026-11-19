@@ -31,7 +31,12 @@ import type { DotCounting } from './dotCounting';
 import { drawProblem, startProblemRotation } from './problemRotation';
 import type { ProblemRotation } from './problemRotation';
 import type { Problem } from './problems';
-import { KEY_REWARD_APPEAR_MS, MARKER_ARRIVAL_MS, mapClosableFromMs } from './mapAnimation';
+import {
+  KEY_REWARD_APPEAR_MS,
+  MARKER_ARRIVAL_MS,
+  STARS_LANDED_MS,
+  mapClosableFromMs,
+} from './mapAnimation';
 import { mapShowMs, stepOnMap } from './progressMap';
 import type { MapMove, MapProgress } from './progressMap';
 import { createRecognizerLoading } from './recognizerLoading';
@@ -55,8 +60,18 @@ export const MAP_CLOSE_ANSWER_PAUSE_MS = 300;
 /** Jak dlouho letí hvězdička od odpovědi do řady; oslava začne po doletu. */
 export const STAR_FLIGHT_MS = 450;
 
-/** Jak dlouho trvá oslava po zaplnění řady, než přijde nový příklad. */
-export const CELEBRATION_MS = 2600;
+/**
+ * Za jak dlouho od začátku oslavy (melodie a konfety) se ukáže okno
+ * s mapou (#154 AC1: nejvýš 1,5 s od 10. odpovědi). Melodie a konfety
+ * doběhnou přes okno.
+ */
+export const CELEBRATION_TO_MAP_MS = 800;
+
+/**
+ * Jak dlouho trvá oslava od začátku melodie do doletu hvězdiček z řady
+ * do mapy (#154 upřesnění 2); potom je řada prázdná.
+ */
+export const CELEBRATION_MS = CELEBRATION_TO_MAP_MS + STARS_LANDED_MS;
 
 /** Zvuky hry (tóny odpovědí, teček a oslavy). */
 export interface SessionSounds {
@@ -87,10 +102,12 @@ export interface SessionPage {
  * Co se změnilo a má se nakreslit:
  * - `roundStarted` nový příklad (při startu hry se nehlásí),
  * - `celebrationStarted` hvězdička doletěla do plné řady: konfety,
- * - `celebrationEnded` oslava doběhla, řada je prázdná (nový příklad přijde zvlášť),
+ * - `celebrationEnded` hvězdičky doletěly z řady do mapy, řada je prázdná
+ *   (melodie a konfety smí doběhnout samy, nový příklad přijde zvlášť, #154),
  * - `celebrationStopped` oslavu přerušilo otevření nastavení,
  * - `starsChanged` jiný počet hvězdiček bez letu (nastavení přerušilo oslavu),
- * - `mapShown` po oslavě se ukázala mapa postupu s krokem `shownMap()` (#87),
+ * - `mapShown` během oslavy se ukázala mapa postupu s krokem `shownMap()`
+ *   (#87, #154): hvězdičky z řady k ní teprve letí,
  * - `mapHidden` karta s mapou se po 7 s sama zavřela, nebo ji dítě zavřelo
  *   ťuknutím (#145; nový příklad přijde zvlášť),
  * - `mapStopped` mapu přerušilo otevření nastavení,
@@ -150,7 +167,7 @@ export interface CountingSession {
   dotCounting(): DotCounting;
   starProgress(): StarProgress;
   starCount(): number;
-  /** Plná řada: od desáté odpovědi do konce oslavy. */
+  /** Plná řada: od desáté odpovědi do doletu hvězdiček do mapy (#154). */
   celebrating(): boolean;
   /** Kde stojí značka na mapě a kolik map je hotových (#87). */
   mapProgress(): MapProgress;
@@ -305,7 +322,10 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     notify({ kind: 'roundStarted' });
   }
 
-  /** Oslava po zaplnění řady: melodie a konfety, pak nová prázdná řada. */
+  /**
+   * Oslava po zaplnění řady: melodie a konfety a hned za nimi okno s mapou,
+   * do kterého hvězdičky z řady odletí (#154 AC1, AC3).
+   */
   function startCelebration(): void {
     // Nastavení mezitím mohlo oslavu přerušit a řadu vyprázdnit (#45).
     if (stars.earned < STARS_PER_SET || settingsAreOpen) {
@@ -313,15 +333,15 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     }
     sounds.play(SOUNDS.celebration);
     notify({ kind: 'celebrationStarted' });
-    schedule(CELEBRATION_MS, finishCelebration, celebrationSteps);
+    schedule(CELEBRATION_TO_MAP_MS, showMap, celebrationSteps);
   }
 
-  function finishCelebration(): void {
+  /** Hvězdičky doletěly do mapy: oslava končí a řada začíná od 0 (#154 AC3). */
+  function landStars(): void {
     isCelebrating = false;
     stars = startNewStarSet();
     saveStars();
     notify({ kind: 'celebrationEnded' });
-    showMap();
   }
 
   /**
@@ -354,13 +374,18 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     keyRewardToShow = result.move.reachedGoal ? reportCompletedMaps(map.completedMaps) : null;
   }
 
-  /** Po oslavě se na chvíli ukáže mapa s krokem, pak sama zmizí (#87 AC1). */
+  /**
+   * Během oslavy se na chvíli ukáže mapa s krokem, hvězdičky z řady do ní
+   * odletí a pak sama zmizí (#87 AC1, #154). Ukázání oslavu nepřeruší:
+   * melodie a konfety doběhnou přes okno.
+   */
   function showMap(): void {
     const move = moveToShow;
     const keyReward = keyRewardToShow;
     moveToShow = null;
     keyRewardToShow = null;
     if (move === null) {
+      landStars();
       startRound();
       return;
     }
@@ -368,7 +393,9 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     shownKeyReward = keyReward;
     mapClosable = false;
     notify({ kind: 'mapShown' });
-    // Zvuk zazní, až značka na novém místě zastaví (#135 AC2, AC3).
+    schedule(STARS_LANDED_MS, landStars, celebrationSteps);
+    // Zvuk zazní, až po doletu hvězdiček značka na novém místě zastaví
+    // (#135 AC2, AC3); melodie cíle tak začne až po melodii oslavy (#154 AC3).
     const arrivalSound = move.reachedGoal ? SOUNDS.mapGoal : SOUNDS.mapStep;
     schedule(MARKER_ARRIVAL_MS, () => sounds.play(arrivalSound), celebrationSteps);
     if (keyReward !== null) {
@@ -416,10 +443,15 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     return outcome;
   }
 
-  /** Během karty s mapou nic pod ní odpověď nezadá (#145 AC5). */
+  /** Během oslavy, letu hvězdiček a karty s mapou se odpověď nezadá (#145 AC5, #154 AC5). */
   function acceptsAnswers(): boolean {
     return (
-      !left && !guideIsOpen && !settingsAreOpen && shownMove === null && !answersPausedAfterMap
+      !left &&
+      !guideIsOpen &&
+      !settingsAreOpen &&
+      !isCelebrating &&
+      shownMove === null &&
+      !answersPausedAfterMap
     );
   }
 

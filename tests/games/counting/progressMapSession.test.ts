@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { SOUNDS } from '../../../src/games/counting/logic/answerSounds';
 import { CELEBRATION_MS, STAR_FLIGHT_MS } from '../../../src/games/counting/logic/countingSession';
 import {
   MAP_GOAL_SHOW_MS,
@@ -124,11 +125,16 @@ describe('#87 AC1: po oslavě se na chvíli ukáže mapa a hra pokračuje sama',
     const shown = waitForMap(test);
 
     expect(shown).toMatchObject({ from: 0, to: 1, reachedGoal: false });
-    expect(test.session.celebrating(), 'mapa přijde až po oslavě').toBe(false);
+    // #154 AC1: mapa přijde ještě během oslavy (konfety doběhnou přes okno),
+    // dřívější kontrola „mapa přijde až po oslavě“ už neplatí. Co je
+    // během oslavy a letu hvězdiček vidět, hlídá `celebrationTiming.test.ts`.
   });
 
-  it('mapa se ukáže až po doběhnutí oslavy, ne dřív', () => {
-    const test = enterCounting(testDevice());
+  // #154 AC1 nahrazuje „mapa se ukáže až po doběhnutí oslavy“: mapa se
+  // ukáže, až oslava začne, ale nejpozději 1,5 s po 10. hvězdičce.
+  it('mapa se ukáže, až začne oslava, a nejpozději 1,5 s po desáté hvězdičce', () => {
+    const device = testDevice();
+    const test = enterCounting(device);
     fillRow(test);
     const waited = advanceUntil(
       test,
@@ -136,7 +142,8 @@ describe('#87 AC1: po oslavě se na chvíli ukáže mapa a hra pokračuje sama',
       STAR_FLIGHT_MS + CELEBRATION_MS + 1000,
     );
     expect(waited).not.toBeNull();
-    expect(waited ?? 0).toBeGreaterThanOrEqual(STAR_FLIGHT_MS + CELEBRATION_MS);
+    expect(waited ?? Infinity).toBeLessThanOrEqual(1500);
+    expect(device.sounds.played, 'oslava začala dřív než mapa').toContain(SOUNDS.celebration);
   });
 
   // #145 AC3: 3 s nahrazuje 7 s (test v `mapCardSession.test.ts`).

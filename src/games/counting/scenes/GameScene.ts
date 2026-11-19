@@ -185,7 +185,8 @@ export class GameScene extends Phaser.Scene {
         this.confetti.throw(this.gameArea, this.layouts.keypad().detailScale);
         break;
       case 'celebrationEnded':
-        this.confetti.forget();
+        // Hvězdičky doletěly do mapy; konfety padají dál přes okno (#154).
+        this.starRow.stopMapFlight();
         this.starRow.paint();
         break;
       case 'celebrationStopped':
@@ -193,13 +194,21 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'starsChanged':
         this.confetti.clear();
+        this.starRow.stopMapFlight();
         this.starRow.paint();
         break;
       case 'mapShown':
         this.showProgressMap();
         break;
       case 'mapHidden':
+        // Okno se zavřelo: zbylé konfety dopadnou samy (#154 AC1).
+        this.confetti.forget();
+        this.hideProgressMap();
+        break;
       case 'mapStopped':
+        // Nastavení přerušilo okno i let hvězdiček: nic se nedohraje (#154 AC6).
+        this.confetti.clear();
+        this.starRow.stopMapFlight();
         this.hideProgressMap();
         break;
       case 'settingsOpened':
@@ -221,6 +230,11 @@ export class GameScene extends Phaser.Scene {
       const look = this.mapPictures.mapShown(this.mapPictureOf(move.theme));
       this.progressMap.show(this.mapScreen(look), move, this.session.goalKeyReward());
       this.showPageBackdrop();
+      // Plná řada odletí ke značce na mapě (#154 AC3).
+      this.starRow.flyToMap(
+        () => this.progressMap.markerPosition(),
+        () => this.progressMap.elapsedMs(),
+      );
     }
   }
 

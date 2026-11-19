@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { CONFETTI_COLORS } from '../logic/theme';
 import { colorNumber } from '../../../shared/logic/theme';
+import { ABOVE_MAP_DEPTH } from './ProgressMapView';
 import type { GameSize } from '../../../shared/logic/viewportLayout';
 
 const CONFETTI_COUNT = 80;
@@ -41,7 +42,8 @@ export class Confetti {
           color,
         )
         .setAngle(Phaser.Math.Between(0, 360))
-        .setDepth(10);
+        // Konfety smí doběhnout přes okno s mapou (#154 AC1).
+        .setDepth(ABOVE_MAP_DEPTH);
       this.pieces.push(piece);
 
       this.scene.tweens.add({

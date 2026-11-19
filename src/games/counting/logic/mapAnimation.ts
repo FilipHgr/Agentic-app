@@ -1,6 +1,7 @@
 /**
  * Časová osa ukázání mapy postupu (#135): kde je značka, která místa
- * svítí a jak slaví cíl v čase od ukázání mapy. Značka jde po cestě
+ * svítí a jak slaví cíl v čase od ukázání mapy. Nejdřív odletí 10 hvězdiček
+ * z řady ke značce (#154 AC3), teprve potom jde značka po cestě
  * z minulého místa na nové, nové místo se rozsvítí, až na něm zastaví,
  * a v cíli se symbol zvětší, zazáří a přijdou konfety.
  * Vše plyne jen z času a kroku, ne z rozložení, takže po otočení zařízení
@@ -14,15 +15,40 @@ import type { KeyReward } from '../../../shared/logic/keyRewards';
 import { SOUNDS, soundLengthSeconds } from './answerSounds';
 import type { MapMove } from './progressMap';
 import type { MapPoint, ProgressMapLayout } from './progressMapLayout';
+import { STARS_PER_SET } from './stars';
 
-/** Krátké zdržení, aby dítě vidělo značku na minulém místě, než vyrazí. */
-export const MARKER_START_DELAY_MS = 300;
+/** Jak dlouho letí jedna hvězdička z řady ke značce (#154 AC3). */
+export const STAR_TO_MAP_FLIGHT_MS = 420;
+
+/** O kolik později vyletí každá další hvězdička řady (zleva doprava). */
+export const STAR_TO_MAP_STAGGER_MS = 15;
+
+/**
+ * Kdy doletí poslední hvězdička ke značce, ms od ukázání mapy
+ * (#154 AC3: nejvýš 0,6 s). Teprve potom značka vyrazí.
+ */
+export const STARS_LANDED_MS = STAR_TO_MAP_FLIGHT_MS + STAR_TO_MAP_STAGGER_MS * (STARS_PER_SET - 1);
+
+/** Jak vysoko nad přímkou je vrchol oblouku letu, díl délky dráhy. */
+const STAR_FLIGHT_ARC_SHARE = 0.08;
+
+/**
+ * Krátké zdržení po doletu hvězdiček, aby dítě vidělo značku na minulém
+ * místě, než vyrazí.
+ */
+export const MARKER_START_DELAY_MS = 150;
+
+/** Kdy značka vyrazí, ms od ukázání mapy: po doletu hvězdiček a krátkém zdržení. */
+export const MARKER_START_MS = STARS_LANDED_MS + MARKER_START_DELAY_MS;
 
 /** Jak dlouho značka jde z minulého místa na nové. */
 export const MARKER_WALK_MS = 900;
 
-/** Kdy značka stojí na novém místě, ms od ukázání mapy (AC1: nejpozději 1,5 s). */
-export const MARKER_ARRIVAL_MS = MARKER_START_DELAY_MS + MARKER_WALK_MS;
+/**
+ * Kdy značka stojí na novém místě, ms od ukázání mapy: nejvýš 1,5 s po
+ * doletu hvězdiček (#135 AC1 posunuté o let podle #154 AC3).
+ */
+export const MARKER_ARRIVAL_MS = MARKER_START_MS + MARKER_WALK_MS;
 
 /** Kolikrát se symbol cíle po dojití zvětší (upřesnění vzhledu z 2026-11-12). */
 export const MAP_GOAL_CELEBRATION_SCALE = 1.3;
@@ -60,17 +86,54 @@ function clampShare(value: number): number {
 }
 
 /**
+ * Jaký díl dráhy z řady ke značce má hvězdička `starIndex` (0 až 9 zleva)
+ * za sebou v čase `elapsedMs` od ukázání mapy (#154 AC3): 0 v řadě, 1 na
+ * značce, mezi tím neklesá. Hvězdičky vyletí krátce po sobě.
+ */
+export function starFlightShareAt(starIndex: number, elapsedMs: number): number {
+  const startMs = STAR_TO_MAP_STAGGER_MS * starIndex;
+  return easeInOut(clampShare((elapsedMs - startMs) / STAR_TO_MAP_FLIGHT_MS));
+}
+
+/**
+ * Kde hvězdička `starIndex` letí v čase `elapsedMs`: na oblouku z jejího
+ * místa v řadě `from` ke značce `to` (obojí v týchž jednotkách). Tvar
+ * oblouku plyne jen z obou konců, takže po otočení zařízení let pokračuje
+ * ze stejné části dráhy mezi novými polohami (#154 AC6).
+ */
+export function starFlightPointAt(
+  from: MapPoint,
+  to: MapPoint,
+  starIndex: number,
+  elapsedMs: number,
+): MapPoint {
+  const share = starFlightShareAt(starIndex, elapsedMs);
+  if (share >= 1) {
+    return to;
+  }
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  // Oblouk kolmo k přímce, vždy na stejnou stranu od směru letu.
+  const lift = 4 * share * (1 - share) * STAR_FLIGHT_ARC_SHARE;
+  return {
+    x: from.x + dx * share + dy * lift,
+    y: from.y + dy * share - dx * lift,
+  };
+}
+
+/**
  * Jaký díl cesty z minulého na nové místo má značka za sebou v čase
- * `elapsedMs` od ukázání mapy: 0 na začátku, 1 od dojití, mezi tím neklesá.
+ * `elapsedMs` od ukázání mapy: 0 na začátku a během letu hvězdiček,
+ * 1 od dojití, mezi tím neklesá.
  */
 export function markerShareAt(elapsedMs: number): number {
-  if (elapsedMs <= MARKER_START_DELAY_MS) {
+  if (elapsedMs <= MARKER_START_MS) {
     return 0;
   }
   if (elapsedMs >= MARKER_ARRIVAL_MS) {
     return 1;
   }
-  return easeInOut(clampShare((elapsedMs - MARKER_START_DELAY_MS) / MARKER_WALK_MS));
+  return easeInOut(clampShare((elapsedMs - MARKER_START_MS) / MARKER_WALK_MS));
 }
 
 /** Kde značka v čase `elapsedMs` stojí: na úseku cesty mezi minulým a novým místem. */
@@ -136,7 +199,10 @@ export const KEY_JOIN_DELAY_MS = 450;
 /** Jak dlouho se půlky celého klíče k sobě přibližují. */
 export const KEY_JOIN_MS = 600;
 
-/** Kdy jsou půlky celého klíče spojené, ms od ukázání mapy (před 5 s, #145 AC3). */
+/**
+ * Kdy jsou půlky celého klíče spojené, ms od ukázání mapy (do 5 s od doletu
+ * hvězdiček, nejvýš 5,6 s od ukázání, #145 AC3 posunuté podle #154 AC3).
+ */
 export const KEY_JOINED_MS = KEY_REWARD_APPEAR_MS + KEY_JOIN_DELAY_MS + KEY_JOIN_MS;
 
 /** Jak vypadá půlka klíče u cíle v jednom okamžiku. */
@@ -154,8 +220,8 @@ export interface KeyRewardMoment {
 /**
  * Půlka klíče u cíle v čase `elapsedMs` od ukázání mapy: objeví se po
  * melodii cíle a naskočí. U `'wholeKey'` se objeví obě půlky kousek od
- * sebe a pak se k sobě přiblíží a spojí. Všechno doběhne do 5 s od ukázání
- * (#145 AC3) a pak se nemění.
+ * sebe a pak se k sobě přiblíží a spojí. Všechno doběhne do 5,6 s od
+ * ukázání (#145 AC3 posunuté o let hvězdiček, #154 AC3) a pak se nemění.
  */
 export function keyRewardMomentAt(reward: KeyReward, elapsedMs: number): KeyRewardMoment {
   const sinceAppear = elapsedMs - KEY_REWARD_APPEAR_MS;
@@ -177,9 +243,10 @@ export function keyRewardMomentAt(reward: KeyReward, elapsedMs: number): KeyRewa
 
 /**
  * Od kolika ms od ukázání karty ji ťuknutí zavře (#145 AC4): až doběhne
- * animace. Na zastávce, když značka stojí a místo svítí; v cíli s půlkou
- * klíče po jejím naskočení, s celým klíčem po spojení půlek a v cíli, za
- * který se půlka nepřičte (`keyReward` `null`), po melodii cíle.
+ * animace, tedy vždy až po letu hvězdiček (#154 AC3). Na zastávce, když
+ * značka stojí a místo svítí; v cíli s půlkou klíče po jejím naskočení,
+ * s celým klíčem po spojení půlek a v cíli, za který se půlka nepřičte
+ * (`keyReward` `null`), po melodii cíle.
  */
 export function mapClosableFromMs(move: MapMove, keyReward: KeyReward | null): number {
   if (!move.reachedGoal) {

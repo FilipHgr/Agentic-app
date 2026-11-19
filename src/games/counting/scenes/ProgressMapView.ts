@@ -41,8 +41,14 @@ import { drawScenery, moveScenery } from './MapSceneryPieces';
 import type { DrawnSceneryPiece } from './MapSceneryPieces';
 import { goalSymbolTextureKey, mapPictureTextureKey } from './mapPictureTextures';
 
-/** Mapa leží nad příkladem, konfetami i hvězdičkami, pod panely rodičů. */
+/** Mapa leží nad příkladem i řadou hvězdiček, pod panely rodičů. */
 const MAP_DEPTH = 20;
+
+/**
+ * Nad kartou s mapou: konfety oslavy doběhnou přes okno a hvězdičky
+ * z řady do něj přiletí (#154 AC1, AC3). Pořád pod panely rodičů.
+ */
+export const ABOVE_MAP_DEPTH = MAP_DEPTH + 5;
 
 /**
  * Předčasné ťuknutí kartu krátce zhoupne do stran (#145 AC4): jak daleko
@@ -280,8 +286,24 @@ export class ProgressMapView {
     this.destroyDrawing();
   }
 
-  private elapsedMs(): number {
+  /** Kolik ms uběhlo od ukázání mapy (po otočení se nezmění, #135 AC4). */
+  elapsedMs(): number {
     return Math.max(0, this.scene.time.now - this.shownAt);
+  }
+
+  /**
+   * Kde je teď značka v herních jednotkách herní plochy (i se zhoupnutím
+   * karty); `null`, když mapa není vidět. Sem letí hvězdičky z řady (#154).
+   */
+  markerPosition(): MapPoint | null {
+    const drawing = this.drawing;
+    if (drawing === null) {
+      return null;
+    }
+    return {
+      x: drawing.container.x + drawing.marker.x,
+      y: drawing.container.y + drawing.marker.y,
+    };
   }
 
   /**

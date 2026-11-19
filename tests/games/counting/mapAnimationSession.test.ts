@@ -143,13 +143,17 @@ describe('#135 AC3: melodie cíle zazní, až když značka dojde do cíle', () 
     expect(test.session.round().solved, 'nový příklad bez ťuknutí').toBe(false);
   });
 
-  it('oslava za 10 hvězdiček doběhne dřív, než se ukáže mapa a cíl začne slavit', () => {
+  // #154 AC1 a AC3: mapa se ukáže ještě během oslavy (konfety a melodie
+  // oslavy smí doběhnout přes okno), proto se už nekontroluje, že oslava
+  // skončila. Zůstává, že oslava začne před mapou a cíl slaví až po ní;
+  // že se melodie cíle nepřekrývá s melodií oslavy, hlídá
+  // `celebrationTiming.test.ts`.
+  it('oslava za 10 hvězdiček začne dřív, než se ukáže mapa a cíl začne slavit', () => {
     const device = deviceWithMap({ step: MAP_STEPS - 1, completedMaps: 0 });
     const test = enterCounting(device);
     fillRow(test);
     const before = waitForMap(test, device);
 
-    expect(test.session.celebrating(), 'první oslava už skončila').toBe(false);
     expect(device.sounds.played.slice(0, before)).toContain(SOUNDS.celebration);
     expect(device.sounds.played.slice(0, before)).not.toContain(SOUNDS.mapGoal);
   });
