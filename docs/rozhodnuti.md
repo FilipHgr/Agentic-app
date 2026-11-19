@@ -124,7 +124,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
   s konfetami. Nahrazuje rozhodnutí z #33 a pravidlo o postavičkách v CLAUDE.md.
   (zákaz postaviček v obrázcích nahrazen)
 - 2026-11-05 Úvodní menu bude robustní a her bude hodně: výběr her, profily,
-  jazyk a zatím neurčené další volby (v menu jen jako zástupné prvky).
+  jazyk a zatím neurčené další volby (v menu jen jako zástupné prvky). (zástupné prvky nahrazeny)
 - 2026-11-05 Profil dítěte: přezdívka (nemusí být skutečné jméno) a barva
   nebo obrázek, uložené jen v zařízení. Každý profil má vlastní postup
   a nastavení her.
@@ -226,7 +226,7 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-08 Ikony nástrojů ve stylu D „skutečné nástroje šikmo“ (podle
   dětských kreslicích aplikací), vybraná barva na hrotu, fixy se liší
   hrotem (#106).
-- 2026-11-08 Tužka u profilu (#107) vpravo od kolečka. 6 profilů na iPadu
+- 2026-11-08 (tužka nahrazena) Tužka u profilu (#107) vpravo od kolečka. 6 profilů na iPadu
   a telefonu na šířku ve 2 řadách po 3, na menších telefonech se kolečka
   zmenší. Kroužek podržení u „Smazat“ je bílý (#108).
 - 2026-11-08 Hranice testů ikon pro styl D (#106): ikony se stejným tělem
@@ -339,3 +339,4 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-19 Omalovánky: místo nedávných barev v panelu rychlé přepínání: naposledy vybraný nástroj s jeho barvou a guma, aby šlo snadno přepínat (nový úkol).
 - 2026-11-19 #143: vlastník přijal pokles AC4 celkem o 5 číslic (3 307 místo 3 312 na UCI) výměnou za otevřenou devítku (94 % místo 60 %, ukázka vlastníka jako 9).
 - 2026-11-19 Srozumitelná tlačítka Omalovánek (fotoaparát, album, malovat dál, koš, koště): vlastní ikony z ElevenLabs (varianta B, asi 540–690 kreditů).
+- 2026-11-19 Úkoly z review UX/UI schváleny („ok založ je a pokračuj“): #154–#162. Zástupná kolečka „…“ v menu se schovají, místo v liště zůstane (#157). Úprava profilu jednou tužkou v liště místo tužky u každého kolečka (#160). Klíč se spotřebuje až druhým ťuknutím (#159).
