@@ -101,7 +101,7 @@ describe('#134: cesta a nenavštívená místa jsou dobře vidět na obrázku i 
     }
   });
 
-  it('cesta má vůči obrázku pod sebou kontrast aspoň 3 : 1 po celé délce', () => {
+  it('barva čáry cesty (pathColor, pod stopami jemně, #144) má vůči obrázku pod sebou kontrast aspoň 3 : 1 po celé délce', () => {
     for (const testCase of pictureMapCases()) {
       const { pathColor } = progressMapStyleFor(testCase.theme, 'picture');
       for (const point of pathPoints(testCase.layout)) {
@@ -114,7 +114,7 @@ describe('#134: cesta a nenavštívená místa jsou dobře vidět na obrázku i 
     }
   });
 
-  it('bez obrázku má cesta i okraj místa vůči zástupné barvě mapy kontrast aspoň 3 : 1', () => {
+  it('bez obrázku má barva čáry cesty (pathColor) i okraj místa vůči zástupné barvě mapy kontrast aspoň 3 : 1', () => {
     for (const testCase of pictureMapCases()) {
       const background = PROGRESS_MAP_BACKGROUNDS[testCase.theme];
       const style = progressMapStyleFor(testCase.theme, 'placeholder');

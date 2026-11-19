@@ -56,6 +56,8 @@ import type { ArcCase } from './mapPathHelpers';
  * Testy k #146 AC1, AC3, AC4 a AC5: cesta na mapě postupu vede mezi
  * sousedními místy plynulými oblouky, které se střídavě prohýbají na
  * opačné strany, a značka, zlatá stopa a jiskřičky jdou po oblouku.
+ * Zlatou stopu od #144 AC4 nahradily stopy na cestě (`mapFootprints*.test.ts`),
+ * dva testy k ní jsou proto nahrazené (viz komentáře u nich).
  * Mapa je od #145 v kartě, proto se všechno měří v kartě ve všech oknech
  * mapy z #133 AC7 (`MAP_WINDOWS`) a na 5 mapách. Každé pravidlo má jeden
  * test, který projde všechny případy v cyklu; popis případu je ve zprávě
@@ -90,6 +92,9 @@ const LATEST_ARRIVAL_AFTER_START_MS = 1500;
 
 /** Čára cesty a zlatá stopa jsou od oblouku nejvýš 1 CSS px (AC5). */
 const MAX_LINE_OFF_ARC_CSS = 1;
+
+/** Jak daleko za značkou nejvýš leží jiskřičky, v průměrech značky (délka zlaté stopy z #135). */
+const SPARKLE_REACH_TO_MARKER = 3.2;
 
 /** Body, ve kterých se měří kontrast cesty (AC5). */
 const CONTRAST_SHARES = [0.25, 0.5, 0.75];
@@ -166,10 +171,10 @@ function walkTimes(move: MapMove): number[] {
   return sampleTimes(mapShowMs(move));
 }
 
-/** Po kolika ms se kontroluje zlatá stopa (má hodně bodů, proto řidčeji než značka). */
+/** Po kolika ms se kontrolují jiskřičky za značkou (dřív zlatá stopa, řidčeji než značka). */
 const TRAIL_SAMPLE_MS = 30;
 
-/** Okamžiky během chůze značky, kdy je vidět zlatá stopa. */
+/** Okamžiky během chůze značky, kdy jsou vidět jiskřičky (dřív i zlatá stopa). */
 function trailTimes(): number[] {
   const times: number[] = [];
   for (let ms = MARKER_START_MS + 1; ms < MARKER_START_MS + MARKER_WALK_MS; ms += TRAIL_SAMPLE_MS) {
@@ -517,8 +522,11 @@ function toneUnder(arc: ArcCase, point: MapPoint): string {
   return tones[row * TONE_GRID + column] ?? '#000000';
 }
 
-describe('#146 AC5: čára cesty, zlatá stopa a jiskřičky se kreslí po oblouku', () => {
-  it('čára cesty vede celým obloukem a její body jsou od oblouku nejvýš 1 CSS px', () => {
+describe('#146 AC5: čára cesty a jiskřičky jsou po oblouku, zlatá stopa už ne (#144)', () => {
+  // Od #144 tvoří cestu stopy; čára po `pathLinePoints` se kreslí jen
+  // jemně pod nimi (krytí 20 %) a dál určuje, čemu se vyhýbá klíč a prostředí.
+  // Kontrast jejích bodů hlídají testy barvy `pathColor` níž.
+  it('jemná čára cesty pod stopami vede celým obloukem a její body jsou od oblouku nejvýš 1 CSS px', () => {
     for (const { label, area, layout } of arcCases()) {
       const limit = MAX_LINE_OFF_ARC_CSS / area.scale;
       const dense = denseArcOf(layout);
@@ -546,40 +554,13 @@ describe('#146 AC5: čára cesty, zlatá stopa a jiskřičky se kreslí po oblou
     }
   });
 
-  it('zlatá stopa jde po oblouku za značkou: body nejvýš 1 CSS px od oblouku, konec u značky', () => {
-    for (const { label, move, arc } of arcMoveCases()) {
-      const { layout, area } = arc;
-      const limit = MAX_LINE_OFF_ARC_CSS / area.scale;
-      const dense = denseArcOf(layout);
-      const from = dense.placeAlong[move.from] ?? 0;
-      let walking = 0;
-      for (const ms of trailTimes()) {
-        const trail = markerTrailAt(layout, move, ms);
-        if (trail === null || trail.points.length === 0) {
-          continue;
-        }
-        walking += 1;
-        const where = `${label}, ${ms} ms`;
-        const marker = markerPointAt(layout, move, ms);
-        const head = trail.points[trail.points.length - 1] ?? { x: Infinity, y: 0 };
-        expect(distance(head, marker), `${where}: stopa končí u značky`).toBeLessThanOrEqual(limit);
-        const markerAlong = projectOntoArc(dense, marker).along;
-        for (const point of polylineCheckPoints(trail.points)) {
-          const projection = projectOntoArc(dense, point);
-          expect(projection.distance, `${where}: bod stopy mimo oblouk`).toBeLessThanOrEqual(limit);
-          expect(projection.along, `${where}: stopa před minulým místem`).toBeGreaterThanOrEqual(
-            from - limit,
-          );
-          expect(projection.along, `${where}: stopa před značkou`).toBeLessThanOrEqual(
-            markerAlong + limit,
-          );
-        }
-      }
-      expect(walking, `${label}: během chůze je stopa vidět`).toBeGreaterThan(0);
-    }
-  });
+  // #144 AC4 (upřesnění v issue): zlatou stopu za značkou nahradilo
+  // rozsvěcování stop na cestě. Test „zlatá stopa jde po oblouku“ z #146
+  // nahrazuje test „za jdoucí značkou už není zlatá čára, jiskřičky
+  // zůstávají“ v `mapFootprints.test.ts` (je jen tam, aby nebyl dvakrát);
+  // jak se stopy na oblouku rozsvěcují, hlídá tamtéž AC4.
 
-  it('zlatá stopa ani jiskřičky nejsou vidět, když značka stojí', () => {
+  it('jiskřičky nejsou vidět, když značka stojí (zlatá stopa už není, #144)', () => {
     for (const { label, move, arc } of arcMoveCases()) {
       for (const ms of [0, MARKER_START_MS, MARKER_START_MS + MARKER_WALK_MS, mapShowMs(move)]) {
         expect(markerTrailAt(arc.layout, move, ms), `${label}, ${ms} ms`).toBeNull();
@@ -587,20 +568,27 @@ describe('#146 AC5: čára cesty, zlatá stopa a jiskřičky se kreslí po oblou
     }
   });
 
-  it('jiskřičky stopy leží podél oblouku u zlaté stopy, nejvýš půl značky od oblouku', () => {
+  // #144 AC4 (upřesnění v issue): zlatá stopa, od které se jiskřičky měřily,
+  // zmizela. Jiskřičky se teď měří od oblouku a od značky: leží na kusu
+  // oblouku za značkou, dlouhém nejvýš 3,2 průměru značky, který začíná až
+  // za okrajem minulého místa (jako dřív zlatá stopa).
+  it('jiskřičky leží podél oblouku za jdoucí značkou, nejvýš půl značky od oblouku', () => {
     for (const { label, move, arc } of arcMoveCases()) {
       const { layout, area } = arc;
       const limit = MAX_LINE_OFF_ARC_CSS / area.scale;
       const dense = denseArcOf(layout);
+      const from = dense.placeAlong[move.from] ?? 0;
       let seen = 0;
       for (const ms of trailTimes()) {
         const trail = markerTrailAt(layout, move, ms);
-        if (trail === null || trail.points.length === 0) {
+        if (trail === null) {
           continue;
         }
-        const alongs = trail.points.map((point) => projectOntoArc(dense, point).along);
-        const tail = Math.min(...alongs);
-        const head = Math.max(...alongs);
+        const markerAlong = projectOntoArc(dense, markerPointAt(layout, move, ms)).along;
+        const tail = Math.max(
+          from + layout.placeSize / 2,
+          markerAlong - SPARKLE_REACH_TO_MARKER * layout.markerSize,
+        );
         for (const sparkle of trail.sparkles) {
           seen += 1;
           const projection = projectOntoArc(dense, sparkle);
@@ -608,19 +596,20 @@ describe('#146 AC5: čára cesty, zlatá stopa a jiskřičky se kreslí po oblou
           expect(projection.distance, `${where}: jiskřička daleko od oblouku`).toBeLessThanOrEqual(
             layout.markerSize / 2,
           );
-          expect(projection.along, `${where}: jiskřička před stopou`).toBeGreaterThanOrEqual(
-            tail - limit,
-          );
-          expect(projection.along, `${where}: jiskřička za značkou`).toBeLessThanOrEqual(
-            head + limit,
+          expect(
+            projection.along,
+            `${where}: jiskřička dál za značkou než konec kusu oblouku`,
+          ).toBeGreaterThanOrEqual(tail - limit);
+          expect(projection.along, `${where}: jiskřička před značkou`).toBeLessThanOrEqual(
+            markerAlong + limit,
           );
         }
       }
-      expect(seen, `${label}: jiskřičky na stopě`).toBeGreaterThan(0);
+      expect(seen, `${label}: jiskřičky za značkou`).toBeGreaterThan(0);
     }
   });
 
-  it('cesta má v kartě ve 25, 50 a 75 % délky oblouku vůči obrázku pod sebou kontrast aspoň 3 : 1', () => {
+  it('barva čáry cesty (pathColor, pod stopami jemně) má v kartě ve 25, 50 a 75 % oblouku vůči obrázku kontrast aspoň 3 : 1', () => {
     for (const arc of arcCases()) {
       const { pathColor } = progressMapStyleFor(arc.theme, 'picture');
       for (let segment = 0; segment < SEGMENT_COUNT; segment += 1) {
@@ -636,7 +625,7 @@ describe('#146 AC5: čára cesty, zlatá stopa a jiskřičky se kreslí po oblou
     }
   });
 
-  it('bez obrázku má cesta ve 25, 50 a 75 % délky oblouku vůči zástupné barvě kontrast aspoň 3 : 1', () => {
+  it('bez obrázku má barva čáry cesty (pathColor) ve 25, 50 a 75 % oblouku vůči zástupné barvě kontrast aspoň 3 : 1', () => {
     for (const arc of arcCases()) {
       const { pathColor } = progressMapStyleFor(arc.theme, 'placeholder');
       const background = PROGRESS_MAP_BACKGROUNDS[arc.theme];

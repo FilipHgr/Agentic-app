@@ -4,8 +4,8 @@
  * stranu podle znaménka (kladné vlevo od směru úseku v souřadnicích
  * obrazovky). Kružnice mění směr rovnoměrně, takže je plynulá a díl délky
  * oblouku odpovídá dílu úhlu. Body se měří po délce oblouku, ne po
- * parametru křivky. Podle těchto bodů jde značka, kreslí se čára cesty,
- * zlatá stopa a jiskřičky (#146 AC3, AC5) a vyhýbá se jim klíč
+ * parametru křivky. Podle těchto bodů jde značka, leží stopy (#144)
+ * a jiskřičky (#146 AC3, AC5) a vyhýbá se jim klíč
  * a prostředí (#146 AC2). Čistý TypeScript bez Phaseru.
  */
 
@@ -141,8 +141,9 @@ export function pathPointAt(shape: MapPathShape, segment: number, share: number)
 }
 
 /**
- * Lomená čára, kterou se kreslí čára cesty úseku (od místa `segment` po
- * místo `segment + 1`); dost hustá, aby byla od oblouku nejvýš 1 CSS px.
+ * Lomená čára oblouku úseku od místa `segment` po místo `segment + 1`,
+ * dost hustá, aby byla od oblouku nejvýš 1 CSS px. Od #144 se nekreslí
+ * (cestu tvoří stopy), drží se jí klíč a prostředí.
  */
 export function pathLinePoints(shape: MapPathShape, segment: number): readonly MapPoint[] {
   return pathSamples(shape, segment, LINE_PIECES_PER_SEGMENT);

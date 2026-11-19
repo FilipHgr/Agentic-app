@@ -18,10 +18,10 @@ import {
   markerPointAt,
   markerTrailAt,
 } from '../logic/mapAnimation';
+import { layoutMapFootprints, mapFootprintStyleFor } from '../logic/mapFootprints';
 import { layoutMapScenery } from '../logic/mapScenery';
 import {
   MAP_ARRIVAL_PULSE_SCALE,
-  MAP_PATH_WIDTH_SHARE,
   layoutProgressMap,
   markerAt,
   pathLinePoints,
@@ -38,6 +38,8 @@ import {
 } from '../logic/theme';
 import type { ProgressMapStyle } from '../logic/theme';
 import { GoalKeyBadge } from './GoalKeyBadge';
+import { drawFootprints } from './MapFootprintPieces';
+import type { DrawnFootprints } from './MapFootprintPieces';
 import { drawScenery, moveScenery } from './MapSceneryPieces';
 import type { DrawnSceneryPiece } from './MapSceneryPieces';
 import { goalSymbolTextureKey, mapPictureTextureKey } from './mapPictureTextures';
@@ -65,17 +67,14 @@ const ARRIVAL_HOP_MS = 280;
 const ARRIVAL_HOP_SHARE = 0.12;
 
 /**
- * Zlatá zářící stopa za značkou (kudy vede, určuje `markerTrailAt`): z kolika
- * vrstev (ke značce sílí), jak široká (díl průměru značky) a jak krytá.
+ * Jemná čára cesty pod stopami (#144, UX kontrola): stopy cestu tvoří,
+ * čára jen spojí jejich řady přes místa, aby se cesta četla jako jedna.
+ * Šířka jako díl průměru značky a krytí.
  */
-const TRAIL_LAYERS = 8;
-const TRAIL_GLOW_WIDTH_SHARE = 0.5;
-const TRAIL_CORE_WIDTH_SHARE = 0.12;
-/** Krytí jedné vrstvy stopy; u značky se všechny vrstvy sečtou téměř do plna. */
-const TRAIL_GLOW_LAYER_ALPHA = 0.4;
-const TRAIL_CORE_LAYER_ALPHA = 0.5;
+const FAINT_PATH_WIDTH_SHARE = 0.06;
+const FAINT_PATH_ALPHA = 0.2;
 
-/** Jiskřičky po stopě (kde jsou, určuje `markerTrailAt`): jak velké a jak rychle mihotají. */
+/** Jiskřičky za značkou (kde jsou, určuje `markerTrailAt`): jak velké a jak rychle mihotají. */
 const TRAIL_SPARKLE_SIZE = 0.15;
 const TRAIL_SPARKLE_TWINKLE_MS = 70;
 const TRAIL_SPARKLE_ALPHA = 0.95;
@@ -143,8 +142,6 @@ const CONFETTI_COLOR_NUMBERS = CONFETTI_COLORS.map(colorNumber);
 
 /** Barvy efektů převedené na čísla jednou, ne v každém snímku. */
 const EFFECT_COLORS = {
-  trailGlow: colorNumber(PROGRESS_MAP_EFFECTS.trailGlowColor),
-  trailCore: colorNumber(PROGRESS_MAP_EFFECTS.trailCoreColor),
   sparkles: PROGRESS_MAP_EFFECTS.sparkleColors.map(colorNumber),
   sparkleOutline: colorNumber(PROGRESS_MAP_EFFECTS.sparkleOutlineColor),
   halo: colorNumber(PROGRESS_MAP_EFFECTS.haloColor),
@@ -191,7 +188,10 @@ interface MapDrawing {
   readonly move: MapMove;
   readonly marker: Phaser.GameObjects.Container;
   readonly target: Phaser.GameObjects.Arc | undefined;
+  /** Jiskřičky za jdoucí značkou. */
   readonly trail: Phaser.GameObjects.Graphics;
+  /** Stopy na cestě (#144), rozsvěcují se za značkou. */
+  readonly footprints: DrawnFootprints;
   readonly goal: Phaser.GameObjects.Container;
   readonly goalGlow: Phaser.GameObjects.Graphics;
   readonly goalSparkles: readonly Phaser.GameObjects.Star[];
@@ -203,7 +203,7 @@ interface MapDrawing {
   arrived: boolean;
   /** Konfety v cíli už vyletěly. */
   confettiThrown: boolean;
-  /** Značka stojí a doskákala: stopa a poloha se už nepočítají. */
+  /** Značka stojí a doskákala: jiskřičky, stopy a poloha se už nepočítají. */
   settled: boolean;
   /** Cíl je plně zvětšený: velikost se už nepočítá. */
   goalGrown: boolean;
@@ -220,13 +220,14 @@ interface MapDrawing {
  * Mapa postupu (#87, #133, #134, #135) v kartě nad ztmavenou hrou (#145,
  * varianta V2): karta má bílý okraj, stín a zaoblené rohy, které obsah
  * mapy (i konfety cíle) oříznou. Obrázek prostředí přes celou kartu,
- * nad ním cesta, start, 2 zastávky, cíl se symbolem tématu a značka hráče.
+ * nad ním cesta ze stop podle tématu (#144) na jemné čáře, start, 2 zastávky, cíl se
+ * symbolem tématu a značka hráče.
  * Bez staženého obrázku zástupný vzhled v barvě mapy (#134 AC4).
  * Nad pozadím (obrázkem i zástupným) a pod cestou se jemně hýbe prostředí
  * podle tématu (#136, `logic/mapScenery.ts`).
- * Značka jde po cestě se zlatou stopou, nové místo se rozsvítí až při
- * zastavení (svatozář, jiskřičky, poskočení) a v cíli se symbol zvětší
- * a zazáří a přijdou konfety. Po melodii cíle se vedle cíle objeví půlka
+ * Značka jde po cestě, stopy se za ní rozsvěcují a poskočí, nové místo
+ * se rozsvítí až při zastavení (svatozář, jiskřičky, poskočení) a v cíli
+ * se symbol zvětší a zazáří a přijdou konfety. Po melodii cíle se vedle cíle objeví půlka
  * klíče, případně se spojí s druhou v celý klíč (#139). Kde co je, řídí časová osa
  * `logic/mapAnimation.ts` podle času od ukázání, takže po otočení se mapa
  * překreslí ve stejném okamžiku. Ťuknutí kamkoli na plátno (na kartu
@@ -338,6 +339,7 @@ export class ProgressMapView {
       drawing.wobble?.remove();
       this.scene.tweens.killTweensOf(drawing.container.list);
       drawing.goalKey?.stopAnimations();
+      drawing.footprints.destroy();
       drawing.container.clearMask();
       drawing.container.destroy(true);
       const { dim, frame, maskShape, mask, tapZone } = drawing.card;
@@ -421,7 +423,15 @@ export class ProgressMapView {
     const style = progressMapStyleFor(move.theme, look);
     const background = this.drawBackground(screen, move);
     const scenery = drawScenery(this.scene, layoutMapScenery(area, move.theme, layout));
-    const path = this.drawPath(layout, style);
+    const path = this.drawFaintPath(layout, style);
+    const footprints = drawFootprints(
+      this.scene,
+      layout,
+      move,
+      layoutMapFootprints(area, move.theme, layout),
+      mapFootprintStyleFor(move.theme, look),
+      this.scene.cameras.main.zoom,
+    );
     const trail = this.scene.add.graphics();
     const places = layout.places.map((_, step) =>
       this.drawPlace(layout, style, step, isPlaceLitAt(move, step, elapsed)),
@@ -440,6 +450,7 @@ export class ProgressMapView {
         ...background,
         ...scenery.map(({ graphics }) => graphics),
         path,
+        ...footprints.objects,
         ...places,
         trail,
         goal,
@@ -457,6 +468,7 @@ export class ProgressMapView {
       marker,
       target: places[move.to],
       trail,
+      footprints,
       goal,
       goalGlow,
       goalSparkles,
@@ -477,8 +489,8 @@ export class ProgressMapView {
   }
 
   /**
-   * Každý snímek: kousky prostředí, značka, stopa, rozsvícení nového místa
-   * a slavící cíl podle času.
+   * Každý snímek: kousky prostředí, značka, jiskřičky, stopy, rozsvícení
+   * nového místa a slavící cíl podle času.
    */
   private tick(): void {
     const drawing = this.drawing;
@@ -492,7 +504,8 @@ export class ProgressMapView {
       const point = markerPointAt(layout, move, elapsed);
       marker.setPosition(point.x, point.y - arrivalHop(elapsed) * layout.markerSize);
       this.drawTrail(drawing, elapsed);
-      // Značka stojí a doskákala: poloha ani stopa se už nemění.
+      drawing.footprints.update(elapsed);
+      // Značka stojí a doskákala: poloha, jiskřičky ani stopy se už nemění.
       drawing.settled = elapsed >= MARKER_ARRIVAL_MS + ARRIVAL_HOP_MS;
     }
     if (!drawing.arrived && isPlaceLitAt(move, move.to, elapsed)) {
@@ -530,24 +543,19 @@ export class ProgressMapView {
     return [backdrop, picture];
   }
 
-  private drawPath(
+  /** Jemná čára po oblouku cesty (#146) pod stopami, v barvě cesty mapy (`pathColor`). */
+  private drawFaintPath(
     layout: ProgressMapLayout,
     style: ProgressMapStyle,
   ): Phaser.GameObjects.Graphics {
     const graphics = this.scene.add.graphics();
-    graphics.lineStyle(layout.markerSize * MAP_PATH_WIDTH_SHARE, colorNumber(style.pathColor));
-    // Cesta vede oblouky (#146): každý úsek je hustá lomená čára po oblouku.
-    graphics.beginPath();
+    graphics.fillStyle(colorNumber(style.pathColor), FAINT_PATH_ALPHA);
+    // Každý úsek je jeden vyplněný pás: tahy lomené čáry by se v kloubech
+    // překrývaly a poloprůhledná čára by měla tmavší tečky.
     for (let segment = 0; segment + 1 < layout.places.length; segment += 1) {
-      const [first, ...rest] = pathLinePoints(layout, segment);
-      if (first && segment === 0) {
-        graphics.moveTo(first.x, first.y);
-      }
-      for (const point of rest) {
-        graphics.lineTo(point.x, point.y);
-      }
+      const halfWidth = (layout.markerSize * FAINT_PATH_WIDTH_SHARE) / 2;
+      graphics.fillPoints(bandPolygon(pathLinePoints(layout, segment), halfWidth), true);
     }
-    graphics.strokePath();
     return graphics;
   }
 
@@ -648,38 +656,16 @@ export class ProgressMapView {
   }
 
   /**
-   * Krátká zlatá zářící stopa za jdoucí značkou po oblouku cesty (#146 AC5):
-   * dílky blíž ke značce jasnější, po stopě pár mihotajících se jiskřiček.
+   * Mihotající se jiskřičky za jdoucí značkou po oblouku cesty (#146 AC5).
+   * Zlatou čáru z #135 nahradily rozsvěcující se stopy (#144 AC4).
    * Po zastavení zmizí.
    */
   private drawTrail(drawing: MapDrawing, elapsed: number): void {
     const { trail, layout, move } = drawing;
     trail.clear();
     const shape = markerTrailAt(layout, move, elapsed);
-    if (shape === null || shape.points.length < 2) {
+    if (shape === null) {
       return;
-    }
-    const { points } = shape;
-    // Vrstvy jdou od stále bližšího začátku až ke značce: u značky se
-    // sečtou do plného jasu, ke konci stopy plynule slábnou. Každá vrstva
-    // je jeden vyplněný pás po oblouku: tahy lomené čáry by se v kloubech
-    // dílků překrývaly a poloprůhledná stopa by měla proužky.
-    for (let layer = 0; layer < TRAIL_LAYERS; layer += 1) {
-      const start = Math.min(
-        Math.floor(((points.length - 1) * layer) / TRAIL_LAYERS),
-        points.length - 2,
-      );
-      const layerPoints = points.slice(start);
-      trail.fillStyle(EFFECT_COLORS.trailGlow, TRAIL_GLOW_LAYER_ALPHA);
-      trail.fillPoints(
-        bandPolygon(layerPoints, (layout.markerSize * TRAIL_GLOW_WIDTH_SHARE) / 2),
-        true,
-      );
-      trail.fillStyle(EFFECT_COLORS.trailCore, TRAIL_CORE_LAYER_ALPHA);
-      trail.fillPoints(
-        bandPolygon(layerPoints, (layout.markerSize * TRAIL_CORE_WIDTH_SHARE) / 2),
-        true,
-      );
     }
     shape.sparkles.forEach((sparkle, index) => {
       const twinkle =

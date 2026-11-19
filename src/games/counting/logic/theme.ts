@@ -232,19 +232,33 @@ export const PROGRESS_MAP_STYLE = {
 } as const;
 
 /**
- * Efekty animace mapy (#135, schválené obrázky): zlatá zářící stopa za
- * značkou s jiskřičkami, modrá svatozář při zastavení a zlatá záře
- * s prstencem kolem slavícího cíle. Jiskřičky jsou bílé a zlaté.
+ * Efekty animace mapy (#135, schválené obrázky): jiskřičky za značkou
+ * (zlatou stopu nahradily stopy na cestě, #144), modrá svatozář při
+ * zastavení a zlatá záře s prstencem kolem slavícího cíle. Jiskřičky jsou bílé a zlaté.
  */
 export const PROGRESS_MAP_EFFECTS = {
-  trailGlowColor: '#FFD633',
-  trailCoreColor: '#FFF3A6',
   sparkleColors: [WHITE, STAR_STYLE.earnedColor],
   sparkleOutlineColor: STAR_STYLE.earnedOutlineColor,
   haloColor: BLUE,
   /** Světlejší zlatá, aby záře nezšedla ani na tmavém vesmíru. */
   goalGlowColor: '#FFE45C',
   goalRingColor: '#F5B800',
+} as const;
+
+/**
+ * Stopy na cestě mapy (#144, styl A): prošlé zlaté s tmavě hnědým obrysem,
+ * neprošlé bílé a poloprůhledné s tmavým obrysem, aby byly vidět i na
+ * trávě a písku. Hvězdičky ve vesmíru leží v tmavém kroužku (obrys), aby
+ * nesplývaly s hvězdami obrázku.
+ */
+export const MAP_FOOTPRINT_COLORS = {
+  litFill: '#FFD633',
+  litOutline: '#3D2600',
+  unlitFill: WHITE,
+  unlitOutline: TEXT,
+  unlitAlpha: 0.6,
+  /** Na tmavém vesmíru je bílá výraznější, stačí menší krytí (prošlé pak víc vyniknou). */
+  unlitAlphaOnDark: 0.45,
 } as const;
 
 /**

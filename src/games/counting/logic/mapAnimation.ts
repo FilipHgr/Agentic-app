@@ -159,28 +159,32 @@ export function markerPointAt(
   return pathPoseBetween(layout, move.from, move.to, share).point;
 }
 
-/** Délka zlaté stopy za značkou jako násobek průměru značky. */
+/**
+ * Jak daleko za značkou ještě leží jiskřičky, násobek průměru značky
+ * (dřív délka zlaté stopy z #135).
+ */
 const TRAIL_LENGTH_TO_MARKER = 3.2;
 
-/** Kolik jiskřiček je na stopě a jak daleko od její osy (díl průměru značky). */
+/** Kolik jiskřiček je za značkou a jak daleko od oblouku (díl průměru značky). */
 const TRAIL_SPARKLES = 4;
 const TRAIL_SPARKLE_SIDE = 0.34;
 
-/** Kolik dílků lomené čáry má stopa na celou délku úseku (od oblouku zlomek CSS px). */
-const TRAIL_PIECES_PER_STEP = 48;
-
-/** Zlatá stopa za jdoucí značkou (#135, po oblouku #146 AC5). */
+/**
+ * Jiskřičky za jdoucí značkou (#135, po oblouku #146 AC5). Zlatou čáru
+ * stopy z #135 nahradilo rozsvěcování stop na cestě (#144 AC4), proto je
+ * `points` prázdné; jiskřičky zůstávají.
+ */
 export interface MarkerTrail {
-  /** Lomená čára stopy od jejího konce ke značce, po oblouku cesty. */
+  /** Lomená čára zlaté stopy; od #144 vždy prázdná. */
   readonly points: readonly MapPoint[];
-  /** Středy jiskřiček podél stopy, střídavě po obou stranách oblouku. */
+  /** Středy jiskřiček za značkou, střídavě po obou stranách oblouku. */
   readonly sparkles: readonly MapPoint[];
 }
 
 /**
- * Zlatá stopa v čase `elapsedMs` od ukázání mapy: krátký kus oblouku za
- * značkou, který začíná až za okrajem minulého místa, a jiskřičky podél
- * něj. `null`, když značka stojí (před vyražením a po dojití).
+ * Jiskřičky v čase `elapsedMs` od ukázání mapy: na kusu oblouku za
+ * značkou, který začíná až za okrajem minulého místa. `null`, když
+ * značka stojí (před vyražením a po dojití).
  */
 export function markerTrailAt(
   layout: ProgressMapLayout,
@@ -193,17 +197,12 @@ export function markerTrailAt(
   }
   const walk = walkBetween(layout, move.from, move.to);
   const stepLength = walk.length || 1;
-  // Stopa začíná až za okrajem minulého místa, aby ho nepřekryla.
+  // Jiskřičky začínají až za okrajem minulého místa, aby ho nepřekryly.
   const tailMin = layout.placeSize / 2 / stepLength;
   const tail = Math.max(tailMin, share - (layout.markerSize * TRAIL_LENGTH_TO_MARKER) / stepLength);
   if (share <= tail) {
     return null;
   }
-  const pieces = Math.max(1, Math.ceil((share - tail) * TRAIL_PIECES_PER_STEP));
-  const points = Array.from(
-    { length: pieces + 1 },
-    (_, index) => walk.poseAt(tail + ((share - tail) * index) / pieces).point,
-  );
   const sideLength = layout.markerSize * TRAIL_SPARKLE_SIDE;
   const sparkles = Array.from({ length: TRAIL_SPARKLES }, (_, index) =>
     trailSparkle(
@@ -214,7 +213,7 @@ export function markerTrailAt(
       sideLength / stepLength,
     ),
   );
-  return { points, sparkles };
+  return { points: [], sparkles };
 }
 
 /** Po jak malých dílech délky úseku se jiskřička u kloubu posouvá ke značce. */
