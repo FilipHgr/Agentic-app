@@ -28,8 +28,10 @@
 
 import { expect } from 'vitest';
 
-import { readAlbum } from '../../../src/games/coloring/logic/album';
+import { albumRecordOf, readAlbum } from '../../../src/games/coloring/logic/album';
 import type { AlbumContents, AlbumPicture } from '../../../src/games/coloring/logic/album';
+import { NO_COLOR } from '../../../src/games/coloring/logic/coloring';
+import { OUTLINE_REGION } from '../../../src/games/coloring/logic/regionMap';
 import type { RegionMap } from '../../../src/games/coloring/logic/regionMap';
 import { openColoring } from '../../../src/games/coloring/logic/savedPicture';
 import type {
@@ -37,6 +39,7 @@ import type {
   PictureIdentity,
   SavedColoring,
 } from '../../../src/games/coloring/logic/savedPicture';
+import { ALL_COLOR_COUNT } from '../../../src/games/coloring/logic/toolColorSets';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 import {
   createMemoryRecordsShelf,
@@ -317,4 +320,75 @@ export async function settle(): Promise<void> {
   for (let round = 0; round < 10; round += 1) {
     await Promise.resolve();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Velké album (#149)
+// ---------------------------------------------------------------------------
+
+/** Kolik zobrazitelných obrázků se do alba vejde (#149 AC2, dřív 12 z #126 AC3). */
+export const FULL_ALBUM_PICTURES = 60;
+
+/** Kolik záznamů alba včetně nečitelných se vejde (#149 AC2, dřív 24 z #141 AC5). */
+export const FULL_ALBUM_RECORDS = 120;
+
+/** Obrázků na jedné stránce alba (#149 AC1). */
+export const ALBUM_PAGE_SIZE = 12;
+
+/**
+ * Vrstva barev `number`. obrázku z `fillAlbumQuickly`: obě poloviny
+ * zkušebního obrysu celé vybarvené, levá barvou `number % 46`, pravá
+ * barvou `number / 46` (zaokrouhleno dolů). Takové obrázky se liší od
+ * sebe i od všech obrázků, které testy malují tahem (`paintLeft` a tečky
+ * vybarví jen kus poloviny), takže je fotoaparát ani přesun do alba nikdy
+ * nepovažují za stejné.
+ */
+export function quickAlbumLayer(regions: RegionMap, number: number): Uint8Array {
+  const left = number % ALL_COLOR_COUNT;
+  const right = Math.floor(number / ALL_COLOR_COUNT);
+  const layer = new Uint8Array(regions.width * regions.height).fill(NO_COLOR);
+  const leftRegion = regions.regionIds[0];
+  regions.regionIds.forEach((region, index) => {
+    if (region === OUTLINE_REGION) {
+      return;
+    }
+    layer[index] = region === leftRegion ? left : right;
+  });
+  return layer;
+}
+
+/**
+ * Do alba se rychle uloží `count` různých obrázků omalovánky `picture`
+ * (#149): záznamy vzniknou veřejnou funkcí alba `albumRecordOf` jako při
+ * focení, jen bez otevírání malování pro každý obrázek (60 obrázků přes
+ * fotoaparát by čtení alba opakovalo 60krát). Číslování začíná `from`,
+ * aby se obrázky dalších volání nelišily jen omalovánkou. Vrátí označení
+ * záznamů v pořadí uložení (poslední je nejnovější).
+ */
+export async function fillAlbumQuickly(
+  records: GameRecords,
+  count: number,
+  options: {
+    readonly picture?: PictureIdentity;
+    readonly regions?: RegionMap;
+    readonly from?: number;
+  } = {},
+): Promise<string[]> {
+  const picture = options.picture ?? HOUSE;
+  const regions = options.regions ?? twoHalves();
+  const from = options.from ?? 0;
+  const ids: string[] = [];
+  for (let number = from; number < from + count; number += 1) {
+    const data = albumRecordOf(picture, regions, quickAlbumLayer(regions, number));
+    expect(data, `záznam obrázku ${number + 1}`).not.toBeNull();
+    if (data === null) {
+      throw new Error('obrázek alba nejde zapsat');
+    }
+    const result = await records.add(data);
+    expect(result.status, `uložení obrázku ${number + 1} do alba`).toBe('saved');
+    if (result.status === 'saved') {
+      ids.push(result.id);
+    }
+  }
+  return ids;
 }

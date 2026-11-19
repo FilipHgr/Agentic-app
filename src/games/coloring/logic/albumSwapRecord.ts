@@ -108,7 +108,7 @@ export function clearPendingSwap(storage: KeyValueStorage): boolean {
 
 /**
  * Kolik obrázků odložená výměna do alba ještě přidá (#131 AC2): odložená
- * P, která do alba přibude, se počítá do limitu 12 obrázků, aby pro ni
+ * P, která do alba přibude, se počítá do limitu obrázků alba, aby pro ni
  * zůstalo místo. Počítá se vědomě i před `albumRemoved` (výměna ještě
  * běží, nebo se záznam „A je pryč“ nepodařilo zapsat): fotoaparát tak
  * nikdy nezabere místo, které P potřebuje. Nejhůř se zhoupne o jeden

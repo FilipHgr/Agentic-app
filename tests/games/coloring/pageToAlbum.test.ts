@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { pageKeyOf } from '../../../src/games/coloring/logic/savedPicture';
 import { HOME_WOBBLE_TONES } from '../../../src/shared/logic/homeButton';
-import { addUnreadable, fillAlbum, paintLeft } from './albumHelpers';
+import {
+  FULL_ALBUM_PICTURES,
+  FULL_ALBUM_RECORDS,
+  addUnreadable,
+  fillAlbum,
+  fillAlbumQuickly,
+  paintLeft,
+} from './albumHelpers';
 import { pixelsOf } from './savedPictureHelpers';
 import { choose } from './drawingToolHelpers';
 import {
@@ -230,13 +237,21 @@ describe('#141 AC2: kdy do alba nic nepřibude', () => {
 
   it('stránka stejná jako obrázek té omalovánky v albu: obrázek zůstane v albu jednou a stránka je čistá, i v plném albu', async () => {
     const cases = [
-      { what: 'album se 3 obrázky', photos: 3, unreadable: 0 },
-      { what: 'plné album s 12 obrázky', photos: 12, unreadable: 0 },
-      { what: 'album s 24 záznamy', photos: 6, unreadable: 18 },
+      { what: 'album se 3 obrázky', photos: 3, quick: 0, unreadable: 0 },
+      // #149 AC2: plné album je 60 obrázků nebo 120 záznamů (dřív 12 a 24).
+      { what: 'plné album s 60 obrázky', photos: 3, quick: FULL_ALBUM_PICTURES - 3, unreadable: 0 },
+      {
+        what: 'album se 120 záznamy',
+        photos: 6,
+        quick: 0,
+        unreadable: FULL_ALBUM_RECORDS - 6,
+      },
     ];
 
-    for (const { what, photos, unreadable } of cases) {
-      const device = await deviceWithAlbum(photos);
+    for (const { what, photos, quick, unreadable } of cases) {
+      const device = new SwapDevice();
+      await fillAlbumQuickly(device.records(EMA), quick);
+      await fillAlbum(device.records(EMA), photos);
       await addUnreadable(device.records(EMA), unreadable);
       const page = await openGame(device);
       const before = recordsOf(device);

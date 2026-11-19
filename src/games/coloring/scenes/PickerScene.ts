@@ -13,7 +13,7 @@ import {
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
-import { readAlbum } from '../logic/album';
+import { albumPageEntries, ALBUM_PAGE_SIZE, readAlbum } from '../logic/album';
 import type { AlbumContents, AlbumEntry, AlbumPicture } from '../logic/album';
 import { settleAlbumSwap } from '../logic/albumSwap';
 import { COLORING_GAME_AREA_FIT } from '../logic/coloringLayout';
@@ -21,6 +21,8 @@ import { startColoringSession } from '../logic/coloringSession';
 import type { ColoringPage } from '../logic/coloringSession';
 import { TRASH_HOLD_MS, homeHoldDecision, startPictureChoice } from '../logic/pictureChoice';
 import type {
+  AlbumDirection,
+  AlbumPointerResult,
   ContinueResult,
   PictureChoice,
   TrashFeedback,
@@ -28,6 +30,7 @@ import type {
 } from '../logic/pictureChoice';
 import type { PageMove } from '../logic/pageToAlbum';
 import {
+  albumArrowAt,
   albumPreviewAt,
   bigPictureContinueAt,
   bigPictureTrashAt,
@@ -44,8 +47,9 @@ import type { PictureLocks } from '../logic/pictureLocks';
 import { loadPicturePreview, previewOfColors } from '../logic/picturePreview';
 import { COLORING_PICTURES } from '../logic/pictureSet';
 import type { PaintingOrigin, PictureIdentity } from '../logic/savedPicture';
-import { BIG_PICTURE_STYLE } from '../logic/theme';
+import { ALBUM_ARROW_STYLE, BIG_PICTURE_STYLE } from '../logic/theme';
 import { BOOK_ICON_FILE, CONTINUE_ICON_FILE, TRASH_ICON_FILE } from '../logic/toolIcons';
+import { AlbumArrowView } from './AlbumArrowView';
 import { ColoringScene, isGameArea } from './ColoringScene';
 import { IconButtonView } from './IconButtonView';
 import { KeyIndicatorView } from './KeyIndicatorView';
@@ -134,6 +138,14 @@ interface PictureAssets {
  * odemčení zdarma při otevření Omalovánek a po návratu z malování
  * domečkem. Náhled přesunuté omalovánky se překreslí na čistý obrys a jeho
  * kopie s barvami odletí do knihy, která poskočí (bez zvuku).
+ *
+ * Od #149 ukazuje album stránky po 12 obrázcích. Při víc stránkách jsou
+ * vidět šipky ◀ ▶ (`layoutAlbum`); dotyky v albu scéna předá výběru
+ * (`albumPointerDown`, `albumPointerUp`, `tapAlbumArrow`), který pozná
+ * tah a ťuknutí. Velký obrázek se proto otevře až po zvednutí prstu.
+ * Při listování stará stránka odjede do strany, nová přijede z druhé
+ * strany a scéna pak zavolá `albumPageShown`. Na kraji se zhoupne šipka
+ * nebo náhledy s tónem domečku.
  */
 export class PickerScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -158,7 +170,14 @@ export class PickerScene extends Phaser.Scene {
   /** Číslo čtení alba, aby starší čtení nepřepsalo novější. */
   private albumReadCount = 0;
   private albumLayout: AlbumLayout = layoutAlbum(this.gameArea);
+  /** Dlaždice stránky alba, která je vidět (#149), podle místa na stránce. */
   private albumTiles: PreviewTileView[] = [];
+  /** Dlaždice předchozí stránky, které při listování odjíždějí (#149). */
+  private leavingAlbumTiles: PreviewTileView[] = [];
+  /** Číslo zobrazení stránky alba, aby pozdní konec listování neohlásil starou stránku. */
+  private albumShowCount = 0;
+  private readonly previousArrowView = new AlbumArrowView(this, 'previous');
+  private readonly nextArrowView = new AlbumArrowView(this, 'next');
   private bigLayout: BigPictureLayout = layoutBigPicture(this.gameArea);
   /** Velký obrázek z alba (#129); `null` mimo velký obrázek. */
   private bigTile: PreviewTileView | null = null;
@@ -446,7 +465,7 @@ export class PickerScene extends Phaser.Scene {
     switch (tap.kind) {
       case 'open':
         this.sounds.play(tap.tones);
-        this.bookView.wobble(() => this.showAlbum(tap.entries));
+        this.bookView.wobble(() => this.showAlbum());
         return;
       case 'wobble':
         this.sounds.play(tap.tones);
@@ -457,15 +476,31 @@ export class PickerScene extends Phaser.Scene {
     }
   }
 
-  /** Schová výběr a ukáže album: hned dlaždice s obrysem, barvy postupně. */
-  private showAlbum(entries: readonly AlbumEntry[]): void {
-    if (!this.running || this.choice.screen().kind !== 'album') {
-      return;
+  /**
+   * Schová výběr a ukáže stránku alba, která je vidět: hned dlaždice
+   * s obrysem, barvy postupně. Při víc stránkách i šipky ◀ ▶ (#149).
+   * Vrátí dlaždice stránky.
+   */
+  private showAlbum(): PreviewTileView[] {
+    const screen = this.choice.screen();
+    if (!this.running || screen.kind !== 'album') {
+      return [];
     }
     this.hidePicker();
-    this.albumLayout = layoutAlbum(this.gameArea);
-    this.albumTiles = entries.map((_, index) => new PreviewTileView(this, `coloringAlbum${index}`));
+    this.hideAlbum();
+    this.albumShowCount += 1;
+    this.albumLayout = layoutAlbum(this.gameArea, { pictureCount: screen.entries.length });
+    if (this.albumLayout.arrows) {
+      this.previousArrowView.place(this.albumLayout.previousArrow, this.gameArea.scale);
+      this.nextArrowView.place(this.albumLayout.nextArrow, this.gameArea.scale);
+    }
+    const entries = albumPageEntries(screen.entries, screen.page);
+    const first = screen.page * ALBUM_PAGE_SIZE;
+    this.albumTiles = entries.map(
+      (_, place) => new PreviewTileView(this, `coloringAlbum${first + place}`),
+    );
     void this.drawAlbumTiles(entries);
+    return this.albumTiles;
   }
 
   /** Dlaždice alba na místa a jejich obrázky: nejdřív všechny obrysy, pak po snímku barvy. */
@@ -514,18 +549,110 @@ export class PickerScene extends Phaser.Scene {
     return this.running && this.albumTiles.includes(tile);
   }
 
-  /** Ťuknutí na obrázek v albu: tón a zhoupnutí, pak se otevře velký obrázek (#129 AC1). */
-  private onAlbumPreviewTapped(index: number): void {
-    const tile = this.albumTiles[index];
-    if (tile === undefined) {
+  /**
+   * Prst se v albu zvedl (#149): tah nalistuje nebo na kraji zhoupne
+   * náhledy, ťuknutí na náhled ho zhoupne s tónem a otevře velký obrázek
+   * (#129 AC1).
+   */
+  private onAlbumPointerUp(pointer: Phaser.Input.Pointer): void {
+    const result: AlbumPointerResult = this.choice.albumPointerUp(
+      pointer.id,
+      this.cssPointOf(pointer),
+    );
+    switch (result.kind) {
+      case 'open': {
+        this.sounds.play(result.tones);
+        const tile = this.albumTiles[result.index];
+        if (tile === undefined) {
+          this.openBigPicture(result.entry, result.index);
+          return;
+        }
+        tile.wobble(() => this.openBigPicture(result.entry, result.index));
+        return;
+      }
+      case 'turned':
+        this.sounds.play(result.tones);
+        this.turnAlbumPage(result.direction);
+        return;
+      case 'edge':
+        this.sounds.play(result.tones);
+        for (const tile of this.albumTiles) {
+          tile.wobble(() => undefined);
+        }
+        return;
+      case 'ignored':
+        return;
+    }
+  }
+
+  /** Ťuknutí na šipku v albu (#149): nalistuje, nebo se šipka na kraji zhoupne. */
+  private onAlbumArrowTapped(direction: AlbumDirection): void {
+    const turn = this.choice.tapAlbumArrow(direction);
+    switch (turn.kind) {
+      case 'turned':
+        this.sounds.play(turn.tones);
+        this.turnAlbumPage(turn.direction);
+        return;
+      case 'edge':
+        this.sounds.play(turn.tones);
+        (direction === 'next' ? this.nextArrowView : this.previousArrowView).wobble();
+        return;
+      case 'ignored':
+        // Během listování se šipka aspoň zhoupne (bez šipek nic).
+        (direction === 'next' ? this.nextArrowView : this.previousArrowView).wobble();
+        return;
+    }
+  }
+
+  /**
+   * Listování (#149): dlaždice staré stránky odjedou proti směru listování
+   * a zmizí, nové přijedou z druhé strany. Pak se výběr dozví, že je nová
+   * stránka vidět.
+   */
+  private turnAlbumPage(direction: AlbumDirection): void {
+    const style = ALBUM_ARROW_STYLE;
+    const shift = this.gameArea.width * style.turnShiftShare * (direction === 'next' ? -1 : 1);
+    const leaving = this.albumTiles;
+    // Dlaždice staré stránky nezahodí `showAlbum`, odjedou a zmizí až po listování.
+    this.albumTiles = [];
+    const tiles = this.showAlbum();
+    this.leavingAlbumTiles = leaving;
+    for (const tile of leaving) {
+      tile.slideOut(shift, style.turnMs, () => undefined);
+    }
+    const shownNumber = this.albumShowCount;
+    const pageShown = (): void => {
+      if (shownNumber !== this.albumShowCount) {
+        return;
+      }
+      this.destroyLeavingAlbumTiles();
+      this.choice.albumPageShown();
+    };
+    if (tiles.length === 0) {
+      pageShown();
       return;
     }
-    const tap = this.choice.tapAlbumPreview(index);
-    if (tap.kind === 'ignored') {
-      return;
+    let left = tiles.length;
+    for (const tile of tiles) {
+      tile.slideIn(-shift, style.turnMs, () => {
+        left -= 1;
+        if (left === 0) {
+          pageShown();
+        }
+      });
     }
-    this.sounds.play(tap.tones);
-    tile.wobble(() => this.openBigPicture(tap.entry, index));
+  }
+
+  private destroyLeavingAlbumTiles(): void {
+    for (const tile of this.leavingAlbumTiles) {
+      tile.destroy();
+    }
+    this.leavingAlbumTiles = [];
+  }
+
+  /** Bod dotyku v CSS px herní plochy (#149: tah se měří v CSS px). */
+  private cssPointOf(pointer: Phaser.Input.Pointer): { readonly x: number; readonly y: number } {
+    return { x: pointer.worldX * this.gameArea.scale, y: pointer.worldY * this.gameArea.scale };
   }
 
   // -------------------------------------------------------------------------
@@ -674,7 +801,7 @@ export class PickerScene extends Phaser.Scene {
     this.hideBigPicture();
     const screen = this.choice.screen();
     if (screen.kind === 'album') {
-      this.showAlbum(screen.entries);
+      this.showAlbum();
     } else {
       this.hideAlbum();
       this.hidePicker();
@@ -683,10 +810,13 @@ export class PickerScene extends Phaser.Scene {
     if (tile === null) {
       return;
     }
+    // Místo obrázku na stránce alba, která je vidět (#149); jinde se zmenší do ztracena.
     const index =
       entry === null || screen.kind !== 'album'
         ? -1
-        : screen.entries.findIndex((each) => each.recordId === entry.recordId);
+        : albumPageEntries(screen.entries, screen.page).findIndex(
+            (each) => each.recordId === entry.recordId,
+          );
     this.leavingTile?.destroy();
     this.leavingTile = tile;
     tile.shrinkTo(this.albumLayout.previews[index] ?? null, ms, () => {
@@ -781,8 +911,12 @@ export class PickerScene extends Phaser.Scene {
     }
   }
 
-  /** Prst, který koš stiskl, se zvedl. */
+  /** Prst, který koš stiskl, se zvedl; v albu se pozná ťuknutí nebo tah (#149). */
   private onPointerUp(pointer: Phaser.Input.Pointer): void {
+    if (this.choice.screen().kind === 'album') {
+      this.onAlbumPointerUp(pointer);
+      return;
+    }
     if (pointer.id === this.trashPointer) {
       this.trashPointer = null;
       this.choice.trashButton.release(pointer.id);
@@ -813,12 +947,15 @@ export class PickerScene extends Phaser.Scene {
     );
   }
 
-  /** Zahodí dlaždice alba. */
+  /** Zahodí dlaždice alba (i odjíždějící po listování) a šipky. */
   private hideAlbum(): void {
     for (const tile of this.albumTiles) {
       tile.destroy();
     }
     this.albumTiles = [];
+    this.destroyLeavingAlbumTiles();
+    this.previousArrowView.destroy();
+    this.nextArrowView.destroy();
   }
 
   /** Zahodí dlaždice výběru a knihu (při otevření alba). */
@@ -903,10 +1040,17 @@ export class PickerScene extends Phaser.Scene {
       return;
     }
     if (screen === 'album') {
-      const place = albumPreviewAt(this.albumLayout, x, y);
-      if (place !== null) {
-        this.onAlbumPreviewTapped(place);
+      const arrow = albumArrowAt(this.albumLayout, x, y);
+      if (arrow !== null) {
+        this.onAlbumArrowTapped(arrow);
+        return;
       }
+      // Ťuknutí nebo tah pozná výběr až po zvednutí prstu (#149).
+      this.choice.albumPointerDown(
+        pointer.id,
+        this.cssPointOf(pointer),
+        albumPreviewAt(this.albumLayout, x, y),
+      );
       return;
     }
     if (screen === 'picker' && bookAt(this.layout, x, y)) {
@@ -1161,14 +1305,13 @@ export class PickerScene extends Phaser.Scene {
     this.placeTiles();
   }
 
-  /** Album po změně okna: dlaždice na nová místa a obrázky znovu. */
+  /** Album po změně okna: dlaždice na nová místa a obrázky znovu (listování se dokončí hned). */
   private redrawAlbum(): void {
-    const screen = this.choice.screen();
-    if (screen.kind !== 'album') {
+    if (this.choice.screen().kind !== 'album') {
       return;
     }
-    this.hideAlbum();
-    this.showAlbum(screen.entries);
+    this.showAlbum();
+    this.choice.albumPageShown();
   }
 
   /** Odchod z hry: malování uloží obrázek a zvuky ztichnou. */

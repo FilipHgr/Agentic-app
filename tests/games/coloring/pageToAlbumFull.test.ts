@@ -6,7 +6,13 @@ import { openColoring } from '../../../src/games/coloring/logic/savedPicture';
 import { HOLD_TO_GO_HOME_MS } from '../../../src/shared/logic/homeButton';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 import type { GameRecords } from '../../../src/shared/storage/profileRecords';
-import { addUnreadable, fillAlbum, paintLeft } from './albumHelpers';
+import {
+  FULL_ALBUM_PICTURES,
+  FULL_ALBUM_RECORDS,
+  addUnreadable,
+  fillAlbumQuickly,
+  paintLeft,
+} from './albumHelpers';
 import {
   prepareSwap,
   showPainting,
@@ -39,7 +45,8 @@ import type { LoadOptions } from './pageToAlbumHelpers';
 import { pixelsOf, twoHalves } from './savedPictureHelpers';
 
 /**
- * Testy k #141 AC5: plné album (12 obrázků nebo 24 záznamů, odložená
+ * Testy k #141 AC5: plné album (od #149 AC2 60 obrázků nebo 120 záznamů,
+ * dřív 12 a 24; album se plní rychle `fillAlbumQuickly`; odložená
  * stránka z #131 se počítá), nedostupné úložiště, zápis, který selže,
  * a dočasný profil bez alba. Rozmalovaná stránka, která do alba ještě
  * nepřibyla, zůstane beze změny a přesun se zkusí znovu při dalším odchodu
@@ -62,12 +69,18 @@ afterEach(() => {
 });
 
 const KEPT_CASES: readonly KeptCase[] = [
-  { what: 'plné album s 12 obrázky', prepare: (device) => fillAlbum(device.records(EMA), 12) },
+  // #149 AC2: plné album je 60 obrázků nebo 120 záznamů (dřív 12 a 24).
   {
-    what: 'album s 24 záznamy',
+    what: 'plné album s 60 obrázky',
     prepare: async (device) => {
-      await fillAlbum(device.records(EMA), 4);
-      await addUnreadable(device.records(EMA), 20);
+      await fillAlbumQuickly(device.records(EMA), FULL_ALBUM_PICTURES);
+    },
+  },
+  {
+    what: 'album se 120 záznamy',
+    prepare: async (device) => {
+      await fillAlbumQuickly(device.records(EMA), 4);
+      await addUnreadable(device.records(EMA), FULL_ALBUM_RECORDS - 4);
     },
   },
   {
@@ -140,7 +153,12 @@ describe('#141 AC5: když se obrázek do alba nevejde nebo nejde uložit', () =>
   });
 
   it('odložená stránka z výměny #131 se do plného alba počítá: obrázek z malování zůstane na stránce', async () => {
-    const prepared = await prepareSwap({ albumCount: 12, aIndex: 3 });
+    // #149 AC2: plné album je 60 obrázků (dřív 12).
+    const prepared = await prepareSwap({
+      albumCount: 0,
+      quickPictures: FULL_ALBUM_PICTURES,
+      aIndex: 3,
+    });
     // Uložení P i vrácení A selže: dítě maluje A a P počká odložená (#131 AC4).
     prepared.device.addFailure = 'full';
     expect((await tapContinue(prepared.page)).kind, 'malování se otevřelo').toBe('opened');
@@ -157,10 +175,12 @@ describe('#141 AC5: když se obrázek do alba nevejde nebo nejde uložit', () =>
     expect(pageOf(prepared.device), 'album s odloženou P je plné: obrázek je na stránce').toEqual(
       painted,
     );
-    expect((await albumPixels(prepared.device)).length, 'v albu je 11 obrázků').toBe(11);
+    expect((await albumPixels(prepared.device)).length, 'v albu je 59 obrázků').toBe(
+      FULL_ALBUM_PICTURES - 1,
+    );
     await openGame(prepared.device);
     const album = await albumPixels(prepared.device);
-    expect(album.length, 'P se do alba vešla').toBe(12);
+    expect(album.length, 'P se do alba vešla').toBe(FULL_ALBUM_PICTURES);
     expect(timesIn(album, prepared.p), 'P je v albu jednou').toBe(1);
     expect(pageOf(prepared.device), 'obrázek z malování zůstal na stránce').toEqual(painted);
   });
@@ -169,7 +189,8 @@ describe('#141 AC5: když se obrázek do alba nevejde nebo nejde uložit', () =>
 describe('#141 AC5: přesun se zkusí znovu', () => {
   it('po smazání obrázku z alba se stránka přesune při dalším otevření Omalovánek', async () => {
     const device = new SwapDevice();
-    await fillAlbum(device.records(EMA), 12);
+    // #149 AC2: plné album je 60 obrázků (dřív 12).
+    await fillAlbumQuickly(device.records(EMA), FULL_ALBUM_PICTURES);
     const page = await openGame(device);
     const painted = await paintAndLeave(page, HOUSE, PAGE_COLOR);
     expect(pageOf(device), 'plné album: obrázek zůstal na stránce').toEqual(painted);
@@ -180,14 +201,15 @@ describe('#141 AC5: přesun se zkusí znovu', () => {
     await openGame(device);
 
     const after = await albumPixels(device);
-    expect(after.length, 'album je zase plné').toBe(12);
+    expect(after.length, 'album je zase plné').toBe(FULL_ALBUM_PICTURES);
     expect(after[0], 'obrázek ze stránky je nejnovější').toEqual(painted);
     expect(isClean(pageOf(device)), 'stránka je čistá').toBe(true);
   });
 
   it('po smazání obrázku z alba se stránka přesune při dalším odchodu z malování', async () => {
     const device = new SwapDevice();
-    await fillAlbum(device.records(EMA), 12);
+    // #149 AC2: plné album je 60 obrázků (dřív 12).
+    await fillAlbumQuickly(device.records(EMA), FULL_ALBUM_PICTURES);
     const page = await openGame(device);
     await paintAndLeave(page, HOUSE, PAGE_COLOR);
     const album = await readAlbum(page.records, page.pictures);

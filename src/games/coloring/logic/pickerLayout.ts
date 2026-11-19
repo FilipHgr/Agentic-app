@@ -26,6 +26,7 @@
 import { homeButtonInFreeArea } from '../../../shared/logic/homeButton';
 import { isPhoneMode } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
+import { albumPageCount } from './album';
 import { PICTURE_ASPECT, layoutColoring, pictureWithoutBroom } from './coloringLayout';
 import type { LayoutRect } from './coloringLayout';
 
@@ -202,27 +203,63 @@ function keyIndicatorBeside(book: LayoutRect, area: GameArea, landscape: boolean
   return { left: book.left - gap - width, top: book.top, width, height: book.height };
 }
 
-/** Míst pro obrázky v albu (#126, posouvání alba je mimo rozsah). */
+/** Míst pro obrázky na stránce alba (#126, od #149 se po 12 listuje). */
 export const ALBUM_PLACES = 12;
 
 /** Zaoblení náhledu alba nejvýš tento díl jeho výšky, aby roh malý obrázek moc neořízl. */
 const ALBUM_RADIUS_SHARE = 0.16;
 
+/** Strana šipky ◀ ▶ v CSS px (#149 AC6: aspoň 64 px). */
+const ARROW_SIDE_CSS = 64;
+
+/** Odstup šipky od náhledů, knihy a domečku v CSS px (#149 AC6). */
+const ARROW_GAP_CSS = 16;
+
+/** Nejmenší odstup šipky od okraje plochy v CSS px. */
+const ARROW_EDGE_CSS = 4;
+
+/** Mezera mezi šipkami, když jsou obě vedle sebe na jedné straně, v CSS px. */
+const ARROWS_BETWEEN_CSS = 8;
+
 export interface AlbumLayout {
-  /** 12 míst obrázků v herních jednotkách od nejnovějšího, po řadách zleva doprava. */
+  /** 12 míst obrázků stránky v herních jednotkách od nejnovějšího, po řadách zleva doprava. */
   readonly previews: readonly LayoutRect[];
   /** Zaoblení rohů náhledu v herních jednotkách. */
   readonly cornerRadius: number;
+  /** Jsou šipky vidět (album má víc stránek, #149)? Bez nich je album jako před #149. */
+  readonly arrows: boolean;
+  /** Šipka ◀ na předchozí stránku (herní jednotky, #149). */
+  readonly previousArrow: LayoutRect;
+  /** Šipka ▶ na další stránku (herní jednotky, #149). */
+  readonly nextArrow: LayoutRect;
+}
+
+/** Mřížka alba v CSS px herní plochy. */
+interface AlbumGrid {
+  readonly left: number;
+  readonly top: number;
+  readonly columns: number;
+  readonly rows: number;
+  /** Šířka a výška jednoho náhledu. */
+  readonly width: number;
+  readonly height: number;
+  readonly gap: number;
+}
+
+/** Obdélník v CSS px herní plochy. */
+interface CssRect {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 /**
- * Rozložení alba pro herní plochu `area`: 12 náhledů 4 : 3 ve volném místě
- * jako na výběru, s tolika sloupci, aby byly náhledy co největší.
+ * Mřížka alba jako před #149: 12 náhledů 4 : 3 ve volném místě jako na
+ * výběru, s tolika sloupci, aby byly náhledy co největší, uprostřed.
  */
-export function layoutAlbum(area: GameArea): AlbumLayout {
-  const phone = isPhoneMode(area.mode);
-  const landscape = area.width >= area.height;
-  const gap = phone ? PHONE_GAP_CSS : TABLET_GAP_CSS;
+function albumGridFor(area: GameArea, landscape: boolean): AlbumGrid {
+  const gap = isPhoneMode(area.mode) ? PHONE_GAP_CSS : TABLET_GAP_CSS;
   const free = freeBoxFor(area, landscape);
   let columns = 0;
   let width = 0;
@@ -235,20 +272,150 @@ export function layoutAlbum(area: GameArea): AlbumLayout {
   }
   const rows = ALBUM_PLACES / columns;
   const height = width / PICTURE_ASPECT;
-  const gridLeft = free.left + (free.width - (columns * width + (columns - 1) * gap)) / 2;
-  const gridTop = free.top + (free.height - (rows * height + (rows - 1) * gap)) / 2;
-  const unitsPerCss = 1 / area.scale;
-  const previews = Array.from({ length: ALBUM_PLACES }, (_, place) => ({
-    left: (gridLeft + (place % columns) * (width + gap)) * unitsPerCss,
-    top: (gridTop + Math.floor(place / columns) * (height + gap)) * unitsPerCss,
-    width: width * unitsPerCss,
-    height: height * unitsPerCss,
-  }));
-  const radius = Math.min(
-    phone ? PHONE_RADIUS_CSS : TABLET_RADIUS_CSS,
-    height * ALBUM_RADIUS_SHARE,
+  const left = free.left + (free.width - (columns * width + (columns - 1) * gap)) / 2;
+  const top = free.top + (free.height - (rows * height + (rows - 1) * gap)) / 2;
+  return { left, top, columns, rows, width, height, gap };
+}
+
+function gridWidthOf(grid: AlbumGrid): number {
+  return grid.columns * grid.width + (grid.columns - 1) * grid.gap;
+}
+
+function gridHeightOf(grid: AlbumGrid): number {
+  return grid.rows * grid.height + (grid.rows - 1) * grid.gap;
+}
+
+/** Mřížka alba a šipky ◀ ▶ v CSS px herní plochy. */
+interface AlbumPlacement {
+  readonly grid: AlbumGrid;
+  readonly previous: CssRect;
+  readonly next: CssRect;
+}
+
+function arrowAt(left: number, top: number): CssRect {
+  return { left, top, width: ARROW_SIDE_CSS, height: ARROW_SIDE_CSS };
+}
+
+/**
+ * Šipky na šířku (#149): ◀ vlevo a ▶ vpravo od mřížky ve výšce jejího
+ * středu, pod domečkem a místem knihy. Kde je vedle mřížky na každé
+ * straně málo místa (telefony 932 px široké), jsou obě šipky vedle sebe
+ * vlevo a mřížka se posune doprava. Náhledy zůstanou stejně velké.
+ */
+function landscapeArrows(area: GameArea, grid: AlbumGrid): AlbumPlacement {
+  const width = area.width * area.scale;
+  const home = homeButtonInFreeArea(area);
+  const homeCenter = (home.left + home.size / 2) * area.scale;
+  const gridWidth = gridWidthOf(grid);
+  const top = grid.top + gridHeightOf(grid) / 2 - ARROW_SIDE_CSS / 2;
+  const leftMost = grid.left - ARROW_GAP_CSS - ARROW_SIDE_CSS;
+  const rightLeast = grid.left + gridWidth + ARROW_GAP_CSS;
+  if (leftMost >= ARROW_EDGE_CSS && rightLeast + ARROW_SIDE_CSS <= width - ARROW_EDGE_CSS) {
+    // Šipka co nejblíž pod středem domečku (vpravo zrcadlově), ale 16 px od mřížky.
+    const aligned = homeCenter - ARROW_SIDE_CSS / 2;
+    const previousLeft = Math.min(Math.max(aligned, ARROW_EDGE_CSS), leftMost);
+    const nextLeft = Math.max(width - aligned - ARROW_SIDE_CSS, rightLeast);
+    return {
+      grid,
+      previous: arrowAt(previousLeft, top),
+      next: arrowAt(Math.min(nextLeft, width - ARROW_EDGE_CSS - ARROW_SIDE_CSS), top),
+    };
+  }
+  const previous = arrowAt(ARROW_EDGE_CSS, top);
+  const next = arrowAt(previous.left + ARROW_SIDE_CSS + ARROWS_BETWEEN_CSS, top);
+  const shifted = { ...grid, left: next.left + ARROW_SIDE_CSS + ARROW_GAP_CSS };
+  return { grid: shifted, previous, next };
+}
+
+/**
+ * Šipky na výšku (#149, upřesnění 2): pod mřížkou, ◀ vlevo a ▶ vpravo.
+ * Když se pod mřížku nevejdou, mřížka se posune nahoru, a když ani tak
+ * (mřížka přes celou výšku), jsou šipky nahoře v řadě domečku mezi
+ * domečkem a místem knihy a mřížka se posune dolů. Náhledy zůstanou
+ * stejně velké.
+ */
+function portraitArrows(area: GameArea, grid: AlbumGrid): AlbumPlacement {
+  const height = area.height * area.scale;
+  const home = homeButtonInFreeArea(area);
+  const homeTop = home.top * area.scale;
+  const homeBottom = (home.top + home.size) * area.scale;
+  const gridWidth = gridWidthOf(grid);
+  const gridHeight = gridHeightOf(grid);
+  const lowestGridTop = height - ARROW_EDGE_CSS - ARROW_SIDE_CSS - ARROW_GAP_CSS - gridHeight;
+  const highestGridTop = homeBottom + EDGE_CSS;
+  if (Math.min(grid.top, lowestGridTop) >= highestGridTop) {
+    const placed = { ...grid, top: Math.min(grid.top, lowestGridTop) };
+    const top = placed.top + gridHeight + ARROW_GAP_CSS;
+    return {
+      grid: placed,
+      previous: arrowAt(grid.left, top),
+      next: arrowAt(grid.left + gridWidth - ARROW_SIDE_CSS, top),
+    };
+  }
+  const book = bookButtonFor(area);
+  const top = Math.max(
+    ARROW_EDGE_CSS,
+    Math.min(homeTop, height - ARROW_EDGE_CSS - gridHeight - ARROW_GAP_CSS - ARROW_SIDE_CSS),
   );
-  return { previews, cornerRadius: radius * unitsPerCss };
+  return {
+    grid: { ...grid, top: top + ARROW_SIDE_CSS + ARROW_GAP_CSS },
+    previous: arrowAt((home.left + home.size) * area.scale + ARROW_GAP_CSS, top),
+    next: arrowAt(book.left * area.scale - ARROW_GAP_CSS - ARROW_SIDE_CSS, top),
+  };
+}
+
+function toUnits(rect: CssRect, area: GameArea): LayoutRect {
+  const unitsPerCss = 1 / area.scale;
+  return {
+    left: rect.left * unitsPerCss,
+    top: rect.top * unitsPerCss,
+    width: rect.width * unitsPerCss,
+    height: rect.height * unitsPerCss,
+  };
+}
+
+export interface AlbumLayoutOptions {
+  /**
+   * Kolik obrázků album má (#149). Šipky má jen album s víc stránkami;
+   * bez šipek je mřížka na stejném místě jako před #149, se šipkami se
+   * v těsných oknech posune. Bez počtu se počítá se šipkami.
+   */
+  readonly pictureCount?: number;
+}
+
+/**
+ * Rozložení alba pro herní plochu `area`: 12 náhledů 4 : 3 ve volném místě
+ * jako na výběru, s tolika sloupci, aby byly náhledy co největší, a šipky
+ * ◀ ▶ na listování (#149).
+ */
+export function layoutAlbum(area: GameArea, options: AlbumLayoutOptions = {}): AlbumLayout {
+  const arrows = options.pictureCount === undefined || albumPageCount(options.pictureCount) > 1;
+  const landscape = area.width >= area.height;
+  const today = albumGridFor(area, landscape);
+  const placement = landscape ? landscapeArrows(area, today) : portraitArrows(area, today);
+  const grid = arrows ? placement.grid : today;
+  const previews = Array.from({ length: ALBUM_PLACES }, (_, place) =>
+    toUnits(
+      {
+        left: grid.left + (place % grid.columns) * (grid.width + grid.gap),
+        top: grid.top + Math.floor(place / grid.columns) * (grid.height + grid.gap),
+        width: grid.width,
+        height: grid.height,
+      },
+      area,
+    ),
+  );
+  const radius = Math.min(
+    isPhoneMode(area.mode) ? PHONE_RADIUS_CSS : TABLET_RADIUS_CSS,
+    grid.height * ALBUM_RADIUS_SHARE,
+  );
+  return {
+    previews,
+    cornerRadius: radius / area.scale,
+    arrows,
+    previousArrow: toUnits(placement.previous, area),
+    nextArrow: toUnits(placement.next, area),
+  };
 }
 
 /** Trefil dotyk `x`, `y` knihu na výběru (herní jednotky)? */
@@ -259,6 +426,21 @@ export function bookAt(layout: PickerLayout, x: number, y: number): boolean {
 /** Místo obrázku alba pod dotykem (herní jednotky), `null` mimo náhledy a v mezerách. */
 export function albumPreviewAt(layout: AlbumLayout, x: number, y: number): number | null {
   return placeAt(layout.previews, x, y);
+}
+
+/** Šipka alba pod dotykem (herní jednotky, #149); `null` mimo šipky a v albu bez šipek. */
+export function albumArrowAt(
+  layout: AlbumLayout,
+  x: number,
+  y: number,
+): 'previous' | 'next' | null {
+  if (!layout.arrows) {
+    return null;
+  }
+  if (placeAt([layout.previousArrow], x, y) !== null) {
+    return 'previous';
+  }
+  return placeAt([layout.nextArrow], x, y) === null ? null : 'next';
 }
 
 // ---------------------------------------------------------------------------

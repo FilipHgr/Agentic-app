@@ -7,7 +7,7 @@ import {
 import type { PictureChoice } from '../../../src/games/coloring/logic/pictureChoice';
 import { COLORING_PICTURES } from '../../../src/games/coloring/logic/pictureSet';
 import { CAMERA_CLICK_TONES } from '../../../src/games/coloring/logic/album';
-import { fillAlbum, paintLeft } from './albumHelpers';
+import { FULL_ALBUM_PICTURES, fillAlbum, fillAlbumQuickly, paintLeft } from './albumHelpers';
 import { TOM, timesIn } from './continuePaintingHelpers';
 import {
   CIRCLES,
@@ -309,7 +309,8 @@ describe('#141 AC6: každý profil mění jen své album a své stránky', () =>
 describe('#141 AC6: fotoaparát s plným albem po odchodu', () => {
   it('s plným albem fotoaparát jen zhoupne a odchod obrázek nechá na stránce', async () => {
     const device = new SwapDevice();
-    await fillAlbum(device.records(EMA), 12, HOUSE);
+    // #149 AC2: plné album je 60 obrázků (dřív 12).
+    await fillAlbumQuickly(device.records(EMA), FULL_ALBUM_PICTURES);
     const page = await openGame(device);
     const game = await openPainting(page);
     paintLeft(game, PAGE_COLOR);

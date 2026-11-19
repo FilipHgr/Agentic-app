@@ -72,6 +72,7 @@ import {
   addUnreadable,
   albumPicturesOf,
   fillAlbum,
+  fillAlbumQuickly,
   paintLeft,
   settle,
 } from './albumHelpers';
@@ -546,6 +547,13 @@ export type PagePainting =
 export interface SwapScenario {
   /** Obrázků domku v albu (barvy 0, 1, … podle pořadí focení). */
   readonly albumCount?: number;
+  /**
+   * Obrázků domku uložených navíc rychle (`fillAlbumQuickly`, #149), novějších
+   * než obrázky z `albumCount`, aby šlo album naplnit do 60 obrázků bez
+   * focení každého zvlášť. `aIndex` a `sameAsAlbumIndex` počítají od
+   * nejnovějšího, tedy nejdřív tyto obrázky.
+   */
+  readonly quickPictures?: number;
   /** Nečitelných záznamů v albu navíc. */
   readonly unreadable?: number;
   readonly page?: PagePainting;
@@ -590,6 +598,7 @@ export async function prepareSwap(scenario: SwapScenario = {}): Promise<Prepared
   const device = new SwapDevice();
   const regions = twoHalves();
   await fillAlbum(device.records(profile), scenario.albumCount ?? 3, HOUSE);
+  await fillAlbumQuickly(device.records(profile), scenario.quickPictures ?? 0);
   await addUnreadable(device.records(profile), scenario.unreadable ?? 0);
   const setupAlbum = await albumPixels(device, profile);
   const painting = scenario.page ?? 'distinct';

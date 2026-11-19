@@ -443,6 +443,43 @@ export class PreviewTileView {
     });
   }
 
+  /**
+   * Listování alba (#149): dlaždice přijede za `ms` z místa posunutého
+   * o `shiftX` (herní jednotky) a objeví se; `onDone` na konci.
+   */
+  slideIn(shiftX: number, ms: number, onDone: () => void): void {
+    const place = this.place;
+    if (place === null) {
+      onDone();
+      return;
+    }
+    const { rect } = place;
+    const x = rect.left + rect.width / 2;
+    this.scene.tweens.killTweensOf(this.container);
+    this.container.setPosition(x + shiftX, rect.top + rect.height / 2).setAlpha(0);
+    this.scene.tweens.add({
+      targets: this.container,
+      x,
+      alpha: 1,
+      duration: ms,
+      ease: 'Sine.easeOut',
+      onComplete: onDone,
+    });
+  }
+
+  /** Listování alba (#149): dlaždice za `ms` odjede o `shiftX` a zmizí; `onDone` na konci. */
+  slideOut(shiftX: number, ms: number, onDone: () => void): void {
+    this.scene.tweens.killTweensOf(this.container);
+    this.scene.tweens.add({
+      targets: this.container,
+      x: this.container.x + shiftX,
+      alpha: 0,
+      duration: ms,
+      ease: 'Sine.easeIn',
+      onComplete: onDone,
+    });
+  }
+
   /** Zhoupnutí po ťuknutí; `onDone` se zavolá, až dlaždice dojde zpátky. */
   wobble(onDone: () => void): void {
     const { wobbleAngle: angle, wobbleMs: ms } = PICKER_TILE_STYLE;

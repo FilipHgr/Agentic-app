@@ -11,9 +11,10 @@
  * k #125). Album při čtení ověří každý záznam: přesně tato pole se
  * správnými typy, omalovánka a verze ze sady, známý formát, bajty
  * v limitu, vrstva přečtená přesně do posledního bajtu a jen barvy sad.
- * Záznam, který neprojde, se v albu nezobrazí, do limitu 12 obrázků se
- * nepočítá a nesmaže se (AC4). Do limitu 24 záznamů se počítá i on (AC2).
- * Čistý TypeScript bez Phaseru.
+ * Záznam, který neprojde, se v albu nezobrazí, do limitu obrázků se
+ * nepočítá a nesmaže se (AC4). Do limitu záznamů se počítá i on (AC2).
+ * Od #149 se do alba vejde 60 obrázků a 120 záznamů (dřív 12 a 24) a album
+ * je ukazuje po stránkách s 12 obrázky. Čistý TypeScript bez Phaseru.
  */
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
@@ -25,11 +26,24 @@ import type { RegionMap } from './regionMap';
 import type { PictureColors, PictureIdentity } from './savedPicture';
 import { ALL_COLOR_COUNT } from './toolColorSets';
 
-/** Nejvíc zobrazitelných obrázků v albu jednoho profilu (otázka 2). */
-export const ALBUM_PICTURE_LIMIT = 12;
+/** Nejvíc zobrazitelných obrázků v albu jednoho profilu (#149 AC2, dřív 12 z #126). */
+export const ALBUM_PICTURE_LIMIT = 60;
 
-/** Nejvíc záznamů alba v profilu včetně nečitelných (otázka 3). */
-export const ALBUM_RECORD_LIMIT = 24;
+/** Nejvíc záznamů alba v profilu včetně nečitelných (#149 AC2, dřív 24 z #126). */
+export const ALBUM_RECORD_LIMIT = 120;
+
+/** Obrázků na jedné stránce alba (#149 AC1). */
+export const ALBUM_PAGE_SIZE = 12;
+
+/** Kolik stránek má album s `pictureCount` obrázky (#149 AC1); prázdné album žádnou. */
+export function albumPageCount(pictureCount: number): number {
+  return Math.ceil(Math.max(0, pictureCount) / ALBUM_PAGE_SIZE);
+}
+
+/** Obrázky stránky `page` (0 je 1. stránka) z obrázků alba od nejnovějšího. */
+export function albumPageEntries<T>(entries: readonly T[], page: number): readonly T[] {
+  return entries.slice(page * ALBUM_PAGE_SIZE, (page + 1) * ALBUM_PAGE_SIZE);
+}
 
 /**
  * Nejvíc bajtů vrstvy barev v jednom záznamu (128 KiB). Je to víc, než

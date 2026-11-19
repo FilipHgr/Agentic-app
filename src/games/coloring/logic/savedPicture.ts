@@ -885,7 +885,7 @@ export function openColoring(options: {
     if (album.status !== 'read' || albumRecords === undefined) {
       return false;
     }
-    // Odložená stránka z výměny s albem (#131 AC2) se do 12 obrázků počítá.
+    // Odložená stránka z výměny s albem (#131 AC2) se do limitu obrázků počítá.
     const pictureCount = album.entries.length + pendingAlbumPictures(storage);
     if (pictureCount >= ALBUM_PICTURE_LIMIT || album.recordCount >= ALBUM_RECORD_LIMIT) {
       return false;

@@ -152,8 +152,8 @@ export class IconButtonView {
   }
 }
 
-/** Podklad s okrajem se středem v počátku, jako u tlačítka Zpět. */
-function backgroundOf(
+/** Podklad s okrajem se středem v počátku, jako u tlačítka Zpět (i šipky alba, #149). */
+export function backgroundOf(
   scene: Phaser.Scene,
   rect: LayoutRect,
   cssScale: number,

@@ -9,7 +9,14 @@ import { PREVIEW_TAP_TONES } from '../../../src/games/coloring/logic/pictureChoi
 import { openColoring } from '../../../src/games/coloring/logic/savedPicture';
 import type { SavedColoring } from '../../../src/games/coloring/logic/savedPicture';
 import { HOME_WOBBLE_TONES, HOLD_TO_GO_HOME_MS } from '../../../src/shared/logic/homeButton';
-import { paintLeft, settle, takePhoto, openWithAlbum } from './albumHelpers';
+import {
+  FULL_ALBUM_PICTURES,
+  FULL_ALBUM_RECORDS,
+  openWithAlbum,
+  paintLeft,
+  settle,
+  takePhoto,
+} from './albumHelpers';
 import {
   CIRCLES,
   EMA,
@@ -61,9 +68,15 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-/** Limity alba ze zadání #126 (otázka 2 k #131: beze změny). */
-const ALBUM_PICTURES = 12;
-const ALBUM_RECORDS = 24;
+/**
+ * Limity alba: od #149 AC2 60 obrázků a 120 záznamů (dřív 12 a 24 ze
+ * zadání #126, otázka 2 k #131). Plné album se plní rychle
+ * (`quickPictures`), album se 120 záznamy má 12 obrázků z fotoaparátu
+ * (`CAMERA_PICTURES`) jako dřív a zbytek nečitelné záznamy.
+ */
+const ALBUM_PICTURES = FULL_ALBUM_PICTURES;
+const ALBUM_RECORDS = FULL_ALBUM_RECORDS;
+const CAMERA_PICTURES = 12;
 
 const RED = 0;
 const BLUE = 4;
@@ -256,8 +269,12 @@ describe('#131 AC2: výměna stránky a obrázku z alba', () => {
     expect(pixelsOf(game, prepared.page.regions), 'obrázek je na stránce').toEqual(prepared.a);
   });
 
-  it('plné album s 12 obrázky výměnu nezablokuje a 12 obrázků nepřekročí ani na okamžik', async () => {
-    const prepared = await prepareSwap({ albumCount: ALBUM_PICTURES, aIndex: 5 });
+  it('plné album s 60 obrázky výměnu nezablokuje a 60 obrázků nepřekročí ani na okamžik', async () => {
+    const prepared = await prepareSwap({
+      albumCount: 0,
+      quickPictures: ALBUM_PICTURES,
+      aIndex: 5,
+    });
 
     await continueToPainting(prepared);
 
@@ -266,12 +283,12 @@ describe('#131 AC2: výměna stránky a obrázku z alba', () => {
     expect(album[0], 'P je v albu jako nejnovější').toEqual(prepared.p);
     expect(
       prepared.device.maxRecords.get(EMA),
-      'záznamů v albu nebylo nikdy víc než 12',
+      'záznamů v albu nebylo nikdy víc než 60',
     ).toBeLessThanOrEqual(ALBUM_PICTURES);
   });
 
-  it('album s 24 záznamy (i nečitelnými) výměnu nezablokuje a 24 záznamů nepřekročí ani na okamžik', async () => {
-    const pictures = 12;
+  it('album se 120 záznamy (i nečitelnými) výměnu nezablokuje a 120 záznamů nepřekročí ani na okamžik', async () => {
+    const pictures = CAMERA_PICTURES;
     const prepared = await prepareSwap({
       albumCount: pictures,
       unreadable: ALBUM_RECORDS - pictures,
@@ -285,7 +302,7 @@ describe('#131 AC2: výměna stránky a obrázku z alba', () => {
     expect(album.length).toBe(pictures);
     expect(
       prepared.device.maxRecords.get(EMA),
-      'záznamů nebylo nikdy víc než 24',
+      'záznamů nebylo nikdy víc než 120',
     ).toBeLessThanOrEqual(ALBUM_RECORDS);
   });
 
@@ -342,13 +359,17 @@ describe('#131 AC2: výměna stránky a obrázku z alba', () => {
 });
 
 describe('#131 AC2: odložená stránka se do plného alba počítá', () => {
-  it('když P zůstane odložená mimo album, fotoaparát ji započítá do 12 obrázků a pro P zůstane místo', async () => {
-    const prepared = await prepareSwap({ albumCount: ALBUM_PICTURES, aIndex: 3 });
+  it('když P zůstane odložená mimo album, fotoaparát ji započítá do 60 obrázků a pro P zůstane místo', async () => {
+    const prepared = await prepareSwap({
+      albumCount: 0,
+      quickPictures: ALBUM_PICTURES,
+      aIndex: 3,
+    });
     // Uložení P do alba i vrácení A selže: dítě maluje A, P je odložená (AC4).
     prepared.device.addFailure = 'full';
     const outcome = await tapContinue(prepared.page);
     expect(outcome.kind, 'dítě je v malování s A').toBe('opened');
-    expect((await albumPixels(prepared.device)).length, 'v albu je 11 obrázků').toBe(
+    expect((await albumPixels(prepared.device)).length, 'v albu je 59 obrázků').toBe(
       ALBUM_PICTURES - 1,
     );
     prepared.device.addFailure = null;

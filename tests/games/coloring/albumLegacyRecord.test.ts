@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { RecordData } from '../../../src/shared/storage/profileRecords';
 import { HOME_WOBBLE_TONES } from '../../../src/shared/logic/homeButton';
 import {
+  FULL_ALBUM_RECORDS,
   THREE_PICTURES,
   addUnreadable,
   albumDevice,
@@ -28,7 +29,7 @@ import { pixelsOf } from './savedPictureHelpers';
  *
  * A podle doporučení security k #125 album při čtení ověří obsah každého
  * záznamu: záznam, který se od platného liší tvarem nebo obsahem, se
- * v albu nezobrazí, nesmaže se a do limitu 24 záznamů se počítá.
+ * v albu nezobrazí, nesmaže se a do limitu 120 záznamů (#149, dřív 24) se počítá.
  */
 
 const ORANGE = 1;
@@ -128,9 +129,10 @@ describe('#126 (doporučení security k #125): album při čtení ověří obsah
     expect(await shownCount(records)).toBe(0);
   });
 
-  it('nezobrazitelné záznamy se do limitu 24 záznamů počítají, fotoaparát se pak jen zhoupne', async () => {
+  // #149 AC2: limit 24 záznamů nahradilo 120 záznamů; test je stejný, jen se 120.
+  it('nezobrazitelné záznamy se do limitu 120 záznamů počítají, fotoaparát se pak jen zhoupne', async () => {
     const { device } = await recordsWith({ ...legacyAlbumRecord(), layerCode: 'p9' });
-    await addUnreadable(device.page(), 23);
+    await addUnreadable(device.page(), FULL_ALBUM_RECORDS - 1);
     const records = watchRecords(device.page());
     const game = await openWithAlbum({ storage: undefined, records });
     paintLeft(game, ORANGE);

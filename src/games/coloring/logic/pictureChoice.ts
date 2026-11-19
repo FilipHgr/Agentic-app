@@ -59,6 +59,18 @@
  *   ukládání fotoaparátem, když se drží domeček a podržení začaté před
  *   zobrazením malování se nepočítá. Když se drží koště, domeček nic
  *   neudělá.
+ * - Album ukazuje obrázky po stránkách s 12 obrázky od nejnovějšího (#149)
+ *   a otevře se na 1. stránce. Stránka je na obrazovce alba i velkého
+ *   obrázku, aby se album po zavření velkého obrázku vrátilo na stejnou
+ *   stránku. Listuje se šipkami ◀ ▶ (`tapAlbumArrow`) a tahem prstu:
+ *   scéna hlásí stisk a zvednutí prstu v CSS px (`albumPointerDown`,
+ *   `albumPointerUp`) a výběr pozná tah (aspoň 48 px vodorovně a víc než
+ *   svisle) a ťuknutí na náhled. Na kraji se šipka nebo náhledy jen
+ *   zhoupnou s tónem domečku. Po nalistování scéna ukáže novou stránku
+ *   a zavolá `albumPageShown`; do té doby ťuknutí na náhled nic neotevře
+ *   a nelistuje se. Jeden tah nalistuje jen o jednu stránku, i když se
+ *   alba dotýkají dva prsty. Po smazání obrázku zůstane album na stejné
+ *   stránce, a když na ní žádný obrázek nezbyl, ukáže předchozí.
  */
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
@@ -68,7 +80,7 @@ import type { HoldButton } from '../../../shared/logic/holdButton';
 import { HOLD_TO_GO_HOME_MS, HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import type { GameRecords } from '../../../shared/storage/profileRecords';
-import { removeAlbumEntry } from './album';
+import { albumPageCount, albumPageEntries, removeAlbumEntry } from './album';
 import type { AlbumContents, AlbumEntry, AlbumPicture } from './album';
 import { planAlbumSwap, runAlbumSwap, swapBlocksPicture } from './albumSwap';
 import { readPendingSwap } from './albumSwapRecord';
@@ -87,17 +99,59 @@ export type ColoringScreen =
   | { readonly kind: 'picker' }
   | { readonly kind: 'opening'; readonly picture: PictureIdentity }
   | { readonly kind: 'painting'; readonly picture: PictureIdentity }
-  | { readonly kind: 'album'; readonly entries: readonly AlbumEntry[] }
+  | {
+      readonly kind: 'album';
+      readonly entries: readonly AlbumEntry[];
+      /** Stránka alba, která je vidět (#149, 0 je 1. stránka). */
+      readonly page: number;
+    }
   | {
       readonly kind: 'openingBigPicture';
       readonly entries: readonly AlbumEntry[];
       readonly entry: AlbumEntry;
+      /** Stránka alba, na kterou se velký obrázek vrátí (#149). */
+      readonly page: number;
     }
   | {
       readonly kind: 'bigPicture';
       readonly entries: readonly AlbumEntry[];
       readonly entry: AlbumEntry;
+      /** Stránka alba, na kterou se velký obrázek vrátí (#149). */
+      readonly page: number;
     };
+
+/** Kam se v albu listuje: na další (▶, tah doleva), nebo předchozí stránku (◀, tah doprava). */
+export type AlbumDirection = 'next' | 'previous';
+
+/** Bod dotyku v CSS px okna (#149). */
+export interface AlbumPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** Co udělá šipka v albu (#149 AC1). */
+export type AlbumTurn =
+  /** Nalistuje stránku `page` s tónem ťuknutí; scéna ji ukáže a zavolá `albumPageShown`. */
+  | {
+      readonly kind: 'turned';
+      readonly page: number;
+      readonly direction: AlbumDirection;
+      readonly tones: readonly Tone[];
+    }
+  /** Na krajní stránce se zhoupne šipka (`arrow`), nebo náhledy po tahu (`previews`). */
+  | {
+      readonly kind: 'edge';
+      readonly wobble: 'arrow' | 'previews';
+      readonly tones: readonly Tone[];
+    }
+  /** Mimo album, při jediné stránce nebo během listování nic. */
+  | { readonly kind: 'ignored' };
+
+/** Co udělá zvednutí prstu v albu: nalistuje, zhoupne se na kraji, otevře velký obrázek, nebo nic. */
+export type AlbumPointerResult = AlbumTurn | Extract<AlbumPreviewTap, { kind: 'open' }>;
+
+/** Nejmenší vodorovný posun prstu v CSS px, který je tah, ne ťuknutí (#149 AC1). */
+export const ALBUM_SWIPE_MIN_CSS = 48;
 
 /** Co udělá ťuknutí na knihu (#126 AC4). */
 export type BookTap =
@@ -217,8 +271,16 @@ export interface PictureChoice {
   holdHome(): HomeHold;
   /** Ťuknutí na knihu s albem, jak ho scéna přečetla; `null`, když ještě není přečtené. */
   tapBook(album: AlbumContents | null): BookTap;
-  /** Ťuknutí na náhled `index` v albu. */
+  /** Ťuknutí na místo náhledu `index` na stránce alba, která je vidět. */
   tapAlbumPreview(index: number): AlbumPreviewTap;
+  /** Ťuknutí na šipku ◀ (`previous`), nebo ▶ (`next`) v albu (#149). */
+  tapAlbumArrow(direction: AlbumDirection): AlbumTurn;
+  /** Prst `pointerId` se v albu dotkl v bodě `point` (CSS px) na místě náhledu `place`, nebo mimo (`null`). */
+  albumPointerDown(pointerId: number, point: AlbumPoint, place: number | null): void;
+  /** Prst `pointerId` se v albu zvedl v bodě `point` (CSS px): tah nalistuje, ťuknutí otevře náhled. */
+  albumPointerUp(pointerId: number, point: AlbumPoint): AlbumPointerResult;
+  /** Scéna ukázala nalistovanou stránku alba (#149). */
+  albumPageShown(): void;
   /** Scéna ukázala otevíraný velký obrázek (#129). */
   bigPictureShown(): void;
   /** Koš na velkém obrázku: scéna mu předává stisk, zvednutí a sjetí prstu (#129 AC3). */
@@ -276,10 +338,25 @@ export function homeHoldDecision(hold: HomeHold): HomeHoldDecision {
   return hold === 'toMenu' ? 'leave' : 'stay';
 }
 
-/** Album bez obrázku `removed`; prázdné album je výběr (#129 AC3). */
-function screenWithout(entries: readonly AlbumEntry[], removed: AlbumEntry): ColoringScreen {
+/**
+ * Album bez obrázku `removed`; prázdné album je výběr (#129 AC3). Album
+ * zůstane na stránce `page`, a když na ní nic nezbylo, ukáže předchozí (#149 AC4).
+ */
+function screenWithout(
+  entries: readonly AlbumEntry[],
+  removed: AlbumEntry,
+  page: number,
+): ColoringScreen {
   const left = entries.filter((entry) => entry.recordId !== removed.recordId);
-  return left.length === 0 ? { kind: 'picker' } : { kind: 'album', entries: left };
+  if (left.length === 0) {
+    return { kind: 'picker' };
+  }
+  return { kind: 'album', entries: left, page: Math.min(page, albumPageCount(left.length) - 1) };
+}
+
+/** Je posun prstu o `dx`, `dy` CSS px tah (aspoň 48 px vodorovně a víc než svisle)? */
+function isSwipe(dx: number, dy: number): boolean {
+  return Math.abs(dx) >= ALBUM_SWIPE_MIN_CSS && Math.abs(dx) > Math.abs(dy);
 }
 
 /** Album bez obrázku `replaced` a s obrázkem `returned` jako nejnovějším (#131 AC4). */
@@ -390,11 +467,11 @@ export function startPictureChoice(
         const backToAlbum = homeAfterDeleting;
         homeAfterDeleting = false;
         if (removal === 'removed') {
-          screen = screenWithout(shown.entries, shown.entry);
+          screen = screenWithout(shown.entries, shown.entry, shown.page);
           return { kind: 'deleted' };
         }
         if (backToAlbum) {
-          screen = { kind: 'album', entries: shown.entries };
+          screen = { kind: 'album', entries: shown.entries, page: shown.page };
         }
         return { kind: 'failed', tones: HOME_WOBBLE_TONES };
       },
@@ -474,7 +551,7 @@ export function startPictureChoice(
       homeAfterDeleting = true;
       return 'toAlbum';
     }
-    screen = { kind: 'album', entries: shown.entries };
+    screen = { kind: 'album', entries: shown.entries, page: shown.page };
     return 'toAlbum';
   };
 
@@ -496,6 +573,7 @@ export function startPictureChoice(
           kind: 'bigPicture',
           entries: entriesWithReturned(shown.entries, shown.entry, run.entry),
           entry: run.entry,
+          page: shown.page,
         };
         return { kind: 'failed', tones: HOME_WOBBLE_TONES };
       case 'kept':
@@ -522,6 +600,72 @@ export function startPictureChoice(
     albumRemovedFor.delete(pictureKey(shown.entry.picture));
     const done = runAlbumSwap(plan).then((run) => afterSwap(shown, run));
     return { kind: 'swapping', tones: PREVIEW_TAP_TONES, done };
+  };
+
+  /** Listuje se v albu: nová stránka ještě není vidět (#149 AC5)? */
+  let turning = false;
+  /** Prsty, které se v albu dotkly a ještě se nezvedly: kde začaly a na kterém místě náhledu. */
+  const albumPointers = new Map<
+    number,
+    { readonly point: AlbumPoint; readonly place: number | null }
+  >();
+
+  /** Ťuknutí na místo `index` na stránce alba, která je vidět (#129, #149). */
+  const tapAlbumPreview = (index: number): AlbumPreviewTap => {
+    if (screen.kind !== 'album' || turning || !Number.isInteger(index)) {
+      return { kind: 'ignored' };
+    }
+    const entry = albumPageEntries(screen.entries, screen.page)[index];
+    if (entry === undefined) {
+      return { kind: 'ignored' };
+    }
+    screen = { kind: 'openingBigPicture', entries: screen.entries, entry, page: screen.page };
+    albumPointers.clear();
+    return { kind: 'open', index, entry, tones: PREVIEW_TAP_TONES };
+  };
+
+  /**
+   * Nalistuje v albu směrem `direction` (#149 AC1). Na kraji se zhoupne
+   * šipka nebo náhledy (`wobble`) s tónem domečku. Šipky při jediné
+   * stránce nejsou; tah při jediné stránce zhoupne náhledy.
+   */
+  const turnAlbum = (direction: AlbumDirection, wobble: 'arrow' | 'previews'): AlbumTurn => {
+    if (screen.kind !== 'album' || turning) {
+      return { kind: 'ignored' };
+    }
+    const pageCount = albumPageCount(screen.entries.length);
+    if (wobble === 'arrow' && pageCount <= 1) {
+      return { kind: 'ignored' };
+    }
+    // Po tahu i šipce se zvednutí ostatních prstů už nepočítá: dva prsty nalistují jen jednou.
+    albumPointers.clear();
+    const page = screen.page + (direction === 'next' ? 1 : -1);
+    if (page < 0 || page >= pageCount) {
+      return { kind: 'edge', wobble, tones: HOME_WOBBLE_TONES };
+    }
+    screen = { kind: 'album', entries: screen.entries, page };
+    turning = true;
+    return { kind: 'turned', page, direction, tones: PREVIEW_TAP_TONES };
+  };
+
+  /** Zvednutí prstu v albu: tah nalistuje, ťuknutí na náhled ho otevře (#149 AC1, AC5). */
+  const albumPointerUp = (pointerId: number, point: AlbumPoint): AlbumPointerResult => {
+    const start = albumPointers.get(pointerId);
+    albumPointers.delete(pointerId);
+    if (start === undefined || screen.kind !== 'album') {
+      return { kind: 'ignored' };
+    }
+    const dx = point.x - start.point.x;
+    const dy = point.y - start.point.y;
+    if (isSwipe(dx, dy)) {
+      // Tah doleva ukáže další stránku, tah doprava předchozí.
+      return turnAlbum(dx < 0 ? 'next' : 'previous', 'previews');
+    }
+    if (start.place === null) {
+      return { kind: 'ignored' };
+    }
+    const tap = tapAlbumPreview(start.place);
+    return tap.kind === 'open' ? tap : { kind: 'ignored' };
   };
 
   return {
@@ -562,25 +706,33 @@ export function startPictureChoice(
       if (album === null || album.status !== 'read' || album.entries.length === 0) {
         return { kind: 'wobble', tones: HOME_WOBBLE_TONES };
       }
-      screen = { kind: 'album', entries: album.entries };
+      screen = { kind: 'album', entries: album.entries, page: 0 };
+      turning = false;
+      albumPointers.clear();
       return { kind: 'open', tones: PREVIEW_TAP_TONES, entries: album.entries };
     },
-    tapAlbumPreview: (index) => {
-      if (screen.kind !== 'album' || !Number.isInteger(index)) {
-        return { kind: 'ignored' };
+    tapAlbumPreview,
+    tapAlbumArrow: (direction) => turnAlbum(direction, 'arrow'),
+    albumPointerDown: (pointerId, point, place) => {
+      // Dotyk začatý během listování se nepočítá ani po dolistování (#149 AC5).
+      if (screen.kind === 'album' && !turning) {
+        albumPointers.set(pointerId, { point, place });
       }
-      const entry = screen.entries[index];
-      if (entry === undefined) {
-        return { kind: 'ignored' };
-      }
-      screen = { kind: 'openingBigPicture', entries: screen.entries, entry };
-      return { kind: 'open', index, entry, tones: PREVIEW_TAP_TONES };
+    },
+    albumPointerUp,
+    albumPageShown: () => {
+      turning = false;
     },
     bigPictureShown: () => {
       if (screen.kind !== 'openingBigPicture') {
         return;
       }
-      screen = { kind: 'bigPicture', entries: screen.entries, entry: screen.entry };
+      screen = {
+        kind: 'bigPicture',
+        entries: screen.entries,
+        entry: screen.entry,
+        page: screen.page,
+      };
       shownAt = now();
     },
     trashButton,

@@ -6,11 +6,13 @@ import { UNAVAILABLE_GAME_RECORDS } from '../../../src/shared/storage/profileRec
 import type { GameRecords } from '../../../src/shared/storage/profileRecords';
 import {
   CIRCLES,
+  FULL_ALBUM_PICTURES,
   HOUSE,
   addUnreadable,
   albumDevice,
   albumOf,
   fillAlbum,
+  fillAlbumQuickly,
   openWithAlbum,
   paintLeft,
   recordCount,
@@ -288,7 +290,8 @@ describe('#129 AC3: ostatní obrázky a nečitelné záznamy zůstanou', () => {
   it('po smazání obrázku z plného alba fotoaparát zase uloží nový obrázek', async () => {
     vi.useRealTimers();
     const device = albumDevice();
-    await fillAlbum(device.page(), 12, HOUSE);
+    // #149 AC2: plné album je 60 obrázků (dřív 12).
+    await fillAlbumQuickly(device.page(), FULL_ALBUM_PICTURES);
     const blocked = await openWithAlbum({ storage: undefined, records: device.page() });
     paintLeft(blocked, ORANGE + 20);
     expect(blocked.tapCamera().kind, 'předpoklad: plné album, fotoaparát se jen zhoupne').toBe(
@@ -309,7 +312,7 @@ describe('#129 AC3: ostatní obrázky a nečitelné záznamy zůstanou', () => {
     });
     paintLeft(game, ORANGE);
     expect((await takePhoto(game)).kind, 'nový obrázek se uloží').toBe('saved');
-    expect(await shownCount(device.page())).toBe(12);
+    expect(await shownCount(device.page())).toBe(FULL_ALBUM_PICTURES);
   });
 });
 

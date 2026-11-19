@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { HOLD_TO_GO_HOME_MS, HOME_WOBBLE_TONES } from '../../../src/shared/logic/homeButton';
-import { settle } from './albumHelpers';
+import { FULL_ALBUM_PICTURES, FULL_ALBUM_RECORDS, settle } from './albumHelpers';
 import {
   CIRCLES,
   EMA,
@@ -148,8 +148,14 @@ describe('#131 AC5: po obnovení stránky v kterémkoli okamžiku výměny', () 
     }
   });
 
-  it('plné album nepřekročí 12 obrázků ani 24 záznamů ani při přerušení a dokončení po obnovení', async () => {
-    const scenario: SwapScenario = { albumCount: 12, unreadable: 12, aIndex: 4 };
+  // #149 AC2: plné album je 60 obrázků a 120 záznamů (dřív 12 a 24).
+  it('plné album nepřekročí 60 obrázků ani 120 záznamů ani při přerušení a dokončení po obnovení', async () => {
+    const scenario: SwapScenario = {
+      albumCount: 0,
+      quickPictures: FULL_ALBUM_PICTURES,
+      unreadable: FULL_ALBUM_RECORDS - FULL_ALBUM_PICTURES,
+      aIndex: 4,
+    };
     const cuts = await cutsOf(scenario);
 
     for (const cut of cuts) {
@@ -159,8 +165,8 @@ describe('#131 AC5: po obnovení stránky v kterémkoli okamžiku výměny', () 
       expect(await wholeState(prepared, true), what).not.toBe('napůl');
       expect(
         prepared.device.maxRecords.get(EMA),
-        `${what}: nikdy víc než 24 záznamů, z nich 12 nečitelných, tedy nejvýš 12 obrázků`,
-      ).toBeLessThanOrEqual(24);
+        `${what}: nikdy víc než 120 záznamů, z nich 60 nečitelných, tedy nejvýš 60 obrázků`,
+      ).toBeLessThanOrEqual(FULL_ALBUM_RECORDS);
     }
   });
 

@@ -12,8 +12,8 @@
  * 3. A se smaže z alba,
  * 4. P se uloží do alba (jen když přibývá),
  * 5. odložená výměna se smaže.
- * Výměna nejdřív maže a pak ukládá, takže album nepřekročí 12 obrázků
- * ani 24 záznamů ani na okamžik.
+ * Výměna nejdřív maže a pak ukládá, takže album nepřekročí limit obrázků
+ * ani záznamů (od #149 60 a 120) ani na okamžik.
  *
  * Selhání za běhu: krok 1 nebo 2 nic nezmění (odložená výměna se smaže),
  * krok 3 vrátí stránku P. Krok 4 (AC4) zkusí vrátit A do alba jako

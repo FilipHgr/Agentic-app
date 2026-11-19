@@ -62,6 +62,21 @@ export const ICON_BUTTON_STYLE = {
 } as const;
 
 /**
+ * Šipky ◀ ▶ v albu (#149): podklad a okraj jako tlačítka s ikonou, uprostřed
+ * plný modrý trojúhelník. Listování: stará stránka odjede do strany a zmizí,
+ * nová přijede z druhé strany.
+ */
+export const ALBUM_ARROW_STYLE = {
+  symbolColor: BLUE,
+  /** Výška trojúhelníku jako díl strany šipky. */
+  triangleShare: 0.4,
+  /** Jak dlouho trvá listování v ms. */
+  turnMs: 240,
+  /** O kolik náhledy při listování odjedou, jako díl šířky herní plochy. */
+  turnShiftShare: 0.18,
+} as const;
+
+/**
  * Animace uložení do alba (#126, schválené obrázky): bílý záblesk přes
  * obrázek a stisknutí fotoaparátu, pak se fotka s bílým okrajem zmenší
  * a odletí po oblouku do fotoaparátu, který poskočí. Časy jsou díly

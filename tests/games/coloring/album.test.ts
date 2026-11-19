@@ -17,6 +17,7 @@ import { RECORDS_DEVICES, memoryDevice } from '../../shared/profileRecordsFixtur
 import {
   CIRCLES,
   COLORING_GAME_ID,
+  FULL_ALBUM_PICTURES,
   HOUSE,
   STAR,
   THREE_PICTURES,
@@ -25,6 +26,7 @@ import {
   albumOf,
   damageAlbum,
   fillAlbum,
+  fillAlbumQuickly,
   openWithAlbum,
   paintLeft,
   recordCount,
@@ -294,7 +296,8 @@ describe('#126 AC4: poškozené, nečitelné a cizí záznamy', () => {
     expect(await recordCount(records)).toBe(2);
   });
 
-  it('nezobrazitelné záznamy se do limitu 12 obrázků nepočítají', async () => {
+  // #149 AC2: limit 12 obrázků z #126 AC3 nahradilo 60 obrázků; test je stejný, jen s 60.
+  it('nezobrazitelné záznamy se do limitu 60 obrázků nepočítají', async () => {
     const device = albumDevice();
     const setup = device.page();
     const fourth: PictureIdentity = { id: 'fourth', version: 1 };
@@ -304,12 +307,13 @@ describe('#126 AC4: poškozené, nečitelné a cizí záznamy', () => {
     await addUnreadable(setup, 3);
     const records = device.page();
     await fillAlbum(records, 11, CIRCLES);
+    await fillAlbumQuickly(records, FULL_ALBUM_PICTURES - 12);
 
     const game = await openWithAlbum({ storage: undefined, records, picture: STAR });
     paintLeft(game, ORANGE);
-    expect((await takePhoto(game)).kind, '12. zobrazitelný obrázek').toBe('saved');
-    expect(await shownCount(records)).toBe(12);
-    expect(await recordCount(records), 'nezobrazitelné zůstaly').toBe(19);
+    expect((await takePhoto(game)).kind, '60. zobrazitelný obrázek').toBe('saved');
+    expect(await shownCount(records)).toBe(FULL_ALBUM_PICTURES);
+    expect(await recordCount(records), 'nezobrazitelné zůstaly').toBe(FULL_ALBUM_PICTURES + 7);
   });
 });
 

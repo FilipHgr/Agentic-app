@@ -12,6 +12,8 @@ import { memoryDevice } from '../../shared/profileRecordsFixtures';
 import {
   CIRCLES,
   COLORING_GAME_ID,
+  FULL_ALBUM_PICTURES,
+  FULL_ALBUM_RECORDS,
   HOUSE,
   STAR,
   addUnreadable,
@@ -19,6 +21,7 @@ import {
   albumOf,
   damageAlbum,
   fillAlbum,
+  fillAlbumQuickly,
   openWithAlbum,
   paintLeft,
   recordCount,
@@ -314,51 +317,69 @@ describe('#126 AC2 (a): hra pozná hned, že se obrázek neuloží', () => {
     expect((await takePhoto(game)).kind).toBe('saved');
   });
 
-  it('s 12 zobrazitelnými obrázky v albu se další obrázek neuloží', async () => {
+  // #149 AC2: limity 12 obrázků a 24 záznamů z #126 AC3 nahradilo 60 obrázků
+  // a 120 záznamů. Testy jsou stejné, jen s novými limity; album se plní
+  // rychle (`fillAlbumQuickly`) a pár obrázků přes fotoaparát jako dřív
+  // (nejdřív fotoaparát, aby se při focení nečetlo velké album).
+  it('s 60 zobrazitelnými obrázky v albu se další obrázek neuloží', async () => {
     const { records } = watchedAlbum();
     await fillAlbum(records, 6, HOUSE);
     await fillAlbum(records, 6, CIRCLES);
-    expect(await shownCount(records), 'předpoklad: plné album').toBe(12);
+    await fillAlbumQuickly(records, FULL_ALBUM_PICTURES - 12);
+    expect(await shownCount(records), 'předpoklad: plné album').toBe(FULL_ALBUM_PICTURES);
     const game = await openWithAlbum({ storage: undefined, records, picture: STAR });
     paintLeft(game, ORANGE);
 
     expectWobbleOnly(game, records.adds, 'plné album');
-    expect(await shownCount(records)).toBe(12);
+    expect(await shownCount(records)).toBe(FULL_ALBUM_PICTURES);
   });
 
-  it('s 11 zobrazitelnými obrázky se 12. obrázek ještě uloží a další už ne', async () => {
+  it('s 59 zobrazitelnými obrázky se 60. obrázek ještě uloží a další už ne', async () => {
     const { records } = watchedAlbum();
     await fillAlbum(records, 11, CIRCLES);
+    await fillAlbumQuickly(records, FULL_ALBUM_PICTURES - 12);
     const game = await openWithAlbum({ storage: undefined, records });
     paintLeft(game, ORANGE);
 
-    expect((await takePhoto(game)).kind, '12. obrázek').toBe('saved');
+    expect((await takePhoto(game)).kind, '60. obrázek').toBe('saved');
     paintLeft(game, BLUE);
-    expectWobbleOnly(game, records.adds, '13. obrázek ve stejném malování');
-    expect(await shownCount(records)).toBe(12);
+    expectWobbleOnly(game, records.adds, '61. obrázek ve stejném malování');
+    expect(await shownCount(records)).toBe(FULL_ALBUM_PICTURES);
   });
 
-  it('s 24 záznamy v profilu včetně nečitelných se obrázek neuloží', async () => {
+  it('s 13 až 59 obrázky se obrázek do alba uloží (12 už není plné album)', async () => {
     const { records } = watchedAlbum();
-    await fillAlbum(records, 11, CIRCLES);
-    await addUnreadable(records, 13);
-    expect(await recordCount(records), 'předpoklad: 24 záznamů').toBe(24);
+    await fillAlbum(records, 12, CIRCLES);
     const game = await openWithAlbum({ storage: undefined, records });
     paintLeft(game, ORANGE);
 
-    expectWobbleOnly(game, records.adds, '24 záznamů');
-    expect(await recordCount(records)).toBe(24);
+    expect((await takePhoto(game)).kind, '13. obrázek').toBe('saved');
+    expect(await shownCount(records)).toBe(13);
   });
 
-  it('s 23 záznamy v profilu včetně nečitelných se obrázek ještě uloží', async () => {
+  it('se 120 záznamy v profilu včetně nečitelných se obrázek neuloží', async () => {
     const { records } = watchedAlbum();
     await fillAlbum(records, 11, CIRCLES);
-    await addUnreadable(records, 12);
+    await fillAlbumQuickly(records, FULL_ALBUM_PICTURES - 12);
+    await addUnreadable(records, FULL_ALBUM_RECORDS - (FULL_ALBUM_PICTURES - 1));
+    expect(await recordCount(records), 'předpoklad: 120 záznamů').toBe(FULL_ALBUM_RECORDS);
+    const game = await openWithAlbum({ storage: undefined, records });
+    paintLeft(game, ORANGE);
+
+    expectWobbleOnly(game, records.adds, '120 záznamů');
+    expect(await recordCount(records)).toBe(FULL_ALBUM_RECORDS);
+  });
+
+  it('se 119 záznamy v profilu včetně nečitelných se obrázek ještě uloží', async () => {
+    const { records } = watchedAlbum();
+    await fillAlbum(records, 11, CIRCLES);
+    await fillAlbumQuickly(records, FULL_ALBUM_PICTURES - 12);
+    await addUnreadable(records, FULL_ALBUM_RECORDS - FULL_ALBUM_PICTURES);
     const game = await openWithAlbum({ storage: undefined, records });
     paintLeft(game, ORANGE);
 
     expect((await takePhoto(game)).kind).toBe('saved');
-    expect(await recordCount(records)).toBe(24);
+    expect(await recordCount(records)).toBe(FULL_ALBUM_RECORDS);
   });
 
   it('v dočasném profilu se obrázek neuloží, fotoaparát se jen zhoupne', async () => {
@@ -436,7 +457,9 @@ describe('#126 AC2: nečitelné záznamy se nemažou', () => {
     const game = await openWithAlbum({ storage: undefined, records });
     paintLeft(game, ORANGE);
     await takePhoto(game);
+    // #149 AC2: plné album je od #149 60 obrázků (dřív 12).
     await fillAlbum(records, 11, STAR);
+    await fillAlbumQuickly(records, FULL_ALBUM_PICTURES - 12);
     const full = await openWithAlbum({ storage: undefined, records });
     paintLeft(full, BLUE);
     expect(full.tapCamera().kind, 'plné album').toBe('wobble');

@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { readAlbum } from '../../../src/games/coloring/logic/album';
 import { HOME_WOBBLE_TONES } from '../../../src/shared/logic/homeButton';
-import { addUnreadable, fillAlbum, paintLeft } from './albumHelpers';
+import {
+  FULL_ALBUM_PICTURES,
+  addUnreadable,
+  fillAlbum,
+  fillAlbumQuickly,
+  paintLeft,
+} from './albumHelpers';
 import {
   P_COLOR,
   prepareSwap,
@@ -62,10 +68,13 @@ afterEach(() => {
 /** Zařízení s albem domku (`photos` obrázků) a dnešními rozmalovanými stránkami. */
 async function deviceWithPages(options: {
   readonly photos?: number;
+  /** Obrázků navíc uložených rychle (#149), novějších než `photos`. */
+  readonly quick?: number;
   readonly pages: ReadonlyArray<readonly [typeof HOUSE, number]>;
 }): Promise<{ readonly device: SwapDevice; readonly pages: Pixels[] }> {
   const device = new SwapDevice();
   await fillAlbum(device.records(EMA), options.photos ?? 0, HOUSE);
+  await fillAlbumQuickly(device.records(EMA), options.quick ?? 0);
   const pages = options.pages.map(([picture, color]) => paintPageDirectly(device, picture, color));
   return { device, pages };
 }
@@ -102,8 +111,10 @@ describe('#141 AC4: převod dnešních stránek při otevření Omalovánek', ()
     }
   });
 
+  // #149 AC2: plné album je 60 obrázků (dřív 12), místo zbývá zase na 2 stránky.
   it('přesouvá se, dokud je v albu místo: další stránky v pořadí sady zůstanou rozmalované', async () => {
     const { device, pages } = await deviceWithPages({
+      quick: FULL_ALBUM_PICTURES - 12,
       photos: 10,
       pages: [
         [HOUSE, PAGE_COLOR],
@@ -115,7 +126,7 @@ describe('#141 AC4: převod dnešních stránek při otevření Omalovánek', ()
     const page = await openGame(device);
 
     const album = await albumPixels(device);
-    expect(album.length, 'album je plné').toBe(12);
+    expect(album.length, 'album je plné').toBe(FULL_ALBUM_PICTURES);
     expect(album.slice(0, 2), 'domek a kruhy jsou v albu').toEqual([pages[1], pages[0]]);
     expect(pageOf(device, STAR), 'hvězda zůstala na stránce').toEqual(pages[2]);
     expect(previewColors(page.storage, STAR), 'náhled hvězdy ukazuje její barvy').toEqual([
@@ -125,9 +136,11 @@ describe('#141 AC4: převod dnešních stránek při otevření Omalovánek', ()
 
   it('stránka stejná jako obrázek v albu se vyčistí i za stránkou, na kterou už místo nezbylo', async () => {
     const device = new SwapDevice();
+    // #149 AC2: plné album je 60 obrázků (dřív 12), místo zbývá zase na 1 stránku.
     await fillAlbum(device.records(EMA), 10, HOUSE);
     // Hvězda s barvou 0 je stejná jako obrázek hvězdy, který dítě dřív vyfotilo.
     await fillAlbum(device.records(EMA), 1, STAR);
+    await fillAlbumQuickly(device.records(EMA), FULL_ALBUM_PICTURES - 12);
     const house = paintPageDirectly(device, HOUSE, PAGE_COLOR);
     const circles = paintPageDirectly(device, CIRCLES, SECOND_COLOR);
     const star = paintPageDirectly(device, STAR, 0);
@@ -135,7 +148,7 @@ describe('#141 AC4: převod dnešních stránek při otevření Omalovánek', ()
     await openGame(device);
 
     const album = await albumPixels(device);
-    expect(album.length, 'album je plné').toBe(12);
+    expect(album.length, 'album je plné').toBe(FULL_ALBUM_PICTURES);
     expect(album[0], 'domek se vešel').toEqual(house);
     expect(pageOf(device, CIRCLES), 'kruhy zůstaly na stránce').toEqual(circles);
     expect(isClean(pageOf(device, STAR)), 'stránka hvězdy je čistá').toBe(true);
@@ -264,8 +277,13 @@ describe('#141 AC4: nejdřív se dořeší odložená výměna z #131', () => {
     expect(isClean(pageOf(prepared.device)), 'stránka je čistá').toBe(true);
   });
 
-  it('po výměně v plném albu přesun při otevření nepřekročí 12 obrázků a obrázek z alba zůstane na stránce', async () => {
-    const prepared = await prepareSwap({ albumCount: 12, aIndex: 4 });
+  // #149 AC2: plné album je 60 obrázků (dřív 12).
+  it('po výměně v plném albu přesun při otevření nepřekročí 60 obrázků a obrázek z alba zůstane na stránce', async () => {
+    const prepared = await prepareSwap({
+      albumCount: 0,
+      quickPictures: FULL_ALBUM_PICTURES,
+      aIndex: 4,
+    });
     expect((await tapContinue(prepared.page)).kind, 'výměna proběhla').toBe('opened');
     await settleOn(prepared.page);
 
@@ -273,10 +291,10 @@ describe('#141 AC4: nejdřív se dořeší odložená výměna z #131', () => {
 
     expect(
       prepared.device.maxRecords.get(EMA),
-      'záznamů nebylo nikdy víc než 12',
-    ).toBeLessThanOrEqual(12);
+      'záznamů nebylo nikdy víc než 60',
+    ).toBeLessThanOrEqual(FULL_ALBUM_PICTURES);
     const album = await albumPixels(prepared.device);
-    expect(album.length).toBe(12);
+    expect(album.length).toBe(FULL_ALBUM_PICTURES);
     expect(pageOf(prepared.device), 'A zůstala na stránce, album je plné').toEqual(prepared.a);
     expect(timesIn(album, prepared.p), 'P je v albu').toBe(1);
   });

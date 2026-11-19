@@ -362,11 +362,16 @@ describe('#129 AC6: album z #126 zůstane beze změny', () => {
     );
   });
 
+  // #149: album s jedinou stránkou nemá šipky a jeho mřížka je na stejném
+  // místě jako před #129 (`pictureCount: 12`). Se šipkami (víc stránek) se mřížka
+  // v těsných oknech posune; to hlídá `albumPagesLayoutRules.test.ts`.
   it('náhledy alba jsou na stejném místě a stejně velké jako před #129', () => {
     const before = new Map(ALBUM_GRID_BEFORE_129.map((row) => [row[0], row]));
     for (const window of COLORING_WINDOWS) {
       const area = gameAreaFor(viewportOf(window), COLORING_GAME_AREA_FIT);
-      const previews = layoutAlbum(area).previews.map((rect) => toCss(boxOfRect(rect), area));
+      const previews = layoutAlbum(area, { pictureCount: 12 }).previews.map((rect) =>
+        toCss(boxOfRect(rect), area),
+      );
       const row = before.get(window.name);
       const first = previews[0];
       const last = previews[11];
