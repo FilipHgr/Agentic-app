@@ -301,8 +301,9 @@ describe('#135 AC3: v cíli se symbol cíle zvětší a zazáří, zazní melodi
     expect(SOUNDS.mapGoal).not.toEqual(SOUNDS.mapStep);
   });
 
-  it('pohyb (nejvýš 1,5 s) i melodie se vejdou do 5 s zobrazení mapy v cíli', () => {
-    expect(MAP_GOAL_SHOW_MS).toBeLessThanOrEqual(5000);
+  // #145 AC3: 5 s zobrazení cíle nahrazuje 7 s karty.
+  it('pohyb (nejvýš 1,5 s) i melodie se vejdou do 7 s zobrazení mapy v cíli', () => {
+    expect(MAP_GOAL_SHOW_MS).toBeLessThanOrEqual(7000);
     for (const { label, move } of goalMoves()) {
       expect(mapShowMs(move), label).toBe(MAP_GOAL_SHOW_MS);
       const arrived = arrivalMs(move);

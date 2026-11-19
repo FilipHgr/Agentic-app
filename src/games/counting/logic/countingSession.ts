@@ -31,7 +31,7 @@ import type { DotCounting } from './dotCounting';
 import { drawProblem, startProblemRotation } from './problemRotation';
 import type { ProblemRotation } from './problemRotation';
 import type { Problem } from './problems';
-import { KEY_REWARD_APPEAR_MS, MARKER_ARRIVAL_MS } from './mapAnimation';
+import { KEY_REWARD_APPEAR_MS, MARKER_ARRIVAL_MS, mapClosableFromMs } from './mapAnimation';
 import { mapShowMs, stepOnMap } from './progressMap';
 import type { MapMove, MapProgress } from './progressMap';
 import { createRecognizerLoading } from './recognizerLoading';
@@ -45,6 +45,12 @@ import type { DigitRecognizer } from './writingRound';
 
 /** Jak dlouho se po správné odpovědi čeká na nový příklad. */
 export const NEXT_PROBLEM_DELAY_MS = 800;
+
+/**
+ * Jak dlouho po zavření karty ťuknutím hra nepřijímá odpovědi (#145 AC5),
+ * aby rychlé druhé ťuknutí nezadalo číslo nového příkladu.
+ */
+export const MAP_CLOSE_ANSWER_PAUSE_MS = 300;
 
 /** Jak dlouho letí hvězdička od odpovědi do řady; oslava začne po doletu. */
 export const STAR_FLIGHT_MS = 450;
@@ -85,7 +91,8 @@ export interface SessionPage {
  * - `celebrationStopped` oslavu přerušilo otevření nastavení,
  * - `starsChanged` jiný počet hvězdiček bez letu (nastavení přerušilo oslavu),
  * - `mapShown` po oslavě se ukázala mapa postupu s krokem `shownMap()` (#87),
- * - `mapHidden` mapa se po chvíli sama zavřela (nový příklad přijde zvlášť),
+ * - `mapHidden` karta s mapou se po 7 s sama zavřela, nebo ji dítě zavřelo
+ *   ťuknutím (#145; nový příklad přijde zvlášť),
  * - `mapStopped` mapu přerušilo otevření nastavení,
  * - `settingsOpened` / `settingsClosed` nastavení pro rodiče po podržení kolečka a po ✓,
  * - `guideClosed` průvodce skončil „Začít hrát“,
@@ -104,6 +111,14 @@ export type SessionChange =
   | { readonly kind: 'settingsClosed' }
   | { readonly kind: 'guideClosed' }
   | { readonly kind: 'recognizer'; readonly status: RecognizerLoadStatus };
+
+/**
+ * Co udělalo ťuknutí na kartu s mapou (#145 AC4):
+ * - `closed` karta se zavřela a hra pokračuje jako po mapě,
+ * - `tooEarly` animace ještě běží, karta zůstane (scéna ji jen zhoupne),
+ * - `ignored` karta není vidět (nebo je otevřené nastavení či po odchodu).
+ */
+export type MapTapOutcome = 'closed' | 'tooEarly' | 'ignored';
 
 export interface CountingSessionOptions {
   readonly storage: KeyValueStorage | undefined;
@@ -159,7 +174,15 @@ export interface CountingSession {
   homeAvailable(): boolean;
   hasLeft(): boolean;
 
-  /** Ťuknutí na číslo číselníku. Po odchodu a při otevřeném panelu `ignored`. */
+  /**
+   * Ťuknutí kamkoli mimo kolečko a domeček, když je vidět karta s mapou
+   * (#145 AC4): zavře ji až po doběhnutí animace, dřív nic nezmění.
+   */
+  tapMap(): MapTapOutcome;
+  /**
+   * Ťuknutí na číslo číselníku. Po odchodu, při otevřeném panelu a během
+   * karty s mapou `ignored`.
+   */
   tapAnswer(number: number): TapOutcome;
   /**
    * Potvrzení zápisu v okénkách (#42): `answer` je kolo po vyhodnocení
@@ -203,6 +226,10 @@ export function createCountingSession(options: CountingSessionOptions): Counting
   /** Co dal cíl za právě zaplněnou řadu; ukáže se s mapou po oslavě (#139). */
   let keyRewardToShow: KeyReward | null = null;
   let shownKeyReward: KeyReward | null = null;
+  /** Doběhla už animace ukázané karty, takže ji ťuknutí zavře (#145 AC4)? */
+  let mapClosable = false;
+  /** Karta se právě zavřela ťuknutím: chvíli se nepřijímají odpovědi (#145 AC5). */
+  let answersPausedAfterMap = false;
   // Mapy dokončené dřív (i před #139) se započtou hned, jednou a bez
   // animace (AC5); dřív započtené mapy klíče nepřidají (AC3).
   reportCompletedMaps(map.completedMaps);
@@ -339,6 +366,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     }
     shownMove = move;
     shownKeyReward = keyReward;
+    mapClosable = false;
     notify({ kind: 'mapShown' });
     // Zvuk zazní, až značka na novém místě zastaví (#135 AC2, AC3).
     const arrivalSound = move.reachedGoal ? SOUNDS.mapGoal : SOUNDS.mapStep;
@@ -347,12 +375,20 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       // Tón půlky klíče až po melodii cíle, spolu s půlkou (#139 AC2).
       schedule(KEY_REWARD_APPEAR_MS, () => sounds.play(SOUNDS.keyReward), celebrationSteps);
     }
+    schedule(
+      mapClosableFromMs(move, keyReward),
+      () => {
+        mapClosable = true;
+      },
+      celebrationSteps,
+    );
     schedule(mapShowMs(move), hideMap, celebrationSteps);
   }
 
   function hideMap(): void {
     shownMove = null;
     shownKeyReward = null;
+    mapClosable = false;
     notify({ kind: 'mapHidden' });
     startRound();
   }
@@ -380,8 +416,29 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     return outcome;
   }
 
+  /** Během karty s mapou nic pod ní odpověď nezadá (#145 AC5). */
   function acceptsAnswers(): boolean {
-    return !left && !guideIsOpen && !settingsAreOpen;
+    return (
+      !left && !guideIsOpen && !settingsAreOpen && shownMove === null && !answersPausedAfterMap
+    );
+  }
+
+  /** Ťuknutí na kartu: po doběhnutí animace ji zavře, jinak nic nezmění (#145 AC4). */
+  function tapMap(): MapTapOutcome {
+    if (left || settingsAreOpen || shownMove === null) {
+      return 'ignored';
+    }
+    if (!mapClosable) {
+      return 'tooEarly';
+    }
+    // Zbývající kroky karty (zavření po 7 s) se zruší, aby se nic nezdvojilo.
+    cancelAll(celebrationSteps);
+    answersPausedAfterMap = true;
+    schedule(MAP_CLOSE_ANSWER_PAUSE_MS, () => {
+      answersPausedAfterMap = false;
+    });
+    hideMap();
+    return 'closed';
   }
 
   /**
@@ -403,6 +460,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       } else {
         shownMove = null;
         shownKeyReward = null;
+        mapClosable = false;
         notify({ kind: 'mapStopped' });
       }
     }
@@ -434,6 +492,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     settingsOpen: () => settingsAreOpen,
     homeAvailable: () => !left && !guideIsOpen && !settingsAreOpen,
     hasLeft: () => left,
+    tapMap,
 
     tapAnswer(number: number): TapOutcome {
       if (!acceptsAnswers()) {
@@ -507,6 +566,8 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       if (result.startNewProblem) {
         // Nový příklad hned; čekající příklad po odpovědi by přišel podruhé.
         cancelAll(pending);
+        // Zrušená chvíle po zavření karty nesmí odpovědi zablokovat natrvalo.
+        answersPausedAfterMap = false;
         startRound();
       }
     },
@@ -531,6 +592,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       shownMove = null;
       keyRewardToShow = null;
       shownKeyReward = null;
+      mapClosable = false;
       cancelAll(pending);
       stopWatchingRecognizer();
       detachGear();

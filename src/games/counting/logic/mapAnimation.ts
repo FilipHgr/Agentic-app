@@ -136,7 +136,7 @@ export const KEY_JOIN_DELAY_MS = 450;
 /** Jak dlouho se půlky celého klíče k sobě přibližují. */
 export const KEY_JOIN_MS = 600;
 
-/** Kdy jsou půlky celého klíče spojené, ms od ukázání mapy (dlouho před koncem 5 s cíle). */
+/** Kdy jsou půlky celého klíče spojené, ms od ukázání mapy (před 5 s, #145 AC3). */
 export const KEY_JOINED_MS = KEY_REWARD_APPEAR_MS + KEY_JOIN_DELAY_MS + KEY_JOIN_MS;
 
 /** Jak vypadá půlka klíče u cíle v jednom okamžiku. */
@@ -154,8 +154,8 @@ export interface KeyRewardMoment {
 /**
  * Půlka klíče u cíle v čase `elapsedMs` od ukázání mapy: objeví se po
  * melodii cíle a naskočí. U `'wholeKey'` se objeví obě půlky kousek od
- * sebe a pak se k sobě přiblíží a spojí. Všechno doběhne do konce 5 s cíle
- * a pak se nemění.
+ * sebe a pak se k sobě přiblíží a spojí. Všechno doběhne do 5 s od ukázání
+ * (#145 AC3) a pak se nemění.
  */
 export function keyRewardMomentAt(reward: KeyReward, elapsedMs: number): KeyRewardMoment {
   const sinceAppear = elapsedMs - KEY_REWARD_APPEAR_MS;
@@ -173,4 +173,24 @@ export function keyRewardMomentAt(reward: KeyReward, elapsedMs: number): KeyRewa
   }
   const joinShare = clampShare((sinceAppear - KEY_JOIN_DELAY_MS) / KEY_JOIN_MS);
   return { visible: true, joined: joinShare >= 1, popShare, separation: 1 - easeInOut(joinShare) };
+}
+
+/**
+ * Od kolika ms od ukázání karty ji ťuknutí zavře (#145 AC4): až doběhne
+ * animace. Na zastávce, když značka stojí a místo svítí; v cíli s půlkou
+ * klíče po jejím naskočení, s celým klíčem po spojení půlek a v cíli, za
+ * který se půlka nepřičte (`keyReward` `null`), po melodii cíle.
+ */
+export function mapClosableFromMs(move: MapMove, keyReward: KeyReward | null): number {
+  if (!move.reachedGoal) {
+    return MARKER_ARRIVAL_MS;
+  }
+  if (keyReward === 'half') {
+    return KEY_REWARD_APPEAR_MS + KEY_REWARD_POP_MS;
+  }
+  if (keyReward === 'wholeKey') {
+    return KEY_JOINED_MS;
+  }
+  // Melodie cíle začne při dojití; půlka by se ukázala právě po ní.
+  return KEY_REWARD_APPEAR_MS;
 }

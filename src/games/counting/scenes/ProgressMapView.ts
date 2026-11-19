@@ -4,13 +4,10 @@ import type { KeyReward } from '../../../shared/logic/keyRewards';
 import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
 import type { GameArea, GameSize } from '../../../shared/logic/viewportLayout';
 import type { MapLook } from '../logic/mapPictureLoading';
-import {
-  MAP_GOAL_SYMBOLS,
-  MAP_PICTURE_SIZE,
-  mapOrientationOf,
-  mapPictureCover,
-} from '../logic/mapPictures';
+import { MAP_GOAL_SYMBOLS } from '../logic/mapPictures';
 import type { PictureRect } from '../logic/mapPictures';
+import { mapCardPictureCover } from '../logic/progressMapCard';
+import type { ProgressMapCard } from '../logic/progressMapCard';
 import { MAP_STEPS } from '../logic/progressMap';
 import type { MapMarker, MapMove } from '../logic/progressMap';
 import {
@@ -32,6 +29,7 @@ import type { MapPoint, ProgressMapLayout } from '../logic/progressMapLayout';
 import {
   CONFETTI_COLORS,
   PROGRESS_MAP_BACKGROUNDS,
+  PROGRESS_MAP_CARD_STYLE,
   PROGRESS_MAP_EFFECTS,
   PROGRESS_MAP_SHAPE,
   PROGRESS_MAP_STYLE,
@@ -45,6 +43,14 @@ import { goalSymbolTextureKey, mapPictureTextureKey } from './mapPictureTextures
 
 /** Mapa leží nad příkladem, konfetami i hvězdičkami, pod panely rodičů. */
 const MAP_DEPTH = 20;
+
+/**
+ * Předčasné ťuknutí kartu krátce zhoupne do stran (#145 AC4): jak daleko
+ * v CSS px, kolikrát tam a zpět a jak dlouho celkem (do 250 ms).
+ */
+const CARD_WOBBLE_CSS = 8;
+const CARD_WOBBLE_SWINGS = 2;
+const CARD_WOBBLE_MS = 240;
 
 /** Zastávka a značka po dojití krátce poskočí (zvětšení a skok nahoru). */
 const ARRIVAL_PULSE_MS = 180;
@@ -146,11 +152,31 @@ function sparkleColor(index: number): number {
   return EFFECT_COLORS.sparkles[index % EFFECT_COLORS.sparkles.length] ?? EFFECT_COLORS.goalRing;
 }
 
-/** Kde a jak mapu nakreslit: plocha, okno v CSS px a vzhled tohoto ukázání. */
+/**
+ * Kde a jak mapu nakreslit: herní plocha pod kartou, okno v CSS px, karta
+ * s mapou (#145) a vzhled tohoto ukázání.
+ */
 export interface MapScreen {
   readonly area: GameArea;
   readonly window: GameSize;
+  readonly card: ProgressMapCard;
   readonly look: MapLook;
+}
+
+/**
+ * Karta nad ztmavenou hrou (#145): ztmavení přes celé okno, stín s bílým
+ * okrajem, maska se zaoblenými rohy a plocha, která chytá ťuknutí.
+ * Stín, okraj, maska i obsah mapy se při zhoupnutí posunou spolu.
+ */
+interface CardFrame {
+  readonly dim: Phaser.GameObjects.Graphics;
+  readonly frame: Phaser.GameObjects.Graphics;
+  readonly maskShape: Phaser.GameObjects.Graphics;
+  readonly mask: Phaser.Display.Masks.GeometryMask;
+  readonly tapZone: Phaser.GameObjects.Zone;
+  /** Levý horní roh karty v herních jednotkách herní plochy. */
+  readonly left: number;
+  readonly top: number;
 }
 
 /** Nakreslená mapa jednoho ukázání a co už z jednorázových efektů proběhlo. */
@@ -177,14 +203,19 @@ interface MapDrawing {
   settled: boolean;
   /** Cíl je plně zvětšený: velikost se už nepočítá. */
   goalGrown: boolean;
-  /** Spodní okraj okna v herních jednotkách: konfety padají až pod něj. */
+  /** Spodní okraj karty v herních jednotkách: konfety padají až pod něj. */
   readonly windowBottom: number;
-  /** Šířka okna v herních jednotkách: jak daleko konfety vyletí. */
+  /** Šířka karty v herních jednotkách: jak daleko konfety vyletí. */
   readonly windowWidth: number;
+  readonly card: CardFrame;
+  /** Zhoupnutí karty po předčasném ťuknutí, dokud běží. */
+  wobble: Phaser.Tweens.Tween | null;
 }
 
 /**
- * Mapa postupu (#87, #133, #134, #135): obrázek prostředí přes celé okno,
+ * Mapa postupu (#87, #133, #134, #135) v kartě nad ztmavenou hrou (#145,
+ * varianta V2): karta má bílý okraj, stín a zaoblené rohy, které obsah
+ * mapy (i konfety cíle) oříznou. Obrázek prostředí přes celou kartu,
  * nad ním cesta, start, 2 zastávky, cíl se symbolem tématu a značka hráče.
  * Bez staženého obrázku zástupný vzhled v barvě mapy (#134 AC4).
  * Nad pozadím (obrázkem i zástupným) a pod cestou se jemně hýbe prostředí
@@ -194,9 +225,10 @@ interface MapDrawing {
  * a zazáří a přijdou konfety. Po melodii cíle se vedle cíle objeví půlka
  * klíče, případně se spojí s druhou v celý klíč (#139). Kde co je, řídí časová osa
  * `logic/mapAnimation.ts` podle času od ukázání, takže po otočení se mapa
- * překreslí ve stejném okamžiku. Nic nerozhoduje a nemá ťukací plochy
- * (#134 AC3); kdy se ukáže a zmizí, řídí sezení. Kolečko a domeček jsou
- * prvky stránky, leží nad plátnem, a tedy i nad mapou.
+ * překreslí ve stejném okamžiku. Ťuknutí kamkoli na plátno (na kartu
+ * i na ztmavení) předá `onTap` a pod kartu nepropustí; zavření nebo
+ * zhoupnutí rozhoduje sezení (#145 AC4, AC5). Kolečko a domeček jsou prvky
+ * stránky, leží nad plátnem, a tedy i nad ztmavením.
  */
 export class ProgressMapView {
   private drawing: MapDrawing | null = null;
@@ -206,9 +238,13 @@ export class ProgressMapView {
   /** Kdy se mapa ukázala (čas scény); po otočení se zachová. */
   private shownAt = 0;
 
+  /** CSS px na herní jednotku nakreslené karty. */
+  private drawnScale = 1;
+
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly marker: () => MapMarker,
+    private readonly onTap: () => void,
   ) {}
 
   /**
@@ -248,20 +284,119 @@ export class ProgressMapView {
     return Math.max(0, this.scene.time.now - this.shownAt);
   }
 
+  /**
+   * Předčasné ťuknutí (#145 AC4): karta se krátce zhoupne do stran a vrátí
+   * se na místo. Nic jiného se nemění, odpočet běží dál v sezení.
+   */
+  wobble(): void {
+    const drawing = this.drawing;
+    if (drawing === null || drawing.wobble !== null) {
+      return;
+    }
+    const swing = { share: 0 };
+    const reach = CARD_WOBBLE_CSS / this.drawnScale;
+    drawing.wobble = this.scene.tweens.add({
+      targets: swing,
+      share: 1,
+      duration: CARD_WOBBLE_MS,
+      onUpdate: () => {
+        const fade = 1 - swing.share;
+        const offset = Math.sin(swing.share * Math.PI * 2 * CARD_WOBBLE_SWINGS) * fade * reach;
+        placeCard(drawing, offset);
+      },
+      onComplete: () => {
+        placeCard(drawing, 0);
+        drawing.wobble = null;
+      },
+    });
+  }
+
   private destroyDrawing(): void {
     const drawing = this.drawing;
     this.drawing = null;
     if (drawing) {
+      drawing.wobble?.remove();
       this.scene.tweens.killTweensOf(drawing.container.list);
       drawing.goalKey?.stopAnimations();
+      drawing.container.clearMask();
       drawing.container.destroy(true);
+      const { dim, frame, maskShape, mask, tapZone } = drawing.card;
+      mask.destroy();
+      [dim, frame, maskShape, tapZone].forEach((object) => object.destroy());
     }
   }
 
-  private draw(screen: MapScreen, move: MapMove): void {
-    const { area, look } = screen;
-    const elapsed = this.elapsedMs();
+  /**
+   * Ztmavení přes celé okno, stín a bílý okraj karty, maska zaoblených
+   * rohů a plocha přes celé okno, která chytá ťuknutí (#145).
+   */
+  private drawCardFrame(screen: MapScreen): CardFrame {
+    const { area, card } = screen;
+    const style = PROGRESS_MAP_CARD_STYLE;
+    const units = (css: number): number => css / (area.scale > 0 ? area.scale : 1);
     const windowRect = toGameUnits({ left: 0, top: 0, ...screen.window }, area);
+    const cardRect = toGameUnits(card.rect, area);
+    const dim = this.scene.add
+      .graphics()
+      .fillStyle(colorNumber(style.dimColor), style.dimAlpha)
+      .fillRect(windowRect.left, windowRect.top, windowRect.width, windowRect.height)
+      .setDepth(MAP_DEPTH);
+    const radius = units(style.cornerRadiusCss);
+    const border = units(style.borderCss);
+    const frame = this.scene.add.graphics().setDepth(MAP_DEPTH);
+    for (let layer = style.shadowLayers; layer >= 1; layer -= 1) {
+      const spread = border + units(style.shadowSpreadCss * layer);
+      frame
+        .fillStyle(colorNumber(style.shadowColor), style.shadowLayerAlpha)
+        .fillRoundedRect(
+          -spread,
+          -spread + units(style.shadowOffsetCss),
+          cardRect.width + spread * 2,
+          cardRect.height + spread * 2,
+          radius + spread,
+        );
+    }
+    frame
+      .fillStyle(colorNumber(style.borderColor), 1)
+      .fillRoundedRect(
+        -border,
+        -border,
+        cardRect.width + border * 2,
+        cardRect.height + border * 2,
+        radius + border,
+      );
+    const maskShape = this.scene.make.graphics({}, false);
+    maskShape.fillStyle(0xffffff, 1).fillRoundedRect(0, 0, cardRect.width, cardRect.height, radius);
+    // Ťuknutí kamkoli na plátno patří kartě, pod ni se nedostane (#145 AC5).
+    // Ochrana stojí na dvou věcech: Phaser má `input.topOnly` (výchozí true),
+    // takže ťuknutí dostane jen nejvyšší ťukací plocha, tedy tato nad
+    // číselníkem, nápovědou i okénky; a sezení během karty i chvíli po jejím
+    // zavření žádnou odpověď nepřijme (`acceptsAnswers`).
+    const tapZone = this.scene.add
+      .zone(windowRect.left, windowRect.top, windowRect.width, windowRect.height)
+      .setOrigin(0, 0)
+      .setDepth(MAP_DEPTH + 1)
+      .setInteractive();
+    tapZone.on('pointerdown', () => this.onTap());
+    return {
+      dim,
+      frame,
+      maskShape,
+      mask: maskShape.createGeometryMask(),
+      tapZone,
+      left: cardRect.left,
+      top: cardRect.top,
+    };
+  }
+
+  private draw(screen: MapScreen, move: MapMove): void {
+    const { look } = screen;
+    // Mapa se rozloží v ploše karty; souřadnice jsou od levého horního rohu karty.
+    const area = screen.card.area;
+    this.drawnScale = area.scale > 0 ? area.scale : 1;
+    const elapsed = this.elapsedMs();
+    const cardFrame = this.drawCardFrame(screen);
+    const windowRect = { left: 0, top: 0, width: area.width, height: area.height };
     const layout = layoutProgressMap(area, move.theme);
     const style = progressMapStyleFor(move.theme, look);
     const background = this.drawBackground(screen, move);
@@ -292,7 +427,8 @@ export class ProgressMapView {
         ...(goalKey === null ? [] : [goalKey.container]),
         marker,
       ])
-      .setDepth(MAP_DEPTH);
+      .setDepth(MAP_DEPTH)
+      .setMask(cardFrame.mask);
     this.drawing = {
       container,
       layout,
@@ -313,7 +449,10 @@ export class ProgressMapView {
       goalGrown: false,
       windowBottom: windowRect.top + windowRect.height,
       windowWidth: windowRect.width,
+      card: cardFrame,
+      wobble: null,
     };
+    placeCard(this.drawing, 0);
     this.tick();
   }
 
@@ -347,28 +486,23 @@ export class ProgressMapView {
   }
 
   /**
-   * Zástupná barva přes celé okno a nad ní obrázek, když je v tomto
-   * ukázání (AC1, AC4). Okno je v herních jednotkách, plátno z něj ukáže
-   * jen herní plochu; zbytek okna vyplní stránka stejným obrázkem.
+   * Zástupná barva přes celou kartu a nad ní obrázek, když je v tomto
+   * ukázání (AC1, AC4); obrázek zakryje celou kartu a orientace se řídí
+   * jejím tvarem (#145 AC2). Co přečnívá, ořízne maska karty.
    */
   private drawBackground(screen: MapScreen, move: MapMove): Phaser.GameObjects.GameObject[] {
-    const { area, window, look } = screen;
-    const windowRect = toGameUnits({ left: 0, top: 0, ...window }, area);
+    const { card, look } = screen;
+    const area = card.area;
     const backdrop = this.scene.add
-      .rectangle(
-        windowRect.left,
-        windowRect.top,
-        windowRect.width,
-        windowRect.height,
-        colorNumber(PROGRESS_MAP_BACKGROUNDS[move.theme]),
-      )
+      .rectangle(0, 0, area.width, area.height, colorNumber(PROGRESS_MAP_BACKGROUNDS[move.theme]))
       .setOrigin(0, 0);
-    const orientation = mapOrientationOf(window);
+    const { orientation, rect } = mapCardPictureCover(card);
     const key = mapPictureTextureKey({ theme: move.theme, orientation });
     if (look !== 'picture' || !this.scene.textures.exists(key)) {
       return [backdrop];
     }
-    const cover = toGameUnits(mapPictureCover(window, MAP_PICTURE_SIZE[orientation]), area);
+    // Obrázek je v CSS px od rohu karty; plocha karty začíná v jejím rohu.
+    const cover = toGameUnits(rect, { ...area, offsetX: 0, offsetY: 0 });
     const picture = this.scene.add
       .image(cover.left, cover.top, key)
       .setOrigin(0, 0)
@@ -688,6 +822,15 @@ export class ProgressMapView {
       });
     }
   }
+}
+
+/** Karta posunutá o `offset` herních jednotek do strany: stín, okraj, maska i obsah spolu. */
+function placeCard(drawing: MapDrawing, offset: number): void {
+  const { card, container } = drawing;
+  const x = card.left + offset;
+  container.setPosition(x, card.top);
+  card.frame.setPosition(x, card.top);
+  card.maskShape.setPosition(x, card.top);
 }
 
 /** Jak vysoko (v průměrech značky) značka po zastavení zrovna poskočila. */

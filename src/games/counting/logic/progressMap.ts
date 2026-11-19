@@ -28,11 +28,14 @@ export function mapThemeFor(completedMaps: number): MapThemeId {
   return MAP_THEMES[index] ?? MAP_THEMES[0];
 }
 
-/** Jak dlouho je mapa po oslavě vidět. */
-export const MAP_SHOW_MS = 3000;
+/**
+ * Jak dlouho je karta s mapou po oslavě vidět, když na ni dítě neťukne
+ * (#145 AC3, nahrazuje 3 s z #133).
+ */
+export const MAP_SHOW_MS = 7000;
 
-/** Jak dlouho je mapa vidět, když značka dojde do cíle. */
-export const MAP_GOAL_SHOW_MS = 5000;
+/** Jak dlouho je karta vidět, když značka dojde do cíle (#145 AC3, nahrazuje 5 s z #135). */
+export const MAP_GOAL_SHOW_MS = 7000;
 
 export interface MapProgress {
   /** Kde stojí značka: 0 start, `MAP_STEPS` cíl. */

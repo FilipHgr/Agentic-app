@@ -25,7 +25,7 @@ import { PROFILE_COLORS } from '../../../src/shared/logic/profiles';
  *
  * Navržené rozhraní `src/games/counting/logic/progressMap.ts`:
  * - `MAP_STEPS = 3` (krok 0 start, 1 a 2 zastávky, 3 cíl),
- *   `MAP_SHOW_MS = 3000`, `MAP_GOAL_SHOW_MS = 5000` beze změny,
+ *   `MAP_SHOW_MS` a `MAP_GOAL_SHOW_MS` (od #145 AC3 obě 7000),
  * - `MapThemeId = 'island' | 'forest' | 'castle' | 'underwater' | 'space'`,
  *   `MAP_THEMES: readonly MapThemeId[]` ve stálém pořadí,
  * - `mapThemeFor(completedMaps): MapThemeId` mapa, která se hraje,
@@ -115,20 +115,21 @@ describe('#133 AC1: mapa má start, 2 zastávky a cíl, každá plná řada je j
   });
 });
 
-describe('#133 AC1: doby zobrazení mapy zůstávají 3 s po kroku a 5 s v cíli', () => {
-  it('krok na 1. nebo 2. zastávku ukáže mapu na 3 s', () => {
-    expect(MAP_SHOW_MS).toBe(3000);
-    expect(mapShowMs(stepOnMap({ step: 0, completedMaps: 0 }).move)).toBe(3000);
-    expect(mapShowMs(stepOnMap({ step: 1, completedMaps: 0 }).move)).toBe(3000);
+// #145 AC3: doby 3 s po kroku a 5 s v cíli z #133 nahrazuje 7 s karty u kroku i u cíle.
+describe('#145 AC3: mapa je vidět 7 s po kroku i v cíli', () => {
+  it('krok na 1. nebo 2. zastávku ukáže mapu na 7 s', () => {
+    expect(MAP_SHOW_MS).toBe(7000);
+    expect(mapShowMs(stepOnMap({ step: 0, completedMaps: 0 }).move)).toBe(7000);
+    expect(mapShowMs(stepOnMap({ step: 1, completedMaps: 0 }).move)).toBe(7000);
   });
 
-  it('při dojití do cíle zůstane mapa 5 s', () => {
-    expect(MAP_GOAL_SHOW_MS).toBe(5000);
-    expect(mapShowMs(stepOnMap({ step: 2, completedMaps: 0 }).move)).toBe(5000);
+  it('při dojití do cíle zůstane mapa také 7 s', () => {
+    expect(MAP_GOAL_SHOW_MS).toBe(7000);
+    expect(mapShowMs(stepOnMap({ step: 2, completedMaps: 0 }).move)).toBe(7000);
   });
 
-  it('1. krok nové mapy po cíli je zase běžný krok na 3 s', () => {
-    expect(mapShowMs(stepOnMap({ step: MAP_STEPS, completedMaps: 1 }).move)).toBe(3000);
+  it('1. krok nové mapy po cíli je zase běžný krok na 7 s', () => {
+    expect(mapShowMs(stepOnMap({ step: MAP_STEPS, completedMaps: 1 }).move)).toBe(7000);
   });
 });
 

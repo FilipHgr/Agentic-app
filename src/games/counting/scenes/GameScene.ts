@@ -16,14 +16,17 @@ import { isTwoBoxRound, playStateAfterResize } from '../logic/deviceLayout';
 import type { PlayState } from '../logic/deviceLayout';
 import { createMapPictureLoading } from '../logic/mapPictureLoading';
 import type { MapLook, MapPictureId } from '../logic/mapPictureLoading';
-import { mapOrientationOf, mapPictureUrl } from '../logic/mapPictures';
 import type { GameProgress } from '../logic/progress';
 import { mapMarkerFor, upcomingMapTheme } from '../logic/progressMap';
+import {
+  layoutProgressMapCard,
+  mapCardPageBackdrop,
+  mapCardPictureCover,
+} from '../logic/progressMapCard';
 import type { MapMarker, MapThemeId } from '../logic/progressMap';
 import { loadDigitRecognizer } from '../logic/recognizerLoading';
 import type { RecognizerLoadStatus } from '../logic/recognizerLoading';
 import type { GameSettings } from '../logic/settings';
-import { PROGRESS_MAP_BACKGROUNDS } from '../logic/theme';
 import { switchToKeypad } from '../logic/twoBoxWriting';
 import type { TwoBoxConfirmResult, TwoBoxRound } from '../logic/twoBoxWriting';
 import { highlightCorrectButton, shakeWrongButton } from './AnswerButton';
@@ -85,7 +88,11 @@ export class GameScene extends Phaser.Scene {
   });
   private readonly starRow = new StarRow(this, this.layouts, () => this.currentProgress());
   private readonly confetti = new Confetti(this);
-  private readonly progressMap = new ProgressMapView(this, () => this.profileMarker());
+  private readonly progressMap = new ProgressMapView(
+    this,
+    () => this.profileMarker(),
+    () => this.onMapTapped(),
+  );
   /** Obrázky map se stahují na pozadí, jen ten, který se ukáže příště (#134). */
   private readonly mapPictures = createMapPictureLoading((picture) =>
     loadMapPicture(this, picture),
@@ -213,7 +220,17 @@ export class GameScene extends Phaser.Scene {
     if (move !== null) {
       const look = this.mapPictures.mapShown(this.mapPictureOf(move.theme));
       this.progressMap.show(this.mapScreen(look), move, this.session.goalKeyReward());
-      this.showPageBackdrop(move.theme, look);
+      this.showPageBackdrop();
+    }
+  }
+
+  /**
+   * Ťuknutí na kartu s mapou nebo na ztmavení (#145 AC4): po doběhnutí
+   * animace ji sezení zavře (ohlásí `mapHidden`), dřív se karta jen zhoupne.
+   */
+  private onMapTapped(): void {
+    if (this.session.tapMap() === 'tooEarly') {
+      this.progressMap.wobble();
     }
   }
 
@@ -235,7 +252,7 @@ export class GameScene extends Phaser.Scene {
     }
     const look = this.mapPictures.orientationChanged(this.mapPictureOf(move.theme));
     this.progressMap.redraw(this.mapScreen(look));
-    this.showPageBackdrop(move.theme, look);
+    this.showPageBackdrop();
   }
 
   /** Během hraní se na pozadí stáhne obrázek mapy, kterou ukáže příští plná řada. */
@@ -243,27 +260,29 @@ export class GameScene extends Phaser.Scene {
     this.mapPictures.prepare(this.mapPictureOf(upcomingMapTheme(this.session.mapProgress())));
   }
 
-  /** Obrázek mapy `theme` v orientaci okna. */
+  /** Obrázek mapy `theme` v orientaci karty (#145 AC2: řídí se tvarem karty). */
   private mapPictureOf(theme: MapThemeId): MapPictureId {
-    return { theme, orientation: mapOrientationOf(this.windowSize()) };
+    return {
+      theme,
+      orientation: mapCardPictureCover(layoutProgressMapCard(readViewport())).orientation,
+    };
   }
 
+  /** Karta s mapou v dnešním okně (#145): poloha a velikost podle okna, výřezu a rohů. */
   private mapScreen(look: MapLook): MapScreen {
-    return { area: this.gameArea, window: this.windowSize(), look };
+    const card = layoutProgressMapCard(readViewport());
+    return { area: this.gameArea, window: this.windowSize(), card, look };
   }
 
-  /** Velikost okna v CSS px: obrázek mapy zakryje celé okno, ne jen herní plochu. */
+  /** Velikost okna v CSS px: ztmavení přes celé okno, ne jen herní plochu. */
   private windowSize(): { width: number; height: number } {
     const { width, height } = readViewport();
     return { width, height };
   }
 
-  /** Okraje okna kolem plátna vyplní stránka stejným obrázkem, nebo barvou mapy. */
-  private showPageBackdrop(theme: MapThemeId, look: MapLook): void {
-    const color = PROGRESS_MAP_BACKGROUNDS[theme];
-    const imageUrl =
-      look === 'picture' ? mapPictureUrl(theme, mapOrientationOf(this.windowSize())) : undefined;
-    this.readHost()?.setPageBackdrop?.({ color, imageUrl });
+  /** Okraje okna kolem plátna jsou během karty ztmavené stejně jako hra (#145 AC2). */
+  private showPageBackdrop(): void {
+    this.readHost()?.setPageBackdrop?.(mapCardPageBackdrop());
   }
 
   /** Nastavení, jak se má rozehraný příklad ukázat: s číselníkem, nebo s okénky. */

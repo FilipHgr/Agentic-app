@@ -105,6 +105,15 @@ const MARKER_SHARE = 0.75;
 /** Místo je menší než značka, aby značka stojící na něm byla dobře vidět. */
 const PLACE_TO_MARKER = 0.7;
 
+/**
+ * Plocha, ve které se mapa rozloží: herní plocha (mapa přes celou
+ * obrazovku), nebo karta nad ztmavenou hrou (#145, `insideCard`). Karta
+ * leží mimo roh kolečka a domečku, proto se v ní pás pro ně nevyhrazuje.
+ */
+export interface MapArea extends GameArea {
+  readonly insideCard?: boolean;
+}
+
 /** Plocha mapy v herních jednotkách: levý horní roh, šířka a výška. */
 export interface ContentBox {
   readonly left: number;
@@ -115,13 +124,15 @@ export interface ContentBox {
 
 /**
  * Plocha pro mapu: bez pásu kolečka a domečku, výřezu, lišty a s odstupem
- * od okraje. Drží se jí i pohyby prostředí (#136).
+ * od okraje. V kartě (#145) jen s odstupem od jejího okraje. Drží se jí
+ * i pohyby prostředí (#136).
  */
-export function mapContentBox(area: GameArea): ContentBox {
+export function mapContentBox(area: MapArea): ContentBox {
   const covered = area.coveredEdges ?? { top: 0, right: 0, bottom: 0, left: 0 };
   const margin = EDGE_MARGIN_CSS / area.scale;
+  const topBand = area.insideCard === true ? EDGE_MARGIN_CSS : CORNER_BAND_CSS;
   const left = covered.left + margin;
-  const top = covered.top + CORNER_BAND_CSS / area.scale;
+  const top = covered.top + topBand / area.scale;
   const right = area.width - covered.right - margin;
   const bottom = area.height - covered.bottom - margin;
   return { left, top, width: right - left, height: bottom - top };
@@ -511,13 +522,33 @@ function lastPlace(places: readonly MapPoint[]): MapPoint {
   return places[places.length - 1] ?? { x: 0, y: 0 };
 }
 
-/** Rozložení mapy `theme`; orientace cesty se řídí tvarem herní plochy. */
-export function layoutProgressMap(area: GameArea, theme: MapThemeId): ProgressMapLayout {
+/** Vede cesta zleva doprava (plocha na šířku), nebo zdola nahoru? */
+function isRowArea(area: MapArea): boolean {
+  return area.width > area.height;
+}
+
+/** Rozložení mapy `theme`; orientace cesty se řídí tvarem plochy (herní plochy, nebo karty). */
+export function layoutProgressMap(area: MapArea, theme: MapThemeId): ProgressMapLayout {
   const content = mapContentBox(area);
   const maxMarker = MAX_MARKER_CSS / area.scale;
-  return area.width > area.height
+  return isRowArea(area)
     ? wavyRow(content, maxMarker, theme, area.scale)
     : zigzagUp(content, maxMarker, theme, area.scale);
+}
+
+/**
+ * Průměr značky v ploše `area` v herních jednotkách, stejný jako
+ * v `layoutProgressMap` (na tématu nezávisí), ale bez hledání místa pro
+ * klíč. Podle něj se vybírá velikost karty (#145 AC2).
+ */
+export function progressMapMarkerSize(area: MapArea): number {
+  const content = mapContentBox(area);
+  const maxMarker = MAX_MARKER_CSS / area.scale;
+  if (isRowArea(area)) {
+    return rowMarkerSize(content, maxMarker, rowSpacing(content, maxMarker));
+  }
+  const cellWidth = content.width / PORTRAIT_COLUMNS;
+  return columnMarkerSize(cellWidth, columnCellHeight(content, maxMarker), maxMarker);
 }
 
 /** Kde stojí značka na kroku `step` (mimo mapu se bere nejbližší konec). */

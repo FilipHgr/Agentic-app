@@ -12,12 +12,11 @@
  * mapy (AC4). Čistý TypeScript bez Phaseru, kreslí scéna.
  */
 
-import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { SCENERY_MOTION_BOUNDS, sceneryMotionAt } from './mapSceneryMotion';
 import type { SceneryKind, SceneryMotionBounds } from './mapSceneryMotion';
 import type { MapThemeId } from './progressMap';
 import { DRAWN_MARKER_SCALE, layoutProgressMap, mapContentBox } from './progressMapLayout';
-import type { ContentBox, MapPoint, ProgressMapLayout } from './progressMapLayout';
+import type { ContentBox, MapArea, MapPoint, ProgressMapLayout } from './progressMapLayout';
 
 export type { SceneryKind } from './mapSceneryMotion';
 
@@ -216,7 +215,7 @@ function square(center: MapPoint, size: number): SceneryBox {
   };
 }
 
-function obstaclesOf(area: GameArea, map: ProgressMapLayout): Obstacles {
+function obstaclesOf(area: MapArea, map: ProgressMapLayout): Obstacles {
   const gap = GAP_CSS / (area.scale > 0 ? area.scale : 1);
   const drawnMarker = map.markerSize * DRAWN_MARKER_SCALE;
   const placeSize = drawnMarker + 2 * (gap + map.markerSize * PLACE_GAP_SHARE);
@@ -572,7 +571,7 @@ function wishedPoint(content: ContentBox, kind: SceneryKind, index: number): Map
  * proto zůstává stejný počet (hlídá `mapSceneryRegions.test.ts`).
  */
 export function layoutMapScenery(
-  area: GameArea,
+  area: MapArea,
   theme: MapThemeId,
   map: ProgressMapLayout = layoutProgressMap(area, theme),
 ): MapScenery {

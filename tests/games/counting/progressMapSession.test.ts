@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { CELEBRATION_MS, STAR_FLIGHT_MS } from '../../../src/games/counting/logic/countingSession';
 import {
   MAP_GOAL_SHOW_MS,
-  MAP_SHOW_MS,
   MAP_STEPS,
   START_MAP,
   serializeMapProgress,
@@ -40,6 +39,9 @@ import { brokenStorage } from './storageFakes';
  * (klíč v úložišti hry profilu), `loadMapProgress(storage)`
  * a `saveMapProgress(storage, progress)`, chyby úložiště hra nevidí.
  */
+
+/** Jak dlouho je mapa (karta) vidět bez ťuknutí, u kroku i u cíle (#145 AC3). */
+const CARD_OPEN_MS = 7000;
 
 /** Dítě vyřeší 9 příkladů a ťukne správně na 10.: řada je plná, čas dál neběží. */
 function fillRow(test: TestSession): void {
@@ -137,16 +139,17 @@ describe('#87 AC1: po oslavě se na chvíli ukáže mapa a hra pokračuje sama',
     expect(waited ?? 0).toBeGreaterThanOrEqual(STAR_FLIGHT_MS + CELEBRATION_MS);
   });
 
-  it('mapa je vidět 3 s, pak se sama zavře a přijde další příklad s prázdnou řadou', () => {
+  // #145 AC3: 3 s nahrazuje 7 s (test v `mapCardSession.test.ts`).
+  it('mapa je vidět 7 s, pak se sama zavře a přijde další příklad s prázdnou řadou', () => {
     const test = enterCounting(testDevice());
     fillRow(test);
     waitForMap(test);
 
-    test.timers.advance(MAP_SHOW_MS - 10);
-    expect(test.session.shownMap(), 'těsně před 3 s je mapa vidět').not.toBeNull();
+    test.timers.advance(CARD_OPEN_MS - 10);
+    expect(test.session.shownMap(), 'těsně před 7 s je mapa vidět').not.toBeNull();
 
     const closedAfter = advanceUntil(test, () => test.session.shownMap() === null, 100);
-    expect(closedAfter, 'mapa se zavře nejpozději kolem 3 s').not.toBeNull();
+    expect(closedAfter, 'mapa se zavře nejpozději kolem 7 s').not.toBeNull();
     test.timers.runAll();
     expect(test.session.round().solved, 'nový příklad').toBe(false);
     expect(test.session.starCount(), 'prázdná řada').toBe(0);
@@ -165,20 +168,19 @@ describe('#87 AC1: po oslavě se na chvíli ukáže mapa a hra pokračuje sama',
     expect(test.session.starCount()).toBe(0);
   });
 
-  it('při dojití do cíle je mapa vidět 5 s místo 3 s', () => {
+  // #145 AC3: 5 s v cíli nahrazuje 7 s jako na zastávce.
+  it('při dojití do cíle je mapa vidět 7 s jako na zastávce', () => {
     const device = deviceWithMap({ step: MAP_STEPS - 1, completedMaps: 0 });
     const test = enterCounting(device);
     fillRow(test);
     const shown = waitForMap(test);
     expect(shown).toMatchObject({ from: MAP_STEPS - 1, to: MAP_STEPS, reachedGoal: true });
 
-    test.timers.advance(MAP_SHOW_MS + 100);
-    expect(test.session.shownMap(), 'po 3 s je mapa v cíli pořád vidět').not.toBeNull();
-    test.timers.advance(MAP_GOAL_SHOW_MS - MAP_SHOW_MS - 200);
-    expect(test.session.shownMap(), 'těsně před 5 s je mapa vidět').not.toBeNull();
+    test.timers.advance(CARD_OPEN_MS - 10);
+    expect(test.session.shownMap(), 'těsně před 7 s je mapa v cíli vidět').not.toBeNull();
 
-    const closedAfter = advanceUntil(test, () => test.session.shownMap() === null, 200);
-    expect(closedAfter, 'mapa v cíli se zavře kolem 5 s').not.toBeNull();
+    const closedAfter = advanceUntil(test, () => test.session.shownMap() === null, 100);
+    expect(closedAfter, 'mapa v cíli se zavře kolem 7 s').not.toBeNull();
     test.timers.runAll();
     expect(test.session.round().solved).toBe(false);
     expect(test.session.starCount()).toBe(0);

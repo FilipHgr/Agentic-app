@@ -291,6 +291,26 @@ export const PROGRESS_MAP_SHAPE = {
   goalGlowShare: 0.3,
 } as const;
 
+/**
+ * Karta s mapou nad ztmavenou hrou (#145, varianta V2): hra pod kartou
+ * ztmavne černou na 40 %, karta má bílý okraj 6 px, zaoblené rohy a jemný
+ * stín pod sebou. Míry v CSS px.
+ */
+export const PROGRESS_MAP_CARD_STYLE = {
+  dimColor: '#000000',
+  dimAlpha: 0.4,
+  borderCss: 6,
+  borderColor: WHITE,
+  cornerRadiusCss: 24,
+  shadowColor: '#000000',
+  /** Stín z několika vrstev: každá o `shadowSpreadCss` širší, s krytím `shadowLayerAlpha`. */
+  shadowLayers: 6,
+  shadowSpreadCss: 3,
+  shadowLayerAlpha: 0.06,
+  /** O kolik je stín posunutý dolů. */
+  shadowOffsetCss: 8,
+} as const;
+
 /** Barvy cesty a okraje místa, kam značka ještě nedošla (#134). */
 export interface ProgressMapStyle {
   readonly pathColor: string;
