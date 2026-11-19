@@ -340,3 +340,4 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-19 #143: vlastník přijal pokles AC4 celkem o 5 číslic (3 307 místo 3 312 na UCI) výměnou za otevřenou devítku (94 % místo 60 %, ukázka vlastníka jako 9).
 - 2026-11-19 Srozumitelná tlačítka Omalovánek (fotoaparát, album, malovat dál, koš, koště): vlastní ikony z ElevenLabs (varianta B, asi 540–690 kreditů).
 - 2026-11-19 Úkoly z review UX/UI schváleny („ok založ je a pokračuj“): #154–#162. Zástupná kolečka „…“ v menu se schovají, místo v liště zůstane (#157). Úprava profilu jednou tužkou v liště místo tužky u každého kolečka (#160). Klíč se spotřebuje až druhým ťuknutím (#159).
+- 2026-11-19 #145 mapa v kartě: karta je otevřená 7 s u kroku i cíle (nahrazuje 3 s a 5 s z #133 a #135) a ťuknutím se zavře po doběhu animace (nahrazuje mapu bez ťukací plochy z #134 AC3 a #135). V malých oknech smí být karta větší než 75 %, aby značka měla 64 px.
