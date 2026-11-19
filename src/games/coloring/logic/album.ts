@@ -21,6 +21,7 @@ import type { Tone } from '../../../shared/audio/tonePlayer';
 import type { GameRecords, RecordData, RecordsList } from '../../../shared/storage/profileRecords';
 import { NO_COLOR } from './coloring';
 import { decodeColorLayerBytes, encodeColorLayerBytes } from './colorLayerCode';
+import { pageCountOf, pageItemsOf } from './pageTurner';
 import { OUTLINE_REGION } from './regionMap';
 import type { RegionMap } from './regionMap';
 import type { PictureColors, PictureIdentity } from './savedPicture';
@@ -37,12 +38,12 @@ export const ALBUM_PAGE_SIZE = 12;
 
 /** Kolik stránek má album s `pictureCount` obrázky (#149 AC1); prázdné album žádnou. */
 export function albumPageCount(pictureCount: number): number {
-  return Math.ceil(Math.max(0, pictureCount) / ALBUM_PAGE_SIZE);
+  return pageCountOf(pictureCount, ALBUM_PAGE_SIZE);
 }
 
 /** Obrázky stránky `page` (0 je 1. stránka) z obrázků alba od nejnovějšího. */
 export function albumPageEntries<T>(entries: readonly T[], page: number): readonly T[] {
-  return entries.slice(page * ALBUM_PAGE_SIZE, (page + 1) * ALBUM_PAGE_SIZE);
+  return pageItemsOf(entries, page, ALBUM_PAGE_SIZE);
 }
 
 /**

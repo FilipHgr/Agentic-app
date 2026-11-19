@@ -256,6 +256,9 @@ export const PICKER_TILE_STYLE = {
   /** Zhoupnutí po ťuknutí jako u tlačítek v menu. */
   wobbleAngle: 4,
   wobbleMs: 90,
+  /** Zmáčknutí při dotyku prstu (#150): zmenšení a jak dlouho trvá v ms. */
+  pressScale: 0.95,
+  pressMs: 70,
 } as const;
 
 /**

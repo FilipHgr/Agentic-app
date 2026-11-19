@@ -71,6 +71,13 @@
  *   a nelistuje se. Jeden tah nalistuje jen o jednu stránku, i když se
  *   alba dotýkají dva prsty. Po smazání obrázku zůstane album na stejné
  *   stránce, a když na ní žádný obrázek nezbyl, ukáže předchozí.
+ * - Výběr ukazuje omalovánky po 12 ve stálém pořadí sady (#150) a listuje
+ *   se stejně jako v albu (`pageTurner.ts`): šipky `tapPickerArrow`, prsty
+ *   `pickerPointerDown`, `pickerPointerUp` a po nalistování
+ *   `pickerPageShown`. `tapPreview` dostane místo na stránce, která je
+ *   vidět. Stránka výběru se drží po celou dobu výběru (i během malování,
+ *   v albu a po Malovat dál), nikam se neukládá a nový výběr začíná na
+ *   1. stránce. Během listování ťuknutí na náhled ani na knihu nic neotevře.
  */
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
@@ -87,6 +94,9 @@ import { readPendingSwap } from './albumSwapRecord';
 import type { SwapRun } from './albumSwap';
 import { createPageMoveQueue } from './pageMoveQueue';
 import type { PageMove } from './pageToAlbum';
+import { createPageTurner, pageCountOf, pageItemsOf } from './pageTurner';
+import type { AlbumDirection, AlbumPoint, AlbumTurn } from './pageTurner';
+import { PICKER_PLACES } from './pickerLayout';
 import type { PictureLocks } from './pictureLocks';
 import type { ChangedArea } from './coloring';
 import type { PictureIdentity, SavedColoring } from './savedPicture';
@@ -120,38 +130,20 @@ export type ColoringScreen =
       readonly page: number;
     };
 
-/** Kam se v albu listuje: na další (▶, tah doleva), nebo předchozí stránku (◀, tah doprava). */
-export type AlbumDirection = 'next' | 'previous';
-
-/** Bod dotyku v CSS px okna (#149). */
-export interface AlbumPoint {
-  readonly x: number;
-  readonly y: number;
-}
-
-/** Co udělá šipka v albu (#149 AC1). */
-export type AlbumTurn =
-  /** Nalistuje stránku `page` s tónem ťuknutí; scéna ji ukáže a zavolá `albumPageShown`. */
-  | {
-      readonly kind: 'turned';
-      readonly page: number;
-      readonly direction: AlbumDirection;
-      readonly tones: readonly Tone[];
-    }
-  /** Na krajní stránce se zhoupne šipka (`arrow`), nebo náhledy po tahu (`previews`). */
-  | {
-      readonly kind: 'edge';
-      readonly wobble: 'arrow' | 'previews';
-      readonly tones: readonly Tone[];
-    }
-  /** Mimo album, při jediné stránce nebo během listování nic. */
-  | { readonly kind: 'ignored' };
+export type { AlbumDirection, AlbumPoint, AlbumTurn } from './pageTurner';
+export { ALBUM_SWIPE_MIN_CSS } from './pageTurner';
 
 /** Co udělá zvednutí prstu v albu: nalistuje, zhoupne se na kraji, otevře velký obrázek, nebo nic. */
 export type AlbumPointerResult = AlbumTurn | Extract<AlbumPreviewTap, { kind: 'open' }>;
 
-/** Nejmenší vodorovný posun prstu v CSS px, který je tah, ne ťuknutí (#149 AC1). */
-export const ALBUM_SWIPE_MIN_CSS = 48;
+/**
+ * Co udělá zvednutí prstu na výběru (#150): nalistuje, zhoupne se na kraji,
+ * nebo se chová jako ťuknutí na náhled (`tapPreview`).
+ */
+export type PickerPointerResult = AlbumTurn | PreviewTap;
+
+/** Omalovánek na jedné stránce výběru (#150 AC1), stejně jako míst v mřížce. */
+export const PICKER_PAGE_SIZE = PICKER_PLACES;
 
 /** Co udělá ťuknutí na knihu (#126 AC4). */
 export type BookTap =
@@ -260,11 +252,28 @@ export const PREVIEW_TAP_TONES: readonly Tone[] = [
 ];
 
 export interface PictureChoice {
-  /** Omalovánky na výběru v pořadí náhledů; při jediné omalovánce žádné. */
+  /** Omalovánky na výběru v pořadí sady (všechny stránky); při jediné omalovánce žádné. */
   previews(): readonly PictureIdentity[];
+  /**
+   * Stránka výběru, která je vidět (#150, 0 je 1. stránka); během
+   * otevírání, malování a v albu stránka, na kterou se výběr vrátí.
+   */
+  pickerPage(): number;
+  /** Omalovánky stránky výběru, která je vidět, v pořadí sady (nejvýš 12, #150). */
+  pagePreviews(): readonly PictureIdentity[];
   screen(): ColoringScreen;
-  /** Ťuknutí na náhled `index`. */
-  tapPreview(index: number): PreviewTap;
+  /** Ťuknutí na místo náhledu `place` (0–11) na stránce výběru, která je vidět. */
+  tapPreview(place: number): PreviewTap;
+  /** Ťuknutí na šipku ◀ (`previous`), nebo ▶ (`next`) na výběru (#150). */
+  tapPickerArrow(direction: AlbumDirection): AlbumTurn;
+  /** Prst `pointerId` se na výběru dotkl v bodě `point` (CSS px) na místě náhledu `place`, nebo mimo (`null`). */
+  pickerPointerDown(pointerId: number, point: AlbumPoint, place: number | null): void;
+  /** Prst `pointerId` se na výběru zvedl v bodě `point` (CSS px): tah nalistuje, ťuknutí je `tapPreview`. */
+  pickerPointerUp(pointerId: number, point: AlbumPoint): PickerPointerResult;
+  /** Prohlížeč dotyk na výběru zrušil: prst `pointerId` (bez čísla všechny) se zapomene (#150). */
+  pickerPointerCancel(pointerId?: number): void;
+  /** Scéna ukázala nalistovanou stránku výběru (#150). */
+  pickerPageShown(): void;
   /** Scéna ukázala malování otevírané omalovánky. */
   paintingShown(): void;
   /** Domeček se držel 1 s. */
@@ -279,6 +288,8 @@ export interface PictureChoice {
   albumPointerDown(pointerId: number, point: AlbumPoint, place: number | null): void;
   /** Prst `pointerId` se v albu zvedl v bodě `point` (CSS px): tah nalistuje, ťuknutí otevře náhled. */
   albumPointerUp(pointerId: number, point: AlbumPoint): AlbumPointerResult;
+  /** Prohlížeč dotyk v albu zrušil: prst `pointerId` (bez čísla všechny) se zapomene (#150). */
+  albumPointerCancel(pointerId?: number): void;
   /** Scéna ukázala nalistovanou stránku alba (#149). */
   albumPageShown(): void;
   /** Scéna ukázala otevíraný velký obrázek (#129). */
@@ -352,11 +363,6 @@ function screenWithout(
     return { kind: 'picker' };
   }
   return { kind: 'album', entries: left, page: Math.min(page, albumPageCount(left.length) - 1) };
-}
-
-/** Je posun prstu o `dx`, `dy` CSS px tah (aspoň 48 px vodorovně a víc než svisle)? */
-function isSwipe(dx: number, dy: number): boolean {
-  return Math.abs(dx) >= ALBUM_SWIPE_MIN_CSS && Math.abs(dx) > Math.abs(dy);
 }
 
 /** Album bez obrázku `replaced` a s obrázkem `returned` jako nejnovějším (#131 AC4). */
@@ -602,17 +608,22 @@ export function startPictureChoice(
     return { kind: 'swapping', tones: PREVIEW_TAP_TONES, done };
   };
 
-  /** Listuje se v albu: nová stránka ještě není vidět (#149 AC5)? */
-  let turning = false;
-  /** Prsty, které se v albu dotkly a ještě se nezvedly: kde začaly a na kterém místě náhledu. */
-  const albumPointers = new Map<
-    number,
-    { readonly point: AlbumPoint; readonly place: number | null }
-  >();
+  /** Listování v albu (#149): stránka je na obrazovce alba. */
+  const albumPages = createPageTurner({
+    isActive: () => screen.kind === 'album',
+    pageCount: () => (screen.kind === 'album' ? albumPageCount(screen.entries.length) : 0),
+    page: () => (screen.kind === 'album' ? screen.page : 0),
+    showPage: (page) => {
+      if (screen.kind === 'album') {
+        screen = { kind: 'album', entries: screen.entries, page };
+      }
+    },
+    turnTones: PREVIEW_TAP_TONES,
+  });
 
   /** Ťuknutí na místo `index` na stránce alba, která je vidět (#129, #149). */
   const tapAlbumPreview = (index: number): AlbumPreviewTap => {
-    if (screen.kind !== 'album' || turning || !Number.isInteger(index)) {
+    if (screen.kind !== 'album' || albumPages.isTurning() || !Number.isInteger(index)) {
       return { kind: 'ignored' };
     }
     const entry = albumPageEntries(screen.entries, screen.page)[index];
@@ -620,77 +631,64 @@ export function startPictureChoice(
       return { kind: 'ignored' };
     }
     screen = { kind: 'openingBigPicture', entries: screen.entries, entry, page: screen.page };
-    albumPointers.clear();
+    albumPages.forgetPointers();
     return { kind: 'open', index, entry, tones: PREVIEW_TAP_TONES };
   };
 
   /**
-   * Nalistuje v albu směrem `direction` (#149 AC1). Na kraji se zhoupne
-   * šipka nebo náhledy (`wobble`) s tónem domečku. Šipky při jediné
-   * stránce nejsou; tah při jediné stránce zhoupne náhledy.
+   * Stránka výběru, která je vidět (#150). Drží se i během malování a alba,
+   * aby se výběr vrátil na stejnou stránku; nikam se neukládá (AC2).
    */
-  const turnAlbum = (direction: AlbumDirection, wobble: 'arrow' | 'previews'): AlbumTurn => {
-    if (screen.kind !== 'album' || turning) {
-      return { kind: 'ignored' };
-    }
-    const pageCount = albumPageCount(screen.entries.length);
-    if (wobble === 'arrow' && pageCount <= 1) {
-      return { kind: 'ignored' };
-    }
-    // Po tahu i šipce se zvednutí ostatních prstů už nepočítá: dva prsty nalistují jen jednou.
-    albumPointers.clear();
-    const page = screen.page + (direction === 'next' ? 1 : -1);
-    if (page < 0 || page >= pageCount) {
-      return { kind: 'edge', wobble, tones: HOME_WOBBLE_TONES };
-    }
-    screen = { kind: 'album', entries: screen.entries, page };
-    turning = true;
-    return { kind: 'turned', page, direction, tones: PREVIEW_TAP_TONES };
-  };
+  let pickerPage = 0;
+  /** Omalovánky na výběru: při jediné omalovánce se výběr přeskočí. */
+  const pickerPictures: readonly PictureIdentity[] = onlyPicture === undefined ? pictures : [];
 
-  /** Zvednutí prstu v albu: tah nalistuje, ťuknutí na náhled ho otevře (#149 AC1, AC5). */
-  const albumPointerUp = (pointerId: number, point: AlbumPoint): AlbumPointerResult => {
-    const start = albumPointers.get(pointerId);
-    albumPointers.delete(pointerId);
-    if (start === undefined || screen.kind !== 'album') {
+  /** Listování na výběru (#150), stejné jako v albu. */
+  const pickerPages = createPageTurner({
+    isActive: () => screen.kind === 'picker',
+    pageCount: () => pageCountOf(pickerPictures.length, PICKER_PAGE_SIZE),
+    page: () => pickerPage,
+    showPage: (page) => {
+      pickerPage = page;
+    },
+    turnTones: PREVIEW_TAP_TONES,
+  });
+
+  /** Ťuknutí na místo `place` na stránce výběru, která je vidět (#124, #150). */
+  const tapPreview = (place: number): PreviewTap => {
+    const onPage = Number.isInteger(place) && place >= 0 && place < PICKER_PAGE_SIZE;
+    const picture = onPage ? pickerPictures[pickerPage * PICKER_PAGE_SIZE + place] : undefined;
+    if (screen.kind !== 'picker' || pickerPages.isTurning() || picture === undefined) {
       return { kind: 'ignored' };
     }
-    const dx = point.x - start.point.x;
-    const dy = point.y - start.point.y;
-    if (isSwipe(dx, dy)) {
-      // Tah doleva ukáže další stránku, tah doprava předchozí.
-      return turnAlbum(dx < 0 ? 'next' : 'previous', 'previews');
+    if (pageMoves.isMoving(picture) || previewBlocked(picture)) {
+      // Stránka jde do alba (#141 AC4), nebo se výměna může vrátit (#131 AC5).
+      return { kind: 'wobble', tones: HOME_WOBBLE_TONES };
     }
-    if (start.place === null) {
-      return { kind: 'ignored' };
+    const unlock = options.locks?.isLocked(picture) === true ? options.locks.unlock(picture) : null;
+    if (unlock === 'noKey') {
+      return { kind: 'locked', index: place, tones: HOME_WOBBLE_TONES };
     }
-    const tap = tapAlbumPreview(start.place);
-    return tap.kind === 'open' ? tap : { kind: 'ignored' };
+    screen = { kind: 'opening', picture };
+    pickerPages.forgetPointers();
+    if (unlock === 'unlocked') {
+      return { kind: 'unlocked', index: place, picture, tones: PREVIEW_TAP_TONES };
+    }
+    return { kind: 'open', index: place, picture, tones: PREVIEW_TAP_TONES };
   };
 
   return {
-    previews: () => (onlyPicture === undefined ? pictures : []),
+    previews: () => pickerPictures,
+    pickerPage: () => pickerPage,
+    pagePreviews: () => pageItemsOf(pickerPictures, pickerPage, PICKER_PAGE_SIZE),
     screen: () => screen,
-    tapPreview: (index) => {
-      const picture = Number.isInteger(index) ? pictures[index] : undefined;
-      if (screen.kind !== 'picker' || picture === undefined) {
-        return { kind: 'ignored' };
-      }
-      if (pageMoves.isMoving(picture) || previewBlocked(picture)) {
-        // Stránka jde do alba (#141 AC4), nebo se výměna může vrátit (#131 AC5).
-        return { kind: 'wobble', tones: HOME_WOBBLE_TONES };
-      }
-      const unlock =
-        options.locks?.isLocked(picture) === true ? options.locks.unlock(picture) : null;
-      if (unlock === 'noKey') {
-        return { kind: 'locked', index, tones: HOME_WOBBLE_TONES };
-      }
-      screen = { kind: 'opening', picture };
-      if (unlock === 'unlocked') {
-        return { kind: 'unlocked', index, picture, tones: PREVIEW_TAP_TONES };
-      }
-      return { kind: 'open', index, picture, tones: PREVIEW_TAP_TONES };
-    },
+    tapPreview,
+    tapPickerArrow: (direction) => pickerPages.arrow(direction),
+    pickerPointerDown: (pointerId, point, place) =>
+      pickerPages.pointerDown(pointerId, point, place),
+    pickerPointerUp: (pointerId, point) => pickerPages.pointerUp(pointerId, point, tapPreview),
+    pickerPointerCancel: (pointerId) => pickerPages.pointerCancel(pointerId),
+    pickerPageShown: () => pickerPages.pageShown(),
     paintingShown: () => {
       if (screen.kind !== 'opening') {
         return;
@@ -700,29 +698,28 @@ export function startPictureChoice(
       shownAt = now();
     },
     tapBook: (album) => {
-      if (screen.kind !== 'picker') {
+      // Během listování výběru ťuknutí nic neotevře (#150 AC4).
+      if (screen.kind !== 'picker' || pickerPages.isTurning()) {
         return { kind: 'ignored' };
       }
       if (album === null || album.status !== 'read' || album.entries.length === 0) {
         return { kind: 'wobble', tones: HOME_WOBBLE_TONES };
       }
       screen = { kind: 'album', entries: album.entries, page: 0 };
-      turning = false;
-      albumPointers.clear();
+      albumPages.reset();
+      pickerPages.forgetPointers();
       return { kind: 'open', tones: PREVIEW_TAP_TONES, entries: album.entries };
     },
     tapAlbumPreview,
-    tapAlbumArrow: (direction) => turnAlbum(direction, 'arrow'),
-    albumPointerDown: (pointerId, point, place) => {
-      // Dotyk začatý během listování se nepočítá ani po dolistování (#149 AC5).
-      if (screen.kind === 'album' && !turning) {
-        albumPointers.set(pointerId, { point, place });
-      }
-    },
-    albumPointerUp,
-    albumPageShown: () => {
-      turning = false;
-    },
+    tapAlbumArrow: (direction) => albumPages.arrow(direction),
+    albumPointerDown: (pointerId, point, place) => albumPages.pointerDown(pointerId, point, place),
+    albumPointerUp: (pointerId, point): AlbumPointerResult =>
+      albumPages.pointerUp(pointerId, point, (place) => {
+        const tap = tapAlbumPreview(place);
+        return tap.kind === 'open' ? tap : { kind: 'ignored' as const };
+      }),
+    albumPointerCancel: (pointerId) => albumPages.pointerCancel(pointerId),
+    albumPageShown: () => albumPages.pageShown(),
     bigPictureShown: () => {
       if (screen.kind !== 'openingBigPicture') {
         return;

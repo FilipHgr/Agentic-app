@@ -4,7 +4,6 @@ import { sharedToneContext } from '../../../shared/audio/sharedAudio';
 import { createTonePlayer } from '../../../shared/audio/tonePlayer';
 import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
 import type { GameHost, HomeHoldDecision } from '../../../shared/logic/gameHost';
-import { HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
 import {
   TABLET_GAME_HEIGHT,
   TABLET_GAME_WIDTH,
@@ -24,7 +23,9 @@ import type {
   AlbumDirection,
   AlbumPointerResult,
   ContinueResult,
+  PickerPointerResult,
   PictureChoice,
+  PreviewTap,
   TrashFeedback,
   TrashResult,
 } from '../logic/pictureChoice';
@@ -38,10 +39,12 @@ import {
   layoutAlbum,
   layoutBigPicture,
   layoutPicker,
+  pickerArrowAt,
   previewAt,
   trashHoldRingFor,
 } from '../logic/pickerLayout';
 import type { AlbumLayout, BigPictureLayout, PickerLayout } from '../logic/pickerLayout';
+import { PICKER_PLACES } from '../logic/pickerLayout';
 import { openPictureLocks, unlockPaintedPictures } from '../logic/pictureLocks';
 import type { PictureLocks } from '../logic/pictureLocks';
 import { loadPicturePreview, previewOfColors } from '../logic/picturePreview';
@@ -146,13 +149,34 @@ interface PictureAssets {
  * Při listování stará stránka odjede do strany, nová přijede z druhé
  * strany a scéna pak zavolá `albumPageShown`. Na kraji se zhoupne šipka
  * nebo náhledy s tónem domečku.
+ *
+ * Od #150 se stejně listuje i na výběru (víc než 12 omalovánek): šipky
+ * ◀ ▶ z `layoutPicker` a dotyky předané výběru (`pickerPointerDown`,
+ * `pickerPointerUp`, `tapPickerArrow`, `pickerPageShown`). Omalovánka se
+ * proto otevře až po zvednutí prstu. Dlaždice výběru ukazují stránku,
+ * která je vidět (`pagePreviews`), podle místa na stránce.
  */
 export class PickerScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
   private layout: PickerLayout = layoutPicker(this.gameArea);
   private choice: PictureChoice = startPictureChoice(COLORING_PICTURES);
   private assets: readonly PictureAssets[] = [];
+  /** Dlaždice stránky výběru, která je vidět (#150), podle místa na stránce. */
   private tiles: PreviewTileView[] = [];
+  /** Dlaždice předchozí stránky výběru, které při listování odjíždějí (#150). */
+  private leavingTiles: PreviewTileView[] = [];
+  /** Číslo nakreslení stránky výběru, aby pozdní konec listování neohlásil starou stránku. */
+  private pickerShowCount = 0;
+  private readonly pickerPreviousArrow = new AlbumArrowView(this, 'previous');
+  private readonly pickerNextArrow = new AlbumArrowView(this, 'next');
+  /**
+   * Prsty na výběru nebo v albu, které se dotkly a ještě se nezvedly: místo
+   * náhledu, kde začaly, a zmáčknutá dlaždice (#150).
+   */
+  private readonly touches = new Map<
+    number,
+    { readonly place: number | null; readonly tile: PreviewTileView | undefined }
+  >();
   private readonly bookView = new IconButtonView(this, BOOK_ICON_FILE);
   /** Zámky omalovánek a klíče aktivního profilu (#140). */
   private locks: PictureLocks = openPictureLocks({
@@ -222,7 +246,6 @@ export class PickerScene extends Phaser.Scene {
     this.running = true;
     followCanvasResolution(this);
     this.gameArea = this.readGameArea();
-    this.layout = layoutPicker(this.gameArea);
     const host = this.readHost();
     this.locks = openPictureLocks({
       pictures: COLORING_PICTURES,
@@ -231,13 +254,14 @@ export class PickerScene extends Phaser.Scene {
     });
     this.locksReady = false;
     this.choice = startPictureChoice(COLORING_PICTURES, {
-      locks: this.locks,
+      locks: this.choiceLocks(),
       records: host?.records,
       storage: host?.storage,
       albumPictures: () => this.albumPictures,
       onTrash: (feedback) => this.onTrashFeedback(feedback),
       onBroom: (feedback) => this.painting?.showBroomFeedback(feedback),
     });
+    this.layout = this.pickerLayout();
     startColoringSession(host ?? NO_PAGE, () => this.stop());
     host?.onHomeHold?.(() => this.onHomeHold());
     host?.onHomeHolding?.((holding) => this.choice.homeHolding(holding));
@@ -281,6 +305,23 @@ export class PickerScene extends Phaser.Scene {
     void this.showMoves(this.choice.movePagesToAlbum());
   }
 
+  /**
+   * Zámky pro výběr: do odemčení zdarma (#140 AC2) se zamčená omalovánka
+   * neodemkne klíčem (zámek se jen zhoupne a klíč se neutratí).
+   */
+  private choiceLocks(): PictureLocks {
+    return {
+      isLocked: (picture) => this.locks.isLocked(picture),
+      keyIndicator: () => this.locks.keyIndicator(),
+      unlock: (picture) => (this.locksReady ? this.locks.unlock(picture) : 'noKey'),
+    };
+  }
+
+  /** Rozložení výběru se šipkami, když má sada víc stránek (#150). */
+  private pickerLayout(): PickerLayout {
+    return layoutPicker(this.gameArea, { pictureCount: this.choice.previews().length });
+  }
+
   private readHost(): GameHost | undefined {
     const stored: unknown = this.registry.get(GAME_HOST_KEY);
     return isGameHost(stored) ? stored : undefined;
@@ -318,17 +359,43 @@ export class PickerScene extends Phaser.Scene {
   // Náhledy
   // -------------------------------------------------------------------------
 
-  /** Dlaždice jen pro omalovánky sady, prázdná místa se nekreslí. */
+  /**
+   * Nakreslí výběr: dlaždice jen pro omalovánky stránky, která je vidět
+   * (prázdná místa se nekreslí), knihu, šipky a ukazatel klíčů.
+   */
   private drawTiles(): void {
-    this.tiles = this.choice
-      .previews()
-      .map((_, index) => new PreviewTileView(this, `coloringPreview${index}`));
+    this.createPageTiles();
     this.placeTiles();
   }
 
-  /** Dlaždice na místa podle rozložení a jejich obrázky znovu (po startu nebo změně okna). */
+  /** Nové dlaždice pro omalovánky stránky výběru, která je vidět (#150); vrátí je. */
+  private createPageTiles(): PreviewTileView[] {
+    this.pickerShowCount += 1;
+    const first = this.choice.pickerPage() * PICKER_PLACES;
+    this.tiles = this.choice
+      .pagePreviews()
+      .map((_, place) => new PreviewTileView(this, `coloringPreview${first + place}`));
+    return this.tiles;
+  }
+
+  /** Kniha, šipky a dlaždice na místa podle rozložení (po startu nebo změně okna). */
   private placeTiles(): void {
+    if (this.leavingTiles.length > 0) {
+      // Během listování (#150) by nové místo zastavilo příjezd dlaždic a listování by
+      // nikdy neskončilo (po uložení obrázku, výměně s albem, změně okna): stránka se
+      // nakreslí znovu a listování skončí hned.
+      this.hidePicker();
+      this.drawTiles();
+      this.choice.pickerPageShown();
+      return;
+    }
     this.bookView.place(this.layout.book, this.gameArea.scale, BOOK_DEPTH);
+    this.placePickerArrows();
+    this.placePageTiles();
+  }
+
+  /** Dlaždice stránky na místa a jejich obrázky znovu, zámky a ukazatel klíčů. */
+  private placePageTiles(): void {
     this.tiles.forEach((tile, index) => {
       const rect = this.layout.previews[index];
       if (rect === undefined) {
@@ -344,9 +411,18 @@ export class PickerScene extends Phaser.Scene {
     this.showLocks();
   }
 
+  /** Šipky ◀ ▶ výběru, když má víc stránek (#150). */
+  private placePickerArrows(): void {
+    if (!this.layout.arrows) {
+      return;
+    }
+    this.pickerPreviousArrow.place(this.layout.previousArrow, this.gameArea.scale);
+    this.pickerNextArrow.place(this.layout.nextArrow, this.gameArea.scale);
+  }
+
   /** Zámky na zamčených náhledech a ukazatel klíčů podle aktuálního stavu (#140). */
   private showLocks(): void {
-    const previews = this.choice.previews();
+    const previews = this.choice.pagePreviews();
     this.tiles.forEach((tile, index) => {
       const picture = previews[index];
       tile.setLocked(picture !== undefined && this.locks.isLocked(picture));
@@ -364,10 +440,10 @@ export class PickerScene extends Phaser.Scene {
     );
   }
 
-  /** Náhled `index`: hned s obrysem, s barvami dítěte, až je omalovánka připravená. */
+  /** Náhled na místě `index` stránky: hned s obrysem, s barvami dítěte, až je omalovánka připravená. */
   private async showPreview(index: number): Promise<void> {
     const tile = this.tiles[index];
-    const picture = this.choice.previews()[index];
+    const picture = this.choice.pagePreviews()[index];
     const assets = picture === undefined ? undefined : this.assetsOf(picture);
     if (tile === undefined || picture === undefined || assets === undefined) {
       return;
@@ -472,6 +548,8 @@ export class PickerScene extends Phaser.Scene {
         this.bookView.wobble();
         return;
       case 'ignored':
+        // Během listování výběru (#150) se kniha jen zhoupne, bez tónu.
+        this.bookView.wobble();
         return;
     }
   }
@@ -555,6 +633,7 @@ export class PickerScene extends Phaser.Scene {
    * (#129 AC1).
    */
   private onAlbumPointerUp(pointer: Phaser.Input.Pointer): void {
+    this.releaseTouch(pointer.id);
     const result: AlbumPointerResult = this.choice.albumPointerUp(
       pointer.id,
       this.cssPointOf(pointer),
@@ -610,34 +689,47 @@ export class PickerScene extends Phaser.Scene {
    * stránka vidět.
    */
   private turnAlbumPage(direction: AlbumDirection): void {
-    const style = ALBUM_ARROW_STYLE;
-    const shift = this.gameArea.width * style.turnShiftShare * (direction === 'next' ? -1 : 1);
+    this.releaseAllTouches();
     const leaving = this.albumTiles;
     // Dlaždice staré stránky nezahodí `showAlbum`, odjedou a zmizí až po listování.
     this.albumTiles = [];
     const tiles = this.showAlbum();
     this.leavingAlbumTiles = leaving;
-    for (const tile of leaving) {
-      tile.slideOut(shift, style.turnMs, () => undefined);
-    }
     const shownNumber = this.albumShowCount;
-    const pageShown = (): void => {
+    this.slidePages(leaving, tiles, direction, () => {
       if (shownNumber !== this.albumShowCount) {
         return;
       }
       this.destroyLeavingAlbumTiles();
       this.choice.albumPageShown();
-    };
-    if (tiles.length === 0) {
-      pageShown();
+    });
+  }
+
+  /**
+   * Listování (#149, #150): dlaždice `leaving` odjedou proti směru
+   * listování, `arriving` přijedou z druhé strany a pak se zavolá `onShown`.
+   */
+  private slidePages(
+    leaving: readonly PreviewTileView[],
+    arriving: readonly PreviewTileView[],
+    direction: AlbumDirection,
+    onShown: () => void,
+  ): void {
+    const style = ALBUM_ARROW_STYLE;
+    const shift = this.gameArea.width * style.turnShiftShare * (direction === 'next' ? -1 : 1);
+    for (const tile of leaving) {
+      tile.slideOut(shift, style.turnMs, () => undefined);
+    }
+    if (arriving.length === 0) {
+      onShown();
       return;
     }
-    let left = tiles.length;
-    for (const tile of tiles) {
+    let left = arriving.length;
+    for (const tile of arriving) {
       tile.slideIn(-shift, style.turnMs, () => {
         left -= 1;
         if (left === 0) {
-          pageShown();
+          onShown();
         }
       });
     }
@@ -913,8 +1005,19 @@ export class PickerScene extends Phaser.Scene {
 
   /** Prst, který koš stiskl, se zvedl; v albu se pozná ťuknutí nebo tah (#149). */
   private onPointerUp(pointer: Phaser.Input.Pointer): void {
-    if (this.choice.screen().kind === 'album') {
+    // Phaser posílá zrušený dotyk (touchcancel) jako zvednutí prstu: není to ťuknutí.
+    const eventType = pointer.event.type;
+    if (eventType === 'touchcancel' || eventType === 'pointercancel') {
+      this.cancelTouches(pointer.id);
+      return;
+    }
+    const screen = this.choice.screen().kind;
+    if (screen === 'album') {
       this.onAlbumPointerUp(pointer);
+      return;
+    }
+    if (screen === 'picker') {
+      this.onPickerPointerUp(pointer);
       return;
     }
     if (pointer.id === this.trashPointer) {
@@ -922,6 +1025,54 @@ export class PickerScene extends Phaser.Scene {
       this.choice.trashButton.release(pointer.id);
     }
   }
+
+  /** Prst `pointerId` zmáčkl dlaždici `tile` na místě `place` (#150). */
+  private pressTouch(
+    pointerId: number,
+    place: number | null,
+    tile: PreviewTileView | undefined,
+  ): void {
+    this.touches.get(pointerId)?.tile?.release();
+    tile?.press();
+    this.touches.set(pointerId, { place, tile });
+  }
+
+  /** Prst se zvedl: zmáčknutá dlaždice se vrátí. Vrátí místo náhledu, kde prst začal. */
+  private releaseTouch(pointerId: number): number | null {
+    const touch = this.touches.get(pointerId);
+    this.touches.delete(pointerId);
+    touch?.tile?.release();
+    return touch?.place ?? null;
+  }
+
+  /** Po nalistování nebo zrušení se všechny zmáčknuté dlaždice vrátí. */
+  private releaseAllTouches(): void {
+    for (const pointerId of [...this.touches.keys()]) {
+      this.releaseTouch(pointerId);
+    }
+  }
+
+  /**
+   * Prohlížeč dotyk zrušil (pointercancel, touchcancel, odchod z okna,
+   * schovaná stránka): prst `pointerId` (bez čísla všechny) se zapomene,
+   * dlaždice se vrátí, nic se neotevře a koš přestane držet.
+   */
+  private cancelTouches(pointerId?: number): void {
+    if (pointerId === undefined) {
+      this.releaseAllTouches();
+    } else {
+      this.releaseTouch(pointerId);
+    }
+    this.choice.pickerPointerCancel(pointerId);
+    this.choice.albumPointerCancel(pointerId);
+    const trash = this.trashPointer;
+    if (trash !== null && (pointerId === undefined || pointerId === trash)) {
+      this.trashPointer = null;
+      this.choice.trashButton.cancel(trash);
+    }
+  }
+
+  private readonly onTouchCancel = (): void => this.cancelTouches();
 
   /** Bílý kroužek kolem koše se začne plnit. */
   private showTrashRing(): void {
@@ -964,6 +1115,9 @@ export class PickerScene extends Phaser.Scene {
       tile.destroy();
     }
     this.tiles = [];
+    this.destroyLeavingTiles();
+    this.pickerPreviousArrow.destroy();
+    this.pickerNextArrow.destroy();
     for (const flight of this.flights) {
       flight.destroy();
     }
@@ -1006,10 +1160,20 @@ export class PickerScene extends Phaser.Scene {
     for (const event of [Phaser.Input.Events.POINTER_UP, Phaser.Input.Events.POINTER_UP_OUTSIDE]) {
       this.input.on(event, (pointer: Phaser.Input.Pointer) => this.onPointerUp(pointer));
     }
+    const canvas = this.game.canvas;
+    canvas.addEventListener('pointercancel', this.onTouchCancel);
+    canvas.addEventListener('touchcancel', this.onTouchCancel);
+    this.game.events.on(Phaser.Core.Events.BLUR, this.onTouchCancel);
+    this.game.events.on(Phaser.Core.Events.HIDDEN, this.onTouchCancel);
     this.registry.events.on(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
     this.events.on(Phaser.Scenes.Events.UPDATE, this.drawTrashRing, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.running = false;
+      canvas.removeEventListener('pointercancel', this.onTouchCancel);
+      canvas.removeEventListener('touchcancel', this.onTouchCancel);
+      this.game.events.off(Phaser.Core.Events.BLUR, this.onTouchCancel);
+      this.game.events.off(Phaser.Core.Events.HIDDEN, this.onTouchCancel);
+      this.touches.clear();
       this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
       this.events.off(Phaser.Scenes.Events.UPDATE, this.drawTrashRing, this);
       this.choice.trashButton.dispose();
@@ -1024,8 +1188,8 @@ export class PickerScene extends Phaser.Scene {
   }
 
   /**
-   * Ťuknutí na náhled (#124 AC1): hned tón a zhoupnutí, po zhoupnutí se
-   * otevře malování. Mimo náhledy, druhý prst a dvojí ťuknutí nic (AC5).
+   * Dotyk prstu: na velkém obrázku koš a štětec, v albu a na výběru šipky
+   * hned a náhledy až po zvednutí prstu (#149, #150), na výběru kniha hned.
    */
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
     const { worldX: x, worldY: y } = pointer;
@@ -1045,77 +1209,161 @@ export class PickerScene extends Phaser.Scene {
         this.onAlbumArrowTapped(arrow);
         return;
       }
-      // Ťuknutí nebo tah pozná výběr až po zvednutí prstu (#149).
-      this.choice.albumPointerDown(
+      // Ťuknutí nebo tah pozná výběr až po zvednutí prstu (#149), dlaždice se hned zmáčkne (#150).
+      const albumPlace = albumPreviewAt(this.albumLayout, x, y);
+      this.pressTouch(
         pointer.id,
-        this.cssPointOf(pointer),
-        albumPreviewAt(this.albumLayout, x, y),
+        albumPlace,
+        albumPlace === null ? undefined : this.albumTiles[albumPlace],
       );
+      this.choice.albumPointerDown(pointer.id, this.cssPointOf(pointer), albumPlace);
       return;
     }
-    if (screen === 'picker' && bookAt(this.layout, x, y)) {
+    if (screen !== 'picker') {
+      return;
+    }
+    if (bookAt(this.layout, x, y)) {
       this.onBookTapped();
       return;
     }
-    const index = previewAt(this.layout, x, y);
-    if (index === null) {
+    const arrow = pickerArrowAt(this.layout, x, y);
+    if (arrow !== null) {
+      this.onPickerArrowTapped(arrow);
       return;
     }
-    if (!this.locksReady && this.isLockedPreview(index)) {
-      // Odemčení zdarma ještě neproběhlo (#140 AC2): zámek se jen zhoupne, klíč se neutratí.
-      this.sounds.play(HOME_WOBBLE_TONES);
-      this.tiles[index]?.wobbleLock();
-      this.keyIndicatorView.wobble();
-      return;
-    }
-    const tap = this.choice.tapPreview(index);
-    if (tap.kind === 'wobble') {
-      // Výměna s albem se může ještě vrátit (#131 AC5): náhled se jen zhoupne.
-      this.sounds.play(tap.tones);
-      this.tiles[index]?.wobble(() => undefined);
-      return;
-    }
-    if (tap.kind === 'locked') {
-      // Bez celého klíče (#140 AC4): zámek a ukazatel se zhoupnou s tónem domečku.
-      this.sounds.play(tap.tones);
-      this.tiles[index]?.wobbleLock();
-      this.keyIndicatorView.wobble();
-      return;
-    }
-    if (tap.kind === 'unlocked') {
-      // Klíč se utratil (#140 AC5): ukazatel ubere klíč, zámek se otevře a pak malování.
-      this.sounds.play(tap.tones);
-      this.showKeyIndicator();
-      this.keyIndicatorView.pulse();
-      const lockedTile = this.tiles[index];
-      if (lockedTile === undefined) {
-        this.openPainting(tap.picture);
-        return;
-      }
-      lockedTile.openLock(() => {
-        // Zámek zmizí i se zrušenou dlaždicí (odchod ze hry): malování jen v běžící scéně.
-        if (this.running) {
-          this.openPainting(tap.picture);
-        }
-      });
-      return;
-    }
-    if (tap.kind !== 'open') {
-      return;
-    }
-    this.sounds.play(tap.tones);
-    const tile = this.tiles[index];
-    if (tile === undefined) {
-      this.openPainting(tap.picture);
-      return;
-    }
-    tile.wobble(() => this.openPainting(tap.picture));
+    // Ťuknutí nebo tah pozná výběr až po zvednutí prstu, dlaždice se hned zmáčkne (#150).
+    const place = previewAt(this.layout, x, y);
+    this.pressTouch(pointer.id, place, place === null ? undefined : this.tiles[place]);
+    this.choice.pickerPointerDown(pointer.id, this.cssPointOf(pointer), place);
   }
 
-  /** Je náhled `index` zamčený? */
-  private isLockedPreview(index: number): boolean {
-    const picture = this.choice.previews()[index];
+  /**
+   * Prst se na výběru zvedl (#150): tah nalistuje nebo na kraji zhoupne
+   * náhledy, ťuknutí na náhled ho otevře (#124 AC1).
+   */
+  private onPickerPointerUp(pointer: Phaser.Input.Pointer): void {
+    const place = this.releaseTouch(pointer.id);
+    const result: PickerPointerResult = this.choice.pickerPointerUp(
+      pointer.id,
+      this.cssPointOf(pointer),
+    );
+    switch (result.kind) {
+      case 'turned':
+        this.sounds.play(result.tones);
+        this.turnPickerPage(result.direction);
+        return;
+      case 'edge':
+        this.sounds.play(result.tones);
+        for (const tile of this.tiles) {
+          tile.wobble(() => undefined);
+        }
+        return;
+      default:
+        if (place !== null) {
+          this.onPreviewTap(result, place);
+        }
+    }
+  }
+
+  /** Ťuknutí na šipku na výběru (#150): nalistuje, nebo se šipka zhoupne. */
+  private onPickerArrowTapped(direction: AlbumDirection): void {
+    const turn = this.choice.tapPickerArrow(direction);
+    if (turn.kind === 'turned') {
+      this.sounds.play(turn.tones);
+      this.turnPickerPage(turn.direction);
+      return;
+    }
+    if (turn.kind === 'edge') {
+      this.sounds.play(turn.tones);
+    }
+    // Na kraji s tónem domečku, během listování aspoň zhoupnutí.
+    (direction === 'next' ? this.pickerNextArrow : this.pickerPreviousArrow).wobble();
+  }
+
+  /** Listování výběru (#150) jako v albu: stará stránka odjede, nová přijede. */
+  private turnPickerPage(direction: AlbumDirection): void {
+    this.releaseAllTouches();
+    const leaving = this.tiles;
+    this.tiles = [];
+    this.destroyLeavingTiles();
+    const tiles = this.createPageTiles();
+    this.placePageTiles();
+    this.leavingTiles = leaving;
+    const shownNumber = this.pickerShowCount;
+    this.slidePages(leaving, tiles, direction, () => {
+      if (shownNumber !== this.pickerShowCount) {
+        return;
+      }
+      this.destroyLeavingTiles();
+      this.choice.pickerPageShown();
+    });
+  }
+
+  private destroyLeavingTiles(): void {
+    for (const tile of this.leavingTiles) {
+      tile.destroy();
+    }
+    this.leavingTiles = [];
+  }
+
+  /** Je omalovánka na místě `place` stránky výběru zamčená (#140)? */
+  private isLockedPlace(place: number): boolean {
+    const picture = this.choice.pagePreviews()[place];
     return picture !== undefined && this.locks.isLocked(picture);
+  }
+
+  /**
+   * Ťuknutí na náhled na místě `place` (#124 AC1): hned tón a zhoupnutí,
+   * po zhoupnutí se otevře malování. Mimo náhledy, druhý prst a dvojí
+   * ťuknutí nic (AC5).
+   */
+  private onPreviewTap(tap: PreviewTap, place: number): void {
+    const tile = this.tiles[place];
+    switch (tap.kind) {
+      case 'wobble':
+        this.sounds.play(tap.tones);
+        if (!this.locksReady && this.isLockedPlace(place)) {
+          // Odemčení zdarma ještě neproběhlo (#140 AC2): zamčená se zhoupne zámkem jako dřív.
+          tile?.wobbleLock();
+          this.keyIndicatorView.wobble();
+          return;
+        }
+        // Stránka jde do alba (#141 AC4), nebo se výměna může vrátit (#131 AC5): náhled se zhoupne.
+        tile?.wobble(() => undefined);
+        return;
+      case 'locked':
+        // Bez celého klíče nebo před odemčením zdarma (#140 AC2, AC4): zámek a ukazatel se zhoupnou.
+        this.sounds.play(tap.tones);
+        tile?.wobbleLock();
+        this.keyIndicatorView.wobble();
+        return;
+      case 'unlocked':
+        // Klíč se utratil (#140 AC5): ukazatel ubere klíč, zámek se otevře a pak malování.
+        this.sounds.play(tap.tones);
+        this.showKeyIndicator();
+        this.keyIndicatorView.pulse();
+        if (tile === undefined) {
+          this.openPainting(tap.picture);
+          return;
+        }
+        tile.openLock(() => {
+          // Zámek zmizí i se zrušenou dlaždicí (odchod ze hry): malování jen v běžící scéně.
+          if (this.running) {
+            this.openPainting(tap.picture);
+          }
+        });
+        return;
+      case 'open':
+        this.sounds.play(tap.tones);
+        if (tile === undefined) {
+          this.openPainting(tap.picture);
+          return;
+        }
+        tile.wobble(() => this.openPainting(tap.picture));
+        return;
+      case 'ignored':
+        return;
+    }
   }
 
   /**
@@ -1235,7 +1483,8 @@ export class PickerScene extends Phaser.Scene {
     if (delayMs > 0) {
       await this.waitScene(delayMs);
     }
-    const index = this.choice.previews().findIndex((each) => each.id === move.picture.id);
+    // Odletí jen náhled ze stránky výběru, která je vidět (#150).
+    const index = this.choice.pagePreviews().findIndex((each) => each.id === move.picture.id);
     const rect = this.layout.previews[index];
     const assets = this.assetsOf(move.picture);
     if (rect === undefined || assets === undefined) {
@@ -1278,7 +1527,7 @@ export class PickerScene extends Phaser.Scene {
 
   private onGameAreaChanged(): void {
     this.gameArea = this.readGameArea();
-    this.layout = layoutPicker(this.gameArea);
+    this.layout = this.pickerLayout();
     // Po otočení by kopie letěla do knihy na starém místě: zmizí a kniha jen poskočí (#141).
     const flightsCancelled = this.flights.length > 0;
     for (const flight of this.flights) {

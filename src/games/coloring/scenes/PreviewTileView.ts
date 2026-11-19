@@ -125,6 +125,10 @@ export class PreviewTileView {
   private lock: LockLayer | null = null;
   /** Rozběhnutý odlet do knihy (#141); zastaví se se zrušením dlaždice. */
   private flight: Phaser.Tweens.Tween | null = null;
+  /** Zmáčknutí nebo návrat po dotyku prstu (#150). */
+  private pressTween: Phaser.Tweens.Tween | null = null;
+  /** Dlaždice se zrušila: zmáčknutí už nic nedělá. */
+  private destroyed = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -467,12 +471,16 @@ export class PreviewTileView {
     });
   }
 
-  /** Listování alba (#149): dlaždice za `ms` odjede o `shiftX` a zmizí; `onDone` na konci. */
+  /**
+   * Listování alba (#149): dlaždice za `ms` odjede o `shiftX` a zmizí
+   * (zmáčknutá se přitom vrátí do své velikosti); `onDone` na konci.
+   */
   slideOut(shiftX: number, ms: number, onDone: () => void): void {
     this.scene.tweens.killTweensOf(this.container);
     this.scene.tweens.add({
       targets: this.container,
       x: this.container.x + shiftX,
+      scale: 1,
       alpha: 0,
       duration: ms,
       ease: 'Sine.easeIn',
@@ -480,7 +488,36 @@ export class PreviewTileView {
     });
   }
 
-  /** Zhoupnutí po ťuknutí; `onDone` se zavolá, až dlaždice dojde zpátky. */
+  /**
+   * Dotyk prstu na náhledu (#150): dlaždice se hned trochu zmáčkne, bez
+   * tónu. Ťuknutí nebo tah pozná výběr až po zvednutí prstu.
+   */
+  press(): void {
+    this.scaleTo(PICKER_TILE_STYLE.pressScale);
+  }
+
+  /** Prst se zvedl, táhl nebo se dotyk zrušil: zmáčknutá dlaždice se vrátí do své velikosti. */
+  release(): void {
+    this.scaleTo(1);
+  }
+
+  private scaleTo(scale: number): void {
+    if (this.destroyed) {
+      return;
+    }
+    this.pressTween?.remove();
+    this.pressTween = this.scene.tweens.add({
+      targets: this.container,
+      scale,
+      duration: PICKER_TILE_STYLE.pressMs,
+      ease: 'Sine.easeOut',
+    });
+  }
+
+  /**
+   * Zhoupnutí po ťuknutí (zmáčknutá dlaždice se přitom vrátí do své
+   * velikosti); `onDone` se zavolá, až dlaždice dojde zpátky.
+   */
   wobble(onDone: () => void): void {
     const { wobbleAngle: angle, wobbleMs: ms } = PICKER_TILE_STYLE;
     this.scene.tweens.killTweensOf(this.container);
@@ -488,7 +525,7 @@ export class PreviewTileView {
     this.scene.tweens.chain({
       targets: this.container,
       tweens: [
-        { angle, duration: ms, ease: 'Sine.easeOut' },
+        { angle, scale: 1, duration: ms, ease: 'Sine.easeOut' },
         { angle: -angle, duration: 2 * ms, ease: 'Sine.easeInOut' },
         { angle: 0, duration: ms, ease: 'Sine.easeIn' },
       ],
@@ -497,6 +534,8 @@ export class PreviewTileView {
   }
 
   destroy(): void {
+    this.destroyed = true;
+    this.pressTween = null;
     this.flight?.remove();
     this.flight = null;
     this.scene.tweens.killTweensOf(this.container);
