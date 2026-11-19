@@ -335,3 +335,5 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-13 Koště 🧹 v malování Omalovánek s podržením 1 s a bílým kroužkem je další výjimka z pravidla o kroužku jen u kolečka a domečku (#142).
 - 2026-11-13 Klíč (#139 u cíle mapy, #140 ukazatel v Omalovánkách) se mění na návrh B z ElevenLabs: zlatý klíč se dvěma půlkami spojenými dílkem skládačky (hlava s hvězdou, dřík se zuby); dnešní Noto 🔑 se vlastníkovi nelíbil.
 - 2026-11-13 Cesta na mapě postupu: vlastník vybral variantu D – stopy podle tématu (zlaté prošlé, bílé poloprůhledné neprošlé, #144) a k tomu podložky zastávek podle tématu a zakřivená cesta (dva navazující úkoly). Pořadí: zakřivená cesta, #144 na ní, podložky.
+- 2026-11-19 Mapa v okně (#145): vybrána varianta V2 (vlastník „varianta B“ = druhá): karta asi 75 % plochy, bílý okraj 6 px a stín, ztmavení 40 %. Další úkoly: větší album, další sada omalovánek, kreslení na prázdný papír, srozumitelnější ikony v Omalovánkách (ukládání, mazání atd.) a review UX/UI s návrhy.
+- 2026-11-19 Omalovánky: místo nedávných barev v panelu rychlé přepínání: naposledy vybraný nástroj s jeho barvou a guma, aby šlo snadno přepínat (nový úkol).
