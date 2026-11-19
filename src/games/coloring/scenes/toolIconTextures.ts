@@ -1,6 +1,7 @@
 /**
- * Ikony nástrojů (#106), fotoaparátu a knihy (#126): hotová SVG z Google Noto Emoji ze složky
- * `src/games/coloring/icons/`, klíč (#139/#140) jako obrázek WebP. Vite je přibalí ke hře jako samostatné
+ * Ikony nástrojů (#106): hotová SVG z Google Noto Emoji ze složky
+ * `src/games/coloring/icons/`, klíč (#139/#140) a ikony tlačítek alba a malování (#153) jako
+ * obrázky WebP. Vite je přibalí ke hře jako samostatné
  * soubory (`?no-inline`, nikdy ne z cizího serveru) a scéna je načte
  * v `preload`. Pro každou zobrazenou velikost se SVG vykreslí do vlastní
  * textury v obrazových bodech plátna, aby byla ikona ostrá i na retině
@@ -24,7 +25,7 @@ const ICON_URLS: Readonly<Record<string, string>> = Object.fromEntries(
   ).map(([path, url]) => [path.replace('../icons/', ''), url]),
 );
 
-/** Adresy obrázků WebP (klíč z #139/#140) podle jména souboru. */
+/** Adresy obrázků WebP (klíč z #139/#140, tlačítka z #153) podle jména souboru. */
 const BITMAP_ICON_URLS: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(
     import.meta.glob<string>('../icons/*.webp', {

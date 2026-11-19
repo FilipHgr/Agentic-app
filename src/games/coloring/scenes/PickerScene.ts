@@ -13,6 +13,7 @@ import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import { albumPageEntries, ALBUM_PAGE_SIZE, readAlbum } from '../logic/album';
+import { actionButtonLook } from '../logic/actionButtons';
 import type { AlbumContents, AlbumEntry, AlbumPicture } from '../logic/album';
 import { settleAlbumSwap } from '../logic/albumSwap';
 import { isBlankPaper } from '../logic/blankPaper';
@@ -52,7 +53,6 @@ import { loadPicturePreview, previewOfColors } from '../logic/picturePreview';
 import { COLORING_PICTURES } from '../logic/pictureSet';
 import type { PaintingOrigin, PictureIdentity } from '../logic/savedPicture';
 import { ALBUM_ARROW_STYLE, BIG_PICTURE_STYLE } from '../logic/theme';
-import { BOOK_ICON_FILE, CONTINUE_ICON_FILE, TRASH_ICON_FILE } from '../logic/toolIcons';
 import { AlbumArrowView } from './AlbumArrowView';
 import { ColoringScene, isGameArea } from './ColoringScene';
 import { IconButtonView } from './IconButtonView';
@@ -178,7 +178,7 @@ export class PickerScene extends Phaser.Scene {
     number,
     { readonly place: number | null; readonly tile: PreviewTileView | undefined }
   >();
-  private readonly bookView = new IconButtonView(this, BOOK_ICON_FILE);
+  private readonly bookView = new IconButtonView(this, actionButtonLook('album'));
   /** Zámky omalovánek a klíče aktivního profilu (#140). */
   private locks: PictureLocks = openPictureLocks({
     pictures: COLORING_PICTURES,
@@ -206,9 +206,9 @@ export class PickerScene extends Phaser.Scene {
   private bigLayout: BigPictureLayout = layoutBigPicture(this.gameArea);
   /** Velký obrázek z alba (#129); `null` mimo velký obrázek. */
   private bigTile: PreviewTileView | null = null;
-  private readonly trashView = new IconButtonView(this, TRASH_ICON_FILE);
+  private readonly trashView = new IconButtonView(this, actionButtonLook('trash'));
   /** Štětec malovat dál na velkém obrázku (#131). */
-  private readonly continueView = new IconButtonView(this, CONTINUE_ICON_FILE);
+  private readonly continueView = new IconButtonView(this, actionButtonLook('continue'));
   /** Omalovánky sady s připraveným obrysem; doplní se, až jsou všechny připravené. */
   private albumPictures: readonly AlbumPicture[] = [];
   /** Dokončení nebo vrácení odložené výměny při otevření (#131); album se čte až po něm. */

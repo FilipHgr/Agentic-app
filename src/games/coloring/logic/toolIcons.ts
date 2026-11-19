@@ -46,22 +46,19 @@ const TOOL_EMOJI: Readonly<Record<ToolId, NotoEmojiName>> = {
 };
 
 /**
- * Ikony tlačítek mimo nástroje (#126) ze stejné sady Noto Emoji: fotoaparát
- * 📷 (U+1F4F7, „camera“) v malování a kniha 📔 (U+1F4D4, „notebook with
- * decorative cover“) na výběru omalovánky.
+ * Ikony tlačítek alba a malování (#153, dřív Noto Emoji z #126, #129, #131
+ * a #142): vlastní obrázky z ElevenLabs (GPT Image 2.5) ve stejném
+ * plastickém stylu jako klíč, WebP s průhledností, čtverec 128 px.
+ * Fotoaparát v malování uloží obrázek do alba, kniha na výběru otevře
+ * album, obrázek s pastelkou na velkém obrázku z alba maluje dál, koš ho
+ * z alba smaže a koště v malování vrátí stránku na začátek. Barvy podkladů
+ * tlačítek jsou v `actionButtons.ts`.
  */
-export const CAMERA_ICON_FILE = 'camera.svg';
-export const BOOK_ICON_FILE = 'notebook-with-decorative-cover.svg';
-
-/** Koš 🗑️ (U+1F5D1, „wastebasket“) na velkém obrázku z alba (#129) ze stejné sady. */
-export const TRASH_ICON_FILE = 'wastebasket.svg';
-
-/**
- * Štětec 🖌️ (U+1F58C, „paintbrush“) na tlačítku malovat dál na velkém
- * obrázku z alba (#131): stejný soubor jako ikona štětce, malování se
- * otevře se štětcem.
- */
-export const CONTINUE_ICON_FILE = `${TOOL_EMOJI.brush}.svg`;
+export const CAMERA_ICON_FILE = 'action-camera.webp';
+export const BOOK_ICON_FILE = 'action-album.webp';
+export const CONTINUE_ICON_FILE = 'action-continue.webp';
+export const TRASH_ICON_FILE = 'action-trash.webp';
+export const BROOM_ICON_FILE = 'action-broom.webp';
 
 /**
  * Zámek zamčené omalovánky 🔒 (U+1F512, „locked“) a otevřený zámek 🔓
@@ -78,12 +75,6 @@ export const UNLOCKED_ICON_FILE = 'unlocked.svg';
  */
 export const KEY_ICON_FILE = 'key.webp';
 export const KEY_HEAD_ICON_FILE = 'key-head.webp';
-
-/**
- * Koště 🧹 (U+1F9F9, „broom“) v malování (#142) ze stejné sady: podržením
- * vrátí stránku na začátek. Jiné než guma 🧽, koš 🗑️ i fotoaparát 📷.
- */
-export const BROOM_ICON_FILE = 'broom.svg';
 
 /** Ikona nástroje `tool`; nezávisí na vybrané barvě ani velikosti čáry. */
 export function toolIconAsset(tool: ToolId): ToolIconAsset {

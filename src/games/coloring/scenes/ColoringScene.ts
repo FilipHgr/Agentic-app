@@ -16,6 +16,7 @@ import { colorNumber } from '../../../shared/logic/theme';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import type { AlbumContents } from '../logic/album';
+import { actionButtonLook } from '../logic/actionButtons';
 import { strokeWidthFor } from '../logic/coloring';
 import type { PointerSample } from '../logic/coloring';
 import {
@@ -46,7 +47,7 @@ import type {
 import { BROOM_SWEEP_TONES, PICTURE_STYLE } from '../logic/theme';
 import { ALL_COLOR_COUNT, TOOL_COLOR_SETS, placeInSet } from '../logic/toolColorSets';
 import { DEFAULT_TOOL_COLORS, isColorTool, toolReceivingColor } from '../logic/toolColors';
-import { BROOM_ICON_FILE, CAMERA_ICON_FILE, handleColorDotFill } from '../logic/toolIcons';
+import { handleColorDotFill } from '../logic/toolIcons';
 import {
   INITIAL_LINE_SIZE,
   INITIAL_TOOL,
@@ -194,9 +195,9 @@ export class ColoringScene extends Phaser.Scene {
   private readonly quickToolsView = new QuickToolsView(this);
   /** Prst, který drží tlačítko rychlého přepínání (#148 AC6); zvednutí logice předá scéna. */
   private quickPointer: number | null = null;
-  private readonly cameraView = new IconButtonView(this, CAMERA_ICON_FILE);
+  private readonly cameraView = new IconButtonView(this, actionButtonLook('camera'));
   private readonly photoView: CameraPhotoView;
-  private readonly broomView = new IconButtonView(this, BROOM_ICON_FILE);
+  private readonly broomView = new IconButtonView(this, actionButtonLook('broom'));
   private readonly sweepView: BroomSweepView;
   /** Prst, který stiskl koště a ještě z něj nesjel ani se nezvedl. */
   private broomPointer: number | null = null;

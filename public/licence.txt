@@ -104,6 +104,24 @@ skládačky na hlavu s hvězdou (key-head) a dřík (key-blade) a převedeno na
 WebP. Zdrojové PNG není v repozitáři, otisk SHA-256 zdroje:
   key: 12c565016f161bb965209a21795f3712864a34bfa9453fd94ba6f2e23850836c
 
+Ikony tlačítek alba a malování v Omalovánkách
+(src/games/coloring/icons/: fotoaparát action-camera.webp, album
+action-album.webp, malovat dál action-continue.webp, koš action-trash.webp
+a koště action-broom.webp) jsou výřezy ze zkušebního archu šesti ikon
+vytvořeného službou ElevenLabs (https://elevenlabs.io), model GPT Image 2.5
+(1536 × 1024 px, mřížka 3 × 2, šestá ikona Zpět se nepoužívá). Použito
+v rámci komerčního tarifu vlastníka hry, stejně jako dlaždice her. Úprava:
+vystřiženo, bílé pozadí převedeno na průhlednost, doplněno na čtverec,
+zmenšeno na 128 × 128 px, vnější obrys siluety silný 2 px přebarvený jednou
+tmavou barvou (kontrast proti podkladu tlačítka) a převedeno na WebP.
+Zdrojový arch není v repozitáři, otisky SHA-256 zdroje a ikon:
+  arch: 027598032f6967ae452c0badb1a5fecd5893898dba16c8e5f6fa686d39877602
+  action-camera.webp: 6d2234c79033b743772321fd3646a42d8b31f68dbf1da655888bf7ff01323534
+  action-album.webp: 88251db1db8b809bb3071fe8821c90dccde8c764b63030c265ef18a9be0c57f2
+  action-continue.webp: c62b5d22c9c906297410a4e011f7b4dca113ff5b155c75e4903612d29d7ee7a7
+  action-trash.webp: 804cb9af64d4a0618d1a4c4af1bf403856ff9dae5353e05fbc75aa90fb940375
+  action-broom.webp: 3848dfba7702c2eeebbd3ebd22b22cbaddd2addf50694de70a56d11c0661b14c
+
 Vlajky v nabídce jazyků v menu (src/menu/flags/: flag-czechia,
 flag-united-kingdom) jsou ploché vlajky ze sady Noto Emoji, autor Google Inc.,
 https://github.com/googlefonts/noto-emoji, složka third_party/region-flags
@@ -137,11 +155,8 @@ Plný text licence MIT:
   SOFTWARE.
 
 Ikony nástrojů v Omalovánkách (src/games/coloring/icons/: paintbrush, eraser,
-pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter), ikony
-fotoaparátu a knihy alba (camera, notebook-with-decorative-cover), ikona koše
-u velkého obrázku z alba (wastebasket), zámek zamčené omalovánky, otevřený
-zámek na výběru omalovánek (locked, unlocked),
-koště v malování Omalovánek (broom) a
+pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter), zámek
+zamčené omalovánky, otevřený zámek na výběru omalovánek (locked, unlocked) a
 symboly cíle map postupu v Počítání
 (src/games/counting/maps/: gem-stone, mushroom, castle, spiral-shell,
 ringed-planet) jsou obrázky ze sady Noto Emoji, autor

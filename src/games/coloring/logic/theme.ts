@@ -49,8 +49,9 @@ export const UNDO_BUTTON_STYLE = {
 } as const;
 
 /**
- * Tlačítka s ikonou Noto Emoji (#126): fotoaparát v malování a kniha na
- * výběru mají podklad a okraj jako Zpět a ikonu uprostřed.
+ * Tlačítka s ikonou (#126): tvar podkladu a okraje jako Zpět, ikona
+ * uprostřed. Barvy podkladu tlačítek alba a malování jsou od #153
+ * v `actionButtons.ts`, modré zůstávají šipky alba.
  */
 export const ICON_BUTTON_STYLE = {
   ...UNDO_BUTTON_STYLE,

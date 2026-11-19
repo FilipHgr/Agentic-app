@@ -47,7 +47,8 @@ import { BIG_PICTURE_BEFORE_131 } from './layoutBefore131Fixture';
  * jeho plocha pro prst a 8 px kolem, jako v testech velkého obrázku (#129).
  *
  * Schválené obrázky (komentář k #131):
- * - tlačítko malovat dál má ikonu štětce 🖌️ a stejnou velikost jako koš,
+ * - tlačítko malovat dál má ikonu štětce 🖌️ (od #153 obrázek s tužkou
+ *   z ElevenLabs, `actionIcons.test.ts`) a stejnou velikost jako koš,
  * - na šířku je ve sloupci koše 16 CSS px nad košem,
  * - na výšku je v horní řadě 16 CSS px vlevo od koše,
  * - velký obrázek ani koš se proti #129 nemění (pevná tabulka

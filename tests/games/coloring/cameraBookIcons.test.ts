@@ -5,13 +5,22 @@ import {
   CAMERA_ICON_FILE,
   TRASH_ICON_FILE,
 } from '../../../src/games/coloring/logic/toolIcons';
-import { ICON_FOLDER, LICENCE_TEXT, externalReferences, iconSvgOfFile } from './toolIconHelpers';
+import { ICON_FOLDER, webpBytesOf } from './actionIconHelpers';
+import { iconSvgOfFile } from './toolIconHelpers';
 
 /**
- * Testy ikon k #126 podle schválených obrázků: fotoaparát 📷 (U+1F4F7)
- * a kniha 📔 (U+1F4D4) jsou ze stejné sady Google Noto Emoji
- * (Apache-2.0) jako ikony nástrojů (#106), SVG jsou v repozitáři u hry,
- * nic se nestahuje a licence je v `public/licence.txt`.
+ * Testy ikon k #126 (fotoaparát a kniha) a #129 (koš), upravené k #153.
+ *
+ * Do #153 byly ikony emoji Noto 📷 (`camera.svg`), 📔
+ * (`notebook-with-decorative-cover.svg`) a 🗑️ (`wastebasket.svg`) a test
+ * hlídal jejich SVG (bez textu, skriptu a odkazů ven, nejvýš 20 000 B)
+ * a uvedení u ikon Noto v `public/licence.txt`. #153 je nahrazuje vlastními
+ * ikonami z ElevenLabs (WebP), proto tytéž požadavky hlídá nově:
+ * - jméno a jedinečnost souboru, rozdíl od ostatních ikon:
+ *   `actionIcons.test.ts` (#153 AC1),
+ * - malý soubor uložený u hry a původ v `public/licence.txt`:
+ *   `actionIcons.test.ts` (#153 AC4, WebP nejvýš 8 192 B).
+ * Tady zůstává z #126 jen to, že se ikony nikdy nestahují za běhu.
  */
 
 const ICONS: ReadonlyArray<readonly [string, string]> = [
@@ -21,38 +30,20 @@ const ICONS: ReadonlyArray<readonly [string, string]> = [
   ['koš', TRASH_ICON_FILE],
 ];
 
-/** Plocha ikon Noto v sadě `@iconify-json/noto`. */
-const NOTO_VIEW_BOX = /viewBox\s*=\s*["']0 0 128 128["']/;
+/** Staré SVG emoji Noto, které #153 nahrazuje. */
+const REPLACED_NOTO_FILES = ['camera.svg', 'notebook-with-decorative-cover.svg', 'wastebasket.svg'];
 
-/** Ikona nesmí být zbytečně velký asset (jako u ikon nástrojů). */
-const MAX_ICON_BYTES = 20_000;
-
-describe('#126: fotoaparát a kniha mají ikony ze sady Noto Emoji', () => {
-  it('fotoaparát je emoji „camera“ a kniha „notebook with decorative cover“ ze sady Noto', () => {
-    expect(CAMERA_ICON_FILE).toBe('camera.svg');
-    expect(BOOK_ICON_FILE).toBe('notebook-with-decorative-cover.svg');
-  });
-
+describe('#126 (upraveno k #153): fotoaparát, kniha a koš mají ikonu uloženou u hry', () => {
   for (const [name, file] of ICONS) {
-    it(`ikona „${name}“ je SVG ve složce hry bez textu, skriptu a odkazů ven`, () => {
-      const svg = iconSvgOfFile(file);
-      expect(svg, `${ICON_FOLDER}/${file}`).not.toBe('');
-      expect(svg, 'začíná značkou <svg>').toMatch(/^\s*<svg[\s>]/);
-      expect(svg, 'plocha 0 0 128 128 jako v sadě Noto').toMatch(NOTO_VIEW_BOX);
-      for (const tag of ['text', 'script', 'image', 'foreignObject', 'style']) {
-        expect(svg, `bez <${tag}>`).not.toMatch(new RegExp(`<${tag}[\\s>/]`, 'i'));
-      }
-      expect(svg, 'bez obsluhy událostí').not.toMatch(/\son\w+\s*=/i);
-      expect(externalReferences(svg), 'bez adres mimo soubor').toEqual([]);
-      expect(new TextEncoder().encode(svg).length, 'velikost').toBeLessThanOrEqual(MAX_ICON_BYTES);
+    it(`ikona „${name}“ je obrázek ve složce hry, ne adresa na cizím serveru`, () => {
+      expect(file, `${name}: jen jméno souboru .webp`).toMatch(/^[a-z-]+\.webp$/);
+      expect(webpBytesOf(file), `${ICON_FOLDER}/${file}`).not.toBeNull();
     });
   }
 
-  it('licence uvádí ikony fotoaparátu a knihy u ikon Noto Emoji', () => {
-    const notoPart = LICENCE_TEXT.slice(LICENCE_TEXT.indexOf(ICON_FOLDER));
-    expect(notoPart, 'fotoaparát').toMatch(/camera/);
-    expect(notoPart, 'kniha').toMatch(/notebook-with-decorative-cover/);
-    expect(notoPart, 'koš (#129)').toMatch(/wastebasket/);
-    expect(notoPart, 'sada').toMatch(/Noto Emoji/);
+  it('staré ikony Noto fotoaparátu, knihy a koše ve hře už nejsou (#153)', () => {
+    for (const file of REPLACED_NOTO_FILES) {
+      expect(iconSvgOfFile(file), `${ICON_FOLDER}/${file}`).toBe('');
+    }
   });
 });

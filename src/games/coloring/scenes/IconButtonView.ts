@@ -1,14 +1,18 @@
 /**
- * Tlačítko s ikonou Noto Emoji (#126): fotoaparát v malování a kniha na
- * výběru. Podklad a okraj jsou jako u tlačítka Zpět (světle modrý čtverec),
- * ikona uprostřed, bez textu. Ťuknutí pozná scéna; tlačítko se umí
- * zhoupnout, stisknout a poskočit. Od #129 umí kolem sebe kreslit bílý
- * kroužek podržení (koš, šedá stopa a bílý postup jako „Smazat“ v menu, #108).
+ * Tlačítko s ikonou alba a malování (#126): fotoaparát a koště v malování,
+ * kniha na výběru, koš a malovat dál u velkého obrázku z alba. Od #153 má
+ * každé vlastní ikonu z ElevenLabs a podklad v barvách podle toho, jestli
+ * obrázek uchová (zelený), nebo odstraní (červený), `actionButtonLook`;
+ * tvar podkladu a okraje je jako u tlačítka Zpět, ikona uprostřed, bez
+ * textu. Ťuknutí pozná scéna; tlačítko se umí zhoupnout, stisknout
+ * a poskočit. Od #129 umí kolem sebe kreslit bílý kroužek podržení (koš,
+ * šedá stopa a bílý postup jako „Smazat“ v menu, #108).
  */
 
 import Phaser from 'phaser';
 
 import { colorNumber } from '../../../shared/logic/theme';
+import type { ActionButtonLook } from '../logic/actionButtons';
 import type { LayoutRect } from '../logic/coloringLayout';
 import type { TrashHoldRing } from '../logic/pickerLayout';
 import { BIG_PICTURE_STYLE, CAMERA_PHOTO_STYLE, ICON_BUTTON_STYLE } from '../logic/theme';
@@ -22,7 +26,7 @@ export class IconButtonView {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly iconFile: string,
+    private readonly look: ActionButtonLook,
   ) {}
 
   /** Střed tlačítka v herních jednotkách; `null`, když tlačítko není postavené. */
@@ -47,11 +51,11 @@ export class IconButtonView {
       rect.top + rect.height / 2,
     );
     container.setDepth(depth);
-    container.add(backgroundOf(this.scene, rect, cssScale));
+    container.add(backgroundOf(this.scene, rect, cssScale, this.look));
     const iconSide = Math.min(rect.width, rect.height) * ICON_BUTTON_STYLE.iconShare;
-    const key = iconFileTexture(this.scene, this.iconFile, iconSide * cssScale);
+    const key = iconFileTexture(this.scene, this.look.iconFile, iconSide * cssScale);
     if (key !== null) {
-      // Bez načteného SVG (výpadek) zůstane tlačítko bez ikony a funguje dál.
+      // Bez načtené ikony (výpadek) zůstane tlačítko bez ikony a funguje dál.
       container.add(this.scene.add.image(0, 0, key).setDisplaySize(iconSide, iconSide));
     }
     this.holdRing = this.scene.add.graphics();
@@ -152,11 +156,22 @@ export class IconButtonView {
   }
 }
 
-/** Podklad s okrajem se středem v počátku, jako u tlačítka Zpět (i šipky alba, #149). */
+/** Barvy podkladu a okraje tlačítka (`#RRGGBB`). */
+export interface ButtonColors {
+  readonly background: string;
+  readonly borderColor: string;
+}
+
+/**
+ * Podklad s okrajem se středem v počátku, tvarem jako u tlačítka Zpět;
+ * barvy `colors` (tlačítka alba a malování, #153), jinak modré jako Zpět
+ * (šipky alba, #149).
+ */
 export function backgroundOf(
   scene: Phaser.Scene,
   rect: LayoutRect,
   cssScale: number,
+  colors: ButtonColors = ICON_BUTTON_STYLE,
 ): Phaser.GameObjects.Graphics {
   const style = ICON_BUTTON_STYLE;
   const side = Math.min(rect.width, rect.height);
@@ -164,9 +179,9 @@ export function backgroundOf(
   const radius = side * style.cornerRadiusShare;
   const inset = borderWidth / 2;
   const graphics = scene.add.graphics();
-  graphics.fillStyle(colorNumber(style.background), 1);
+  graphics.fillStyle(colorNumber(colors.background), 1);
   graphics.fillRoundedRect(-rect.width / 2, -rect.height / 2, rect.width, rect.height, radius);
-  graphics.lineStyle(borderWidth, colorNumber(style.borderColor), 1);
+  graphics.lineStyle(borderWidth, colorNumber(colors.borderColor), 1);
   graphics.strokeRoundedRect(
     -rect.width / 2 + inset,
     -rect.height / 2 + inset,

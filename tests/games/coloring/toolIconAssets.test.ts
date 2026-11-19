@@ -4,6 +4,7 @@ import {
   BOOK_ICON_FILE,
   BROOM_ICON_FILE,
   CAMERA_ICON_FILE,
+  CONTINUE_ICON_FILE,
   KEY_HEAD_ICON_FILE,
   KEY_ICON_FILE,
   LOCK_ICON_FILE,
@@ -87,14 +88,11 @@ describe('#106 AC1: každý nástroj má ikonu z hotové sady Google Noto Emoji'
     // Upraveno k #126: ve složce jsou navíc ikony fotoaparátu a knihy (cameraBookIcons.test.ts),
     // k #129 ikona koše u velkého obrázku z alba, k #140 zámky na výběru,
     // k #142 koště v malování. Klíč z #140 je k #139/#140 obrázek WebP (test níž).
-    const buttonIcons = [
-      CAMERA_ICON_FILE,
-      BOOK_ICON_FILE,
-      TRASH_ICON_FILE,
-      LOCK_ICON_FILE,
-      UNLOCKED_ICON_FILE,
-      BROOM_ICON_FILE,
-    ].map((file) => `${ICON_FOLDER}/${file}`);
+    // Upraveno k #153: fotoaparát, kniha, koš a koště jsou nové ikony WebP
+    // z ElevenLabs (test níž a actionIcons.test.ts), jako SVG zůstávají jen zámky.
+    const buttonIcons = [LOCK_ICON_FILE, UNLOCKED_ICON_FILE].map(
+      (file) => `${ICON_FOLDER}/${file}`,
+    );
     expect(iconFolderFiles(), `soubory ve složce ${ICON_FOLDER}`).toEqual(
       [...TOOLS.map((tool) => iconPathOf(tool)), ...buttonIcons].sort(),
     );
@@ -183,10 +181,29 @@ function asciiOf(bytes: Uint8Array, start: number, length: number): string {
   return String.fromCharCode(...bytes.slice(start, start + length));
 }
 
+/**
+ * Ikony tlačítek alba a malování z ElevenLabs (#153): fotoaparát, album,
+ * malovat dál, koš a koště. Jejich velikost (nejvýš 8 192 B) a formát
+ * hlídá `actionIcons.test.ts`.
+ */
+const ACTION_WEBP_FILES: readonly string[] = [
+  CAMERA_ICON_FILE,
+  BOOK_ICON_FILE,
+  CONTINUE_ICON_FILE,
+  TRASH_ICON_FILE,
+  BROOM_ICON_FILE,
+];
+
 describe('#140 AC3: klíč ukazatele je malý obrázek WebP uložený u hry', () => {
-  it('celý klíč i půlka jsou malé WebP s průhledností a žádné jiné WebP tam nejsou', () => {
-    expect(Object.keys(KEY_WEBP_FILES).sort()).toEqual([KEY_HEAD_ICON_FILE, KEY_ICON_FILE].sort());
-    for (const [file, dataUrl] of Object.entries(KEY_WEBP_FILES)) {
+  it('celý klíč i půlka jsou malé WebP s průhledností a jiné WebP než ikony tlačítek (#153) tam nejsou', () => {
+    // Upraveno k #153: ve složce jsou navíc ikony tlačítek alba a malování.
+    expect(Object.keys(KEY_WEBP_FILES).sort()).toEqual(
+      [KEY_HEAD_ICON_FILE, KEY_ICON_FILE, ...ACTION_WEBP_FILES].sort(),
+    );
+    const keyFiles: readonly string[] = [KEY_HEAD_ICON_FILE, KEY_ICON_FILE];
+    for (const [file, dataUrl] of Object.entries(KEY_WEBP_FILES).filter(([name]) =>
+      keyFiles.includes(name),
+    )) {
       const bytes = bytesOfDataUrl(dataUrl);
       expect(bytes.length, file).toBeLessThanOrEqual(MAX_KEY_BYTES);
       expect(asciiOf(bytes, 0, 4) + asciiOf(bytes, 8, 4), `${file} je WebP`).toBe('RIFFWEBP');

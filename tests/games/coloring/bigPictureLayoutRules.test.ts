@@ -49,8 +49,9 @@ import { PICTURE_BEFORE_142, PICTURE_MAY_MOVE_IN } from './layoutBefore142Fixtur
  * je jeho plocha pro prst a 8 px kolem, jako v testech alba (#126).
  *
  * Schválené obrázky (komentář k #129):
- * - koš 🗑️ je na místě fotoaparátu z rozložení malování (na šířku vlevo
- *   dole, na výšku vpravo nahoře),
+ * - koš 🗑️ (od #153 vlastní ikona z ElevenLabs, `actionIcons.test.ts`) je
+ *   na místě fotoaparátu z rozložení malování (na šířku vlevo dole, na
+ *   výšku vpravo nahoře),
  * - velký obrázek má stejnou velikost jako obrázek v malování; na šířku se
  *   podle potřeby posune doprava, aby byl od koše aspoň 16 px (na iPadu
  *   1180 × 820 o 8 px), na výšku je na stejném místě.

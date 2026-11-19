@@ -83,7 +83,12 @@ function drawButton(button: Phaser.GameObjects.Graphics, rect: LayoutRect, cssSc
   drawBackArrow(button, side);
 }
 
-/** Šipka ↶: oblouk přes horní polovinu zprava doleva a hrot dolů na levém konci. */
+/**
+ * Šipka ↶: oblouk přes horní polovinu zprava doleva a hrot dolů na levém konci.
+ * Ikony tlačítek alba a malování se jí nesmí podobat (#153): její tvar je
+ * změřený v `tests/games/coloring/actionIconMeasures.ts`
+ * (`DRAWN_SYMBOL_MEASURES.undo`). Po změně šipky se změří znovu.
+ */
 function drawBackArrow(button: Phaser.GameObjects.Graphics, side: number): void {
   const style = UNDO_BUTTON_STYLE;
   const color = colorNumber(style.symbolColor);
