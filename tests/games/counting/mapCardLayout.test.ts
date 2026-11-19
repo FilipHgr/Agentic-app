@@ -357,6 +357,7 @@ function rotatedPairs(): Array<[TestWindow, TestWindow]> {
 const ROTATION_TIMES_MS = [0, 200, 500, 800, 1100, 1400, 1700, 2000];
 
 describe('#145 AC6: po otočení zařízení se karta rozloží znovu a značka pokračuje', () => {
+  // #146: cesta se měří po oblouku (`distanceAlongPath`, `shareOfStep` z `mapAnimationHelpers.ts`).
   it('po otočení stojí značka v nové kartě na stejném dílu cesty jako před ním (#135 AC4)', () => {
     const pairs = rotatedPairs();
     expect(pairs.length).toBeGreaterThan(0);
@@ -369,15 +370,11 @@ describe('#145 AC6: po otočení zařízení se karta rozloží znovu a značka 
         for (const ms of ROTATION_TIMES_MS) {
           const where = `${before.name} → ${after.name}, ${label}, otočení v ${ms} ms`;
           const shareBefore = shareOfStep(
-            layoutBefore.places,
+            layoutBefore,
             move,
             markerPointAt(layoutBefore, move, ms),
           );
-          const shareAfter = shareOfStep(
-            layoutAfter.places,
-            move,
-            markerPointAt(layoutAfter, move, ms),
-          );
+          const shareAfter = shareOfStep(layoutAfter, move, markerPointAt(layoutAfter, move, ms));
           expect(shareBefore, where).not.toBeNull();
           expect(shareAfter ?? -1, where).toBeCloseTo(shareBefore ?? -2, 3);
         }

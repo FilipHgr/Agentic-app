@@ -15,6 +15,8 @@ import type { KeyReward } from '../../../shared/logic/keyRewards';
 import { SOUNDS, soundLengthSeconds } from './answerSounds';
 import type { MapMove } from './progressMap';
 import type { MapPoint, ProgressMapLayout } from './progressMapLayout';
+import { pathPoseBetween, walkBetween } from './progressMapPath';
+import type { PathWalk } from './progressMapPath';
 import { STARS_PER_SET } from './stars';
 
 /** Jak dlouho letí jedna hvězdička z řady ke značce (#154 AC3). */
@@ -136,7 +138,10 @@ export function markerShareAt(elapsedMs: number): number {
   return easeInOut(clampShare((elapsedMs - MARKER_START_MS) / MARKER_WALK_MS));
 }
 
-/** Kde značka v čase `elapsedMs` stojí: na úseku cesty mezi minulým a novým místem. */
+/**
+ * Kde značka v čase `elapsedMs` stojí: na oblouku cesty mezi minulým
+ * a novým místem (#146 AC3), v dílu délky oblouku podle `markerShareAt`.
+ */
 export function markerPointAt(
   layout: ProgressMapLayout,
   move: MapMove,
@@ -145,11 +150,111 @@ export function markerPointAt(
   const from = layout.places[move.from] ?? { x: 0, y: 0 };
   const to = layout.places[move.to] ?? from;
   const share = markerShareAt(elapsedMs);
+  if (share <= 0) {
+    return from;
+  }
   if (share >= 1) {
     return to;
   }
-  return { x: from.x + (to.x - from.x) * share, y: from.y + (to.y - from.y) * share };
+  return pathPoseBetween(layout, move.from, move.to, share).point;
 }
+
+/** Délka zlaté stopy za značkou jako násobek průměru značky. */
+const TRAIL_LENGTH_TO_MARKER = 3.2;
+
+/** Kolik jiskřiček je na stopě a jak daleko od její osy (díl průměru značky). */
+const TRAIL_SPARKLES = 4;
+const TRAIL_SPARKLE_SIDE = 0.34;
+
+/** Kolik dílků lomené čáry má stopa na celou délku úseku (od oblouku zlomek CSS px). */
+const TRAIL_PIECES_PER_STEP = 48;
+
+/** Zlatá stopa za jdoucí značkou (#135, po oblouku #146 AC5). */
+export interface MarkerTrail {
+  /** Lomená čára stopy od jejího konce ke značce, po oblouku cesty. */
+  readonly points: readonly MapPoint[];
+  /** Středy jiskřiček podél stopy, střídavě po obou stranách oblouku. */
+  readonly sparkles: readonly MapPoint[];
+}
+
+/**
+ * Zlatá stopa v čase `elapsedMs` od ukázání mapy: krátký kus oblouku za
+ * značkou, který začíná až za okrajem minulého místa, a jiskřičky podél
+ * něj. `null`, když značka stojí (před vyražením a po dojití).
+ */
+export function markerTrailAt(
+  layout: ProgressMapLayout,
+  move: MapMove,
+  elapsedMs: number,
+): MarkerTrail | null {
+  const share = markerShareAt(elapsedMs);
+  if (share <= 0 || share >= 1) {
+    return null;
+  }
+  const walk = walkBetween(layout, move.from, move.to);
+  const stepLength = walk.length || 1;
+  // Stopa začíná až za okrajem minulého místa, aby ho nepřekryla.
+  const tailMin = layout.placeSize / 2 / stepLength;
+  const tail = Math.max(tailMin, share - (layout.markerSize * TRAIL_LENGTH_TO_MARKER) / stepLength);
+  if (share <= tail) {
+    return null;
+  }
+  const pieces = Math.max(1, Math.ceil((share - tail) * TRAIL_PIECES_PER_STEP));
+  const points = Array.from(
+    { length: pieces + 1 },
+    (_, index) => walk.poseAt(tail + ((share - tail) * index) / pieces).point,
+  );
+  const sideLength = layout.markerSize * TRAIL_SPARKLE_SIDE;
+  const sparkles = Array.from({ length: TRAIL_SPARKLES }, (_, index) =>
+    trailSparkle(
+      walk,
+      tail + ((share - tail) * (index + 0.5)) / TRAIL_SPARKLES,
+      share,
+      (index % 2 === 0 ? 1 : -1) * sideLength,
+      sideLength / stepLength,
+    ),
+  );
+  return { points, sparkles };
+}
+
+/** Po jak malých dílech délky úseku se jiskřička u kloubu posouvá ke značce. */
+const SPARKLE_SHIFT_STEPS = 20;
+
+/**
+ * Jiskřička stopy kousek vedle oblouku (`side`, se znaménkem strany)
+ * v dílu `at` délky úseku. U kloubu, kde se úseky lámou, by jiskřička
+ * vedle oblouku ležela blíž sousednímu úseku než svému; pak se posune po
+ * oblouku ke značce (nejvýš do `head`), až je zase nejblíž svému úseku.
+ * Když to nejde, leží přímo na oblouku.
+ */
+function trailSparkle(
+  walk: PathWalk,
+  at: number,
+  head: number,
+  side: number,
+  shiftReach: number,
+): MapPoint {
+  const besideArc = (share: number): MapPoint => {
+    const pose = walk.poseAt(share);
+    return {
+      x: pose.point.x - pose.direction.y * side,
+      y: pose.point.y + pose.direction.x * side,
+    };
+  };
+  const end = Math.min(head, at + shiftReach);
+  for (let step = 0; step <= SPARKLE_SHIFT_STEPS; step += 1) {
+    const share = at + ((end - at) * step) / SPARKLE_SHIFT_STEPS;
+    const point = besideArc(share);
+    // Svému úseku je jiskřička vzdálená |side|; sousední úsek musí být dál.
+    if (walk.distanceFromOtherSegments(point) > Math.abs(side) * SPARKLE_OWN_SEGMENT_MARGIN) {
+      return point;
+    }
+  }
+  return walk.poseAt(at).point;
+}
+
+/** O kolik dál musí být sousední úsek než vlastní, aby jiskřička patřila ke svému. */
+const SPARKLE_OWN_SEGMENT_MARGIN = 1.05;
 
 /**
  * Svítí místo `step`? Prošlá místa svítí celou dobu, nové místo až od

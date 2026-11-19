@@ -1,8 +1,11 @@
 /**
  * Rozmístění zástupné mapy postupu (#87 AC7, #133 AC7) v herních
  * jednotkách: start, 2 zastávky a cíl na cestě, a kde stojí značka hráče.
- * Cesta vede rovnými úseky od místa k místu po řadě. Na šířku jde vlnovkou
- * zleva doprava, na výšku klikatě zdola nahoru, takže se nikde nekříží.
+ * Cesta vede od místa k místu po řadě oblouky (#146), které se střídavě
+ * prohýbají na opačné strany. Na šířku jde vlnovkou zleva doprava, na
+ * výšku klikatě zdola nahoru, takže se nikde nekříží. Prohnutí je co
+ * největší do 18 % délky úsečky, ale pruh cesty široký jako značka nesmí
+ * vyčnívat, zasahovat do vzdálených míst ani do cíle (nejméně 6 %).
  * Každá mapa má vlnovku jinak natočenou (začíná dole, nebo nahoře).
  * Mapa leží pod rohem kolečka a domečku a mimo výřez a lištu. Za cílem
  * (na šířku vpravo, na výšku nad ním) stojí symbol tématu (#134 AC2).
@@ -17,7 +20,11 @@ import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { MAP_GOAL_CELEBRATION_SCALE } from './mapAnimation';
 import { MAP_STEPS, MAP_THEMES } from './progressMap';
 import type { MapThemeId } from './progressMap';
+import { pathLinePieces, pathLinePoints, pathPointAt, pathSamples } from './progressMapPath';
+import type { MapPathShape } from './progressMapPath';
 import { PROGRESS_MAP_SHAPE } from './theme';
+
+export { pathLinePoints, pathPointAt };
 
 export interface MapPoint {
   readonly x: number;
@@ -35,9 +42,14 @@ export interface MapRect extends MapPoint {
   readonly height: number;
 }
 
-export interface ProgressMapLayout {
+export interface ProgressMapLayout extends MapPathShape {
   /** Střed místa podle kroku: 0 start, 1 a 2 zastávky, `MAP_STEPS` cíl. */
   readonly places: readonly MapPoint[];
+  /**
+   * Prohnutí oblouku úseku z místa `i` na místo `i + 1` (#146 AC1): díl
+   * délky úsečky se znaménkem strany, sousední úseky mají opačná znaménka.
+   */
+  readonly pathBends: readonly number[];
   /** Průměr místa na mapě. */
   readonly placeSize: number;
   /** Průměr značky hráče. */
@@ -80,6 +92,9 @@ const GOAL_KEY_MIN_HEIGHT_CSS = 36;
 
 /** Mezera mezi štítkem klíče a slavícím cílem nebo místem na cestě v CSS px. */
 const GOAL_KEY_GAP_CSS = 8;
+
+/** Mezera mezi štítkem klíče a pruhem cesty širokým jako značka v CSS px (#146 AC2). */
+const GOAL_KEY_BAND_GAP_CSS = 1;
 
 /** O kolik se štítek klíče zmenší, když se nikam nevejde. */
 const GOAL_KEY_SHRINK = 0.92;
@@ -244,7 +259,16 @@ function withGoal(
   };
   const placeSize = markerSize * PLACE_TO_MARKER;
   const goalCelebration = { ...center, size: celebrationSize };
-  const keySpace: GoalKeySpace = {
+  const goalSymbol = { ...center, size };
+  const bendOptions = pathBendOptions({
+    content,
+    places,
+    placeSize,
+    markerSize,
+    goalSymbol,
+    goalCelebration,
+  });
+  const keySpaceFor = (pathBends: readonly number[]): GoalKeySpace => ({
     content,
     goal: goalCelebration,
     goalPlace: lastPlace(places),
@@ -254,24 +278,165 @@ function withGoal(
         squareRect({ ...place, size: drawnPlaceSize(step, placeSize, markerSize) }),
       ),
     ],
-    path: places.slice(1).map((place, index) => [places[index] ?? place, place] as const),
-    pathClearance: (markerSize * MAP_PATH_WIDTH_SHARE) / 2 + GOAL_KEY_GAP_CSS / scale,
+    // Štítek drží odstup od čáry cesty po oblouku a nezasáhne do pruhu
+    // širokého jako značka (#146 AC2).
+    path: pathLinePieces({ places, pathBends }),
+    pathClearance: Math.max(
+      (markerSize * MAP_PATH_WIDTH_SHARE) / 2 + GOAL_KEY_GAP_CSS / scale,
+      (markerSize * DRAWN_MARKER_SCALE) / 2 + GOAL_KEY_BAND_GAP_CSS / scale,
+    ),
     gap: GOAL_KEY_GAP_CSS / scale,
     searchStep: GOAL_KEY_SEARCH_STEP_CSS / scale,
     nearGap: GOAL_KEY_NEAR_CSS / scale,
-  };
+  });
+  const { pathBends, goalKey } = placePathAndKey(
+    bendOptions,
+    keySpaceFor,
+    markerSize * GOAL_KEY_HEIGHT_TO_MARKER,
+    GOAL_KEY_MIN_HEIGHT_CSS / scale,
+  );
   return {
     places,
+    pathBends,
     placeSize,
     markerSize,
-    goalSymbol: { ...center, size },
+    goalSymbol,
     goalCelebration,
-    goalKey: placeGoalKey(
-      keySpace,
-      markerSize * GOAL_KEY_HEIGHT_TO_MARKER,
-      GOAL_KEY_MIN_HEIGHT_CSS / scale,
-    ),
+    goalKey,
   };
+}
+
+/**
+ * Prohnutí cesty a štítek klíče spolu (#146 AC2, #139 AC2): první
+ * prohnutí z `bendOptions` (od největšího), u kterého se štítek vejde
+ * k cíli; když u žádného, první, u kterého se vejde kamkoli na mapu.
+ * Klíč se tak smí posunout a cesta se kvůli němu méně prohne.
+ */
+function placePathAndKey(
+  bendOptions: readonly (readonly number[])[],
+  keySpaceFor: (pathBends: readonly number[]) => GoalKeySpace,
+  maxHeight: number,
+  minHeight: number,
+): { pathBends: readonly number[]; goalKey: MapRect } {
+  const spaces = bendOptions.map((pathBends) => ({ pathBends, space: keySpaceFor(pathBends) }));
+  for (const nearOnly of [true, false]) {
+    for (const { pathBends, space } of spaces) {
+      const goalRect = squareRect(space.goal);
+      const allowed = (rect: MapRect): boolean =>
+        !nearOnly || rectDistance(rect, goalRect) <= space.nearGap;
+      const goalKey = largestFitting(space, maxHeight, minHeight, allowed);
+      if (goalKey !== undefined) {
+        return { pathBends, goalKey };
+      }
+    }
+  }
+  const [first] = spaces;
+  const pathBends = first?.pathBends ?? alternatingBends(smallestBend(), 1);
+  return { pathBends, goalKey: placeGoalKey(keySpaceFor(pathBends), maxHeight, minHeight) };
+}
+
+/** Prohnutí oblouků, které se zkoušejí od největšího (#146 AC1: 12–25 %, v těsném okně od 6 %). */
+const PATH_BEND_TRIES = [0.18, 0.16, 0.14, 0.12, 0.1, 0.08, 0.06];
+
+/** Po kolika dílech délky úseku se pruh cesty kontroluje. */
+const PATH_BAND_SAMPLES = 200;
+
+/** Co pruh cesty po oblouku nesmí překrýt (#146 AC2). */
+interface PathBendSpace {
+  readonly content: ContentBox;
+  readonly places: readonly MapPoint[];
+  readonly placeSize: number;
+  readonly markerSize: number;
+  readonly goalSymbol: MapSquare;
+  readonly goalCelebration: MapSquare;
+}
+
+/** Střídavá prohnutí úseků `bend`, první úsek na stranu `firstSide`. */
+function alternatingBends(bend: number, firstSide: number): number[] {
+  return Array.from({ length: MAP_STEPS }, (_, segment) =>
+    segment % 2 === 0 ? bend * firstSide : -bend * firstSide,
+  );
+}
+
+/**
+ * Prohnutí oblouků cesty (#146 AC1, AC2), od největšího z `PATH_BEND_TRIES`
+ * a v obou střídáních stran: jen ta, při kterých pruh široký jako značka
+ * zůstane v ploše mapy a nezasáhne do vzdálených míst ani do cíle. Když
+ * se nevejde ani nejmenší, cesta má nejmenší prohnutí.
+ */
+function pathBendOptions(space: PathBendSpace): number[][] {
+  const options = PATH_BEND_TRIES.flatMap((bend) =>
+    [1, -1].map((firstSide) => alternatingBends(bend, firstSide)),
+  ).filter((bends) => isPathBandFree(space, bends));
+  return options.length > 0 ? options : [alternatingBends(smallestBend(), 1)];
+}
+
+function smallestBend(): number {
+  return PATH_BEND_TRIES[PATH_BEND_TRIES.length - 1] ?? 0;
+}
+
+/**
+ * Vejde se v ploše `area` pruh cesty rozložení `layout` s prohnutím
+ * `bends` bez překryvů (stejná kontrola, podle které se prohnutí vybírá)?
+ * Pro testy upřesnění #146: kde je místo, prohnutí neklesne pod 12 %.
+ */
+export function pathBandFits(
+  area: MapArea,
+  layout: ProgressMapLayout,
+  bends: readonly number[],
+): boolean {
+  return isPathBandFree(
+    {
+      content: mapContentBox(area),
+      places: layout.places,
+      placeSize: layout.placeSize,
+      markerSize: layout.markerSize,
+      goalSymbol: layout.goalSymbol,
+      goalCelebration: layout.goalCelebration,
+    },
+    bends,
+  );
+}
+
+/** Vejde se pruh cesty s prohnutím `bends` do plochy mapy bez překryvů? */
+function isPathBandFree(space: PathBendSpace, bends: readonly number[]): boolean {
+  const { content, places, placeSize, markerSize, goalSymbol, goalCelebration } = space;
+  const shape = { places, pathBends: bends };
+  const radius = (markerSize * DRAWN_MARKER_SCALE) / 2;
+  const goal = lastPlace(places);
+  for (let segment = 0; segment < MAP_STEPS; segment += 1) {
+    const others = places
+      .map((place, step) => ({ place, step }))
+      .filter(({ step }) => step !== segment && step !== segment + 1);
+    for (const point of pathSamples(shape, segment, PATH_BAND_SAMPLES)) {
+      const inside =
+        point.x - radius >= content.left &&
+        point.x + radius <= content.left + content.width &&
+        point.y - radius >= content.top &&
+        point.y + radius <= content.top + content.height;
+      if (!inside) {
+        return false;
+      }
+      const hitsPlace = others.some(
+        ({ place, step }) =>
+          Math.hypot(point.x - place.x, point.y - place.y) <
+          radius + drawnPlaceSize(step, placeSize, markerSize) / 2,
+      );
+      if (hitsPlace) {
+        return false;
+      }
+      // Konec pruhu pod značkou v cíli smí slavící cíl překrýt jako značka (#135 AC3).
+      const underGoalMarker =
+        segment === MAP_STEPS - 1 && Math.hypot(point.x - goal.x, point.y - goal.y) <= radius;
+      const hitsGoal = [goalSymbol, goalCelebration].some(
+        (circle) => Math.hypot(point.x - circle.x, point.y - circle.y) < radius + circle.size / 2,
+      );
+      if (hitsGoal && !underGoalMarker) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 /** Kolik zabere nakreslené místo: cíl i se značkou, která v něm stojí, ostatní s okrajem. */
@@ -389,9 +554,7 @@ function largestFitting(
         allowed(rect) &&
         isRectInside(rect, space.content) &&
         space.obstacles.every((other) => !rectsOverlap(rect, other, space.gap)) &&
-        space.path.every(
-          ([from, to]) => segmentRectDistance(from, to, rect) >= space.pathClearance,
-        ),
+        isClearOfPath(rect, space),
     );
     const nearest = nearestToGoal(fitting, space);
     if (nearest !== undefined) {
@@ -399,6 +562,24 @@ function largestFitting(
     }
   }
   return undefined;
+}
+
+/**
+ * Drží štítek odstup `pathClearance` od všech dílků cesty? Dílky daleko
+ * od štítku se vyřadí levným porovnáním obdélníků, přesně se měří jen
+ * blízké (cesta po oblouku má mnoho dílků, #146).
+ */
+function isClearOfPath(rect: MapRect, space: GoalKeySpace): boolean {
+  const reachX = rect.width / 2 + space.pathClearance;
+  const reachY = rect.height / 2 + space.pathClearance;
+  return space.path.every(([from, to]) => {
+    const far =
+      Math.min(from.x, to.x) > rect.x + reachX ||
+      Math.max(from.x, to.x) < rect.x - reachX ||
+      Math.min(from.y, to.y) > rect.y + reachY ||
+      Math.max(from.y, to.y) < rect.y - reachY;
+    return far || segmentRectDistance(from, to, rect) >= space.pathClearance;
+  });
 }
 
 /** Vzdálenost bodu od obdélníku (0 uvnitř). */

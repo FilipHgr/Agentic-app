@@ -3,13 +3,17 @@
  * ukázat, kde na cestě značka stojí (vzdálenost od startu měřená po cestě)
  * a časy, ve kterých se značka a místa kontrolují.
  *
- * Cesta vede rovnými úseky od místa k místu po řadě (#133 AC7), takže
- * „na cestě“ znamená ležet na některém z těchto úseků.
+ * Cesta vede od #146 oblouky od místa k místu po řadě (dřív rovnými
+ * úseky, #133 AC7), takže „na cestě“ znamená ležet na některém z oblouků.
  */
 
 import { MAP_STEPS, MAP_THEMES, stepOnMap } from '../../../src/games/counting/logic/progressMap';
 import type { MapMove, MapThemeId } from '../../../src/games/counting/logic/progressMap';
-import type { MapPoint } from '../../../src/games/counting/logic/progressMapLayout';
+import type {
+  MapPoint,
+  ProgressMapLayout,
+} from '../../../src/games/counting/logic/progressMapLayout';
+import { denseArcOf, projectOntoArc } from './mapPathHelpers';
 
 /** Tolerance polohy v herních jednotkách (zaokrouhlení). */
 export const POINT_TOLERANCE = 0.01;
@@ -75,53 +79,45 @@ export function samePoint(a: MapPoint, b: MapPoint): boolean {
   return distance(a, b) <= POINT_TOLERANCE;
 }
 
-/** Vzdálenost bodu `point` od úseku `a`–`b`. */
-function distanceToSegment(point: MapPoint, a: MapPoint, b: MapPoint): number {
-  const length = distance(a, b);
-  if (length === 0) {
-    return distance(point, a);
+/**
+ * Jak daleko od startu je `point`, měřeno po oblouku cesty (#146), nebo
+ * `null`, když bod na oblouku neleží (dál než `POINT_TOLERANCE`).
+ * #146: dřív se cesta měřila po rovných úsecích mezi `places`; teď po
+ * hustém oblouku z `mapPathHelpers.ts` se stejnou tolerancí.
+ */
+export function distanceAlongPath(layout: ProgressMapLayout, point: MapPoint): number | null {
+  // Testy se ptají na stejné body mnohokrát (otočení v různých chvílích), výsledek se pamatuje.
+  const remembered = alongCache.get(layout) ?? new Map<string, number | null>();
+  alongCache.set(layout, remembered);
+  const key = `${point.x},${point.y}`;
+  const known = remembered.get(key);
+  if (known !== undefined) {
+    return known;
   }
-  const along = ((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / length ** 2;
-  const clamped = Math.min(Math.max(along, 0), 1);
-  return distance(point, { x: a.x + (b.x - a.x) * clamped, y: a.y + (b.y - a.y) * clamped });
+  const projection = projectOntoArc(denseArcOf(layout), point);
+  const along = projection.distance <= POINT_TOLERANCE ? projection.along : null;
+  remembered.set(key, along);
+  return along;
 }
 
-/**
- * Jak daleko od startu je `point`, měřeno po cestě přes `places`, nebo
- * `null`, když bod na cestě neleží.
- */
-export function distanceAlongPath(places: readonly MapPoint[], point: MapPoint): number | null {
-  let walked = 0;
-  for (let index = 0; index + 1 < places.length; index += 1) {
-    const a = places[index];
-    const b = places[index + 1];
-    if (!a || !b) {
-      continue;
-    }
-    if (distanceToSegment(point, a, b) <= POINT_TOLERANCE) {
-      return walked + distance(a, point);
-    }
-    walked += distance(a, b);
-  }
-  return null;
-}
+const alongCache = new WeakMap<ProgressMapLayout, Map<string, number | null>>();
 
 /**
  * Jaký díl cesty z místa `move.from` na místo `move.to` má značka v bodě
- * `point` za sebou (0 na minulém místě, 1 na novém), nebo `null` mimo cestu.
+ * `point` za sebou (0 na minulém místě, 1 na novém), měřeno po oblouku
+ * (#146), nebo `null` mimo cestu.
  */
 export function shareOfStep(
-  places: readonly MapPoint[],
+  layout: ProgressMapLayout,
   move: MapMove,
   point: MapPoint,
 ): number | null {
-  const from = places[move.from];
-  const to = places[move.to];
-  const walked = distanceAlongPath(places, point);
-  if (!from || !to || walked === null) {
+  const walked = distanceAlongPath(layout, point);
+  const { placeAlong } = denseArcOf(layout);
+  const start = placeAlong[move.from];
+  const end = placeAlong[move.to];
+  if (start === undefined || end === undefined || walked === null) {
     return null;
   }
-  const start = distanceAlongPath(places, from) ?? 0;
-  const end = distanceAlongPath(places, to) ?? 0;
   return (walked - start) / (end - start);
 }

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { MAP_STEPS, MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
-import { layoutProgressMap, markerAt } from '../../../src/games/counting/logic/progressMapLayout';
+import {
+  layoutProgressMap,
+  markerAt,
+  pathPointAt,
+} from '../../../src/games/counting/logic/progressMapLayout';
 import type {
   MapPoint,
   ProgressMapLayout,
@@ -91,6 +95,20 @@ function segmentsTouch(a: MapPoint, b: MapPoint, c: MapPoint, d: MapPoint): bool
   );
 }
 
+/** Na kolik dílků se oblouk úseku rozdělí při kontrole křížení (#146). */
+const ARC_PIECES = 60;
+
+/** Cesta po obloucích (#146) jako lomená čára: body každého úseku po 1/60 jeho délky. */
+function arcPolyline(layout: ProgressMapLayout): MapPoint[] {
+  const points: MapPoint[] = [];
+  for (let segment = 0; segment + 1 < layout.places.length; segment += 1) {
+    for (let index = segment === 0 ? 0 : 1; index <= ARC_PIECES; index += 1) {
+      points.push(pathPointAt(layout, segment, index / ARC_PIECES));
+    }
+  }
+  return points;
+}
+
 /** Kde se cesta kříží sama se sebou (popis pro `expect`), prázdné pole = nikde. */
 function pathCrossings(places: readonly MapPoint[]): string[] {
   const found: string[] = [];
@@ -157,9 +175,10 @@ describe('#133 AC6: na mapě jsou 4 místa na cestě a značka', () => {
 });
 
 describe('#133 AC7: cesta spojuje sousední místa po řadě a nekříží se', () => {
+  // #146: cesta vede oblouky, kontroluje se lomená čára po oblouku, ne úsečky mezi místy.
   it('cesta se na žádné mapě v žádném okně sama nekříží ani nevrací po sobě', () => {
     for (const { label, layout } of mapCases()) {
-      expect(pathCrossings(layout.places), label).toEqual([]);
+      expect(pathCrossings(arcPolyline(layout)), label).toEqual([]);
     }
   });
 

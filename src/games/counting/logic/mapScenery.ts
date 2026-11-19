@@ -4,7 +4,7 @@
  * v lese, vlajky a mráčky u hradu, bublinky a rybky v podmoří, hvězdy
  * a kometa ve vesmíru). Rozložení dá každému kousku plochu, kterou při
  * pohybu projde i se svou velikostí, tak, aby nepřekryla místa, značku,
- * cestu (širokou jako značka), slavící cíl ani nic mimo plochu mapy
+ * cestu po oblouku (širokou jako značka, #146), slavící cíl ani nic mimo plochu mapy
  * (roh kolečka a domečku, výřez, lištu). Listí a bublinky mají svislý pruh.
  * Kde kousek v čase je, plyne jen z času od ukázání mapy
  * (`mapSceneryMotion.ts`), takže po otočení pokračuje ze stejného
@@ -17,6 +17,7 @@ import type { SceneryKind, SceneryMotionBounds } from './mapSceneryMotion';
 import type { MapThemeId } from './progressMap';
 import { DRAWN_MARKER_SCALE, layoutProgressMap, mapContentBox } from './progressMapLayout';
 import type { ContentBox, MapArea, MapPoint, ProgressMapLayout } from './progressMapLayout';
+import { pathLinePieces } from './progressMapPath';
 
 export type { SceneryKind } from './mapSceneryMotion';
 
@@ -220,10 +221,8 @@ function obstaclesOf(area: MapArea, map: ProgressMapLayout): Obstacles {
   const drawnMarker = map.markerSize * DRAWN_MARKER_SCALE;
   const placeSize = drawnMarker + 2 * (gap + map.markerSize * PLACE_GAP_SHARE);
   const { goalCelebration } = map;
-  const path = map.places.slice(1).map((place, index): readonly [MapPoint, MapPoint] => {
-    const previous = map.places[index] ?? place;
-    return [previous, place];
-  });
+  // Cesta vede oblouky (#146): kousky se vyhýbají lomené čáře po oblouku.
+  const path = pathLinePieces(map);
   return {
     content: mapContentBox(area),
     squares: [

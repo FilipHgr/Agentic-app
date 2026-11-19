@@ -45,7 +45,11 @@ import {
   MAP_THEMES,
 } from '../../../src/games/counting/logic/progressMap';
 import type { MapThemeId } from '../../../src/games/counting/logic/progressMap';
-import { layoutProgressMap, markerAt } from '../../../src/games/counting/logic/progressMapLayout';
+import {
+  layoutProgressMap,
+  markerAt,
+  pathPointAt,
+} from '../../../src/games/counting/logic/progressMapLayout';
 import type {
   MapPoint,
   ProgressMapLayout,
@@ -226,7 +230,7 @@ export function sceneryScenes(cases: readonly SceneryCase[]): LayoutScene[] {
 }
 
 // ---------------------------------------------------------------------------
-// Cesta: šikmé úseky od místa k místu, široké jako značka
+// Cesta: oblouky od místa k místu (#146, dřív šikmé úseky), široké jako značka
 // ---------------------------------------------------------------------------
 
 function distance(a: MapPoint, b: MapPoint): number {
@@ -297,6 +301,22 @@ export function segmentToBoxDistance(a: MapPoint, b: MapPoint, area: Box): numbe
 const PATH_TOLERANCE = 0.01;
 
 /**
+ * Na kolik dílků se oblouk úseku rozdělí (#146); dílek je od oblouku
+ * nejvýš tisíciny herní jednotky, hluboko pod `PATH_TOLERANCE`.
+ */
+const ARC_PIECES = 400;
+
+/** Oblouk úseku z místa `segment` na další jako husté dílky (#146). */
+function arcPieces(map: ProgressMapLayout, segment: number): Array<[MapPoint, MapPoint]> {
+  const points = Array.from({ length: ARC_PIECES + 1 }, (_, index) =>
+    pathPointAt(map, segment, index / ARC_PIECES),
+  );
+  return points
+    .slice(1)
+    .map((point, index): [MapPoint, MapPoint] => [points[index] ?? point, point]);
+}
+
+/**
  * Kousky a pruhy, které zasahují do cesty. Cesta je široká jako nakreslená
  * značka (i s okrajem a poskočením), protože značka po ní jde (#135).
  */
@@ -305,11 +325,8 @@ export function pathViolations(testCase: SceneryCase): string[] {
   const halfWidth = drawnMarkerSize(map) / 2;
   const violations: string[] = [];
   for (let index = 0; index + 1 < map.places.length; index += 1) {
-    const a = map.places[index];
-    const b = map.places[index + 1];
-    if (!a || !b) {
-      continue;
-    }
+    // #146: úsek je oblouk, měří se po jeho hustých dílcích místo jedné úsečky.
+    const arc = arcPieces(map, index);
     const segment = `úsek cesty ${placeName(index)} → ${placeName(index + 1)}`;
     for (const piece of scenery.pieces) {
       const areas: Array<[string, SceneryBox]> = [['plocha pohybu', piece.sweep]];
@@ -317,7 +334,8 @@ export function pathViolations(testCase: SceneryCase): string[] {
         areas.push(['pruh', piece.lane]);
       }
       for (const [what, area] of areas) {
-        const gap = segmentToBoxDistance(a, b, asBox(area)) - halfWidth;
+        const nearest = Math.min(...arc.map(([a, b]) => segmentToBoxDistance(a, b, asBox(area))));
+        const gap = nearest - halfWidth;
         if (gap < -PATH_TOLERANCE) {
           violations.push(
             `${testCase.label}: ${what} ${pieceName(scenery, piece)} zasahuje do ${segment}`,

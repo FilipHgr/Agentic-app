@@ -16,7 +16,7 @@ import {
   goalCelebrationAt,
   isPlaceLitAt,
   markerPointAt,
-  markerShareAt,
+  markerTrailAt,
 } from '../logic/mapAnimation';
 import { layoutMapScenery } from '../logic/mapScenery';
 import {
@@ -24,6 +24,7 @@ import {
   MAP_PATH_WIDTH_SHARE,
   layoutProgressMap,
   markerAt,
+  pathLinePoints,
 } from '../logic/progressMapLayout';
 import type { MapPoint, ProgressMapLayout } from '../logic/progressMapLayout';
 import {
@@ -64,10 +65,9 @@ const ARRIVAL_HOP_MS = 280;
 const ARRIVAL_HOP_SHARE = 0.12;
 
 /**
- * Zlatá zářící stopa za značkou: jak dlouhá (v průměrech značky), z kolika
+ * Zlatá zářící stopa za značkou (kudy vede, určuje `markerTrailAt`): z kolika
  * vrstev (ke značce sílí), jak široká (díl průměru značky) a jak krytá.
  */
-const TRAIL_LENGTH = 3.2;
 const TRAIL_LAYERS = 8;
 const TRAIL_GLOW_WIDTH_SHARE = 0.5;
 const TRAIL_CORE_WIDTH_SHARE = 0.12;
@@ -75,10 +75,8 @@ const TRAIL_CORE_WIDTH_SHARE = 0.12;
 const TRAIL_GLOW_LAYER_ALPHA = 0.4;
 const TRAIL_CORE_LAYER_ALPHA = 0.5;
 
-/** Jiskřičky po stopě: kolik, jak velké a jak daleko od cesty (díl průměru značky), jak rychle mihotají. */
-const TRAIL_SPARKLES = 4;
+/** Jiskřičky po stopě (kde jsou, určuje `markerTrailAt`): jak velké a jak rychle mihotají. */
 const TRAIL_SPARKLE_SIZE = 0.15;
-const TRAIL_SPARKLE_SIDE = 0.34;
 const TRAIL_SPARKLE_TWINKLE_MS = 70;
 const TRAIL_SPARKLE_ALPHA = 0.95;
 /** Mihotání jiskřičky: nejmenší velikost a o kolik naroste. */
@@ -538,15 +536,18 @@ export class ProgressMapView {
   ): Phaser.GameObjects.Graphics {
     const graphics = this.scene.add.graphics();
     graphics.lineStyle(layout.markerSize * MAP_PATH_WIDTH_SHARE, colorNumber(style.pathColor));
-    const [first, ...rest] = layout.places;
-    if (first) {
-      graphics.beginPath();
-      graphics.moveTo(first.x, first.y);
+    // Cesta vede oblouky (#146): každý úsek je hustá lomená čára po oblouku.
+    graphics.beginPath();
+    for (let segment = 0; segment + 1 < layout.places.length; segment += 1) {
+      const [first, ...rest] = pathLinePoints(layout, segment);
+      if (first && segment === 0) {
+        graphics.moveTo(first.x, first.y);
+      }
       for (const point of rest) {
         graphics.lineTo(point.x, point.y);
       }
-      graphics.strokePath();
     }
+    graphics.strokePath();
     return graphics;
   }
 
@@ -647,77 +648,46 @@ export class ProgressMapView {
   }
 
   /**
-   * Krátká zlatá zářící stopa za jdoucí značkou: dílky blíž ke značce
-   * jasnější, po stopě pár mihotajících se jiskřiček. Po zastavení zmizí.
+   * Krátká zlatá zářící stopa za jdoucí značkou po oblouku cesty (#146 AC5):
+   * dílky blíž ke značce jasnější, po stopě pár mihotajících se jiskřiček.
+   * Po zastavení zmizí.
    */
   private drawTrail(drawing: MapDrawing, elapsed: number): void {
     const { trail, layout, move } = drawing;
     trail.clear();
-    const share = markerShareAt(elapsed);
-    if (share <= 0 || share >= 1) {
+    const shape = markerTrailAt(layout, move, elapsed);
+    if (shape === null || shape.points.length < 2) {
       return;
     }
-    const from = layout.places[move.from];
-    const to = layout.places[move.to];
-    if (!from || !to) {
-      return;
-    }
-    const stepLength = Math.hypot(to.x - from.x, to.y - from.y) || 1;
-    // Stopa začíná až za okrajem minulého místa, aby ho nepřekryla.
-    const tailMin = layout.placeSize / 2 / stepLength;
-    const tail = Math.max(tailMin, share - (layout.markerSize * TRAIL_LENGTH) / stepLength);
-    if (share <= tail) {
-      return;
-    }
-    const head = pointBetween(from, to, share);
-    const layerShare = (share - tail) / TRAIL_LAYERS;
+    const { points } = shape;
     // Vrstvy jdou od stále bližšího začátku až ke značce: u značky se
-    // sečtou do plného jasu, ke konci stopy plynule slábnou (bez švů).
+    // sečtou do plného jasu, ke konci stopy plynule slábnou. Každá vrstva
+    // je jeden vyplněný pás po oblouku: tahy lomené čáry by se v kloubech
+    // dílků překrývaly a poloprůhledná stopa by měla proužky.
     for (let layer = 0; layer < TRAIL_LAYERS; layer += 1) {
-      const start = pointBetween(from, to, tail + layerShare * layer);
-      trail.lineStyle(
-        layout.markerSize * TRAIL_GLOW_WIDTH_SHARE,
-        EFFECT_COLORS.trailGlow,
-        TRAIL_GLOW_LAYER_ALPHA,
+      const start = Math.min(
+        Math.floor(((points.length - 1) * layer) / TRAIL_LAYERS),
+        points.length - 2,
       );
-      trail.lineBetween(start.x, start.y, head.x, head.y);
-      trail.lineStyle(
-        layout.markerSize * TRAIL_CORE_WIDTH_SHARE,
-        EFFECT_COLORS.trailCore,
-        TRAIL_CORE_LAYER_ALPHA,
+      const layerPoints = points.slice(start);
+      trail.fillStyle(EFFECT_COLORS.trailGlow, TRAIL_GLOW_LAYER_ALPHA);
+      trail.fillPoints(
+        bandPolygon(layerPoints, (layout.markerSize * TRAIL_GLOW_WIDTH_SHARE) / 2),
+        true,
       );
-      trail.lineBetween(start.x, start.y, head.x, head.y);
+      trail.fillStyle(EFFECT_COLORS.trailCore, TRAIL_CORE_LAYER_ALPHA);
+      trail.fillPoints(
+        bandPolygon(layerPoints, (layout.markerSize * TRAIL_CORE_WIDTH_SHARE) / 2),
+        true,
+      );
     }
-    this.drawTrailSparkles(drawing, from, to, tail, share, elapsed);
-  }
-
-  private drawTrailSparkles(
-    drawing: MapDrawing,
-    from: MapPoint,
-    to: MapPoint,
-    tail: number,
-    share: number,
-    elapsed: number,
-  ): void {
-    const { trail, layout } = drawing;
-    const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;
-    const normal = { x: -(to.y - from.y) / length, y: (to.x - from.x) / length };
-    for (let index = 0; index < TRAIL_SPARKLES; index += 1) {
-      const along = pointBetween(
-        from,
-        to,
-        tail + ((share - tail) * (index + 0.5)) / TRAIL_SPARKLES,
-      );
-      const side = (index % 2 === 0 ? 1 : -1) * layout.markerSize * TRAIL_SPARKLE_SIDE;
+    shape.sparkles.forEach((sparkle, index) => {
       const twinkle =
         TWINKLE_MIN + TWINKLE_SWING * Math.sin(elapsed / TRAIL_SPARKLE_TWINKLE_MS + index * 2);
       const radius = layout.markerSize * TRAIL_SPARKLE_SIZE * twinkle;
       trail.fillStyle(sparkleColor(index), TRAIL_SPARKLE_ALPHA);
-      trail.fillPoints(
-        starPoints(along.x + normal.x * side, along.y + normal.y * side, radius),
-        true,
-      );
-    }
+      trail.fillPoints(starPoints(sparkle.x, sparkle.y, radius), true);
+    });
   }
 
   /**
@@ -864,9 +834,26 @@ function arrivalHop(elapsed: number): number {
   return Math.sin((Math.PI * sinceArrival) / ARRIVAL_HOP_MS) * ARRIVAL_HOP_SHARE;
 }
 
-/** Bod na úseku `from`–`to` v dílu `share`. */
-function pointBetween(from: MapPoint, to: MapPoint, share: number): MapPoint {
-  return { x: from.x + (to.x - from.x) * share, y: from.y + (to.y - from.y) * share };
+/**
+ * Obrys pásu šířky `2 × halfWidth` podél lomené čáry `points`: body po
+ * jedné straně tam a po druhé zpátky, jako jeden mnohoúhelník bez
+ * překrývajících se dílků. Kolmice v bodě je průměr směrů sousedních dílků.
+ */
+function bandPolygon(points: readonly MapPoint[], halfWidth: number): Phaser.Math.Vector2[] {
+  const left: Phaser.Math.Vector2[] = [];
+  const right: Phaser.Math.Vector2[] = [];
+  points.forEach((point, index) => {
+    const before = points[Math.max(index - 1, 0)] ?? point;
+    const after = points[Math.min(index + 1, points.length - 1)] ?? point;
+    const dx = after.x - before.x;
+    const dy = after.y - before.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const nx = (-dy / length) * halfWidth;
+    const ny = (dx / length) * halfWidth;
+    left.push(new Phaser.Math.Vector2(point.x + nx, point.y + ny));
+    right.push(new Phaser.Math.Vector2(point.x - nx, point.y - ny));
+  });
+  return [...left, ...right.reverse()];
 }
 
 /** Body čtyřcípé jiskřičky se středem `x`, `y`. */

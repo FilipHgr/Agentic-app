@@ -6,7 +6,11 @@ import {
   mapPictureCover,
 } from '../../../src/games/counting/logic/mapPictures';
 import { MAP_STEPS } from '../../../src/games/counting/logic/progressMap';
-import type { MapPoint } from '../../../src/games/counting/logic/progressMapLayout';
+import { pathPointAt } from '../../../src/games/counting/logic/progressMapLayout';
+import type {
+  MapPoint,
+  ProgressMapLayout,
+} from '../../../src/games/counting/logic/progressMapLayout';
 import {
   PROGRESS_MAP_BACKGROUNDS,
   progressMapStyleFor,
@@ -40,18 +44,19 @@ import { PICTURE_TONES, TONE_GRID } from './mapPictureTones';
 
 const MIN_CONTRAST = 3;
 
-/** Body cesty, na kterých se kontrast měří: místa a body na úsecích mezi nimi. */
+/** Body cesty, na kterých se kontrast měří: místa a body na obloucích mezi nimi (#146). */
 const SEGMENT_SAMPLES = [0.25, 0.5, 0.75];
 
-function pathPoints(places: readonly MapPoint[]): MapPoint[] {
+/**
+ * #146: úsek cesty je oblouk, body na něm se berou ve 25, 50 a 75 % jeho
+ * délky (`pathPointAt`), dřív na úsečce mezi místy.
+ */
+function pathPoints(layout: ProgressMapLayout): MapPoint[] {
+  const { places } = layout;
   const points: MapPoint[] = [...places];
   for (let index = 0; index + 1 < places.length; index += 1) {
-    const from = places[index];
-    const to = places[index + 1];
-    if (from && to) {
-      for (const share of SEGMENT_SAMPLES) {
-        points.push({ x: from.x + (to.x - from.x) * share, y: from.y + (to.y - from.y) * share });
-      }
+    for (const share of SEGMENT_SAMPLES) {
+      points.push(pathPointAt(layout, index, share));
     }
   }
   return points;
@@ -99,7 +104,7 @@ describe('#134: cesta a nenavštívená místa jsou dobře vidět na obrázku i 
   it('cesta má vůči obrázku pod sebou kontrast aspoň 3 : 1 po celé délce', () => {
     for (const testCase of pictureMapCases()) {
       const { pathColor } = progressMapStyleFor(testCase.theme, 'picture');
-      for (const point of pathPoints(testCase.layout.places)) {
+      for (const point of pathPoints(testCase.layout)) {
         const tone = toneUnder(testCase, point);
         expect(
           contrastRatio(pathColor, tone),

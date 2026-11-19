@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { MAP_STEPS } from '../../../src/games/counting/logic/progressMap';
-import { MAP_PATH_WIDTH_SHARE } from '../../../src/games/counting/logic/progressMapLayout';
+import {
+  MAP_PATH_WIDTH_SHARE,
+  pathPointAt,
+} from '../../../src/games/counting/logic/progressMapLayout';
 import { LAYOUT_RULES } from '../../shared/layoutRules';
 import type { LayoutItem, LayoutScene } from '../../shared/layoutRules';
 import { box, heightOf, toCss } from '../../shared/viewportFixtures';
@@ -41,25 +44,28 @@ function distanceToBox(x: number, y: number, target: Box): number {
   return Math.hypot(dx, dy);
 }
 
-/** Nejmenší vzdálenost osy cesty od štítku klíče v CSS px (cesta měřená po kouscích). */
+/**
+ * Nejmenší vzdálenost osy cesty od štítku klíče v CSS px (cesta měřená po
+ * kouscích). #146: osa cesty je oblouk, body se berou po `PATH_SAMPLE_CSS`
+ * jeho délky (`pathPointAt`), dřív po úsečce mezi místy.
+ */
 function pathDistanceToKey(testCase: PictureMapCase): number {
   const { area, layout } = testCase;
   const key = keyBox(testCase);
-  const points = layout.places.map((place) => toCss(box(place.x, place.y, 0, 0), area));
   let nearest = Number.POSITIVE_INFINITY;
-  for (let index = 1; index < points.length; index += 1) {
-    const from = points[index - 1];
-    const to = points[index];
+  for (let segment = 0; segment + 1 < layout.places.length; segment += 1) {
+    const from = layout.places[segment];
+    const to = layout.places[segment + 1];
     if (!from || !to) {
       continue;
     }
-    const length = Math.hypot(to.left - from.left, to.top - from.top);
+    // Oblouk prohnutý nejvýš o 25 % je kratší než 1,2 × úsečka; bere se 1,5 × pro jistotu.
+    const length = Math.hypot(to.x - from.x, to.y - from.y) * area.scale * 1.5;
     const samples = Math.max(1, Math.ceil(length / PATH_SAMPLE_CSS));
     for (let sample = 0; sample <= samples; sample += 1) {
-      const share = sample / samples;
-      const x = from.left + (to.left - from.left) * share;
-      const y = from.top + (to.top - from.top) * share;
-      nearest = Math.min(nearest, distanceToBox(x, y, key));
+      const point = pathPointAt(layout, segment, sample / samples);
+      const css = toCss(box(point.x, point.y, 0, 0), area);
+      nearest = Math.min(nearest, distanceToBox(css.left, css.top, key));
     }
   }
   return nearest;
@@ -120,6 +126,7 @@ describe('#139 AC2: půlka klíče stojí u cíle a nic nepřekrývá', () => {
     });
   }
 
+  // #146: cesta se měří po oblouku (`pathDistanceToKey`).
   it('štítek klíče nepřekrývá čáru cesty a drží od ní aspoň 8 px', () => {
     for (const testCase of cases()) {
       const halfLine =

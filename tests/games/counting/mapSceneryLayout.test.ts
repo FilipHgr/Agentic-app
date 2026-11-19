@@ -17,8 +17,8 @@ import type { SceneryCase } from './mapSceneryScenes';
  * i po otočení zařízení (AC3).
  *
  * Kousky se smí překrývat navzájem (listí ve stejném pruhu), s ničím
- * jiným. Cesta vede šikmými úseky, proto ji hlídá samostatný test
- * s přesnou vzdáleností od úseku, ne obdélník.
+ * jiným. Cesta vede oblouky (#146, dřív šikmými úseky), proto ji hlídá
+ * samostatný test s přesnou vzdáleností od oblouku, ne obdélník.
  *
  * Navržené rozhraní viz `mapSceneryScenes.ts`.
  */

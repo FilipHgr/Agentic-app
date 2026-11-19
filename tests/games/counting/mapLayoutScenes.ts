@@ -11,7 +11,7 @@
  * `theme` vlastní tvar cesty):
  * - `places: readonly MapPoint[]` střed místa na mapě podle kroku
  *   (index 0 start, 1 a 2 zastávky, 3 cíl), `MapPoint { x, y }`;
- *   cesta vede rovnými úseky od místa k místu po řadě,
+ *   cesta vede od místa k místu po řadě (od #146 oblouky, `mapPathArc.test.ts`),
  * - `placeSize` průměr místa, `markerSize` průměr značky,
  * - `markerAt(layout, step): MapPoint` kde stojí značka na kroku `step`.
  *

@@ -105,20 +105,22 @@ function stopMoves(): MoveCase[] {
 }
 
 describe('#135 AC1: značka jde po cestě z minulého místa na nové', () => {
+  // #146: cesta se měří po oblouku (`distanceAlongPath`, `shareOfStep` z `mapAnimationHelpers.ts`).
   it('značka leží od ukázání mapy v každém okamžiku na cestě', () => {
     for (const { label, layout, move } of layoutCases()) {
       for (const ms of sampleTimes(mapShowMs(move))) {
         const point = markerPointAt(layout, move, ms);
-        expect(distanceAlongPath(layout.places, point), `${label}, ${ms} ms`).not.toBeNull();
+        expect(distanceAlongPath(layout, point), `${label}, ${ms} ms`).not.toBeNull();
       }
     }
   });
 
+  // #146: cesta se měří po oblouku (`distanceAlongPath`, `shareOfStep` z `mapAnimationHelpers.ts`).
   it('vzdálenost značky od startu měřená po cestě s časem nikdy neklesá', () => {
     for (const { label, layout, move } of layoutCases()) {
       let before = -Infinity;
       for (const ms of sampleTimes(mapShowMs(move))) {
-        const walked = distanceAlongPath(layout.places, markerPointAt(layout, move, ms)) ?? -1;
+        const walked = distanceAlongPath(layout, markerPointAt(layout, move, ms)) ?? -1;
         expect(walked, `${label}, ${ms} ms`).toBeGreaterThanOrEqual(before - 0.01);
         before = walked;
       }
@@ -158,12 +160,13 @@ describe('#135 AC1: značka jde po cestě z minulého místa na nové', () => {
     }
   });
 
+  // #146: cesta se měří po oblouku (`distanceAlongPath`, `shareOfStep` z `mapAnimationHelpers.ts`).
   it('značka opravdu jde: mezi začátkem a dojitím je vidět i cestou mezi místy', () => {
     for (const { label, layout, move } of layoutCases()) {
       const arrived = arrivalMsIn(layout, move);
       expect(arrived, label).not.toBeNull();
       const halfway = sampleTimes(arrived ?? 0).some((ms) => {
-        const share = shareOfStep(layout.places, move, markerPointAt(layout, move, ms));
+        const share = shareOfStep(layout, move, markerPointAt(layout, move, ms));
         return share !== null && share > 0.25 && share < 0.75;
       });
       expect(halfway, `${label}: značka nepřeskočí, ale jde po cestě`).toBe(true);
@@ -359,6 +362,7 @@ function rotatedPairs(): Array<[TestWindow, TestWindow]> {
 const ROTATION_TIMES_MS = [0, 200, 500, 800, 1100, 1400, 1700, 2000];
 
 describe('#135 AC4: po otočení zařízení značka pokračuje ze stejného podílu cesty', () => {
+  // #146: cesta se měří po oblouku (`distanceAlongPath`, `shareOfStep` z `mapAnimationHelpers.ts`).
   it('po otočení stojí značka v novém rozložení na stejném dílu cesty jako před ním', () => {
     const pairs = rotatedPairs();
     expect(pairs.length).toBeGreaterThan(0);
@@ -370,15 +374,11 @@ describe('#135 AC4: po otočení zařízení značka pokračuje ze stejného pod
         const layoutAfter = layoutProgressMap(areaAfter, move.theme);
         for (const ms of ROTATION_TIMES_MS) {
           const shareBefore = shareOfStep(
-            layoutBefore.places,
+            layoutBefore,
             move,
             markerPointAt(layoutBefore, move, ms),
           );
-          const shareAfter = shareOfStep(
-            layoutAfter.places,
-            move,
-            markerPointAt(layoutAfter, move, ms),
-          );
+          const shareAfter = shareOfStep(layoutAfter, move, markerPointAt(layoutAfter, move, ms));
           const where = `${before.name} → ${after.name}, ${label}, otočení v ${ms} ms`;
           expect(shareBefore, where).not.toBeNull();
           expect(shareAfter, where).not.toBeNull();
@@ -402,6 +402,7 @@ describe('#135 AC4: po otočení zařízení značka pokračuje ze stejného pod
     }
   });
 
+  // #146: cesta se měří po oblouku (`distanceAlongPath`, `shareOfStep` z `mapAnimationHelpers.ts`).
   it('po otočení se značka dál jen přibližuje k novému místu, nikdy necouvne', () => {
     for (const [before, after] of rotatedPairs()) {
       const areaBefore = gameAreaFor(viewportOf(before));
@@ -412,11 +413,10 @@ describe('#135 AC4: po otočení zařízení značka pokračuje ze stejného pod
         for (const rotatedAt of ROTATION_TIMES_MS) {
           const where = `${before.name} → ${after.name}, ${label}, otočení v ${rotatedAt} ms`;
           let last =
-            shareOfStep(layoutBefore.places, move, markerPointAt(layoutBefore, move, rotatedAt)) ??
-            0;
+            shareOfStep(layoutBefore, move, markerPointAt(layoutBefore, move, rotatedAt)) ?? 0;
           for (const ms of sampleTimes(LATEST_ARRIVAL_MS, rotatedAt)) {
             const share =
-              shareOfStep(layoutAfter.places, move, markerPointAt(layoutAfter, move, ms)) ?? -1;
+              shareOfStep(layoutAfter, move, markerPointAt(layoutAfter, move, ms)) ?? -1;
             expect(share, `${where}, ${ms} ms`).toBeGreaterThanOrEqual(last - 1e-3);
             last = share;
           }
