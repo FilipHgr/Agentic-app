@@ -337,3 +337,5 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-13 Cesta na mapě postupu: vlastník vybral variantu D – stopy podle tématu (zlaté prošlé, bílé poloprůhledné neprošlé, #144) a k tomu podložky zastávek podle tématu a zakřivená cesta (dva navazující úkoly). Pořadí: zakřivená cesta, #144 na ní, podložky.
 - 2026-11-19 Mapa v okně (#145): vybrána varianta V2 (vlastník „varianta B“ = druhá): karta asi 75 % plochy, bílý okraj 6 px a stín, ztmavení 40 %. Další úkoly: větší album, další sada omalovánek, kreslení na prázdný papír, srozumitelnější ikony v Omalovánkách (ukládání, mazání atd.) a review UX/UI s návrhy.
 - 2026-11-19 Omalovánky: místo nedávných barev v panelu rychlé přepínání: naposledy vybraný nástroj s jeho barvou a guma, aby šlo snadno přepínat (nový úkol).
+- 2026-11-19 #143: vlastník přijal pokles AC4 celkem o 5 číslic (3 307 místo 3 312 na UCI) výměnou za otevřenou devítku (94 % místo 60 %, ukázka vlastníka jako 9).
+- 2026-11-19 Srozumitelná tlačítka Omalovánek (fotoaparát, album, malovat dál, koš, koště): vlastní ikony z ElevenLabs (varianta B, asi 540–690 kreditů).
