@@ -12,7 +12,7 @@ import {
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
-import { albumPageEntries, ALBUM_PAGE_SIZE, readAlbum } from '../logic/album';
+import { albumEmptyPlaces, albumPageEntries, ALBUM_PAGE_SIZE, readAlbum } from '../logic/album';
 import { actionButtonLook } from '../logic/actionButtons';
 import type { AlbumContents, AlbumEntry, AlbumPicture } from '../logic/album';
 import { settleAlbumSwap } from '../logic/albumSwap';
@@ -52,7 +52,7 @@ import type { PictureLocks } from '../logic/pictureLocks';
 import { loadPicturePreview, previewOfColors } from '../logic/picturePreview';
 import { COLORING_PICTURES } from '../logic/pictureSet';
 import type { PaintingOrigin, PictureIdentity } from '../logic/savedPicture';
-import { ALBUM_ARROW_STYLE, BIG_PICTURE_STYLE } from '../logic/theme';
+import { ALBUM_ARROW_STYLE, ALBUM_PAGE_STYLE, BIG_PICTURE_STYLE } from '../logic/theme';
 import { AlbumArrowView } from './AlbumArrowView';
 import { ColoringScene, isGameArea } from './ColoringScene';
 import { IconButtonView } from './IconButtonView';
@@ -156,6 +156,11 @@ interface PictureAssets {
  * `pickerPointerUp`, `tapPickerArrow`, `pickerPageShown`). Omalovánka se
  * proto otevře až po zvednutí prstu. Dlaždice výběru ukazují stránku,
  * která je vidět (`pagePreviews`), podle místa na stránce.
+ *
+ * Od #158 je album jako kniha: náhledy leží na světlé kartě stránky
+ * (`pageCard` z `layoutAlbum`) a volná místa stránky jsou prázdná okénka
+ * (`albumEmptyPlaces`). Ťuknutí na okénko ho jen zhoupne s tónem domečku,
+ * při listování okénka odjíždějí s náhledy, karta zůstává.
  */
 export class PickerScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -195,8 +200,13 @@ export class PickerScene extends Phaser.Scene {
   /** Číslo čtení alba, aby starší čtení nepřepsalo novější. */
   private albumReadCount = 0;
   private albumLayout: AlbumLayout = layoutAlbum(this.gameArea);
-  /** Dlaždice stránky alba, která je vidět (#149), podle místa na stránce. */
+  /**
+   * Dlaždice stránky alba, která je vidět (#149), podle místa na stránce:
+   * náhledy obrázků a za nimi prázdná okénka do konce stránky (#158).
+   */
   private albumTiles: PreviewTileView[] = [];
+  /** Karta stránky knihy pod náhledy (#158 AC1); `null`, když album není vidět. */
+  private albumCard: Phaser.GameObjects.Graphics | null = null;
   /** Dlaždice předchozí stránky, které při listování odjíždějí (#149). */
   private leavingAlbumTiles: PreviewTileView[] = [];
   /** Číslo zobrazení stránky alba, aby pozdní konec listování neohlásil starou stránku. */
@@ -574,18 +584,65 @@ export class PickerScene extends Phaser.Scene {
       this.previousArrowView.place(this.albumLayout.previousArrow, this.gameArea.scale);
       this.nextArrowView.place(this.albumLayout.nextArrow, this.gameArea.scale);
     }
+    this.drawAlbumCard();
     const entries = albumPageEntries(screen.entries, screen.page);
     const first = screen.page * ALBUM_PAGE_SIZE;
-    this.albumTiles = entries.map(
+    const pictureTiles = entries.map(
       (_, place) => new PreviewTileView(this, `coloringAlbum${first + place}`),
     );
+    this.albumTiles = [
+      ...pictureTiles,
+      ...this.emptyAlbumTiles(albumEmptyPlaces(screen.entries.length, screen.page)),
+    ];
     void this.drawAlbumTiles(entries);
     return this.albumTiles;
   }
 
+  /** Karta stránky knihy (#158 AC1): světlá, se zaoblenými rohy a jemným stínem. */
+  private drawAlbumCard(): void {
+    const { pageCard: card, pageCardRadius: radius } = this.albumLayout;
+    const style = ALBUM_PAGE_STYLE;
+    const unitsPerCss = 1 / this.gameArea.scale;
+    const graphics = this.add.graphics().setDepth(style.cardDepth);
+    for (const spreadCss of style.shadowSpreadsCss) {
+      const spread = spreadCss * unitsPerCss;
+      graphics
+        .fillStyle(0x000000, style.shadowAlpha)
+        .fillRoundedRect(
+          card.left - spread,
+          card.top - spread + style.shadowOffsetCss * unitsPerCss,
+          card.width + 2 * spread,
+          card.height + 2 * spread,
+          radius + spread,
+        );
+    }
+    graphics
+      .fillStyle(Phaser.Display.Color.HexStringToColor(style.cardColor).color, 1)
+      .fillRoundedRect(card.left, card.top, card.width, card.height, radius);
+    this.albumCard = graphics;
+  }
+
+  /** Prázdná okénka na volných místech `places` stránky alba (#158 AC2). */
+  private emptyAlbumTiles(places: readonly number[]): PreviewTileView[] {
+    return places.flatMap((place) => {
+      const rect = this.albumLayout.previews[place];
+      if (rect === undefined) {
+        return [];
+      }
+      const tile = new PreviewTileView(this, `coloringAlbumEmpty${place}`);
+      tile.setEmptyPlace({
+        rect,
+        cornerRadius: this.albumLayout.cornerRadius,
+        cssScale: this.gameArea.scale,
+      });
+      return [tile];
+    });
+  }
+
   /** Dlaždice alba na místa a jejich obrázky: nejdřív všechny obrysy, pak po snímku barvy. */
   private async drawAlbumTiles(entries: readonly AlbumEntry[]): Promise<void> {
-    const tiles = this.albumTiles;
+    // Okénka za náhledy obrázků jsou už nakreslená (`emptyAlbumTiles`).
+    const tiles = this.albumTiles.slice(0, entries.length);
     const images = await Promise.all(
       entries.map((entry) => this.assetsOf(entry.picture)?.image ?? Promise.resolve(null)),
     );
@@ -651,6 +708,11 @@ export class PickerScene extends Phaser.Scene {
         tile.wobble(() => this.openBigPicture(result.entry, result.index));
         return;
       }
+      case 'wobble':
+        // Okénko na volném místě nic neotevře, jen se zhoupne (#158 AC3).
+        this.sounds.play(result.tones);
+        this.albumTiles[result.index]?.wobble(() => undefined);
+        return;
       case 'turned':
         this.sounds.play(result.tones);
         this.turnAlbumPage(result.direction);
@@ -1106,6 +1168,8 @@ export class PickerScene extends Phaser.Scene {
       tile.destroy();
     }
     this.albumTiles = [];
+    this.albumCard?.destroy();
+    this.albumCard = null;
     this.destroyLeavingAlbumTiles();
     this.previousArrowView.destroy();
     this.nextArrowView.destroy();

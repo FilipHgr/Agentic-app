@@ -23,6 +23,7 @@ import type { LayoutRect } from '../logic/coloringLayout';
 import { previewCellHex } from '../logic/picturePreview';
 import type { PicturePreview, PreviewCell } from '../logic/picturePreview';
 import {
+  ALBUM_PAGE_STYLE,
   BOOK_FLIGHT_STYLE,
   PAPER_MARK_STYLE,
   PICKER_TILE_STYLE,
@@ -204,6 +205,38 @@ export class PreviewTileView {
     if (wasLocked) {
       this.setLocked(true);
     }
+  }
+
+  /**
+   * Postaví na místo prázdné okénko alba (#158 AC2): jen světlý okraj se
+   * zaoblením náhledu, bez stínu a bez obrázku. Zhoupne se a při listování
+   * odjede stejně jako náhled.
+   */
+  setEmptyPlace(place: PreviewTilePlace): void {
+    this.place = place;
+    const { rect, cornerRadius, cssScale } = place;
+    const borderWidth = ALBUM_PAGE_STYLE.emptyBorderWidthCss / cssScale;
+    const inset = borderWidth / 2;
+    this.scene.tweens.killTweensOf(this.container);
+    this.container
+      .setPosition(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      .setAngle(0)
+      .setScale(1)
+      .setAlpha(1);
+    this.shadow
+      .clear()
+      .lineStyle(
+        borderWidth,
+        Phaser.Display.Color.HexStringToColor(ALBUM_PAGE_STYLE.emptyBorderColor).color,
+        1,
+      )
+      .strokeRoundedRect(
+        -rect.width / 2 + inset,
+        -rect.height / 2 + inset,
+        rect.width - borderWidth,
+        rect.height - borderWidth,
+        Math.max(0, cornerRadius - inset),
+      );
   }
 
   /** Ztlumí náhled a ukáže zámek (`true`), nebo zámek schová (#140). */

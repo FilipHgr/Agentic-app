@@ -271,6 +271,9 @@ describe('#149 AC6: náhledy alba mají stejnou velikost jako dnes', () => {
   });
 });
 
+// #158 AC1: vizuální kontrolu „pixel po pixelu“ z #149 AC3 nahrazuje pravidlo
+// stejného místa a velikosti náhledů po #149 pro 1 až 60 obrázků
+// (`albumBookLayoutRules.test.ts`). Míra z tabulky #129 tady zůstává.
 describe('#149 AC1, AC3: album s jedinou stránkou je jako dnes a nemá šipky', () => {
   it('při 12 obrázcích je mřížka na místě z tabulky #129 a šipky nejsou', () => {
     const before = new Map(ALBUM_GRID_BEFORE_129.map((row) => [row[0], row]));

@@ -263,6 +263,24 @@ export const PICKER_TILE_STYLE = {
 } as const;
 
 /**
+ * Album jako kniha (#158): náhledy leží na světlé kartě stránky se
+ * zaoblenými rohy a jemným stínem, teple papírové, aby se lišila od
+ * šedého pozadí i od bílých náhledů. Volná místa stránky jsou prázdná
+ * okénka jen se světlým okrajem, bez stínu a bez obrázku.
+ */
+export const ALBUM_PAGE_STYLE = {
+  cardColor: '#FBF8F1',
+  /** Stín: několik průsvitných vrstev kolem karty, posunutých dolů. */
+  shadowSpreadsCss: [6, 3, 1],
+  shadowOffsetCss: 2,
+  shadowAlpha: 0.035,
+  emptyBorderColor: '#E6DFD0',
+  emptyBorderWidthCss: 2,
+  /** Karta je pod náhledy, okénky i odjíždějící stránkou při listování. */
+  cardDepth: -1,
+} as const;
+
+/**
  * Dlaždice prázdného papíru na výběru (#151): bílý list a uprostřed šedá
  * tužka ✎, aby se papír na první pohled lišil od rozmalované omalovánky.
  */

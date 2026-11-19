@@ -47,6 +47,16 @@ export function albumPageEntries<T>(entries: readonly T[], page: number): readon
 }
 
 /**
+ * Volná místa (0–11) stránky `page` (0 je 1. stránka) alba s `pictureCount`
+ * obrázky, vzestupně (#158 AC2). Scéna na nich kreslí prázdná okénka. Jsou
+ * jen do konce této stránky; plná stránka volné místo nemá.
+ */
+export function albumEmptyPlaces(pictureCount: number, page: number): readonly number[] {
+  const onPage = Math.max(0, Math.min(ALBUM_PAGE_SIZE, pictureCount - page * ALBUM_PAGE_SIZE));
+  return Array.from({ length: ALBUM_PAGE_SIZE - onPage }, (_, index) => onPage + index);
+}
+
+/**
  * Nejvíc bajtů vrstvy barev v jednom záznamu (128 KiB). Je to víc, než
  * zabere obrázek, který jde uložit do `localStorage` (50 000 znaků po
  * 15 bitech, asi 94 000 B), a čtení tak nikdy nezpracuje nesmyslně dlouhá data.

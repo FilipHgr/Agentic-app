@@ -166,7 +166,14 @@ describe('#149 AC1: album ukazuje 12 obrázků na stránku od nejnovějšího', 
     turnByArrow(test.choice, 'next');
 
     expect(shownPage(test.choice)).toBe(2);
-    expect(test.choice.tapAlbumPreview(1).kind, 'místo 2 na 3. stránce je prázdné').toBe('ignored');
+    // #158 AC3: prázdné místo je okénko, ťuknutí ho zhoupne s tónem domečku
+    // (dřív `ignored`) a nic neotevře.
+    expect(test.choice.tapAlbumPreview(1), 'místo 2 na 3. stránce je prázdné').toEqual({
+      kind: 'wobble',
+      index: 1,
+      tones: HOME_WOBBLE_TONES,
+    });
+    expect(test.choice.screen().kind, 'velký obrázek se neotevřel').toBe('album');
     expect(entryAt(test.choice, 0), 'jediný obrázek 3. stránky je nejstarší').toBe(newestFirst[24]);
   });
 

@@ -7,7 +7,7 @@ import {
 } from '../../../src/games/coloring/logic/pictureChoice';
 import type { HomeHold, PictureChoice } from '../../../src/games/coloring/logic/pictureChoice';
 import { createHoldButton } from '../../../src/shared/logic/holdButton';
-import { HOLD_TO_GO_HOME_MS } from '../../../src/shared/logic/homeButton';
+import { HOLD_TO_GO_HOME_MS, HOME_WOBBLE_TONES } from '../../../src/shared/logic/homeButton';
 import {
   createMemoryRecordsShelf,
   memoryProfileRecords,
@@ -156,7 +156,17 @@ describe('#129 AC1: ťuknutí na náhled v albu ukáže velký obrázek', () => 
   it('ťuknutí na místo alba bez obrázku nic neotevře', async () => {
     const test = await albumTest(2);
 
-    for (const index of [2, 11, -1, 1.5]) {
+    // #158 AC3: volné místo stránky je okénko, ťuknutí ho jen zhoupne s tónem
+    // domečku (dřív `ignored`) a nic neotevře.
+    for (const index of [2, 11]) {
+      expect(test.choice.tapAlbumPreview(index), `místo ${index}`).toEqual({
+        kind: 'wobble',
+        index,
+        tones: HOME_WOBBLE_TONES,
+      });
+      expect(screenKind(test.choice), `po ťuknutí na místo ${index}`).toBe('album');
+    }
+    for (const index of [-1, 1.5]) {
       expect(test.choice.tapAlbumPreview(index), `místo ${index}`).toEqual({ kind: 'ignored' });
     }
     expect(screenKind(test.choice)).toBe('album');
@@ -197,9 +207,13 @@ describe('#129 AC1: každý profil vidí a maže jen obrázky ze svého alba', (
     }
     test.choice.holdHome();
     expect(screenKind(test.choice), 'zpět v Emině albu').toBe('album');
+    // #158 AC3: na místě 3 je okénko (dřív `ignored`), jen se zhoupne a nic neotevře.
     expect(test.choice.tapAlbumPreview(2), 'Tomův obrázek v Emině albu není').toEqual({
-      kind: 'ignored',
+      kind: 'wobble',
+      index: 2,
+      tones: HOME_WOBBLE_TONES,
     });
+    expect(screenKind(test.choice), 'velký obrázek se neotevřel').toBe('album');
   });
 
   it('smazání obrázku v jednom profilu album druhého profilu nezmění', async () => {

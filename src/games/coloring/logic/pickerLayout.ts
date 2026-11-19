@@ -255,6 +255,13 @@ export interface AlbumLayout {
   readonly previousArrow: LayoutRect;
   /** Šipka ▶ na další stránku (herní jednotky, #149). */
   readonly nextArrow: LayoutRect;
+  /**
+   * Karta stránky knihy pod náhledy a okénky (#158 AC1, herní jednotky).
+   * Scéna ji kreslí vždy, když je album vidět; na ťuknutí nereaguje.
+   */
+  readonly pageCard: LayoutRect;
+  /** Zaoblení rohů karty stránky v herních jednotkách. */
+  readonly pageCardRadius: number;
 }
 
 /** Mřížka náhledů alba nebo výběru v CSS px herní plochy. */
@@ -473,6 +480,141 @@ function toUnits(rect: CssRect, area: GameArea): LayoutRect {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Karta stránky knihy (#158)
+// ---------------------------------------------------------------------------
+
+/** Vnitřní okraj karty kolem náhledů v CSS px, kde se vejde (#158 AC5). */
+const CARD_PADDING_CSS = 8;
+
+/**
+ * Nejmenší vnitřní okraj karty a nejmenší odstup karty od domečku a šipek
+ * v CSS px (upřesnění #158: náhledy zůstávají na místě z #149, ustoupí karta).
+ */
+const CARD_MIN_CSS = 4;
+
+/** Zaoblení rohů karty jako vnitřní okraj plus zaoblení náhledu, nejvýš tolik CSS px. */
+const CARD_RADIUS_MAX_CSS = 28;
+
+/** Obdélník v CSS px herní plochy pomocí okrajů (karta a překážky kolem ní). */
+interface CssEdges {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
+function edgesOf(rect: CssRect): CssEdges {
+  return {
+    left: rect.left,
+    top: rect.top,
+    right: rect.left + rect.width,
+    bottom: rect.top + rect.height,
+  };
+}
+
+/** Vnitřní okraje karty kolem mřížky v CSS px po stranách. */
+interface CardPaddings {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+type CardSide = keyof CardPaddings;
+
+function cardAround(grid: CssEdges, paddings: CardPaddings): CssEdges {
+  return {
+    left: grid.left - paddings.left,
+    right: grid.right + paddings.right,
+    top: grid.top - paddings.top,
+    bottom: grid.bottom + paddings.bottom,
+  };
+}
+
+/** Mezera dvou obdélníků: větší z vodorovné a svislé (záporná = překryv). */
+function gapOf(first: CssEdges, second: CssEdges): number {
+  const horizontal = Math.max(second.left - first.right, first.left - second.right);
+  const vertical = Math.max(second.top - first.bottom, first.top - second.bottom);
+  return Math.max(horizontal, vertical);
+}
+
+/**
+ * Na které straně mřížky leží překážka a jak daleko od ní je (CSS px):
+ * strana, kde je od mřížky nejdál. Karta ustoupí jen na té straně.
+ */
+function sideTowards(grid: CssEdges, obstacle: CssEdges): { side: CardSide; distance: number } {
+  const distances: ReadonlyArray<{ side: CardSide; distance: number }> = [
+    { side: 'left', distance: grid.left - obstacle.right },
+    { side: 'right', distance: obstacle.left - grid.right },
+    { side: 'top', distance: grid.top - obstacle.bottom },
+    { side: 'bottom', distance: obstacle.top - grid.bottom },
+  ];
+  return distances.reduce((best, next) => (next.distance > best.distance ? next : best));
+}
+
+/**
+ * Vnitřní okraje karty (upřesnění #158): 8 px, kde se vejde. Karta ale
+ * zůstane v herní ploše `plane` a aspoň 4 px od domečku a šipek
+ * (`obstacles`), proto tam okraj ustoupí, nejvýš na 4 px. Náhledy se
+ * nehýbou.
+ */
+function cardPaddingsFor(
+  grid: CssEdges,
+  plane: CssEdges,
+  obstacles: readonly CssEdges[],
+): CardPaddings {
+  const paddings: CardPaddings = {
+    left: Math.min(CARD_PADDING_CSS, grid.left - plane.left),
+    right: Math.min(CARD_PADDING_CSS, plane.right - grid.right),
+    top: Math.min(CARD_PADDING_CSS, grid.top - plane.top),
+    bottom: Math.min(CARD_PADDING_CSS, plane.bottom - grid.bottom),
+  };
+  for (const obstacle of obstacles) {
+    if (gapOf(cardAround(grid, paddings), obstacle) < CARD_MIN_CSS) {
+      const { side, distance } = sideTowards(grid, obstacle);
+      paddings[side] = Math.min(paddings[side], distance - CARD_MIN_CSS);
+    }
+  }
+  return paddings;
+}
+
+/**
+ * Karta stránky knihy (#158) kolem mřížky `grid` (CSS px herní plochy)
+ * v herních jednotkách.
+ */
+function pageCardFor(area: GameArea, grid: PreviewGrid, obstacles: readonly CssRect[]): LayoutRect {
+  const edges: CssEdges = {
+    left: grid.left,
+    top: grid.top,
+    right: grid.left + gridWidthOf(grid),
+    bottom: grid.top + gridHeightOf(grid),
+  };
+  const plane: CssEdges = {
+    left: 0,
+    top: 0,
+    right: area.width * area.scale,
+    bottom: area.height * area.scale,
+  };
+  const card = cardAround(edges, cardPaddingsFor(edges, plane, obstacles.map(edgesOf)));
+  return toUnits(
+    {
+      left: card.left,
+      top: card.top,
+      width: card.right - card.left,
+      height: card.bottom - card.top,
+    },
+    area,
+  );
+}
+
+/** Domeček jako obdélník v CSS px herní plochy. */
+function homeRectFor(area: GameArea): CssRect {
+  const home = homeButtonInFreeArea(area);
+  const side = home.size * area.scale;
+  return { left: home.left * area.scale, top: home.top * area.scale, width: side, height: side };
+}
+
 export interface AlbumLayoutOptions {
   /**
    * Kolik obrázků album má (#149). Šipky má jen album s víc stránkami;
@@ -498,12 +640,17 @@ export function layoutAlbum(area: GameArea, options: AlbumLayoutOptions = {}): A
     isPhoneMode(area.mode) ? PHONE_RADIUS_CSS : TABLET_RADIUS_CSS,
     grid.height * ALBUM_RADIUS_SHARE,
   );
+  const obstacles = arrows
+    ? [homeRectFor(area), placement.previous, placement.next]
+    : [homeRectFor(area)];
   return {
     previews,
     cornerRadius: radius / area.scale,
     arrows,
     previousArrow: toUnits(placement.previous, area),
     nextArrow: toUnits(placement.next, area),
+    pageCard: pageCardFor(area, grid, obstacles),
+    pageCardRadius: Math.min(CARD_RADIUS_MAX_CSS, radius + CARD_PADDING_CSS) / area.scale,
   };
 }
 

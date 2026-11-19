@@ -154,7 +154,11 @@ describe('#149 AC3: nic se neztratí', () => {
     expect(isClean(pageOf(device)), 'stránka je čistá').toBe(true);
   });
 
-  it('dnešní album se ukáže pixel po pixelu stejně: obrázek uložený před #149 je na 1. stránce beze změny', async () => {
+  // #158 AC1 nahrazuje vizuální část „dnešní album se ukáže pixel po pixelu
+  // stejně“: album má kartu stránky a okénka, náhledy ale zůstávají na
+  // stejném místě a stejně velké jako po #149 (`albumBookLayoutRules.test.ts`).
+  // Tento test dál hlídá, že obrázek sám se ukáže pixel po pixelu stejně.
+  it('obrázek uložený před #149 je na 1. stránce alba pixel po pixelu beze změny', async () => {
     vi.useFakeTimers();
     const records = albumDevice().page();
     const added = await records.add(legacyAlbumRecord());

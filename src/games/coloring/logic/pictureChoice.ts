@@ -87,7 +87,7 @@ import type { HoldButton } from '../../../shared/logic/holdButton';
 import { HOLD_TO_GO_HOME_MS, HOME_WOBBLE_TONES } from '../../../shared/logic/homeButton';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import type { GameRecords } from '../../../shared/storage/profileRecords';
-import { albumPageCount, albumPageEntries, removeAlbumEntry } from './album';
+import { albumEmptyPlaces, albumPageCount, albumPageEntries, removeAlbumEntry } from './album';
 import type { AlbumContents, AlbumEntry, AlbumPicture } from './album';
 import { planAlbumSwap, runAlbumSwap, swapBlocksPicture } from './albumSwap';
 import { readPendingSwap } from './albumSwapRecord';
@@ -134,7 +134,7 @@ export type { AlbumDirection, AlbumPoint, AlbumTurn } from './pageTurner';
 export { ALBUM_SWIPE_MIN_CSS } from './pageTurner';
 
 /** Co udělá zvednutí prstu v albu: nalistuje, zhoupne se na kraji, otevře velký obrázek, nebo nic. */
-export type AlbumPointerResult = AlbumTurn | Extract<AlbumPreviewTap, { kind: 'open' }>;
+export type AlbumPointerResult = AlbumTurn | Extract<AlbumPreviewTap, { kind: 'open' | 'wobble' }>;
 
 /**
  * Co udělá zvednutí prstu na výběru (#150): nalistuje, zhoupne se na kraji,
@@ -158,7 +158,11 @@ export type BookTap =
   /** Mimo výběr kniha nic nedělá. */
   | { readonly kind: 'ignored' };
 
-/** Co udělá ťuknutí na náhled v albu: otevře velký obrázek s tónem náhledu (#129), nebo nic. */
+/**
+ * Co udělá ťuknutí na místo v albu: náhled otevře velký obrázek s tónem
+ * náhledu (#129), prázdné okénko (#158 AC3) se zhoupne s tónem domečku,
+ * jinak nic.
+ */
 export type AlbumPreviewTap =
   | {
       readonly kind: 'open';
@@ -166,6 +170,7 @@ export type AlbumPreviewTap =
       readonly entry: AlbumEntry;
       readonly tones: readonly Tone[];
     }
+  | { readonly kind: 'wobble'; readonly index: number; readonly tones: readonly Tone[] }
   | { readonly kind: 'ignored' };
 
 /** Jak skončilo mazání obrázku košem (#129 AC3, AC4). */
@@ -628,7 +633,9 @@ export function startPictureChoice(
     }
     const entry = albumPageEntries(screen.entries, screen.page)[index];
     if (entry === undefined) {
-      return { kind: 'ignored' };
+      // Okénko na volném místě stránky jen zhoupne (#158 AC3).
+      const emptyPlace = albumEmptyPlaces(screen.entries.length, screen.page).includes(index);
+      return emptyPlace ? { kind: 'wobble', index, tones: HOME_WOBBLE_TONES } : { kind: 'ignored' };
     }
     screen = { kind: 'openingBigPicture', entries: screen.entries, entry, page: screen.page };
     albumPages.forgetPointers();
@@ -716,7 +723,7 @@ export function startPictureChoice(
     albumPointerUp: (pointerId, point): AlbumPointerResult =>
       albumPages.pointerUp(pointerId, point, (place) => {
         const tap = tapAlbumPreview(place);
-        return tap.kind === 'open' ? tap : { kind: 'ignored' as const };
+        return tap.kind === 'ignored' ? { kind: 'ignored' as const } : tap;
       }),
     albumPointerCancel: (pointerId) => albumPages.pointerCancel(pointerId),
     albumPageShown: () => albumPages.pageShown(),
