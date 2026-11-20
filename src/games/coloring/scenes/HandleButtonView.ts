@@ -41,7 +41,7 @@ export class HandleButtonView {
       .setVisible(false);
   }
 
-  /** Překreslí úchyt: podklad, okraj a symbol jsou stálé, šipka podle stavu panelu. */
+  /** Překreslí úchyt: podklad a okraj jsou stálé, šipka a místo symbolu podle stavu panelu. */
   show(panelOpen: boolean): void {
     const graphics = this.graphics;
     const symbolImage = this.icon;
@@ -65,7 +65,7 @@ export class HandleButtonView {
       rect.height - borderWidth,
       Math.max(0, radius - inset),
     );
-    this.showSymbol(symbolImage, rect);
+    this.showSymbol(symbolImage, rect, panelOpen);
     this.drawArrow(graphics, rect, panelOpen);
   }
 
@@ -78,11 +78,13 @@ export class HandleButtonView {
 
   /**
    * Paleta přes čtverec z `handleSymbol` s tmavým obrysem vně tvaru
-   * (#164 AC5); bez načteného SVG se schová a úchyt funguje dál.
+   * (#164 AC5), se šipkou dohromady uprostřed úchytu (#165); bez načteného
+   * SVG se schová a úchyt funguje dál.
    */
-  private showSymbol(image: Phaser.GameObjects.Image, rect: LayoutRect): void {
-    const symbol = handleSymbol(rect);
+  private showSymbol(image: Phaser.GameObjects.Image, rect: LayoutRect, panelOpen: boolean): void {
     const style = HANDLE_STYLE;
+    const outline = style.symbolOutlineCss / this.cssScale;
+    const symbol = handleSymbol(rect, this.slidesFrom, panelOpen, outline);
     const key = iconWithOutlineTexture(
       this.scene,
       HANDLE_ICON_FILE,
@@ -95,7 +97,6 @@ export class HandleButtonView {
       return;
     }
     // Textura je o obrys větší na každé straně, ikona v ní zůstane na místě `symbol`.
-    const outline = style.symbolOutlineCss / this.cssScale;
     image
       .setTexture(key)
       .setOrigin(0, 0)

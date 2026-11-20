@@ -12,7 +12,8 @@
  * - `handleColorDotFill(view)` tamtéž: čím je kolečko barvy vyplněné,
  * - `quickToolColorDot(slot, size)` v `src/games/coloring/logic/coloringLayout.ts`:
  *   kruh barevné výplně kolečka na prvním tlačítku v herních jednotkách,
- * - `handleSymbol(handle)` tamtéž: čtverec symbolu panelu v úchytu,
+ * - `handleSymbol(handle, slidesFrom, panelOpen, outline)` tamtéž: čtverec
+ *   symbolu panelu v úchytu podle stavu panelu a šířky obrysu (#165),
  * - `HANDLE_COLOR_DOT_STYLE` v `src/games/coloring/logic/theme.ts`: bílý
  *   lem a šedá linka v CSS px, bílá výplň a čárkování gumy.
  */
@@ -22,15 +23,16 @@ import {
   quickToolColorDot,
   toolSlotIcon,
 } from '../../../src/games/coloring/logic/coloringLayout';
+import type { LayoutRect } from '../../../src/games/coloring/logic/coloringLayout';
 import { PALETTE, RAINBOW_COLORS } from '../../../src/games/coloring/logic/palette';
 import { ALL_COLORS } from '../../../src/games/coloring/logic/toolColorSets';
-import { HANDLE_COLOR_DOT_STYLE } from '../../../src/games/coloring/logic/theme';
+import { HANDLE_COLOR_DOT_STYLE, HANDLE_STYLE } from '../../../src/games/coloring/logic/theme';
 import { toolIconAsset } from '../../../src/games/coloring/logic/toolIcons';
 import { PANEL_TOOLS } from '../../../src/games/coloring/logic/toolPanel';
 import type { LineSize, ToolId } from '../../../src/games/coloring/logic/toolPanel';
 import { toCss } from '../../shared/viewportFixtures';
 import type { Box } from '../../shared/viewportFixtures';
-import { boxOfRect } from './coloringLayoutScenes';
+import { boxOfRect, isOpen } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
 import { TOOL_NAMES } from './lineSizeHelpers';
 import licenceText from '../../../public/licence.txt?raw';
@@ -167,9 +169,19 @@ export function externalReferences(svg: string): string[] {
 // Rozložení (CSS px)
 // ---------------------------------------------------------------------------
 
-/** Čtverec symbolu panelu v úchytu (#164) v CSS px okna. */
+/**
+ * Čtverec symbolu panelu v úchytu (#164, #165) v herních jednotkách: podle
+ * stavu panelu v okně a s tmavým obrysem `symbolOutlineCss` jako ve hře.
+ */
+export function handleSymbolOf(testCase: ColoringCase): LayoutRect {
+  const { layout, area } = testCase;
+  const outline = HANDLE_STYLE.symbolOutlineCss / area.scale;
+  return handleSymbol(layout.handle, layout.panelSlidesFrom, isOpen(testCase), outline);
+}
+
+/** Čtverec symbolu panelu v úchytu (#164, #165) v CSS px okna. */
 export function handleSymbolBox(testCase: ColoringCase): Box {
-  return toCss(boxOfRect(handleSymbol(testCase.layout.handle)), testCase.area);
+  return toCss(boxOfRect(handleSymbolOf(testCase)), testCase.area);
 }
 
 /** Čtverec ikony nástroje na prvním tlačítku rychlého přepínání v CSS px okna. */

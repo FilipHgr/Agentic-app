@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { handleSymbol } from '../../../src/games/coloring/logic/coloringLayout';
 import type { LayoutRect } from '../../../src/games/coloring/logic/coloringLayout';
 import { quickToolColorDotFill } from '../../../src/games/coloring/logic/quickTools';
 import type { SavedColoring } from '../../../src/games/coloring/logic/savedPicture';
@@ -11,6 +10,7 @@ import type { LineSize, ToolId } from '../../../src/games/coloring/logic/toolPan
 import { BLUE, contrastRatio } from '../../../src/shared/logic/theme';
 import { MIN_CONTRAST, MIN_CONTRASTING_EDGE, compositeOn } from './actionIconHelpers';
 import { coloringCases } from './coloringLayoutScenes';
+import type { ColoringCase } from './coloringLayoutScenes';
 import { ALL_SIZES, SIZE_NAMES } from './lineSizeHelpers';
 import { firstButton, tapFirstButton, tapQuickEraser } from './quickToolsHelpers';
 import { RecordingStorage, openOn, twoHalves } from './savedPictureHelpers';
@@ -21,6 +21,7 @@ import {
   TOOLS,
   TOOL_NAMES,
   externalReferences,
+  handleSymbolOf,
   hexOf,
   iconFolderFiles,
   iconSvgOf,
@@ -54,8 +55,9 @@ import { MASK_SAMPLES, maskOfSvg } from './toolIconMaskHelpers';
  *
  * Rozhraní:
  * - `HANDLE_ICON_FILE` (`toolIcons.ts`) jméno souboru symbolu ve složce ikon,
- * - `handleSymbol(handle)` (`coloringLayout.ts`) čtverec, do kterého úchyt
- *   symbol kreslí; jiný vstup než místo úchytu nemá,
+ * - `handleSymbol(handle, slidesFrom, panelOpen, outline)` (`coloringLayout.ts`)
+ *   čtverec, do kterého úchyt symbol kreslí; od #165 podle místa šipky,
+ *   na nástroji, barvě ani velikosti čáry nezávisí,
  * - `quickToolColorDotFill(view, size)` (`quickTools.ts`) čím je vyplněné
  *   kolečko na prvním tlačítku; `view` je `game.quickDrawingTool()`.
  */
@@ -72,7 +74,7 @@ const DRAWING_TOOLS: readonly ToolId[] = TOOLS.filter((tool) => tool !== 'eraser
 /** Strany symbolu v CSS px ve všech oknech Omalovánek, každá jednou. */
 function symbolSidesCss(): number[] {
   const sides = coloringCases().map(
-    ({ layout, area }) => handleSymbol(layout.handle).width * area.scale,
+    (testCase) => handleSymbolOf(testCase).width * testCase.area.scale,
   );
   return [...new Set(sides.map((side) => Math.round(side * 100) / 100))];
 }
@@ -152,8 +154,8 @@ function returningGame(): SavedColoring {
 }
 
 /** Co úchyt ukazuje v jednom okně: soubor symbolu a kam ho kreslí. */
-function handleLook(handle: LayoutRect): { file: string; symbol: LayoutRect } {
-  return { file: HANDLE_ICON_FILE, symbol: handleSymbol(handle) };
+function handleLook(testCase: ColoringCase): { file: string; symbol: LayoutRect } {
+  return { file: HANDLE_ICON_FILE, symbol: handleSymbolOf(testCase) };
 }
 
 /** Kolečko na prvním tlačítku: malovací nástroj ve své barvě, duha duhové. */
@@ -204,11 +206,11 @@ describe('#164 AC1: úchyt má jeden stálý symbol panelu, paletu ze sady Noto'
   });
 
   it('po výběru nástroje, barvy, tloušťky i gumy ukazuje úchyt pořád stejnou paletu na stejném místě', () => {
-    const { layout } = coloringCases()[0] ?? { layout: null };
-    if (layout === null) {
+    const testCase = coloringCases()[0];
+    if (testCase === undefined) {
       throw new Error('chybí okno pro rozložení');
     }
-    const before = handleLook(layout.handle);
+    const before = handleLook(testCase);
     const game = returningGame();
     const shown: string[] = [];
     const steps: Array<[string, () => void]> = [
@@ -225,26 +227,21 @@ describe('#164 AC1: úchyt má jeden stálý symbol panelu, paletu ze sady Noto'
     for (const [what, step] of steps) {
       step();
       shown.push(JSON.stringify([firstButton(game), game.lineSize(), game.selectedTool()]));
-      expect(handleLook(layout.handle), `${what}: úchyt`).toEqual(before);
+      expect(handleLook(testCase), `${what}: úchyt`).toEqual(before);
     }
     expect(new Set(shown).size, 'kroky opravdu měnily výběr').toBeGreaterThan(TOOLS.length);
   });
 
-  it('symbol má ve všech oknech střed jako dřívější ikona nástroje (vodorovně uprostřed, ve 35 % výšky) a 0,45 strany', () => {
-    for (const { layout, scene } of coloringCases()) {
-      const { handle } = layout;
+  // Upraveno k #165: střed symbolu už není ve 35 % výšky, symbol je se
+  // šipkou dohromady uprostřed úchytu (`toolIconLayoutRules.test.ts`).
+  // Velikost 0,45 strany zůstává (#165 AC2).
+  it('symbol je ve všech oknech čtverec 0,45 strany úchytu', () => {
+    for (const testCase of coloringCases()) {
+      const { handle } = testCase.layout;
       const side = Math.min(handle.width, handle.height) * 0.45;
-      const symbol = handleSymbol(handle);
-      expect(symbol.width, `${scene.label}: šířka`).toBeCloseTo(side, 6);
-      expect(symbol.height, `${scene.label}: výška`).toBeCloseTo(side, 6);
-      expect(symbol.left + side / 2, `${scene.label}: střed vodorovně`).toBeCloseTo(
-        handle.left + handle.width / 2,
-        6,
-      );
-      expect(symbol.top + side / 2, `${scene.label}: střed svisle`).toBeCloseTo(
-        handle.top + handle.height * 0.35,
-        6,
-      );
+      const symbol = handleSymbolOf(testCase);
+      expect(symbol.width, `${testCase.scene.label}: šířka`).toBeCloseTo(side, 6);
+      expect(symbol.height, `${testCase.scene.label}: výška`).toBeCloseTo(side, 6);
     }
   });
 });

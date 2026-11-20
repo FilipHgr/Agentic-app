@@ -43,6 +43,14 @@ import {
  * - čtverec ikony určují `toolSlotIcon(slot)` (panel i hlavička kroku
  *   barev) a `handleSymbol(handle)` (symbol úchytu, #164),
  * - `handleArrow(handle, slidesFrom, panelOpen)` obdélník šipky (beze změny).
+ *
+ * #165 AC1: symbol i s obrysem a šipka tvoří skupinu (obdélník kolem obou)
+ * vystředěnou v úchytu na šířku i na výšku. Skupina je vystředěná, když se
+ * odstupy od protilehlých okrajů úchytu liší nejvýš o 1 CSS px. Výjimka
+ * plyne z AC2 a AC3: kde šipka (beze změny) sama sahá blíž k okraji než
+ * 10 % strany (na výšku se zavřeným panelem až k okraji), skupinu víc
+ * vystředit nejde; symbol pak musí být co nejblíž středu, tedy přesně
+ * 10 % strany od protějšího okraje.
  */
 
 /** Rezerva na zaokrouhlení v CSS px. */
@@ -162,6 +170,42 @@ function outlinedSymbolGapTo(testCase: ColoringCase, box: Box): number {
   return smallest - HANDLE_STYLE.symbolOutlineCss - (Math.SQRT1_2 * side) / 256;
 }
 
+/** Nejvýš o tolik CSS px se smí lišit odstupy vystředěné skupiny od okrajů (#165 AC1). */
+const CENTERED_TOLERANCE_CSS = 1;
+
+/** Obdélník kolem obou obdélníků. */
+function unionOf(first: Box, second: Box): Box {
+  return {
+    left: Math.min(first.left, second.left),
+    right: Math.max(first.right, second.right),
+    top: Math.min(first.top, second.top),
+    bottom: Math.max(first.bottom, second.bottom),
+  };
+}
+
+/**
+ * Problém s vystředěním skupiny na jedné ose, nebo `null`: odstupy od
+ * protilehlých okrajů se liší nejvýš o 1 CSS px, nebo je větší odstup
+ * přesně nejmenší povolený (10 % strany) a menší odstup (šipka) pod ním.
+ */
+function centeringProblem(
+  axis: string,
+  first: number,
+  second: number,
+  side: number,
+): string | null {
+  if (Math.abs(first - second) <= CENTERED_TOLERANCE_CSS + TOLERANCE) {
+    return null;
+  }
+  const smallest = MIN_MARGIN_SHARE * side;
+  const larger = Math.max(first, second);
+  const smaller = Math.min(first, second);
+  if (Math.abs(larger - smallest) <= TOLERANCE && smaller < smallest) {
+    return null;
+  }
+  return `${axis}: odstupy skupiny ${first.toFixed(2)} a ${second.toFixed(2)} px`;
+}
+
 /** Obdélník šipky úchytu v CSS px. */
 function arrowBox(testCase: ColoringCase): Box {
   return toCss(
@@ -210,6 +254,21 @@ describe('#106 AC2: ikona se vejde do místa v panelu i do úchytu', () => {
       return gap + TOLERANCE >= 0
         ? []
         : [label(testCase, `obrys symbolu ${(-gap).toFixed(2)} px na šipce`)];
+    });
+    expect(limited(problems)).toEqual([]);
+  });
+});
+
+describe('#165 AC1: paleta a šipka jsou v úchytu dohromady uprostřed', () => {
+  it('symbol s obrysem a šipka tvoří skupinu vystředěnou v úchytu na šířku i na výšku, otevřeném i zavřeném panelu', () => {
+    const problems = cases().flatMap((testCase) => {
+      const handle = testCase.handle;
+      const group = unionOf(outlinedSymbolBox(testCase), arrowBox(testCase));
+      const side = sideOfBox(handle);
+      return [
+        centeringProblem('vodorovně', group.left - handle.left, handle.right - group.right, side),
+        centeringProblem('svisle', group.top - handle.top, handle.bottom - group.bottom, side),
+      ].flatMap((problem) => (problem === null ? [] : [label(testCase, problem)]));
     });
     expect(limited(problems)).toEqual([]);
   });

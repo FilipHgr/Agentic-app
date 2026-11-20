@@ -696,29 +696,99 @@ const LINE_SIZE_COLOR_DOT_SHARES: Readonly<Record<LineSize, number>> = {
 };
 
 /**
- * Symbol panelu v úchytu (#164 AC1): čtverec tohoto dílu strany vodorovně
- * uprostřed a posunutý nahoru, se stejným středem jako dřív ikona nástroje,
- * aby se vešel mezi šipky obou orientací (vlevo a vpravo uprostřed výšky na
- * šířku, dole uprostřed na výšku). Proti ikoně (0,48) je o kousek menší,
- * aby se šipky nedotkl ani tmavý obrys 2 CSS px kolem palety (#164 AC5).
+ * Symbol panelu v úchytu (#164 AC1) zabere čtverec tohoto dílu strany
+ * úchytu. Proti ikoně (0,48) je o kousek menší, aby se šipky nedotkl ani
+ * tmavý obrys kolem palety (#164 AC5); menší být nesmí (#165 AC2).
  */
 const HANDLE_SYMBOL_SHARE = 0.45;
-const HANDLE_SYMBOL_CENTER_X_SHARE = 0.5;
-const HANDLE_SYMBOL_CENTER_Y_SHARE = 0.35;
+
+/** Nejmenší odstup symbolu i s obrysem od okraje úchytu jako díl strany (#165 AC2). */
+const HANDLE_SYMBOL_MIN_MARGIN_SHARE = 0.1;
+
+/**
+ * Neprůhledná část palety `artist-palette.svg` jako díl strany čtverce
+ * symbolu (změřeno na mřížce 256 × 256). Vystředí se podle ní, ne podle
+ * prázdného okraje obrázku (#165 AC1).
+ */
+const HANDLE_SYMBOL_SHAPE = {
+  start: { x: 7 / 256, y: 16 / 256 },
+  end: { x: 247 / 256, y: 240 / 256 },
+} as const;
 
 function sideOf(rect: LayoutRect): number {
   return Math.min(rect.width, rect.height);
 }
 
+/** Úsek na jedné ose (vodorovné nebo svislé). */
+interface AxisSpan {
+  readonly start: number;
+  readonly end: number;
+}
+
 /**
- * Kam úchyt kreslí svůj stálý symbol panelu (#164 AC1): nahoře uprostřed.
- * Nezávisí na nástroji, barvě ani velikosti čáry.
+ * Začátek čtverce symbolu na ose, kde je i šipka (#165 AC1): symbol
+ * s obrysem a šipka dohromady uprostřed úchytu. Kde to nejde, protože by
+ * symbol byl blíž k okraji než nejmenší odstup, zůstane na nejmenším odstupu.
  */
-export function handleSymbol(handle: LayoutRect): LayoutRect {
+function symbolStartBesideArrow(
+  handle: AxisSpan,
+  arrow: AxisSpan,
+  shape: AxisSpan,
+  side: number,
+  outline: number,
+  minMargin: number,
+): number {
+  const arrowAfterSymbol = arrow.start + arrow.end > handle.start + handle.end;
+  if (arrowAfterSymbol) {
+    // Skupina od obrysu symbolu po konec šipky, odstup na začátku jako na konci.
+    const groupStart = handle.start + (handle.end - arrow.end);
+    const visibleStart = Math.max(groupStart, handle.start + minMargin);
+    return visibleStart + outline - shape.start * side;
+  }
+  const groupEnd = handle.end - (arrow.start - handle.start);
+  const visibleEnd = Math.min(groupEnd, handle.end - minMargin);
+  return visibleEnd - outline - shape.end * side;
+}
+
+/** Začátek čtverce symbolu na ose bez šipky: neprůhledná paleta uprostřed. */
+function symbolStartCentered(handle: AxisSpan, shape: AxisSpan, side: number): number {
+  const handleCenter = (handle.start + handle.end) / 2;
+  return handleCenter - ((shape.start + shape.end) / 2) * side;
+}
+
+/**
+ * Kam úchyt kreslí svůj stálý symbol panelu (#164 AC1, #165 AC1): paleta
+ * i s tmavým obrysem `outline` (herní jednotky) tvoří se šipkou skupinu
+ * uprostřed úchytu. Na šířku je tedy symbol na opačné straně než šipka
+ * a svisle uprostřed, na výšku nad šipkou a vodorovně uprostřed. Nezávisí
+ * na nástroji, barvě ani velikosti čáry.
+ */
+export function handleSymbol(
+  handle: LayoutRect,
+  slidesFrom: ColoringLayout['panelSlidesFrom'],
+  panelOpen: boolean,
+  outline: number,
+): LayoutRect {
   const side = sideOf(handle) * HANDLE_SYMBOL_SHARE;
+  const minMargin = sideOf(handle) * HANDLE_SYMBOL_MIN_MARGIN_SHARE;
+  const arrow = handleArrow(handle, slidesFrom, panelOpen);
+  const across: AxisSpan = { start: handle.left, end: handle.left + handle.width };
+  const down: AxisSpan = { start: handle.top, end: handle.top + handle.height };
+  const shapeAcross = { start: HANDLE_SYMBOL_SHAPE.start.x, end: HANDLE_SYMBOL_SHAPE.end.x };
+  const shapeDown = { start: HANDLE_SYMBOL_SHAPE.start.y, end: HANDLE_SYMBOL_SHAPE.end.y };
+  if (slidesFrom === 'left') {
+    const arrowAcross = { start: arrow.left, end: arrow.left + arrow.width };
+    return {
+      left: symbolStartBesideArrow(across, arrowAcross, shapeAcross, side, outline, minMargin),
+      top: symbolStartCentered(down, shapeDown, side),
+      width: side,
+      height: side,
+    };
+  }
+  const arrowDown = { start: arrow.top, end: arrow.top + arrow.height };
   return {
-    left: handle.left + handle.width * HANDLE_SYMBOL_CENTER_X_SHARE - side / 2,
-    top: handle.top + handle.height * HANDLE_SYMBOL_CENTER_Y_SHARE - side / 2,
+    left: symbolStartCentered(across, shapeAcross, side),
+    top: symbolStartBesideArrow(down, arrowDown, shapeDown, side, outline, minMargin),
     width: side,
     height: side,
   };

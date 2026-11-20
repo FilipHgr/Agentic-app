@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { brushWidthFor } from '../../../src/games/coloring/logic/coloring';
-import { handleSymbol, quickToolColorDot } from '../../../src/games/coloring/logic/coloringLayout';
+import { quickToolColorDot } from '../../../src/games/coloring/logic/coloringLayout';
 import type { LayoutCircle, LayoutRect } from '../../../src/games/coloring/logic/coloringLayout';
 import { HANDLE_COLOR_DOT_STYLE } from '../../../src/games/coloring/logic/theme';
 import type { LineSize } from '../../../src/games/coloring/logic/toolPanel';
@@ -9,6 +9,7 @@ import { widthOf } from '../../shared/viewportFixtures';
 import { coloringCases } from './coloringLayoutScenes';
 import type { ColoringCase } from './coloringLayoutScenes';
 import { SIZES, SIZE_NAMES, TOOL_FACTOR } from './lineSizeHelpers';
+import { handleSymbolOf } from './toolIconHelpers';
 
 /**
  * Testy rozložení k #91 v upraveném znění AC1 (tečku velikosti v úchytu
@@ -23,8 +24,9 @@ import { SIZES, SIZE_NAMES, TOOL_FACTOR } from './lineSizeHelpers';
  * Navržené rozhraní (`src/games/coloring/logic/coloringLayout.ts`, herní
  * jednotky jako ostatní rozložení):
  * - `interface LayoutCircle { centerX: number; centerY: number; diameter: number }`,
- * - `handleSymbol(handle: LayoutRect): LayoutRect` kam úchyt kreslí svůj
- *   stálý symbol panelu (#164, na místě dřívější ikony nástroje),
+ * - `handleSymbol(handle, slidesFrom, panelOpen, outline): LayoutRect` kam
+ *   úchyt kreslí svůj stálý symbol panelu (#164, od #165 se šipkou
+ *   dohromady uprostřed úchytu),
  * - `quickToolColorDot(slot: LayoutRect, size: LineSize): LayoutCircle`
  *   kolečko barvy na prvním tlačítku rychlého přepínání (#164 AC4, dřív
  *   `handleColorDot` v úchytu; průměr barevné výplně, lem a linka
@@ -122,7 +124,7 @@ describe('#91 AC1, #106 a #164: symbol v úchytu a kolečko barvy na prvním tla
     for (const testCase of cases()) {
       const name = testCase.scene.label;
       const { handle } = testCase.layout;
-      const icon = handleSymbol(handle);
+      const icon = handleSymbolOf(testCase);
       const iconCenter = centerOf(icon);
       const handleCenter = centerOf(handle);
       const side = sideOf(handle);
