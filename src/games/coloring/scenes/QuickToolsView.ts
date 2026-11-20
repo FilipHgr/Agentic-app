@@ -2,18 +2,20 @@
  * Dvě tlačítka rychlého přepínání v pruhu ovládání (#148, #163) místo
  * nedávných barev z #99, ve vzhledu tlačítek nástrojů v panelu. První
  * tlačítko ukazuje kreslicí nástroj: jeho ikonu a vpravo dole kolečko jeho
- * barvy jako u nástroje v panelu a v úchytu (#110, #114), duha bez kolečka.
- * Druhé tlačítko je vždy guma. Vybrané z obou tlačítek má silný modrý okraj
- * jako vybraný nástroj v panelu (#163 AC3). Ťuknutí pozná scéna přes `touchTargetAt`, co
- * se vybere, řídí logika (`savedPicture.ts`, `quickTools.ts`).
+ * barvy velké podle velikosti čáry (#164 AC4, dřív v úchytu), duha
+ * s duhovým kolečkem. Druhé tlačítko je vždy guma. Vybrané z obou tlačítek
+ * má silný modrý okraj jako vybraný nástroj v panelu (#163 AC3). Ťuknutí
+ * pozná scéna přes `touchTargetAt`, co se vybere, řídí logika
+ * (`savedPicture.ts`, `quickTools.ts`).
  */
 
 import Phaser from 'phaser';
 
-import { toolSlotColorDot, toolSlotIcon } from '../logic/coloringLayout';
+import { quickToolColorDot, toolSlotIcon } from '../logic/coloringLayout';
 import type { LayoutRect } from '../logic/coloringLayout';
+import { quickToolColorDotFill } from '../logic/quickTools';
 import type { QuickDrawingToolView, QuickToolButton } from '../logic/quickTools';
-import { colorHex } from '../logic/toolColorSets';
+import type { LineSize } from '../logic/toolPanel';
 import { drawColorDot } from './colorDot';
 import { showToolIcon } from './toolIconTextures';
 import { drawToolButton } from './ToolPanelView';
@@ -30,6 +32,8 @@ export interface QuickToolsLook {
   readonly drawingTool: QuickDrawingToolView;
   /** Je vybraná guma (označené druhé tlačítko), nebo kreslicí nástroj (první)? */
   readonly eraserSelected: boolean;
+  /** Vybraná velikost čáry: podle ní je velké kolečko barvy na prvním tlačítku. */
+  readonly lineSize: LineSize;
 }
 
 interface QuickButtonParts {
@@ -66,7 +70,7 @@ export class QuickToolsView {
   show(look: QuickToolsLook): void {
     const drawing = this.buttons.drawingTool;
     if (drawing !== undefined) {
-      this.showDrawingTool(drawing, look.drawingTool, !look.eraserSelected);
+      this.showDrawingTool(drawing, look, !look.eraserSelected);
     }
     const eraser = this.buttons.eraser;
     if (eraser !== undefined) {
@@ -136,21 +140,18 @@ export class QuickToolsView {
     return { ...rect, left: -rect.width / 2, top: -rect.height / 2 };
   }
 
-  private showDrawingTool(
-    parts: QuickButtonParts,
-    drawing: QuickDrawingToolView,
-    selected: boolean,
-  ): void {
+  private showDrawingTool(parts: QuickButtonParts, look: QuickToolsLook, selected: boolean): void {
     parts.background.clear();
     parts.dot.clear();
     const local = this.centered(parts.rect);
     drawToolButton(parts.background, parts.rect, this.cssScale, selected);
-    showToolIcon(parts.icon, drawing.tool, toolSlotIcon(local), this.cssScale);
-    // Duha je bez kolečka (#148 AC1); malovací nástroj má kolečko své barvy.
-    const hex = drawing.color === null ? undefined : colorHex(drawing.color);
-    if (hex !== undefined) {
-      drawColorDot(parts.dot, toolSlotColorDot(local), { kind: 'color', hex }, this.cssScale);
-    }
+    showToolIcon(parts.icon, look.drawingTool.tool, toolSlotIcon(local), this.cssScale);
+    drawColorDot(
+      parts.dot,
+      quickToolColorDot(local, look.lineSize),
+      quickToolColorDotFill(look.drawingTool, look.lineSize),
+      this.cssScale,
+    );
   }
 
   private showEraser(parts: QuickButtonParts, selected: boolean): void {

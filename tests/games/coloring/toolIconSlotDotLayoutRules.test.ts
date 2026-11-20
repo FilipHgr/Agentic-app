@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  handleColorDot,
+  quickToolColorDot,
   toolSlotColorDot,
   toolSlotIcon,
 } from '../../../src/games/coloring/logic/coloringLayout';
@@ -306,21 +306,23 @@ describe('#114 AC2: kolečko zůstane v rohu, stejně velké a při výběru nep
     expect(limited(problems)).toEqual([]);
   });
 
-  it('kolečko je stejně velké jako dnes a jako střední kolečko v úchytu', () => {
+  // Upraveno k #164 AC4: střední kolečko z úchytu je od #164 na prvním
+  // tlačítku rychlého přepínání.
+  it('kolečko je stejně velké jako dnes a jako střední kolečko na prvním tlačítku rychlého přepínání', () => {
     const problems = allPlaces().flatMap((place) => {
       const { fillDiameter } = slotDotCss(place);
       const side = sideOfBox(place.box);
       const today = side * TODAY_DOT_SHARE;
-      const handle = place.testCase.layout.handle;
-      const handleShare =
-        handleColorDot(handle, 'medium').diameter / Math.min(handle.width, handle.height);
-      const asHandle = side * handleShare;
+      const button = place.testCase.layout.quickDrawingToolButton;
+      const buttonShare =
+        quickToolColorDot(button, 'medium').diameter / Math.min(button.width, button.height);
+      const asFirstButton = side * buttonShare;
       return Math.abs(fillDiameter - today) <= TOLERANCE &&
-        Math.abs(fillDiameter - asHandle) <= TOLERANCE
+        Math.abs(fillDiameter - asFirstButton) <= TOLERANCE
         ? []
         : [
             `${place.where}: průměr ${fillDiameter.toFixed(2)} px, dnes ${today.toFixed(2)} px, ` +
-              `jako v úchytu ${asHandle.toFixed(2)} px`,
+              `jako na prvním tlačítku ${asFirstButton.toFixed(2)} px`,
           ];
     });
     expect(limited(problems)).toEqual([]);

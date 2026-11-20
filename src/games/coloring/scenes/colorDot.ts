@@ -1,6 +1,6 @@
 /**
- * Kolečko barvy nástroje (#106, #110): stejné v úchytu i u nástrojů
- * v panelu. Vybraná barva s bílým lemem a šedou linkou vně výplně, guma
+ * Kolečko barvy nástroje (#106, #110): stejné na prvním tlačítku rychlého
+ * přepínání (#164) i u nástrojů v panelu. Vybraná barva s bílým lemem a šedou linkou vně výplně, guma
  * bílé s čárkovanou linkou, duhový štětec výseče v barvách duhy. Vzhled
  * je v `HANDLE_COLOR_DOT_STYLE`, výplň určí `handleColorDotFill`.
  */

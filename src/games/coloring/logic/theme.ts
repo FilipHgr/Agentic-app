@@ -165,13 +165,24 @@ export const EMPTY_SLOT_STYLE = {
   cornerRadiusShare: COLOR_BUTTON_STYLE.cornerRadiusShare,
 } as const;
 
-/** Úchyt panelu (#96 AC5): tlačítko A3 s modrým okrajem, štětec ve vybrané barvě a šipka. */
+/**
+ * Úchyt panelu (#96 AC5, #164 AC2): tlačítko A3 s běžným okrajem
+ * nevybraného tlačítka (silný modrý okraj má jen vybraný nástroj), stálý
+ * symbol panelu s tmavým obrysem a modrá šipka.
+ */
 export const HANDLE_STYLE = {
   background: COLOR_BUTTON_STYLE.background,
-  borderColor: BLUE,
-  borderWidthCss: 3,
+  borderColor: COLOR_BUTTON_STYLE.borderColor,
+  borderWidthCss: COLOR_BUTTON_STYLE.borderWidthCss,
   cornerRadiusShare: COLOR_BUTTON_STYLE.cornerRadiusShare,
   arrowColor: BLUE,
+  /**
+   * Tmavý obrys kolem symbolu panelu (#164 AC5): hra ho kreslí vně tvaru
+   * palety (kresba SVG zůstává beze změny), aby měl okraj symbolu proti
+   * podkladu kontrast aspoň 3 : 1 jako ikony tlačítek z #153.
+   */
+  symbolOutlineColor: TEXT,
+  symbolOutlineCss: 2,
 } as const;
 
 /**
@@ -186,9 +197,10 @@ export const LINE_SIZE_WAVE_STYLE = {
 } as const;
 
 /**
- * Kolečko barvy v úchytu (#106): vybraná barva s bílým lemem a šedou
- * linkou vně výplně (v CSS px), aby bylo vidět i ve žluté a bílé. Linka má
- * kontrast aspoň 3 : 1 vůči pozadí úchytu i bílému lemu. Guma má kolečko
+ * Kolečko barvy nástroje (#106, #110, od #164 na prvním tlačítku rychlého
+ * přepínání místo úchytu): vybraná barva s bílým lemem a šedou linkou vně
+ * výplně (v CSS px), aby bylo vidět i ve žluté a bílé. Linka má kontrast
+ * aspoň 3 : 1 vůči pozadí tlačítka i bílému lemu. Guma má kolečko
  * bílé s čárkovanou linkou (délka čárky v CSS px).
  */
 export const HANDLE_COLOR_DOT_STYLE = {

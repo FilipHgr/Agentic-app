@@ -183,8 +183,10 @@ export function storeLineSize(storage: KeyValueStorage, size: LineSize): void {
 }
 
 /**
- * Co ukazuje úchyt (#96 AC5, #91 AC1): vybraný nástroj ve vybrané barvě,
- * guma a duha bez barvy (`null`, #90 AC1, #97 AC1), a vybranou velikost čáry.
+ * Vybraný nástroj ve vybrané barvě, guma a duha bez barvy (`null`, #90 AC1,
+ * #97 AC1), a vybraná velikost čáry. Do #164 to ukazoval úchyt (#96 AC5,
+ * #91 AC1); od #164 má úchyt stálý symbol a výběr ukazuje panel a první
+ * tlačítko rychlého přepínání; jméno zůstalo z doby úchytu.
  */
 export interface HandleView {
   readonly tool: ToolId;

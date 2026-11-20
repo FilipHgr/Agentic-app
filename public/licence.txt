@@ -155,7 +155,8 @@ Plný text licence MIT:
   SOFTWARE.
 
 Ikony nástrojů v Omalovánkách (src/games/coloring/icons/: paintbrush, eraser,
-pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter), zámek
+pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter), paleta
+v úchytu panelu nástrojů (artist-palette), zámek
 zamčené omalovánky, otevřený zámek na výběru omalovánek (locked, unlocked) a
 symboly cíle map postupu v Počítání
 (src/games/counting/maps/: gem-stone, mushroom, castle, spiral-shell,

@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  handleColorDot,
-  handleFace,
   lineSizeWave,
+  quickToolColorDot,
   touchTargetAt,
 } from '../../../src/games/coloring/logic/coloringLayout';
 import type { LayoutRect } from '../../../src/games/coloring/logic/coloringLayout';
@@ -24,7 +23,8 @@ import { ALL_SIZES, SIZE_NAMES } from './lineSizeHelpers';
  * Testy rozložení k #118 (čtyři tloušťky čáry v Omalovánkách s novou
  * nejtenčí): AC1 (4 tlačítka v hlavičce od nejtenčí, kam patří dotyk),
  * AC3 (vlnky rostou od nejtenčí aspoň 1,5×, nejtenčí aspoň 1,5 CSS px,
- * kolečko barvy v úchytu u nejtenčí jako u malé) a AC4 (rozměr a tvar
+ * kolečko barvy u nejtenčí jako u malé, od #164 na prvním tlačítku
+ * rychlého přepínání místo v úchytu) a AC4 (rozměr a tvar
  * panelu, panel ve viditelné ploše, na výšku beze změny). Každé pravidlo je
  * jeden test, který v cyklu projde všechna okna z `coloringLayoutScenes.ts`
  * (iPad, telefon na šířku i na výšku, hranice, úzký iPad a okna z plochy);
@@ -45,7 +45,7 @@ import { ALL_SIZES, SIZE_NAMES } from './lineSizeHelpers';
  *
  * Navržené rozhraní: žádné nové, jen `ColoringLayout.sizeButtons` má
  * 4 obdélníky v pořadí `LINE_SIZES` (nejtenčí, malá, střední, velká),
- * `lineSizeWave(button, 'tiny')`, `handleColorDot(handle, 'tiny')`
+ * `lineSizeWave(button, 'tiny')`, `quickToolColorDot(slot, 'tiny')` (#164)
  * a `touchTargetAt` vrací `{ kind: 'lineSize', size: 'tiny' }`.
  */
 
@@ -222,7 +222,7 @@ describe('#118 AC1: čtyři tlačítka tloušťky v hlavičce kroku nástrojů',
   });
 });
 
-describe('#118 AC3: vlnky a kolečko barvy v úchytu', () => {
+describe('#118 AC3: vlnky a kolečko barvy', () => {
   it('vlnky jsou ve všech oknech od nejtenčí silnější, každá aspoň 1,5× předchozí', () => {
     for (const testCase of toolStepCases()) {
       const widths = ALL_SIZES.map(
@@ -252,19 +252,16 @@ describe('#118 AC3: vlnky a kolečko barvy v úchytu', () => {
     }
   });
 
-  it('u nejtenčí je kolečko barvy v úchytu stejně velké a na stejném místě jako u malé', () => {
+  // Upraveno k #164 AC4: kolečko velké podle velikosti čáry je na prvním
+  // tlačítku rychlého přepínání. Úchyt má stálý symbol panelu, který na
+  // velikosti čáry nezávisí vůbec (`handleSymbol.test.ts`), proto test
+  // „ikona v úchytu u nejtenčí na stejném místě jako u malé“ nahrazuje tamní AC1.
+  it('u nejtenčí je kolečko barvy na prvním tlačítku stejně velké a na stejném místě jako u malé', () => {
     for (const testCase of cases()) {
-      const { handle } = testCase.layout;
-      expect(handleColorDot(handle, 'tiny'), testCase.scene.label).toEqual(
-        handleColorDot(handle, 'small'),
+      const button = testCase.layout.quickDrawingToolButton;
+      expect(quickToolColorDot(button, 'tiny'), testCase.scene.label).toEqual(
+        quickToolColorDot(button, 'small'),
       );
-    }
-  });
-
-  it('u nejtenčí je ikona nástroje v úchytu na stejném místě jako u malé', () => {
-    for (const testCase of cases()) {
-      const { handle } = testCase.layout;
-      expect(handleFace(handle, 'tiny'), testCase.scene.label).toEqual(handleFace(handle, 'small'));
     }
   });
 });

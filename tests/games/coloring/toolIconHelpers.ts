@@ -2,22 +2,24 @@
  * Pomůcky pro testy ikon nástrojů Omalovánek (#106 v novém znění po
  * připomínce vlastníka): ikony jsou hotové obrázky z Google Noto Emoji
  * (Apache-2.0, balíček `@iconify-json/noto`) uložené jako SVG v repozitáři,
- * vybranou barvu v úchytu ukazuje barevné kolečko v rohu (místo tečky
- * velikosti čáry z #91).
+ * vybranou barvu ukazuje barevné kolečko v rohu (místo tečky velikosti
+ * čáry z #91), od #164 na prvním tlačítku rychlého přepínání místo úchytu.
+ * Úchyt má od #164 stálý symbol panelu (paleta Noto, `HANDLE_ICON_FILE`).
  *
  * Navržené rozhraní (popis v `toolIconAssets.test.ts`):
  * - `toolIconAsset(tool)` v `src/games/coloring/logic/toolIcons.ts`: jméno
  *   emoji a soubor SVG ve složce `ICON_FOLDER`,
  * - `handleColorDotFill(view)` tamtéž: čím je kolečko barvy vyplněné,
- * - `handleColorDot(handle, size)` v `src/games/coloring/logic/coloringLayout.ts`:
- *   kruh barevné výplně kolečka v herních jednotkách,
+ * - `quickToolColorDot(slot, size)` v `src/games/coloring/logic/coloringLayout.ts`:
+ *   kruh barevné výplně kolečka na prvním tlačítku v herních jednotkách,
+ * - `handleSymbol(handle)` tamtéž: čtverec symbolu panelu v úchytu,
  * - `HANDLE_COLOR_DOT_STYLE` v `src/games/coloring/logic/theme.ts`: bílý
  *   lem a šedá linka v CSS px, bílá výplň a čárkování gumy.
  */
 
 import {
-  handleColorDot,
-  handleFace,
+  handleSymbol,
+  quickToolColorDot,
   toolSlotIcon,
 } from '../../../src/games/coloring/logic/coloringLayout';
 import { PALETTE, RAINBOW_COLORS } from '../../../src/games/coloring/logic/palette';
@@ -165,9 +167,14 @@ export function externalReferences(svg: string): string[] {
 // Rozložení (CSS px)
 // ---------------------------------------------------------------------------
 
-/** Čtverec ikony v úchytu v CSS px okna. */
-export function handleIconBox(testCase: ColoringCase, size: LineSize = 'medium'): Box {
-  return toCss(boxOfRect(handleFace(testCase.layout.handle, size).icon), testCase.area);
+/** Čtverec symbolu panelu v úchytu (#164) v CSS px okna. */
+export function handleSymbolBox(testCase: ColoringCase): Box {
+  return toCss(boxOfRect(handleSymbol(testCase.layout.handle)), testCase.area);
+}
+
+/** Čtverec ikony nástroje na prvním tlačítku rychlého přepínání v CSS px okna. */
+export function firstButtonIconBox(testCase: ColoringCase): Box {
+  return toCss(boxOfRect(toolSlotIcon(testCase.layout.quickDrawingToolButton)), testCase.area);
 }
 
 /** Čtverec ikony v místě nástroje `index` v panelu v CSS px okna. */
@@ -188,7 +195,7 @@ export function sideOfBox(box: Box): number {
   return Math.min(box.right - box.left, box.bottom - box.top);
 }
 
-/** Kolečko barvy v úchytu v CSS px okna. */
+/** Kolečko barvy na prvním tlačítku rychlého přepínání (#164 AC4) v CSS px okna. */
 export interface DotCss {
   readonly x: number;
   readonly y: number;
@@ -199,7 +206,7 @@ export interface DotCss {
 }
 
 export function colorDotCss(testCase: ColoringCase, size: LineSize): DotCss {
-  const dot = handleColorDot(testCase.layout.handle, size);
+  const dot = quickToolColorDot(testCase.layout.quickDrawingToolButton, size);
   const { scale, offsetX, offsetY } = testCase.area;
   const fillDiameter = dot.diameter * scale;
   return {

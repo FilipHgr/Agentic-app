@@ -2,10 +2,12 @@
  * Ikony nástrojů Omalovánek (#106 po připomínce vlastníka): hotové obrázky
  * z Google Noto Emoji (Apache-2.0, Google Inc., balíček `@iconify-json/noto`)
  * uložené jako SVG ve složce `src/games/coloring/icons/`. Ikony zůstávají
- * v barvách autora, panel, hlavička kroku barev i úchyt kreslí pro nástroj
- * stejný soubor, jen jinak velký. Barvu nástroje ukazuje barevné kolečko
- * v rohu úchytu a od #110 i u každého nástroje v kroku nástrojů
- * (`handleColorDotFill`). Čistý TypeScript bez Phaseru.
+ * v barvách autora, panel, hlavička kroku barev i pruh rychlého přepínání
+ * kreslí pro nástroj stejný soubor, jen jinak velký. Barvu nástroje
+ * ukazuje barevné kolečko u každého nástroje v kroku nástrojů (#110) a na
+ * prvním tlačítku rychlého přepínání (#164, dřív v rohu úchytu), viz
+ * `handleColorDotFill`. Úchyt má od #164 stálý symbol panelu
+ * (`HANDLE_ICON_FILE`). Čistý TypeScript bez Phaseru.
  */
 
 import { PALETTE, RAINBOW_COLORS } from './palette';
@@ -61,6 +63,13 @@ export const TRASH_ICON_FILE = 'action-trash.webp';
 export const BROOM_ICON_FILE = 'action-broom.webp';
 
 /**
+ * Stálý symbol panelu v úchytu (#164 AC1): paleta 🎨 (U+1F3A8,
+ * „artist-palette“) ze stejné sady Noto. Nemění se s nástrojem, barvou,
+ * velikostí čáry ani gumou, aby se úchyt nepletl s tlačítkem nástroje.
+ */
+export const HANDLE_ICON_FILE = 'artist-palette.svg';
+
+/**
  * Zámek zamčené omalovánky 🔒 (U+1F512, „locked“) a otevřený zámek 🔓
  * (U+1F513, „unlocked“) po odemčení (#140) ze stejné sady.
  */
@@ -82,7 +91,7 @@ export function toolIconAsset(tool: ToolId): ToolIconAsset {
   return { emoji, file: `${emoji}.svg` };
 }
 
-/** Čím je vyplněné kolečko barvy v úchytu a u nástroje v panelu. */
+/** Čím je vyplněné kolečko barvy u nástroje v panelu a na prvním tlačítku rychlého přepínání. */
 export type HandleColorDotFill =
   | { readonly kind: 'color'; readonly hex: string }
   | { readonly kind: 'eraser' }
@@ -92,9 +101,10 @@ export type HandleColorDotFill =
 const RAINBOW_HEXES: readonly string[] = RAINBOW_COLORS.map((index) => PALETTE[index]?.hex ?? '');
 
 /**
- * Kolečko barvy nástroje `view.tool` v úchytu i v panelu: malovací nástroj
- * ve své barvě `view.color` (#110), i z vlastní sady nástroje (#116), guma bílé čárkované, duhový
- * štětec v barvách duhy. Velikost čáry kolečko nevyplňuje.
+ * Kolečko barvy nástroje `view.tool` v panelu a na prvním tlačítku
+ * rychlého přepínání (#164 AC4): malovací nástroj ve své barvě
+ * `view.color` (#110), i z vlastní sady nástroje (#116), guma bílé
+ * čárkované, duhový štětec v barvách duhy. Velikost čáry kolečko nevyplňuje.
  */
 export function handleColorDotFill(view: HandleView): HandleColorDotFill {
   if (view.tool === 'eraser') {

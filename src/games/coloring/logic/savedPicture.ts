@@ -303,8 +303,8 @@ export interface SavedColoring {
   tapColor(index: number): readonly Tone[];
   /**
    * Co ukazuje první tlačítko v pruhu (#163 AC1): vybraný kreslicí nástroj,
-   * s vybranou gumou ten těsně před ní, a barva jeho kolečka jako v úchytu
-   * (u duhy `null`). Nikdy guma a nikdy prázdné.
+   * s vybranou gumou ten těsně před ní, a barva jeho kolečka (vlastní barva
+   * nástroje, u duhy `null`). Nikdy guma a nikdy prázdné.
    */
   quickDrawingTool(): QuickDrawingToolView;
   /**
@@ -363,8 +363,9 @@ export interface SavedColoring {
    */
   tapBackToTools(): readonly Tone[];
   /**
-   * Co ukazuje úchyt: vybraný nástroj v jeho barvě (#110 AC2), guma a duha
-   * bez barvy, a vybraná velikost (#96 AC5, #90, #91, #97).
+   * Vybraný nástroj v jeho barvě (#110 AC2), guma a duha bez barvy,
+   * a vybraná velikost (#96 AC5, #90, #91, #97). Do #164 to ukazoval úchyt,
+   * scéna to dnes nečte (výběr ukazuje panel a pruh), čtou to testy.
    */
   handleView(): HandleView;
   /** Vybraná velikost čáry (#91). */
@@ -776,7 +777,7 @@ export function openColoring(options: {
     }
   };
 
-  /** Co ukazuje první tlačítko: kreslicí nástroj s barvou jako v úchytu. */
+  /** Co ukazuje první tlačítko: kreslicí nástroj s jeho vlastní barvou. */
   const quickDrawingTool = (): QuickDrawingToolView => ({
     tool: drawingTool,
     color: isColorTool(drawingTool) ? toolColors[drawingTool] : null,

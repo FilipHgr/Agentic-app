@@ -57,7 +57,7 @@ import {
   lineSizeWaveLook,
   markedTools,
 } from '../logic/toolPanel';
-import type { HandleView, LineSize, PanelView, ToolId } from '../logic/toolPanel';
+import type { LineSize, PanelView, ToolId } from '../logic/toolPanel';
 import { BroomSweepView } from './BroomSweepView';
 import { CameraPhotoView } from './CameraPhotoView';
 import { GlitterShineView } from './GlitterShineView';
@@ -521,17 +521,9 @@ export class ColoringScene extends Phaser.Scene {
     };
   }
 
-  /**
-   * Úchyt ukazuje vybraný nástroj v jeho barvě, gumu bez barvy
-   * a tečku velikosti (#96 AC5, #90 AC1, #91 AC1).
-   */
+  /** Úchyt má stálý symbol panelu (#164), mění se jen šipka podle stavu panelu. */
   private showHandle(open: boolean): void {
-    const view: HandleView = this.coloring?.handleView() ?? {
-      tool: INITIAL_TOOL,
-      color: this.paletteBeforeReady.selected,
-      size: INITIAL_LINE_SIZE,
-    };
-    this.handleView.show(view, open);
+    this.handleView.show(open);
   }
 
   /**
@@ -543,16 +535,15 @@ export class ColoringScene extends Phaser.Scene {
     this.showHandle(this.isPanelOpen());
   }
 
-  /** Vybraná barva, nástroj a velikost v panelu i v úchytu, kreslicí nástroj a guma v pruhu. */
+  /** Vybraná barva, nástroj a velikost v panelu, kreslicí nástroj a guma v pruhu. */
   private showSelection(): void {
     this.panelView.mark(this.panelSelection());
-    this.showHandle(this.isPanelOpen());
     this.showQuickTools();
   }
 
   /**
    * Kreslicí nástroj a guma v pruhu (#163); dokud se obrázek připravuje,
-   * je na prvním tlačítku vybraný štětec s barvou jako v úchytu.
+   * je na prvním tlačítku vybraný štětec s barvou, kterou má štětec.
    */
   private showQuickTools(): void {
     this.quickToolsView.show({
@@ -561,6 +552,7 @@ export class ColoringScene extends Phaser.Scene {
         color: this.paletteBeforeReady.selected,
       },
       eraserSelected: this.selectedTool() === 'eraser',
+      lineSize: this.lineSize(),
     });
   }
 

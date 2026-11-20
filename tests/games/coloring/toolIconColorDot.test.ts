@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { PALETTE } from '../../../src/games/coloring/logic/palette';
-import { HANDLE_COLOR_DOT_STYLE, HANDLE_STYLE } from '../../../src/games/coloring/logic/theme';
+import {
+  COLOR_BUTTON_STYLE,
+  HANDLE_COLOR_DOT_STYLE,
+} from '../../../src/games/coloring/logic/theme';
 import { handleColorDotFill } from '../../../src/games/coloring/logic/toolIcons';
 import { contrastRatio } from '../../../src/shared/logic/theme';
 import {
@@ -18,13 +21,16 @@ import {
 } from './toolIconHelpers';
 
 /**
- * Testy kolečka barvy v úchytu k #106 v novém znění (vybraná barva):
- * ikony zůstávají v barvách autora a vybranou barvu ukazuje barevné
- * kolečko v rohu úchytu s bílým lemem a šedou linkou. U gumy je bílé
+ * Testy kolečka barvy k #106 v novém znění (vybraná barva): ikony
+ * zůstávají v barvách autora a vybranou barvu ukazuje barevné kolečko
+ * s bílým lemem a šedou linkou, od #164 v rohu prvního tlačítka rychlého
+ * přepínání a u nástrojů v panelu místo v rohu úchytu (podklad tlačítek je
+ * stejný jako podklad úchytu). U gumy je bílé
  * a čárkované, u duhového štětce duhové. Z dřívějších AC3 (kontrast)
  * a AC6 (vybraná barva v ikoně) zůstává, že kolečko je vidět i ve
  * světlých barvách a že ukazuje vybranou barvu. Velikost a místo
- * kolečka v rozložení jsou v `toolIconLayoutRules.test.ts`.
+ * kolečka v rozložení jsou v `quickToolColorDotLayoutRules.test.ts`
+ * a `toolIconSlotDotLayoutRules.test.ts`.
  *
  * Navržené rozhraní:
  * - `src/games/coloring/logic/toolIcons.ts`:
@@ -33,7 +39,7 @@ import {
  *      | { readonly kind: 'eraser' }
  *      | { readonly kind: 'rainbow'; readonly hexes: readonly string[] }`,
  *   `handleColorDotFill(view: HandleView): HandleColorDotFill` čím je
- *   kolečko v úchytu vyplněné (malovací nástroj barvou `view.color` z palety,
+ *   kolečko vyplněné (malovací nástroj barvou `view.color` z palety,
  *   guma bíle a čárkovaně, duha odstíny duhy v pořadí #97),
  * - `src/games/coloring/logic/theme.ts`:
  *   `HANDLE_COLOR_DOT_STYLE = { rimColor: '#FFFFFF', rimCss, lineColor, lineCss,
@@ -44,7 +50,7 @@ import {
 
 const YELLOW = 2;
 
-/** Světlé barvy palety, které na pozadí úchytu samy skoro nejsou vidět. */
+/** Světlé barvy palety, které na pozadí tlačítka samy skoro nejsou vidět. */
 const LIGHT_COLORS = PALETTE.flatMap((color, index) =>
   contrastRatio(color.hex, HANDLE_BACKGROUND) < MIN_CONTRAST ? [index] : [],
 );
@@ -57,7 +63,7 @@ function isGray(hex: string): boolean {
   return spread <= 16 && average > 40 && average < 215;
 }
 
-describe('#106 vybraná barva: kolečko v úchytu ukazuje barvu nástroje', () => {
+describe('#106 vybraná barva: kolečko ukazuje barvu nástroje', () => {
   it('u malovacího nástroje je kolečko ve vybrané barvě palety, v každé z 12 barev jiné', () => {
     for (const tool of COLOR_TOOLS) {
       const hexes = PALETTE.map((_, color) => {
@@ -109,12 +115,13 @@ describe('#106 vybraná barva: kolečko je vidět v každé barvě díky lemu', 
     expect(HANDLE_COLOR_DOT_STYLE.lineCss, 'linka aspoň 1 px').toBeGreaterThanOrEqual(MIN_LINE_CSS);
   });
 
-  it('šedá linka je vidět na pozadí úchytu i vedle bílého lemu (kontrast aspoň 3 : 1)', () => {
-    expect(sameHex(HANDLE_STYLE.background, HANDLE_BACKGROUND), 'pozadí úchytu').toBe(true);
+  it('šedá linka je vidět na pozadí tlačítka i vedle bílého lemu (kontrast aspoň 3 : 1)', () => {
+    expect(sameHex(COLOR_BUTTON_STYLE.background, HANDLE_BACKGROUND), 'pozadí tlačítka').toBe(true);
     const line = HANDLE_COLOR_DOT_STYLE.lineColor;
-    expect(contrastRatio(line, HANDLE_BACKGROUND), 'linka na pozadí úchytu').toBeGreaterThanOrEqual(
-      MIN_CONTRAST,
-    );
+    expect(
+      contrastRatio(line, HANDLE_BACKGROUND),
+      'linka na pozadí tlačítka',
+    ).toBeGreaterThanOrEqual(MIN_CONTRAST);
     expect(
       contrastRatio(line, HANDLE_COLOR_DOT_STYLE.rimColor),
       'linka vedle bílého lemu',
@@ -135,7 +142,7 @@ describe('#106 vybraná barva: kolečko je vidět v každé barvě díky lemu', 
           contrastRatio(fill.hex, HANDLE_BACKGROUND),
           contrastRatio(line, HANDLE_BACKGROUND),
         ),
-        `${fill.name}: hrana kolečka na pozadí úchytu`,
+        `${fill.name}: hrana kolečka na pozadí tlačítka`,
       ).toBeGreaterThanOrEqual(MIN_CONTRAST);
     }
   });

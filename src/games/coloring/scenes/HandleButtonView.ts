@@ -1,27 +1,24 @@
 /**
  * Úchyt panelu nástrojů (#96 AC2, AC5) se zástupným vzhledem A3: tlačítko
- * s modrým okrajem, uvnitř ikona vybraného nástroje v barvách autora
- * (Noto Emoji, #106), v pravém dolním rohu kolečko vybrané barvy velké
- * podle velikosti čáry (#91, #106; guma bílé čárkované, duha duhové)
- * a malá šipka, kam se panel po ťuknutí pohne. Kam se kreslí ikona,
- * kolečko a šipka, určují `handleFace` a `handleArrowShape`. Ťuknutí
- * pozná scéna přes `touchTargetAt`.
+ * s běžným okrajem nevybraného tlačítka (#164 AC2), uvnitř stálý symbol
+ * panelu, paleta 🎨 z Noto Emoji s tmavým obrysem (#164 AC1, AC5), a malá
+ * šipka, kam se panel po ťuknutí pohne. Vybraný nástroj a jeho barvu
+ * ukazuje první tlačítko rychlého přepínání, ne úchyt. Kam se kreslí symbol a šipka, určují
+ * `handleSymbol` a `handleArrowShape`. Ťuknutí pozná scéna přes `touchTargetAt`.
  */
 
 import Phaser from 'phaser';
 
 import { colorNumber } from '../../../shared/logic/theme';
-import { handleArrowShape, handleFace } from '../logic/coloringLayout';
+import { handleArrowShape, handleSymbol } from '../logic/coloringLayout';
 import type { ColoringLayout, LayoutRect } from '../logic/coloringLayout';
 import { HANDLE_STYLE } from '../logic/theme';
-import { handleColorDotFill } from '../logic/toolIcons';
-import type { HandleView } from '../logic/toolPanel';
-import { drawColorDot } from './colorDot';
-import { showToolIcon } from './toolIconTextures';
+import { HANDLE_ICON_FILE } from '../logic/toolIcons';
+import { iconWithOutlineTexture } from './toolIconTextures';
 
 export class HandleButtonView {
   private graphics: Phaser.GameObjects.Graphics | null = null;
-  /** Ikona nástroje nad grafikou úchytu, počátek v levém horním rohu úchytu. */
+  /** Symbol panelu nad grafikou úchytu, počátek v levém horním rohu úchytu. */
   private icon: Phaser.GameObjects.Image | null = null;
   private rect: LayoutRect | null = null;
   private slidesFrom: ColoringLayout['panelSlidesFrom'] = 'left';
@@ -44,15 +41,12 @@ export class HandleButtonView {
       .setVisible(false);
   }
 
-  /**
-   * Překreslí úchyt hned (#106 AC6): ikona nástroje a kolečko barvy
-   * a velikosti z `view`, šipka podle stavu panelu.
-   */
-  show(view: HandleView, panelOpen: boolean): void {
+  /** Překreslí úchyt: podklad, okraj a symbol jsou stálé, šipka podle stavu panelu. */
+  show(panelOpen: boolean): void {
     const graphics = this.graphics;
-    const iconImage = this.icon;
+    const symbolImage = this.icon;
     const rect = this.rect;
-    if (graphics === null || iconImage === null || rect === null) {
+    if (graphics === null || symbolImage === null || rect === null) {
       return;
     }
     graphics.clear();
@@ -71,15 +65,7 @@ export class HandleButtonView {
       rect.height - borderWidth,
       Math.max(0, radius - inset),
     );
-    // `handleFace` počítá v herních jednotkách; grafika má počátek v levém horním rohu úchytu.
-    const { icon, colorDot } = handleFace({ ...rect, left: 0, top: 0 }, view.size);
-    showToolIcon(
-      iconImage,
-      view.tool,
-      { ...icon, left: rect.left + icon.left, top: rect.top + icon.top },
-      this.cssScale,
-    );
-    drawColorDot(graphics, colorDot, handleColorDotFill(view), this.cssScale);
+    this.showSymbol(symbolImage, rect);
     this.drawArrow(graphics, rect, panelOpen);
   }
 
@@ -88,6 +74,34 @@ export class HandleButtonView {
     this.icon?.destroy();
     this.graphics = null;
     this.icon = null;
+  }
+
+  /**
+   * Paleta přes čtverec z `handleSymbol` s tmavým obrysem vně tvaru
+   * (#164 AC5); bez načteného SVG se schová a úchyt funguje dál.
+   */
+  private showSymbol(image: Phaser.GameObjects.Image, rect: LayoutRect): void {
+    const symbol = handleSymbol(rect);
+    const style = HANDLE_STYLE;
+    const key = iconWithOutlineTexture(
+      this.scene,
+      HANDLE_ICON_FILE,
+      symbol.width * this.cssScale,
+      style.symbolOutlineCss,
+      style.symbolOutlineColor,
+    );
+    if (key === null) {
+      image.setVisible(false);
+      return;
+    }
+    // Textura je o obrys větší na každé straně, ikona v ní zůstane na místě `symbol`.
+    const outline = style.symbolOutlineCss / this.cssScale;
+    image
+      .setTexture(key)
+      .setOrigin(0, 0)
+      .setPosition(symbol.left - outline, symbol.top - outline)
+      .setDisplaySize(symbol.width + 2 * outline, symbol.width + 2 * outline)
+      .setVisible(true);
   }
 
   /**

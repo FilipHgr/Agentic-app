@@ -117,6 +117,87 @@ export function showToolIcon(
     .setVisible(true);
 }
 
+/** Naposledy vytvořená textura ikony s obrysem podle souboru a barvy (po otočení se stará smaže). */
+const latestOutlinedKeys = new Map<string, string>();
+
+/** Kolik posunů siluety skládá obrys ikony s obrysem a na kolika vzdálenostech. */
+const OUTLINED_STEPS = 24;
+const OUTLINED_RINGS = 4;
+
+/**
+ * Klíč ostré textury ikony `file` s tmavým obrysem vně tvaru (#164 AC5),
+ * nebo `null`, když se SVG nenačetlo. Ikona má stranu `sideCss` CSS px,
+ * obrys šířku `outlineCss` CSS px v barvě `color`; textura je o obrys
+ * větší na každé straně, ikona je v ní uprostřed beze změny kresby.
+ */
+export function iconWithOutlineTexture(
+  scene: Phaser.Scene,
+  file: string,
+  sideCss: number,
+  outlineCss: number,
+  color: string,
+): string | null {
+  const plain = iconFileTexture(scene, file, sideCss);
+  if (plain === null) {
+    return null;
+  }
+  const outlinePixels = Math.max(1, Math.round(outlineCss * CANVAS_PIXELS_PER_CSS_PX));
+  const key = `${plain}:outlined:${outlinePixels}:${color}`;
+  if (scene.textures.exists(key)) {
+    return key;
+  }
+  const family = `${file}:outlined:${color}`;
+  const previous = latestOutlinedKeys.get(family);
+  if (previous !== undefined && scene.textures.exists(previous)) {
+    scene.textures.remove(previous);
+  }
+  const source = scene.textures.get(plain).getSourceImage();
+  if (!(source instanceof HTMLCanvasElement)) {
+    return null;
+  }
+  const pixels = source.width + 2 * outlinePixels;
+  const texture = scene.textures.createCanvas(key, pixels, pixels);
+  if (texture === null) {
+    return null;
+  }
+  drawWithOutline(texture.context, source, outlinePixels, color);
+  texture.refresh();
+  latestOutlinedKeys.set(family, key);
+  return key;
+}
+
+/** Silueta ikony v barvě `color` posunutá dokola do vzdálenosti `width`, nahoře ikona. */
+function drawWithOutline(
+  context: CanvasRenderingContext2D,
+  source: HTMLCanvasElement,
+  width: number,
+  color: string,
+): void {
+  const silhouette = document.createElement('canvas');
+  silhouette.width = source.width;
+  silhouette.height = source.height;
+  const shape = silhouette.getContext('2d');
+  if (shape === null) {
+    return;
+  }
+  shape.drawImage(source, 0, 0);
+  shape.globalCompositeOperation = 'source-in';
+  shape.fillStyle = color;
+  shape.fillRect(0, 0, silhouette.width, silhouette.height);
+  for (let ring = 1; ring <= OUTLINED_RINGS; ring += 1) {
+    const distance = (width * ring) / OUTLINED_RINGS;
+    for (let step = 0; step < OUTLINED_STEPS; step += 1) {
+      const angle = (step / OUTLINED_STEPS) * 2 * Math.PI;
+      context.drawImage(
+        silhouette,
+        width + Math.cos(angle) * distance,
+        width + Math.sin(angle) * distance,
+      );
+    }
+  }
+  context.drawImage(source, width, width);
+}
+
 /** Jak se ikona překreslí: jen obrys tvaru (#140 ukazatel s 0 klíči, #159 obrys celého klíče). */
 export type IconVariant = 'outline';
 

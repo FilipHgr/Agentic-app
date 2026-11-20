@@ -5,6 +5,7 @@ import {
   BROOM_ICON_FILE,
   CAMERA_ICON_FILE,
   CONTINUE_ICON_FILE,
+  HANDLE_ICON_FILE,
   KEY_HEAD_ICON_FILE,
   KEY_ICON_FILE,
   LOCK_ICON_FILE,
@@ -46,7 +47,7 @@ import {
  *   `file` je jméno souboru (např. `paintbrush.svg`) ve složce
  *   `src/games/coloring/icons/`,
  * - `toolIconAsset(tool: ToolId): ToolIconAsset`. Ikona nezávisí na barvě:
- *   panel, hlavička kroku barev i úchyt kreslí pro nástroj stejný soubor,
+ *   panel, hlavička kroku barev i pruh kreslí pro nástroj stejný soubor,
  *   jen jinak velký. Scéna soubory načte jako součást balíčku hry (Vite
  *   import z `src/games/coloring/icons/`, např. `import.meta.glob` s `?url`),
  *   ne z cizího serveru.
@@ -90,7 +91,8 @@ describe('#106 AC1: každý nástroj má ikonu z hotové sady Google Noto Emoji'
     // k #142 koště v malování. Klíč z #140 je k #139/#140 obrázek WebP (test níž).
     // Upraveno k #153: fotoaparát, kniha, koš a koště jsou nové ikony WebP
     // z ElevenLabs (test níž a actionIcons.test.ts), jako SVG zůstávají jen zámky.
-    const buttonIcons = [LOCK_ICON_FILE, UNLOCKED_ICON_FILE].map(
+    // Upraveno k #164: navíc paleta v úchytu panelu (handleSymbol.test.ts).
+    const buttonIcons = [LOCK_ICON_FILE, UNLOCKED_ICON_FILE, HANDLE_ICON_FILE].map(
       (file) => `${ICON_FOLDER}/${file}`,
     );
     expect(iconFolderFiles(), `soubory ve složce ${ICON_FOLDER}`).toEqual(

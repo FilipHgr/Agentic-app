@@ -7,7 +7,7 @@
  * fix, třpytky a sprej (`PANEL_TOOLS`, #90, #93, #97, #98, #101–#104).
  * Krok barev má v hlavičce vybraný nástroj a v těle 12 barev. Ikony
  * nástrojů jsou hotová SVG z Noto Emoji v barvách autora (#106). Barvu
- * nástroje ukazuje kolečko vpravo dole jako v úchytu (#110 AC2), v kroku
+ * nástroje ukazuje kolečko vpravo dole (#110 AC2), v kroku
  * nástrojů u každého nástroje a v hlavičce kroku barev u vybraného.
  * Vybraný nástroj, barva i tloušťka mají silný modrý okraj. Kroky se
  * vystřídají prolnutím do 0,2 s, karta se přitom nehne.

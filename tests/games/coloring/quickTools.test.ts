@@ -106,7 +106,9 @@ describe('#163 AC1: první tlačítko ukazuje kreslicí nástroj', () => {
     }
   });
 
-  it('duha je na prvním tlačítku bez kolečka barvy', () => {
+  // Upraveno k #164 AC4: duha nemá barvu palety, ale na prvním tlačítku má
+  // duhové kolečko jako dřív v úchytu (handleSymbol.test.ts).
+  it('duha je na prvním tlačítku bez barvy palety', () => {
     const game = withSelected('rainbow');
 
     expect(firstButton(game)).toEqual({ tool: 'rainbow', color: null });

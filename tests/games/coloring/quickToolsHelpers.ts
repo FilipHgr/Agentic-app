@@ -2,8 +2,8 @@
  * Pomůcky pro testy k #148 a #163 (rychlé přepínání jen mezi kreslicím
  * nástrojem a gumou místo nedávných barev z #99). V pruhu jsou dvě
  * tlačítka: **první** ukazuje kreslicí nástroj (vybraný, s vybranou gumou
- * ten těsně před gumou; ikonu a kolečko jeho barvy jako úchyt, duha bez
- * kolečka), **druhé** je vždy guma.
+ * ten těsně před gumou; ikonu a kolečko jeho barvy, od #164 velké podle
+ * velikosti čáry a u duhy duhové), **druhé** je vždy guma.
  *
  * Rozhraní (`src/games/coloring/logic/savedPicture.ts`, pole `SavedColoring`):
  * - `quickDrawingTool(): QuickDrawingToolView`, co ukazuje první tlačítko:

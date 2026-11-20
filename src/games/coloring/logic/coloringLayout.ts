@@ -676,16 +676,18 @@ export function touchTargetAt(
 }
 
 // ---------------------------------------------------------------------------
-// Kolečko barvy v úchytu (#106) a vlnka tloušťky (#112)
+// Symbol úchytu (#164), kolečko barvy podle velikosti čáry (#91, #106, #164)
+// a vlnka tloušťky (#112)
 // ---------------------------------------------------------------------------
 
 /**
- * Kolečko barvy v úchytu (#106): průměr barevné výplně jako díl strany
- * úchytu podle velikosti čáry. Úchyt má aspoň 64 CSS px, malé kolečko má
- * tak aspoň 12 CSS px, velké i s bílým lemem a šedou linkou (2 + 1 CSS px
- * na každé straně) nejvýš 0,32 strany jako v maketě `sada-1.png`.
+ * Kolečko barvy podle velikosti čáry (#91, #106, od #164 na prvním tlačítku
+ * rychlého přepínání): průměr barevné výplně jako díl strany tlačítka.
+ * Tlačítko má aspoň 64 CSS px, malé kolečko má tak aspoň 12 CSS px, velké
+ * i s bílým lemem a šedou linkou (2 + 1 CSS px na každé straně) nejvýš
+ * 0,32 strany jako v maketě `sada-1.png`.
  */
-const HANDLE_COLOR_DOT_SHARES: Readonly<Record<LineSize, number>> = {
+const LINE_SIZE_COLOR_DOT_SHARES: Readonly<Record<LineSize, number>> = {
   // U nejtenčí stejně velké jako u malé (#118 AC3), velikosti se nemění.
   tiny: 12 / 64,
   small: 12 / 64,
@@ -694,57 +696,31 @@ const HANDLE_COLOR_DOT_SHARES: Readonly<Record<LineSize, number>> = {
 };
 
 /**
- * Střed kolečka barvy jako díl strany od levého horního rohu úchytu:
- * v pravém dolním rohu uvnitř modrého okraje a zaobleného rohu a mimo
- * šipku panelu (na šířku vpravo uprostřed výšky, na výšku dole uprostřed
- * šířky).
+ * Symbol panelu v úchytu (#164 AC1): čtverec tohoto dílu strany vodorovně
+ * uprostřed a posunutý nahoru, se stejným středem jako dřív ikona nástroje,
+ * aby se vešel mezi šipky obou orientací (vlevo a vpravo uprostřed výšky na
+ * šířku, dole uprostřed na výšku). Proti ikoně (0,48) je o kousek menší,
+ * aby se šipky nedotkl ani tmavý obrys 2 CSS px kolem palety (#164 AC5).
  */
-const HANDLE_COLOR_DOT_CENTER_SHARE = 0.792;
-
-/**
- * Ikona nástroje v úchytu: čtverec tohoto dílu strany vodorovně uprostřed
- * a posunutý nahoru, aby se vešel mezi šipky obou orientací (vlevo
- * a vpravo uprostřed výšky na šířku, dole uprostřed na výšku) a nepřekrýval
- * kolečko barvy.
- */
-const HANDLE_ICON_SHARE = 0.48;
-const HANDLE_ICON_CENTER_X_SHARE = 0.5;
-const HANDLE_ICON_CENTER_Y_SHARE = 0.35;
+const HANDLE_SYMBOL_SHARE = 0.45;
+const HANDLE_SYMBOL_CENTER_X_SHARE = 0.5;
+const HANDLE_SYMBOL_CENTER_Y_SHARE = 0.35;
 
 function sideOf(rect: LayoutRect): number {
   return Math.min(rect.width, rect.height);
 }
 
 /**
- * Kam úchyt kreslí ikonu vybraného nástroje a kolečko barvy (#91 AC1,
- * #106): ikona nahoře uprostřed, kolečko vpravo dole (`handleColorDot`).
- * Velikost čáry mění jen kolečko, ikona zůstává stejná.
+ * Kam úchyt kreslí svůj stálý symbol panelu (#164 AC1): nahoře uprostřed.
+ * Nezávisí na nástroji, barvě ani velikosti čáry.
  */
-export function handleFace(
-  handle: LayoutRect,
-  size: LineSize,
-): { readonly icon: LayoutRect; readonly colorDot: LayoutCircle } {
-  const iconSide = sideOf(handle) * HANDLE_ICON_SHARE;
-  const icon = {
-    left: handle.left + handle.width * HANDLE_ICON_CENTER_X_SHARE - iconSide / 2,
-    top: handle.top + handle.height * HANDLE_ICON_CENTER_Y_SHARE - iconSide / 2,
-    width: iconSide,
-    height: iconSide,
-  };
-  return { icon, colorDot: handleColorDot(handle, size) };
-}
-
-/**
- * Barevná výplň kolečka barvy v pravém dolním rohu úchytu (#106): s tlustší
- * čárou větší. `diameter` je průměr výplně, bílý lem a šedá linka
- * z `HANDLE_COLOR_DOT_STYLE` se kreslí vně.
- */
-export function handleColorDot(handle: LayoutRect, size: LineSize): LayoutCircle {
-  const side = sideOf(handle);
+export function handleSymbol(handle: LayoutRect): LayoutRect {
+  const side = sideOf(handle) * HANDLE_SYMBOL_SHARE;
   return {
-    centerX: handle.left + handle.width - side * (1 - HANDLE_COLOR_DOT_CENTER_SHARE),
-    centerY: handle.top + handle.height - side * (1 - HANDLE_COLOR_DOT_CENTER_SHARE),
-    diameter: side * HANDLE_COLOR_DOT_SHARES[size],
+    left: handle.left + handle.width * HANDLE_SYMBOL_CENTER_X_SHARE - side / 2,
+    top: handle.top + handle.height * HANDLE_SYMBOL_CENTER_Y_SHARE - side / 2,
+    width: side,
+    height: side,
   };
 }
 
@@ -839,39 +815,51 @@ export function toolSlotIcon(slot: LayoutRect): LayoutRect {
 
 /**
  * Kolečko barvy nástroje v místě panelu (#110 AC2): stejně velké jako
- * střední kolečko v úchytu a stejně v pravém dolním rohu, ať je velikost
+ * střední kolečko na prvním tlačítku rychlého přepínání, ať je velikost
  * čáry jakákoli (velikost platí pro všechny nástroje a ukazují ji tlačítka tloušťky).
  */
-const TOOL_SLOT_COLOR_DOT_SHARE = HANDLE_COLOR_DOT_SHARES.medium;
+const TOOL_SLOT_COLOR_DOT_SHARE = LINE_SIZE_COLOR_DOT_SHARES.medium;
 
 /**
- * Odstup středu kolečka barvy od pravé i spodní hrany místa jako díl strany
- * (#114 AC1): na nejmenším místě 64 CSS px je to silný modrý okraj
- * vybraného nástroje (5 CSS px), bílý lem a šedá linka (2 + 1 CSS px),
- * 1 CSS px mezera a poloměr výplně (6,4 CSS px). Na větších místech je
- * mezera od okraje větší.
+ * Kolečko barvy s výplní `share` strany vpravo dole v tlačítku `slot`.
+ * Odstup středu od pravé i spodní hrany (#114 AC1): na nejmenším tlačítku
+ * 64 CSS px je to silný modrý okraj vybraného nástroje (5 CSS px), bílý
+ * lem a šedá linka (2 + 1 CSS px), 1 CSS px mezera a poloměr výplně. Na
+ * větších tlačítkách je mezera od okraje větší.
  */
-const TOOL_SLOT_COLOR_DOT_INSET_SHARE =
-  (COLOR_BUTTON_STYLE.selectedBorderWidthCss +
-    HANDLE_COLOR_DOT_STYLE.rimCss +
-    HANDLE_COLOR_DOT_STYLE.lineCss +
-    1) /
-    64 +
-  TOOL_SLOT_COLOR_DOT_SHARE / 2;
+function cornerColorDot(slot: LayoutRect, share: number): LayoutCircle {
+  const side = sideOf(slot);
+  const insetShare =
+    (COLOR_BUTTON_STYLE.selectedBorderWidthCss +
+      HANDLE_COLOR_DOT_STYLE.rimCss +
+      HANDLE_COLOR_DOT_STYLE.lineCss +
+      1) /
+      64 +
+    share / 2;
+  return {
+    centerX: slot.left + slot.width - side * insetShare,
+    centerY: slot.top + slot.height - side * insetShare,
+    diameter: side * share,
+  };
+}
 
 /**
  * Barevná výplň kolečka barvy nástroje vpravo dole v místě panelu (#110,
- * #114): `diameter` je průměr výplně, bílý lem a šedá linka se kreslí vně
- * jako v úchytu. Kolečko je celé uvnitř silného okraje vybraného nástroje
- * a u vybraného i nevybraného nástroje na stejném místě.
+ * #114): `diameter` je průměr výplně, bílý lem a šedá linka se kreslí vně.
+ * Kolečko je celé uvnitř silného okraje vybraného nástroje a u vybraného
+ * i nevybraného nástroje na stejném místě.
  */
 export function toolSlotColorDot(slot: LayoutRect): LayoutCircle {
-  const side = sideOf(slot);
-  return {
-    centerX: slot.left + slot.width - side * TOOL_SLOT_COLOR_DOT_INSET_SHARE,
-    centerY: slot.top + slot.height - side * TOOL_SLOT_COLOR_DOT_INSET_SHARE,
-    diameter: side * TOOL_SLOT_COLOR_DOT_SHARE,
-  };
+  return cornerColorDot(slot, TOOL_SLOT_COLOR_DOT_SHARE);
+}
+
+/**
+ * Kolečko barvy na prvním tlačítku rychlého přepínání (#164 AC4, dřív
+ * v úchytu z #91 a #106): v rohu jako u nástroje v panelu, s tlustší
+ * čárou větší. Celé zůstane uvnitř silného okraje vybraného tlačítka.
+ */
+export function quickToolColorDot(slot: LayoutRect, size: LineSize): LayoutCircle {
+  return cornerColorDot(slot, LINE_SIZE_COLOR_DOT_SHARES[size]);
 }
 
 /** Šipka úchytu: vrchol, délka ramene a tloušťka čáry v herních jednotkách. */
