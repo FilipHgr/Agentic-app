@@ -12,7 +12,9 @@
  * jednoho sloupce nevejdou, dva sloupce. Na menších telefonech se nejdřív
  * zúží mezery a pak zmenší kolečka (nejvýš na 92 px), nikde se neposouvá.
  * Rozestup koleček zůstává jako s tužkou u kolečka (#107, #113), aby se
- * mřížka po přesunu tužky do lišty nezměnila a kolečka nezmenšila.
+ * mřížka po přesunu tužky do lišty nezměnila a kolečka nezmenšila. Mřížka
+ * stojí vodorovně uprostřed volné plochy (#162); vedle lišty se kvůli tomu
+ * raději zúží mezery (kolečka nejméně 32 px od sebe).
  *
  * Formulář (obrázky „5 · Mřížka písmen“ a „6 · Formulář, 2. krok“):
  * - telefon na výšku: nahoře nadpis a „1 / 2“, pole, mřížka 5 sloupců,
@@ -153,6 +155,11 @@ const NICKNAME_LINE_HEIGHT = 20;
 const NICKNAME_GAP = 4;
 /** Přezdívka přesahuje kolečko z každé strany o 4 px (aby se i u 92 px vešlo 6 písmen W). */
 const NICKNAME_OVERHANG = 4;
+/**
+ * Nejmenší rozestup koleček vedle lišty, aby mřížka zůstala uprostřed
+ * (#162). Kde se nevejde ani s ním, mřížka se posune doleva od tužky.
+ */
+const CENTERED_MIN_CIRCLE_GAP = 32;
 
 /** Tužka v liště (#160): kulaté tlačítko 64 px. */
 const PENCIL_SIZE = BUTTON_SIZE;
@@ -300,8 +307,10 @@ function reachesBar(placement: PickerColumns, columns: number, circle: number, b
 }
 
 /**
- * Kolečka vedle lišty, když se vedle ní uprostřed nevejdou: co nejblíž
- * středu a s co největší mezerou, ale celá vlevo od tužky; jinak `null`.
+ * Kolečka vedle lišty, když pod lištou není místo: uprostřed okna a celá
+ * vlevo od tužky, s co největší mezerou, při nedostatku místa až
+ * `CENTERED_MIN_CIRCLE_GAP` (#162). Nevejdou-li se ani tak, co nejblíž
+ * středu vlevo od tužky; jinak `null`.
  */
 function columnsBesideBar(
   columns: number,
@@ -315,7 +324,7 @@ function columnsBesideBar(
   const halfBesideCenter = rightLimit - (free.left + widthOf(free) / 2);
   const centeredSpace = Math.min(rightLimit - leftLimit, 2 * halfBesideCenter);
   const columnGap =
-    gapThatFits(centeredSpace, columns, circle, metrics.circleGap, MIN_CIRCLE_GAP) ??
+    gapThatFits(centeredSpace, columns, circle, metrics.circleGap, CENTERED_MIN_CIRCLE_GAP) ??
     gapThatFits(rightLimit - leftLimit, columns, circle, MIN_CIRCLE_GAP, MIN_CIRCLE_GAP);
   if (columnGap === null) {
     return null;

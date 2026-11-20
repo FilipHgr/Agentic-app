@@ -50,7 +50,6 @@ export const PROFILE_SCENE_KEY = 'profiles';
 const UNIT = MENU_UNITS_PER_CSS_PX;
 
 /** Symboly v kódu (nejsou to texty jazyka). */
-const ADD_SYMBOL = '+';
 const BACKSPACE_SYMBOL = '⌫';
 const NICKNAME_STEP_COUNTER = '1 / 2';
 const COLOR_STEP_COUNTER = '2 / 2';
@@ -74,6 +73,14 @@ const CARET_WIDTH = 3;
 const SWATCH_RING = { gap: 3, width: 3 };
 /** Tužka v liště (#160, dřív u profilu #107): okraj 2 px a symbol 30 px v kolečku 64 px. */
 const PENCIL_BORDER = 2;
+/** Okraj „+“ (#162) stejně silný jako u tužky v liště. */
+const ADD_BORDER = PENCIL_BORDER;
+/**
+ * „+“ dvěma tučnými pruhy (#162): přes 40 % průměru kolečka, pruh silný
+ * 9 % průměru. Znak písma byl opticky moc malý.
+ */
+const ADD_PLUS_LENGTH_RATIO = 0.4;
+const ADD_PLUS_THICKNESS_RATIO = 0.09;
 const PENCIL_ICON_SIZE = 30;
 /** Odznak tužky na kolečku (#160): bílý okraj 3 px, tužka přes 1,2 poloměru. */
 const EDIT_BADGE_BORDER = 3;
@@ -557,7 +564,7 @@ export class ProfileScene extends Phaser.Scene {
       }
     });
     if (layout.add !== null) {
-      this.drawAddButton(layout.add, layout.symbolFontSize);
+      this.drawAddButton(layout.add);
     }
     this.drawLanguage(layout);
     this.drawEditPencil(layout.editPencil, screens.isEditing());
@@ -728,12 +735,33 @@ export class ProfileScene extends Phaser.Scene {
     return icon;
   }
 
-  private drawAddButton(box: MenuBox, fontSize: number): void {
-    const item = this.drawCircle(box, PROFILE_SCREEN_STYLE.addBackground, '', fontSize);
-    const plus = this.text(ADD_SYMBOL, fontSize, PROFILE_SCREEN_STYLE.addSymbol).setOrigin(0.5);
-    item.container.add(plus);
+  /** „+“ ve stylu aktivního tlačítka A3 (#162): světle modré kolečko s okrajem a modré „+“. */
+  private drawAddButton(box: MenuBox): void {
+    const item = this.tappable(box);
+    const diameter = (box.right - box.left) * UNIT;
+    const radius = diameter / 2;
+    const background = this.add.graphics();
+    background
+      .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.addBorder), 1)
+      .fillCircle(0, 0, radius)
+      .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.addBackground), 1)
+      .fillCircle(0, 0, radius - ADD_BORDER * UNIT);
+    item.container.add([background, this.plusIcon(diameter)]);
     // Ťuknutí hned otevře formulář nového profilu, bez kroužku (#109).
     this.region(box, item, () => undefined, { button: this.host.screens.addButton });
+  }
+
+  /** „+“ ze dvou tučných pruhů se zaoblenými konci uprostřed kolečka o průměru `diameter`. */
+  private plusIcon(diameter: number): Phaser.GameObjects.Graphics {
+    const length = diameter * ADD_PLUS_LENGTH_RATIO;
+    const thickness = diameter * ADD_PLUS_THICKNESS_RATIO;
+    const corner = thickness / 2;
+    const plus = this.add.graphics();
+    plus
+      .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.addSymbol), 1)
+      .fillRoundedRect(-length / 2, -thickness / 2, length, thickness, corner)
+      .fillRoundedRect(-thickness / 2, -length / 2, thickness, length, corner);
+    return plus;
   }
 
   /** Prázdný bílý kroužek podržení po obvodu pilulky (#108); plní se v `drawHoldRings`. */

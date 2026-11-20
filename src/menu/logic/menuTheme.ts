@@ -53,13 +53,15 @@ export const MENU_STYLE = {
 
 /**
  * Výběr profilu a formulář nového profilu (#72) podle obrázků 4–7 v barvách
- * A3: šedé „+“, bílé klávesy, modrý přepínač vrstvy, šedé zpět a modré →.
+ * A3: světle modré „+“ (#162), bílé klávesy, modrý přepínač vrstvy, šedé zpět a modré →.
  */
 export const PROFILE_SCREEN_STYLE = {
   symbol: WHITE,
   nickname: TEXT,
-  addBackground: '#C7C7CC',
-  addSymbol: WHITE,
+  /** „+“ jako aktivní tlačítko A3 (#162): světle modré kolečko s okrajem a modré „+“, jako tužka v liště. */
+  addBackground: '#E5F0FF',
+  addBorder: '#B8D6FF',
+  addSymbol: BLUE,
   /**
    * Kroužek podržení „Smazat“ (#108): bílý s jemným tmavým okrajem,
    * aby byl vidět na barevném tlačítku.
