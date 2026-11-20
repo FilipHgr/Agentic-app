@@ -11,6 +11,9 @@
  *   má dva kroky: přezdívku z mřížky písmen a barvu. ✓ profil uloží a vrátí
  *   výběr; nový profil se sám nevybere.
  * - Fyzická klávesnice (`keyDown`) má účinek jen v 1. kroku.
+ * - Kolečko profilu nahoře ve formuláři (#161, `formBadge`): barva
+ *   rozepsaného profilu (ve 2. kroku právě vybraná) a první písmeno
+ *   přezdívky z pole, při prázdném poli bez písmene (ani ★).
  * - Úprava profilu (#73): jediná tužka v liště výběru (#160) ťuknutím
  *   přepne výběr do režimu úprav, další ťuknutí ho ukončí. V úpravách
  *   ťuknutí na kolečko otevře úpravu profilu místo výběru, formulář je
@@ -140,6 +143,13 @@ export interface ProfilePickerItem {
   readonly nickname: string | null;
 }
 
+/** Kolečko rozepsaného profilu nahoře ve formuláři (#161). */
+export interface ProfileFormBadge {
+  readonly color: ProfileColor;
+  /** První písmeno přezdívky z pole; při prázdném poli `null` (bez písmene i bez ★). */
+  readonly symbol: string | null;
+}
+
 export interface PaletteSwatch {
   readonly color: ProfileColor;
   readonly selected: boolean;
@@ -177,6 +187,11 @@ export interface ProfileScreens {
 
   /** Nový profil, nebo úprava; mimo formulář `null`. */
   formMode(): ProfileFormMode | null;
+  /**
+   * Kolečko profilu nahoře ve formuláři (#161) v 1. i 2. kroku (i pod
+   * potvrzením smazání); mimo formulář `null`.
+   */
+  formBadge(): ProfileFormBadge | null;
 
   // 1. krok: přezdívka
   nickname(): string;
@@ -195,8 +210,11 @@ export interface ProfileScreens {
   // 2. krok: barva
   palette(): PaletteSwatch[];
   selectedColor(): ProfileColor;
-  /** Písmeno v náhledu kolečka (první písmeno přezdívky). */
-  previewSymbol(): string;
+  /**
+   * Písmeno v náhledu kolečka (první písmeno přezdívky), stejné jako
+   * v `formBadge`; při prázdném poli `null` (#161).
+   */
+  previewSymbol(): string | null;
   tapColor(color: ProfileColor): void;
   tapSave(): void;
 
@@ -307,6 +325,20 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
 
   function selectedColor(): ProfileColor {
     return draft.color ?? suggestedProfileColor(store.profiles());
+  }
+
+  /** První písmeno přezdívky z pole, při prázdném poli `null` (#161). */
+  function firstLetter(): string | null {
+    return draft.letters[0] ?? null;
+  }
+
+  function formBadge(): ProfileFormBadge | null {
+    if (formMode() === null) {
+      return null;
+    }
+    // Barva rozepsaného profilu: u úpravy jeho barva, u nového ta, kterou
+    // 2. krok předvybere, po výběru barvy vybraná (i po návratu do 1. kroku).
+    return { color: selectedColor(), symbol: firstLetter() };
   }
 
   function openForm(): void {
@@ -467,6 +499,7 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
     isEditing,
     addButton,
     formMode,
+    formBadge,
 
     nickname: nicknameText,
     letterLayer: () => draft.layer,
@@ -537,8 +570,8 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
 
     palette: () => PROFILE_COLORS.map((color) => ({ color, selected: color === selectedColor() })),
     selectedColor,
-    // Profil bez přezdívky má v náhledu ★ jako na výběru.
-    previewSymbol: () => draft.letters[0] ?? PROFILE_WITHOUT_NICKNAME_SYMBOL,
+    // Náhled je kolečkem profilu ve 2. kroku (#161): prázdné pole bez ★.
+    previewSymbol: firstLetter,
 
     tapColor(color: ProfileColor): void {
       if (screen !== 'color' || !PROFILE_COLORS.includes(color)) {

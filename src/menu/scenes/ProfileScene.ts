@@ -203,6 +203,8 @@ export class ProfileScene extends Phaser.Scene {
   /** Nakreslené → v 1. kroku: při psaní se mění jen jeho barva. */
   private forward: ForwardParts | undefined;
   private drawnNickname = '';
+  /** Písmeno v kolečku profilu v 1. kroku (#161), při psaní se jen přepíše. */
+  private badgeLabel: Phaser.GameObjects.Text | undefined;
   /** Kroužky podržení podle klíče (jen „Smazat“, #108). */
   private holdRings = new Map<string, HoldRing>();
   /** Který kroužek se právě plní a od kdy. */
@@ -423,6 +425,7 @@ export class ProfileScene extends Phaser.Scene {
     this.keyItems = {};
     this.fieldItem = undefined;
     this.field = undefined;
+    this.badgeLabel = undefined;
     this.forward = undefined;
     this.drawnNickname = this.host.screens.nickname();
     this.holdRings = new Map();
@@ -561,6 +564,16 @@ export class ProfileScene extends Phaser.Scene {
   }
 
   private drawCircle(box: MenuBox, color: string, symbol: string, fontSize: number): Tappable {
+    return this.drawLabeledCircle(box, color, symbol, fontSize).item;
+  }
+
+  /** Barevné kolečko s bílým písmenem uprostřed; vrátí i písmeno. */
+  private drawLabeledCircle(
+    box: MenuBox,
+    color: string,
+    symbol: string,
+    fontSize: number,
+  ): { item: Tappable; label: Phaser.GameObjects.Text } {
     const item = this.tappable(box);
     const radius = ((box.right - box.left) / 2) * UNIT;
     const circle = this.add.graphics();
@@ -569,7 +582,25 @@ export class ProfileScene extends Phaser.Scene {
     // Háčky a kroužky nad velkými písmeny se nesmí oříznout: písmeno trochu níž.
     label.y = fontSize * 0.04 * UNIT;
     item.container.add([circle, label]);
-    return item;
+    return { item, label };
+  }
+
+  /**
+   * Kolečko rozepsaného profilu vedle pole (#161): barva profilu a první
+   * písmeno z pole, prázdné pole bez písmene. Ťuknutí na něj nic nedělá.
+   */
+  private drawFormBadge(layout: NicknameStepLayout): void {
+    const badge = this.host.screens.formBadge();
+    if (badge === null) {
+      return;
+    }
+    const { label } = this.drawLabeledCircle(
+      layout.badge,
+      badge.color,
+      badge.symbol ?? '',
+      layout.badgeSymbolFontSize,
+    );
+    this.badgeLabel = label;
   }
 
   /**
@@ -929,6 +960,7 @@ export class ProfileScene extends Phaser.Scene {
   private drawNicknameStep(layout: NicknameStepLayout): void {
     const screens = this.host.screens;
     this.drawHeading(layout, NICKNAME_TITLE_KEY, NICKNAME_STEP_COUNTER);
+    this.drawFormBadge(layout);
     this.drawField(layout);
     const layer = screens.letterLayer();
     letterKeys(layer).forEach((key, index) => {
@@ -990,13 +1022,19 @@ export class ProfileScene extends Phaser.Scene {
     field.caret.x = field.text.x + field.text.displayWidth + 3 * UNIT;
   }
 
-  /** Při psaní: jen nový text pole, kurzor a barva →, nic se nekreslí znovu. */
+  /**
+   * Při psaní: jen nový text pole, kurzor, písmeno v kolečku profilu (#161)
+   * a barva →, nic se nekreslí znovu.
+   */
   private refreshNickname(): void {
     const screens = this.host.screens;
     this.drawnNickname = screens.nickname();
     if (this.field !== undefined && this.field.text.active) {
       this.field.text.setText(this.drawnNickname);
       this.placeFieldText();
+    }
+    if (this.badgeLabel !== undefined && this.badgeLabel.active) {
+      this.badgeLabel.setText(screens.formBadge()?.symbol ?? '');
     }
     const forward = this.forward;
     if (forward !== undefined && forward.background.active) {
@@ -1096,7 +1134,7 @@ export class ProfileScene extends Phaser.Scene {
     this.drawCircle(
       layout.preview,
       screens.selectedColor(),
-      screens.previewSymbol(),
+      screens.previewSymbol() ?? '',
       layout.previewSymbolFontSize,
     );
     const nickname = this.keep(

@@ -962,6 +962,12 @@ function nicknameStepItems(window: TestWindow, layer: LetterLayer, language: Lan
     },
     { name: 'zpět', box: layout.back, tappable: true },
     { name: '→', box: layout.next, tappable: true },
+    // Kolečko upravovaného profilu (#161) je jen obrázek, ťukací plocha to není.
+    {
+      name: 'kolečko profilu',
+      box: layout.badge,
+      texts: [{ text: 'W', fontSize: layout.badgeSymbolFontSize, charWidth: WIDE_LETTER }],
+    },
     ...headingItems(layout, NICKNAME_TITLE_KEY, language),
   ];
 }
@@ -993,7 +999,11 @@ function colorStepItems(window: TestWindow, withTrash: boolean, language: Langua
   ];
 }
 
-function formStepItems(window: TestWindow, step: FormStep, language: Language): LayoutItem[] {
+export function formStepItems(
+  window: TestWindow,
+  step: FormStep,
+  language: Language,
+): LayoutItem[] {
   switch (step) {
     case 'základní vrstva':
       return nicknameStepItems(window, 'base', language);

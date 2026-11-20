@@ -24,6 +24,11 @@
  * Přepínač vrstvy a ⌫ jsou na konci poslední řady mřížky, v obou vrstvách
  * na stejném místě, takže se při přepnutí nic nepohne.
  *
+ * Kolečko rozepsaného profilu (#161) je v 1. kroku vlevo vedle pole: na
+ * telefonu 40 px, menší než tlačítka (na šířku v horní řadě 16 px od „‹“,
+ * pole se zúží), na iPadu 84 px a obojí uprostřed.
+ * Ve 2. kroku je kolečkem profilu náhled.
+ *
  * Úprava profilu (#73, obrázky 6 a 8): ve 2. kroku je vpravo vedle náhledu
  * koš 64 px, ostatní plochy zůstanou, kde jsou bez něj. Potvrzení smazání
  * je bílý rámeček uprostřed nad formulářem: kolečko profilu, přezdívka,
@@ -518,6 +523,12 @@ export interface NicknameStepLayout extends StepHeading {
   readonly fieldRadius: number;
   readonly back: MenuBox;
   readonly next: MenuBox;
+  /**
+   * Kolečko rozepsaného profilu (#161) vlevo vedle pole, v obou vrstvách
+   * na stejném místě; jen obrázek, ťuknutí na něj nic nedělá.
+   */
+  readonly badge: MenuBox;
+  readonly badgeSymbolFontSize: number;
 }
 
 export interface ColorStepLayout extends StepHeading {
@@ -601,6 +612,18 @@ const TABLET_SWATCH = 84;
 const TABLET_SWATCH_MAX_GAP = 20;
 
 const NICKNAME_WIDEST_LETTERS = 12;
+/** Mezera mezi kolečkem profilu a polem (#161). */
+const PHONE_BADGE_GAP = MIN_GAP;
+const TABLET_BADGE_GAP = 24;
+/**
+ * Kolečko profilu v 1. kroku na telefonu (#161), na výšku i na šířku stejné
+ * a menší než tlačítka, aby nevypadalo jako tlačítko.
+ */
+const PHONE_BADGE = 40;
+/** Na telefonu na šířku je kolečko od „‹“ dál, aby k němu nepatřilo. */
+const LANDSCAPE_BADGE_BACK_GAP = 16;
+/** Kolečko profilu v 1. kroku na iPadu (#161), výška pole. */
+const TABLET_BADGE = TABLET_FIELD_HEIGHT;
 /** Okraj textu v poli a u přezdívky. */
 const TEXT_PADDING = 8;
 
@@ -766,10 +789,19 @@ function centeredLeft(free: MenuBox, width: number): number {
   return free.left + (widthOf(free) - width) / 2;
 }
 
+/** Šířka pole, do kterého se vejde nejširší přezdívka písmem `fontSize`. */
+function widestNicknameWidth(fontSize: number): number {
+  return NICKNAME_WIDEST_LETTERS * fontSize + 2 * TEXT_PADDING;
+}
+
 function portraitNicknameStep(free: MenuBox, layer: LetterLayer): NicknameStepLayout {
   const width = gridWidth(PORTRAIT_COLUMNS, PHONE_KEY, PHONE_KEY_GAP);
   const left = centeredLeft(free, width);
-  const field = boxAt(left, free.top + PORTRAIT_FIELD_TOP, width, PHONE_KEY);
+  // Kolečko profilu (#161) vlevo vedle pole, pole je dost široké na nejširší přezdívku.
+  const fieldTop = free.top + PORTRAIT_FIELD_TOP;
+  const badge = boxAt(left, fieldTop + (PHONE_KEY - PHONE_BADGE) / 2, PHONE_BADGE, PHONE_BADGE);
+  const fieldLeft = badge.right + PHONE_BADGE_GAP;
+  const field = boxAt(fieldLeft, fieldTop, left + width - fieldLeft, PHONE_KEY);
   const rows = Math.ceil(GRID_SLOTS / PORTRAIT_COLUMNS);
   const gridHeight = gridWidth(rows, PHONE_KEY, PHONE_KEY_GAP);
   const roomy =
@@ -792,6 +824,8 @@ function portraitNicknameStep(free: MenuBox, layer: LetterLayer): NicknameStepLa
     fieldRadius: PHONE_KEY_RADIUS,
     back: buttons.back,
     next: buttons.forward,
+    badge,
+    badgeSymbolFontSize: PHONE_BADGE / 2,
   };
 }
 
@@ -802,6 +836,14 @@ function landscapeNicknameStep(free: MenuBox, layer: LetterLayer): NicknameStepL
   const left = centeredLeft(free, width);
   const top = centeredTop(free, height);
   const row = landscapeTopRow(left, width, top);
+  // Kolečko profilu (#161) v horní řadě vlevo vedle pole, od „‹“ dál; pole se o ně zúží.
+  const badge = boxAt(
+    row.back.right + LANDSCAPE_BADGE_BACK_GAP,
+    top + (PHONE_KEY - PHONE_BADGE) / 2,
+    PHONE_BADGE,
+    PHONE_BADGE,
+  );
+  const field: MenuBox = { ...row.middle, left: badge.right + PHONE_BADGE_GAP };
   return {
     ...NO_HEADING,
     keys: keyBoxes(layer, {
@@ -813,11 +855,13 @@ function landscapeNicknameStep(free: MenuBox, layer: LetterLayer): NicknameStepL
     }),
     keyFontSize: PHONE_KEY_FONT_SIZE,
     keyRadius: PHONE_KEY_RADIUS,
-    field: row.middle,
+    field,
     fieldFontSize: LANDSCAPE_FIELD_FONT_SIZE,
     fieldRadius: PHONE_KEY_RADIUS,
     back: row.back,
     next: row.forward,
+    badge,
+    badgeSymbolFontSize: PHONE_BADGE / 2,
   };
 }
 
@@ -836,15 +880,16 @@ function tabletNicknameStep(
   const left = centeredLeft(free, width);
   const top = centeredTop(free, tabletNicknameHeight(columns));
   const heading = tabletHeading(left, width, top);
-  const widestNickname = NICKNAME_WIDEST_LETTERS * TABLET_FIELD_FONT_SIZE + 2 * TEXT_PADDING;
+  // Kolečko profilu (#161) vlevo vedle pole, obojí uprostřed nad mřížkou.
+  const badgeRoom = TABLET_BADGE + TABLET_BADGE_GAP;
   const narrowField = width - TABLET_FIELD_NARROWING;
-  const fieldWidth = narrowField >= widestNickname ? narrowField : width;
-  const field = boxAt(
-    left + (width - fieldWidth) / 2,
-    top + TABLET_TITLE_HEIGHT + TABLET_TITLE_GAP,
-    fieldWidth,
-    TABLET_FIELD_HEIGHT,
-  );
+  const narrowFits =
+    narrowField >= widestNicknameWidth(TABLET_FIELD_FONT_SIZE) && narrowField + badgeRoom <= width;
+  const fieldWidth = narrowFits ? narrowField : width - badgeRoom;
+  const rowLeft = left + (width - badgeRoom - fieldWidth) / 2;
+  const fieldTop = top + TABLET_TITLE_HEIGHT + TABLET_TITLE_GAP;
+  const badge = boxAt(rowLeft, fieldTop, TABLET_BADGE, TABLET_BADGE);
+  const field = boxAt(rowLeft + badgeRoom, fieldTop, fieldWidth, TABLET_FIELD_HEIGHT);
   const gridTop = field.bottom + TABLET_FIELD_GAP;
   const buttonsTop = gridTop + tabletGridHeight(columns) + TABLET_BUTTONS_GAP;
   return {
@@ -857,6 +902,8 @@ function tabletNicknameStep(
     fieldRadius: TABLET_KEY_RADIUS,
     back: boxAt(left, buttonsTop, TABLET_BUTTON, TABLET_BUTTON),
     next: boxAt(left + width - TABLET_WIDE_BUTTON, buttonsTop, TABLET_WIDE_BUTTON, TABLET_BUTTON),
+    badge,
+    badgeSymbolFontSize: TABLET_BADGE / 2,
   };
 }
 
