@@ -8,7 +8,7 @@ import {
   pressAddFor,
   pressProfileFor,
   tapAdd,
-  tapPencil,
+  openEdit,
   tapProfileCircle,
   testProfileScreens,
 } from './profileScreenFixtures';
@@ -16,7 +16,8 @@ import type { TestProfileScreens } from './profileScreenFixtures';
 
 /**
  * Testy k #109: na výběru profilu reagují kolečka profilů i „+“ hned po
- * ťuknutí, bez kroužku podržení. Úprava profilu se otevírá jen tužkou (#107).
+ * ťuknutí, bez kroužku podržení. Úprava profilu se otevírá jen tužkou (#107, od #160 tužkou v liště
+ * a kolečkem v režimu úprav).
  * AC5 (kolečko nastavení a domeček ve hrách dál podržením 1 s) testují
  * `tests/shared/settings.test.ts` a `tests/shared/homeButton.test.ts`,
  * AC6 (kroužek se nikde nekreslí) se kontroluje ručně.
@@ -279,10 +280,11 @@ describe('#109 AC3: žádný dotyk kolečka ani „+“ neotevře úpravu', () =
     expect(test.screens.formMode()).toBe('new');
   });
 
-  it('úpravu dál otevře tužka u profilu (#107)', () => {
+  // #160: místo tužky u kolečka tužka v liště (režim úprav) a kolečko.
+  it('úpravu dál otevře tužka (#107, od #160 tužka v liště a kolečko)', () => {
     const test = threeProfiles();
 
-    tapPencil(test.screens, profileId(test, 2));
+    openEdit(test.screens, profileId(test, 2));
 
     expect(test.screens.formMode()).toBe('edit');
     expect(test.screens.nickname()).toBe('TOM');

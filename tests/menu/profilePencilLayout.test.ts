@@ -4,50 +4,43 @@ import type { MenuBox } from '../../src/menu/logic/menuLayout';
 import type { ProfilePickerLayout } from '../../src/menu/logic/profileLayout';
 import { MAX_PROFILES } from '../../src/menu/logic/profileScreens';
 import { chooseLayoutMode } from '../../src/shared/logic/viewportLayout';
-import { LANGUAGES } from '../../src/shared/texts/languages';
-import type { LayoutItem, LayoutScene } from '../shared/layoutRules';
-import { freeAreaOf, gapBetween, heightOf, viewportOf, widthOf } from '../shared/viewportFixtures';
+import { heightOf, viewportOf, widthOf } from '../shared/viewportFixtures';
 import type { TestWindow } from '../shared/viewportFixtures';
 import { MENU_WINDOWS, findWindow } from './manyGamesFixtures';
-import { MENU_LAYOUT_RULES, WIDEST_NICKNAME, pickerLayout } from './menuLayoutScenes';
+import { pickerLayout } from './menuLayoutScenes';
 
 /**
- * Testy k #107 AC3 a AC4: rozložení tužky u profilu na výběru profilu
- * ve všech zkušebních oknech menu (iPad i telefon, na šířku i na výšku)
- * a pro 1 až 6 profilů bez „+“ a 1 až 5 profilů s „+“ (se 6 profily se
- * „+“ neukáže). Podle obrázků schválených vlastníkem (tuzka-ipad.png,
- * tuzka-telefon-sirka.png, tuzka-telefon-vyska.png):
- * - tužka je kulaté tlačítko 64 px vpravo od kolečka, horním okrajem
- *   zarovnaná s kolečkem (mezeru mezi nimi od #113 hlídá
- *   `tests/menu/profilePencilGap.test.ts`, dřív 8 px),
+ * Testy k #107 AC3 a AC4: rozložení výběru profilu ve všech zkušebních
+ * oknech menu (iPad i telefon, na šířku i na výšku) a pro 1 až 6 profilů
+ * bez „+“ a 1 až 5 profilů s „+“ (se 6 profily se „+“ neukáže). Podle
+ * obrázků schválených vlastníkem (tuzka-ipad.png, tuzka-telefon-sirka.png,
+ * tuzka-telefon-vyska.png):
  * - 6 koleček (6 profilů, nebo 5 a „+“) je na iPadu a telefonu na šířku
  *   ve 2 řadách po 3, na telefonu na výšku ve 2 sloupcích,
  * - na menších oknech se kolečka zmenší, v nejmenším okně (744 × 296) až
  *   na 92 px; nikde se neposouvá, všechno se vejde do okna.
  *
- * Navržené rozhraní (`src/menu/logic/profileLayout.ts`): `ProfilePickerSlot`
- * dostane `pencil: MenuBox`, ťukací plochu tužky u profilu. „+“ zůstává
- * jen `add: MenuBox | null` bez tužky.
+ * #160: tužka u každého kolečka (64 px vpravo od kolečka, 8 px od ostatních
+ * prvků a od okraje) je nahrazená jedinou tužkou v liště vlevo od jazyka
+ * a odznaky na kolečkách v režimu úprav. Pravidla tužky u kolečka níž jsou
+ * proto nahrazená testy v `tests/menu/profileEditModeLayout.test.ts`
+ * (u každého je komentář, čím), pravidla koleček a přezdívek zůstávají.
  *
  * Každé pravidlo je jeden test, který v cyklu projde všechny případy;
- * zpráva při selhání řekne okno a počet profilů. Vzhled tužky (AC6) se
- * kontroluje ručně.
+ * zpráva při selhání řekne okno a počet profilů.
  */
 
 const ROUNDING = 1e-6;
-const TOLERANCE = 0.01;
-const PENCIL_SIZE = 64;
-/** Nejmenší mezera tužky od ostatních prvků a od okraje plochy. */
-const PENCIL_GAP = 8;
 const TABLET_CIRCLE = 140;
 const PHONE_CIRCLE = 110;
-/** Kolečka ve 2 sloupcích na šířce 390 px po zvětšení mezery (#113 AC4). */
+/**
+ * Kolečka ve 2 sloupcích na šířce 390 px po zvětšení mezery u tužky
+ * (#113 AC4). Od #160 tužka u kolečka není, kolečka smí být větší, tohle
+ * je nejmenší velikost.
+ */
 const TWO_COLUMN_390_CIRCLE = 99;
 /** Nejmenší kolečko podle schválených obrázků (744 × 296, 6 koleček). */
 const SMALLEST_CIRCLE = 92;
-/** Písmeno „W“ a přezdívka se měří jako 1,0 × písmo na písmeno (#72 AC4). */
-const WIDE_LETTER = 1;
-const NICKNAME_LINE_HEIGHT = 20;
 
 interface PencilCase {
   readonly name: string;
@@ -96,114 +89,14 @@ function circlesOf(layout: ProfilePickerLayout): MenuBox[] {
   return layout.add === null ? circles : [...circles, layout.add];
 }
 
-/** Obrazovka výběru profilu s tužkami pro společná pravidla (`tests/shared/layoutRules.ts`). */
-function pencilScene(window: TestWindow, pencilCase: PencilCase): LayoutScene {
-  const layout = pickerLayout(window, pencilCase.count, pencilCase.add);
-  const symbol = { text: 'W', fontSize: layout.symbolFontSize, charWidth: WIDE_LETTER };
-  const items: LayoutItem[] = [
-    {
-      name: 'tlačítko jazyka',
-      box: layout.languageSlot,
-      tappable: true,
-      texts: LANGUAGES.map((code) => ({
-        text: code.toUpperCase(),
-        fontSize: layout.languageButtonFontSize,
-      })),
-    },
-    ...layout.profiles.flatMap((slot, index): LayoutItem[] => [
-      { name: `kolečko ${index + 1}`, box: slot.circle, tappable: true, texts: [symbol] },
-      {
-        name: `přezdívka ${index + 1}`,
-        box: slot.nickname,
-        texts: [
-          {
-            text: WIDEST_NICKNAME,
-            fontSize: layout.nicknameFontSize,
-            charWidth: WIDE_LETTER,
-            maxLines: layout.nicknameMaxLines,
-            lineHeight: NICKNAME_LINE_HEIGHT,
-            padding: 0,
-          },
-        ],
-      },
-      // AC4: tužku dělí od okraje plochy aspoň 8 px (ne jen 4 px jako ostatní).
-      { name: `tužka ${index + 1}`, box: slot.pencil, tappable: true, minEdge: PENCIL_GAP },
-    ]),
-  ];
-  if (layout.add !== null) {
-    items.push({ name: '„+“', box: layout.add, tappable: true, texts: [symbol] });
-  }
-  return {
-    label: `výběr profilu s tužkami, ${labelOf(window, pencilCase)}`,
-    free: freeAreaOf(window),
-    items,
-  };
-}
+// #160 AC1 nahrazuje #107 AC3 (tužka u každého profilu, u „+“ ne): u koleček ani u „+“
+// tužka není, je jedna v liště pro všechny profily, viz `profileEditModeLayout.test.ts`
+// („u koleček profilů ani u „+“ není žádná tužka“, „tužka v liště je v každém okně…“).
 
-function pencilScenes(): LayoutScene[] {
-  return PENCIL_CASES.flatMap((pencilCase) =>
-    MENU_WINDOWS.map((window) => pencilScene(window, pencilCase)),
-  );
-}
-
-/** Mezery tužek od všech ostatních prvků (kolečko, přezdívka, „+“, sousední profil, jazyk). */
-function pencilGapViolations(scene: LayoutScene): string[] {
-  const pencils = scene.items.filter((item) => item.name.startsWith('tužka'));
-  return pencils.flatMap((pencil) =>
-    scene.items
-      .filter((other) => other !== pencil)
-      .filter((other) => gapBetween(pencil.box, other.box) < PENCIL_GAP - TOLERANCE)
-      .map(
-        (other) =>
-          `${scene.label}: mezi ${pencil.name} a ${other.name} je jen ${Math.round(gapBetween(pencil.box, other.box) * 100) / 100} px`,
-      ),
-  );
-}
-
-describe('#107 AC3: tužka je u každého profilu, u „+“ není', () => {
-  it('každý profil má svou tužku, i jediný profil, a tužek je stejně jako profilů', () => {
-    eachCase((label, layout) => {
-      const pencils = layout.profiles.map((slot) => slot.pencil);
-      expect(
-        pencils.every((pencil) => pencil !== undefined),
-        label,
-      ).toBe(true);
-      expect(pencils, label).toHaveLength(layout.profiles.length);
-    });
-  });
-
-  it('u „+“ tužka není: vpravo vedle „+“ v jeho výšce není žádná tužka', () => {
-    eachCase((label, layout, _window, add) => {
-      if (!add || layout.add === null) {
-        return;
-      }
-      const plus = layout.add;
-      // #113: mezera kolečko–tužka už není pevně 8 px, hledá se jakákoli tužka vpravo v řadě „+“.
-      const nextToPlus = layout.profiles.filter(
-        (slot) =>
-          Math.abs(slot.pencil.top - plus.top) < TOLERANCE &&
-          slot.pencil.left >= plus.right - TOLERANCE,
-      );
-      expect(nextToPlus, label).toHaveLength(0);
-    });
-  });
-});
-
-describe('#107 AC4: tužka podle schváleného obrázku', () => {
-  // #113 AC1: mezera mezi kolečkem a tužkou není 8 px, ale aspoň 16 px (profilePencilGap.test.ts).
-  it(`tužka má ${PENCIL_SIZE} × ${PENCIL_SIZE} px, je vpravo od kolečka a horním okrajem zarovnaná`, () => {
-    eachCase((label, layout) => {
-      layout.profiles.forEach((slot, index) => {
-        const where = `${label}: tužka ${index + 1}`;
-        expect(widthOf(slot.pencil), where).toBeCloseTo(PENCIL_SIZE, 5);
-        expect(heightOf(slot.pencil), where).toBeCloseTo(PENCIL_SIZE, 5);
-        expect(slot.pencil.left - slot.circle.right, where).toBeGreaterThanOrEqual(
-          PENCIL_GAP - ROUNDING,
-        );
-        expect(slot.pencil.top, where).toBeCloseTo(slot.circle.top, 5);
-      });
-    });
-  });
+describe('#107 AC4: kolečka podle schváleného obrázku', () => {
+  // #160 AC1 nahrazuje „tužka má 64 × 64 px, je vpravo od kolečka a horním okrajem
+  // zarovnaná“: tužka je jedna v liště vlevo od jazyka, aspoň 64 × 64 px
+  // (`profileEditModeLayout.test.ts`).
 
   it('6 koleček je na iPadu i na telefonu na šířku ve 2 řadách po 3, na výšku ve 2 sloupcích', () => {
     for (const pencilCase of PENCIL_CASES.filter((item) => item.count + (item.add ? 1 : 0) === 6)) {
@@ -242,18 +135,21 @@ describe('#107 AC4: tužka podle schváleného obrázku', () => {
     });
   });
 
-  // #113 AC4: ve 2 sloupcích má mezera přednost, kolečka na 390×844 mají 99 px místo 110 px.
-  it('kolečka se zmenší jen tam, kde je málo místa: na iPhonu 390×844 na výšku mají v jednom sloupci 110 px, ve dvou 99 px', () => {
+  // #113 AC4: ve 2 sloupcích měla mezera u tužky přednost, kolečka na 390×844 měla 99 px.
+  // #160: tužka u kolečka není, 99 px je teď nejmenší velikost, ne přesná.
+  it('kolečka se zmenší jen tam, kde je málo místa: na iPhonu 390×844 na výšku mají v jednom sloupci 110 px, ve dvou aspoň 99 px', () => {
     const window = findWindow('390×844');
     for (const pencilCase of PENCIL_CASES) {
       const circles = circlesOf(pickerLayout(window, pencilCase.count, pencilCase.add));
       const columns = new Set(circles.map((circle) => Math.round(circle.left))).size;
-      const expected = columns === 1 ? PHONE_CIRCLE : TWO_COLUMN_390_CIRCLE;
       for (const circle of circles) {
-        expect(widthOf(circle), `${labelOf(window, pencilCase)}, sloupce ${columns}`).toBeCloseTo(
-          expected,
-          5,
-        );
+        const where = `${labelOf(window, pencilCase)}, sloupce ${columns}`;
+        if (columns === 1) {
+          expect(widthOf(circle), where).toBeCloseTo(PHONE_CIRCLE, 5);
+        } else {
+          expect(widthOf(circle), where).toBeGreaterThanOrEqual(TWO_COLUMN_390_CIRCLE - ROUNDING);
+          expect(widthOf(circle), where).toBeLessThanOrEqual(PHONE_CIRCLE + ROUNDING);
+        }
       }
     }
   });
@@ -268,24 +164,11 @@ describe('#107 AC4: tužka podle schváleného obrázku', () => {
     });
   });
 
-  it('tužku dělí od kolečka, přezdívky, „+“, sousedního profilu i tlačítka jazyka aspoň 8 px', () => {
-    for (const scene of pencilScenes()) {
-      expect(pencilGapViolations(scene), scene.label).toEqual([]);
-    }
-  });
+  // #160 AC4 nahrazuje „tužku dělí od kolečka, přezdívky, „+“, sousedního profilu i tlačítka
+  // jazyka aspoň 8 px“: tužka v liště je aspoň 8 px od jazyka, okraje bezpečné plochy,
+  // koleček, přezdívek a „+“ (`profileEditModeLayout.test.ts`).
 });
 
-describe('#107 AC4: výběr profilu s tužkami dodrží společná pravidla v každém okně a pro 1–6 profilů', () => {
-  for (const [ruleName, rule] of Object.entries(MENU_LAYOUT_RULES)) {
-    it(`${ruleName}`, () => {
-      for (const scene of pencilScenes()) {
-        expect(rule(scene), scene.label).toEqual([]);
-      }
-    });
-  }
-
-  it('případy pokrývají všechna okna menu a 11 kombinací počtu profilů a „+“', () => {
-    expect(PENCIL_CASES).toHaveLength(11);
-    expect(pencilScenes()).toHaveLength(PENCIL_CASES.length * MENU_WINDOWS.length);
-  });
-});
+// #160 AC4 nahrazuje společná pravidla výběru s tužkami u koleček: stejná pravidla
+// (`MENU_LAYOUT_RULES`) v cyklu pro všechna okna a 11 kombinací profilů a „+“ hlídá
+// `profileEditModeLayout.test.ts` s tužkou v liště.

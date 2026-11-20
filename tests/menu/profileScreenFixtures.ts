@@ -120,7 +120,7 @@ export function pickerNicknames(screens: ProfileScreens): Array<string | null> {
 /**
  * Prst zůstane na kolečku profilu `id` na výběru `ms` milisekund a pak se
  * zvedne. Od #109 to profil jen vybere jako ťuknutí, úpravu otevírá jen
- * tužka (`openEdit`). Potřebuje falešné hodiny Vitestu.
+ * režim úprav za tužkou v liště (`openEdit`, #160). Potřebuje falešné hodiny Vitestu.
  */
 export function pressProfileFor(
   screens: ProfileScreens,
@@ -143,18 +143,22 @@ export function clearNickname(screens: ProfileScreens): void {
 }
 
 /**
- * Rodič ťukne na tužku u profilu `id` (#107): prst se tužky dotkne a na
- * ní se zvedne.
+ * Rodič ťukne na jedinou tužku v liště výběru profilu (#160, nahrazuje
+ * tužku u každého kolečka z #107): prst se tužky dotkne a na ní se zvedne.
+ * Ťuknutí přepne výběr do režimu úprav, další ťuknutí ho ukončí.
  */
-export function tapPencil(screens: ProfileScreens, id: string, pointerId = 1): void {
-  const pencil = screens.pencilButton(id);
-  pencil.press(pointerId);
-  pencil.release(pointerId);
+export function tapEditPencil(screens: ProfileScreens, pointerId = 1): void {
+  screens.editPencilButton.press(pointerId);
+  screens.editPencilButton.release(pointerId);
 }
 
-/** Rodič otevře úpravu profilu `id`: od #109 jen ťuknutím na tužku (#107). */
+/**
+ * Rodič otevře úpravu profilu `id`: od #160 ťuknutím na tužku v liště
+ * (režim úprav) a pak na kolečko profilu (dřív tužka u kolečka, #107).
+ */
 export function openEdit(screens: ProfileScreens, id: string): void {
-  tapPencil(screens, id);
+  tapEditPencil(screens);
+  tapProfileCircle(screens, id);
 }
 
 /** Dítě ťukne na kolečko profilu `id`: prst se dotkne a hned zvedne. */

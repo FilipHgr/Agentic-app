@@ -6,7 +6,8 @@ import {
   ONE_SECOND_HOLD_MS,
   deviceWithProfiles,
   pressProfileFor,
-  tapPencil,
+  openEdit,
+  tapEditPencil,
   tapProfileCircle,
   testProfileScreens,
 } from './profileScreenFixtures';
@@ -17,20 +18,20 @@ import type { TestProfileScreens } from './profileScreenFixtures';
  * profilů: AC1 (ťuknutí na tužku), AC2 (ťuknutí na kolečko dál vybere),
  * AC3 (tužka i u jediného profilu, u „+“ není) a AC5 (podržení kolečka dál
  * otevře úpravu; od #109 nahrazeno: úprava jen tužkou, podržení kolečka
- * profil vybere, viz `profilePickerTap.test.ts`). Rozložení tužky (AC3, AC4) testuje
- * `tests/menu/profilePencilLayout.test.ts`, vzhled (AC6) se kontroluje ručně.
+ * profil vybere, viz `profilePickerTap.test.ts`).
  *
- * Navržené rozhraní (`src/menu/logic/profileScreens.ts`), navíc k #73:
- * - `pencilButton(id): PencilButton` pro tužku u profilu `id` na výběru,
- *   `PencilButton` má `press(pointerId)`, `release(pointerId)`,
- *   `leave(pointerId)` (prst sjel z tužky) a `cancel(pointerId)`
- *   (pointercancel). Úprava se otevře jen po `press` a `release` stejného
- *   prstu bez `leave` a `cancel` mezi nimi; tužka nečeká na podržení.
- *   Po otevření úpravy je odezva `{ kind: 'tap', target: 'pencil' }`.
- * - `profileFeedbackSound(event): MenuSoundName | null`: který zvuk menu
- *   (`MENU_SOUNDS`) scéna k odezvě zahraje, `null` bez zvuku. Dnes je to
- *   rozhodování ve scéně (`ProfileScene.playSoundOf`), přesune se do logiky,
- *   aby šlo ověřit, že tužka zní stejně jako ťuknutí na kolečko profilu.
+ * #160: tužka u každého kolečka je nahrazená jedinou tužkou v liště, která
+ * přepne výběr do režimu úprav; úpravu pak otevře ťuknutí na kolečko.
+ * „Tužka u profilu X“ je proto v testech níž `openEdit` (tužka v liště
+ * a kolečko X) a dotyk tužky je dotyk tužky v liště (`editPencilButton`).
+ * Chování z #107 (úprava právě toho profilu, bez podržení, zrušený dotyk
+ * nic neudělá) zůstává. Nové chování režimu úprav testuje
+ * `profileEditMode.test.ts`, rozložení `profileEditModeLayout.test.ts`.
+ *
+ * Rozhraní (`src/menu/logic/profileScreens.ts`): `editPencilButton`
+ * a `isEditing()` z #160 místo `pencilButton(id)` z #107, odezva tužky
+ * dál `{ kind: 'tap', target: 'pencil' }`;
+ * `profileFeedbackSound(event): MenuSoundName | null` beze změny.
  */
 
 beforeEach(() => {
@@ -59,7 +60,7 @@ describe('#107 AC1: ťuknutí na tužku otevře úpravu právě toho profilu', (
   it('ťuknutí na tužku u TOM otevře 1. krok úpravy s přezdívkou TOM', () => {
     const test = threeProfiles();
 
-    tapPencil(test.screens, profileAt(test, 2).id);
+    openEdit(test.screens, profileAt(test, 2).id);
 
     expect(test.screens.screen()).toBe('nickname');
     expect(test.screens.formMode()).toBe('edit');
@@ -70,7 +71,7 @@ describe('#107 AC1: ťuknutí na tužku otevře úpravu právě toho profilu', (
     const test = threeProfiles();
     const tom = profileAt(test, 2);
 
-    tapPencil(test.screens, tom.id);
+    openEdit(test.screens, tom.id);
     test.screens.tapNext();
 
     expect(test.screens.screen()).toBe('color');
@@ -80,7 +81,7 @@ describe('#107 AC1: ťuknutí na tužku otevře úpravu právě toho profilu', (
   it('tužka u prostředního profilu neotevře jiný profil', () => {
     const test = threeProfiles();
 
-    tapPencil(test.screens, profileAt(test, 1).id);
+    openEdit(test.screens, profileAt(test, 1).id);
 
     expect(test.screens.nickname()).toBe('EMA');
   });
@@ -89,7 +90,7 @@ describe('#107 AC1: ťuknutí na tužku otevře úpravu právě toho profilu', (
     const test = threeProfiles();
     const activeBefore = test.store.activeProfile().id;
 
-    tapPencil(test.screens, profileAt(test, 2).id);
+    openEdit(test.screens, profileAt(test, 2).id);
 
     expect(test.chosen()).toBe(0);
     expect(test.store.activeProfile().id).toBe(activeBefore);
@@ -100,7 +101,7 @@ describe('#107 AC1: ťuknutí na tužku otevře úpravu právě toho profilu', (
     const test = threeProfiles();
     const withoutNickname = profileAt(test, 0);
 
-    tapPencil(test.screens, withoutNickname.id);
+    openEdit(test.screens, withoutNickname.id);
 
     expect(test.screens.formMode()).toBe('edit');
     expect(test.screens.nickname()).toBe('');
@@ -111,7 +112,7 @@ describe('#107 AC1: ťuknutí na tužku otevře úpravu právě toho profilu', (
 
   it('ťuknutí na tužku zahraje stejný zvuk jako ťuknutí na kolečko profilu', () => {
     const pencilTest = threeProfiles();
-    tapPencil(pencilTest.screens, profileAt(pencilTest, 2).id);
+    tapEditPencil(pencilTest.screens);
     const pencilTaps = taps(pencilTest.feedback);
 
     const circleTest = threeProfiles();
@@ -129,7 +130,7 @@ describe('#107 AC1: ťuknutí na tužku otevře úpravu právě toho profilu', (
   it('tužka se nezhoupne ani nezačne plnit kroužek, úprava se otevře hned po ťuknutí', () => {
     const test = threeProfiles();
 
-    tapPencil(test.screens, profileAt(test, 2).id);
+    openEdit(test.screens, profileAt(test, 2).id);
 
     const kinds = test.feedback.map((event) => event.kind);
     expect(kinds).not.toContain('wobble');
@@ -137,73 +138,80 @@ describe('#107 AC1: ťuknutí na tužku otevře úpravu právě toho profilu', (
     expect(test.screens.screen()).toBe('nickname');
   });
 
-  it('tužka nečeká na podržení: i dotyk delší než 1 s otevře úpravu jen jednou', () => {
+  // #160: dotyk tužky v liště; po zvednutí je výběr v úpravách, úpravu TOM otevře kolečko.
+  it('tužka nečeká na podržení: i dotyk delší než 1 s přepne do úprav jen jednou', () => {
     const test = threeProfiles();
-    const pencil = test.screens.pencilButton(profileAt(test, 2).id);
+    const pencil = test.screens.editPencilButton;
 
     pencil.press(1);
     vi.advanceTimersByTime(ONE_SECOND_HOLD_MS + 500);
-    expect(test.screens.screen(), 'během držení se ještě nic neotevře').toBe('picker');
+    expect(test.screens.isEditing(), 'během držení se ještě nic nepřepne').toBe(false);
     pencil.release(1);
+    expect(test.screens.isEditing()).toBe(true);
+    expect(taps(test.feedback)).toHaveLength(1);
 
+    tapProfileCircle(test.screens, profileAt(test, 2).id);
     expect(test.screens.screen()).toBe('nickname');
     expect(test.screens.nickname()).toBe('TOM');
-    expect(taps(test.feedback)).toHaveLength(1);
   });
 
   it('když prst z tužky sjede a zvedne se jinde, nestane se nic', () => {
     const test = threeProfiles();
-    const pencil = test.screens.pencilButton(profileAt(test, 2).id);
+    const pencil = test.screens.editPencilButton;
 
     pencil.press(1);
     pencil.leave(1);
     pencil.release(1);
 
     expect(test.screens.screen()).toBe('picker');
+    expect(test.screens.isEditing()).toBe(false);
     expect(test.chosen()).toBe(0);
     expect(taps(test.feedback)).toHaveLength(0);
   });
 
   it('když prohlížeč dotyk na tužce přeruší (pointercancel), nestane se nic', () => {
     const test = threeProfiles();
-    const pencil = test.screens.pencilButton(profileAt(test, 2).id);
+    const pencil = test.screens.editPencilButton;
 
     pencil.press(1);
     pencil.cancel(1);
     pencil.release(1);
 
     expect(test.screens.screen()).toBe('picker');
+    expect(test.screens.isEditing()).toBe(false);
     expect(test.chosen()).toBe(0);
     expect(taps(test.feedback)).toHaveLength(0);
   });
 
-  it('prst, který začal jinde a zvedl se na tužce, úpravu neotevře', () => {
+  it('prst, který začal jinde a zvedl se na tužce, do úprav nepřepne', () => {
     const test = threeProfiles();
-    const pencil = test.screens.pencilButton(profileAt(test, 2).id);
 
-    pencil.release(1);
+    test.screens.editPencilButton.release(1);
 
     expect(test.screens.screen()).toBe('picker');
+    expect(test.screens.isEditing()).toBe(false);
   });
 
-  it('zvednutí jiného prstu, než který tužku zmáčkl, úpravu neotevře', () => {
+  it('zvednutí jiného prstu, než který tužku zmáčkl, do úprav nepřepne', () => {
     const test = threeProfiles();
-    const pencil = test.screens.pencilButton(profileAt(test, 2).id);
+    const pencil = test.screens.editPencilButton;
 
     pencil.press(1);
     pencil.release(2);
 
     expect(test.screens.screen()).toBe('picker');
+    expect(test.screens.isEditing()).toBe(false);
   });
 
   it('po zrušeném dotyku jde tužku hned ťuknout znovu', () => {
     const test = threeProfiles();
     const tom = profileAt(test, 2).id;
-    const pencil = test.screens.pencilButton(tom);
+    const pencil = test.screens.editPencilButton;
     pencil.press(1);
     pencil.cancel(1);
 
-    tapPencil(test.screens, tom, 2);
+    tapEditPencil(test.screens, 2);
+    tapProfileCircle(test.screens, tom, 2);
 
     expect(test.screens.nickname()).toBe('TOM');
   });
@@ -212,7 +220,7 @@ describe('#107 AC1: ťuknutí na tužku otevře úpravu právě toho profilu', (
     const test = threeProfiles();
     const before = test.store.profiles();
 
-    tapPencil(test.screens, profileAt(test, 2).id);
+    openEdit(test.screens, profileAt(test, 2).id);
     test.screens.tapBack();
 
     expect(test.screens.screen()).toBe('picker');
@@ -224,22 +232,24 @@ describe('#107 AC1: ťuknutí na tužku otevře úpravu právě toho profilu', (
     const test = threeProfiles();
     const tom = profileAt(test, 2).id;
     const ema = profileAt(test, 1).id;
-    tapPencil(test.screens, ema);
+    openEdit(test.screens, ema);
 
-    tapPencil(test.screens, tom);
+    // #160: ve formuláři nepřepne tužka v liště ani kolečko TOM.
+    openEdit(test.screens, tom);
     expect(test.screens.nickname(), 've formuláři zůstane úprava EMA').toBe('EMA');
 
     test.screens.tapBack();
     tapProfileCircle(test.screens, ema);
     expect(test.screens.screen()).toBe('closed');
-    tapPencil(test.screens, tom);
+    tapEditPencil(test.screens);
+    expect(test.screens.isEditing(), 'v menu se do úprav nepřepne').toBe(false);
     expect(test.screens.screen(), 'v menu se úprava neotevře').toBe('closed');
   });
 
   it('tužka u profilu, který už neexistuje, nic neotevře', () => {
     const test = threeProfiles();
 
-    tapPencil(test.screens, 'neexistujici-profil');
+    openEdit(test.screens, 'neexistujici-profil');
 
     expect(test.screens.screen()).toBe('picker');
     expect(test.chosen()).toBe(0);
@@ -260,13 +270,14 @@ describe('#107 AC2: ťuknutí na kolečko profilu dál profil vybere', () => {
   });
 });
 
-describe('#107 AC3: tužka je u každého profilu, i u jediného', () => {
+// #160: místo tužky u každého kolečka jedna tužka v liště, úpravu otevře i u jediného profilu.
+describe('#107 AC3: úprava jde otevřít u každého profilu, i u jediného', () => {
   it('s jediným profilem (bez přezdívky) tužka otevře jeho úpravu', () => {
     const test = testProfileScreens();
     const only = profileAt(test, 0);
     expect(test.store.profiles()).toHaveLength(1);
 
-    tapPencil(test.screens, only.id);
+    openEdit(test.screens, only.id);
 
     expect(test.screens.formMode()).toBe('edit');
     expect(test.screens.nickname()).toBe('');
@@ -286,7 +297,7 @@ describe('#107 AC3: tužka je u každého profilu, i u jediného', () => {
     expect(items).toHaveLength(6);
 
     for (const item of items) {
-      tapPencil(test.screens, item.id);
+      openEdit(test.screens, item.id);
       expect(test.screens.nickname(), `tužka u ${item.nickname ?? '★'}`).toBe(item.nickname ?? '');
       test.screens.tapBack();
     }
@@ -305,7 +316,7 @@ describe('#107 AC5 (od #109 nahrazeno): úprava se otevře jen tužkou, ne podr�
     expect(test.chosen()).toBe(1);
 
     test.screens.open();
-    tapPencil(test.screens, tom);
+    openEdit(test.screens, tom);
     expect(test.screens.formMode()).toBe('edit');
     expect(test.screens.nickname()).toBe('TOM');
   });

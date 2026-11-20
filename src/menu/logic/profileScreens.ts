@@ -11,9 +11,12 @@
  *   má dva kroky: přezdívku z mřížky písmen a barvu. ✓ profil uloží a vrátí
  *   výběr; nový profil se sám nevybere.
  * - Fyzická klávesnice (`keyDown`) má účinek jen v 1. kroku.
- * - Úprava profilu (#73): otevře ji jen ťuknutí na tužku u profilu (#107),
- *   formulář je předvyplněný přezdívkou a barvou. ✓ úpravu uloží a vrátí
- *   výběr; profil se tím nevybere.
+ * - Úprava profilu (#73): jediná tužka v liště výběru (#160) ťuknutím
+ *   přepne výběr do režimu úprav, další ťuknutí ho ukončí. V úpravách
+ *   ťuknutí na kolečko otevře úpravu profilu místo výběru, formulář je
+ *   předvyplněný přezdívkou a barvou. ✓ úpravu uloží a vrátí výběr; profil
+ *   se tím nevybere. Výběr se otevírá, a z formuláře i po smazání vrací,
+ *   vždy mimo úpravy.
  * - Smazání (#73): koš je jen ve 2. kroku úpravy a jen při dvou a více
  *   profilech. Koš otevře potvrzení, „Zpět“ vrátí rozepsanou úpravu,
  *   „Smazat“ profil smaže. Při dvou a více zbývajících profilech se ukáže
@@ -160,10 +163,15 @@ export interface ProfileScreens {
   /** Je vidět „+“ (pod limitem profilů)? */
   canAddProfile(): boolean;
   tapProfile(id: string): void;
-  /** Kolečko profilu `id`: ťuknutí profil vybere, i po dlouhém dotyku (#109). */
+  /**
+   * Kolečko profilu `id`: ťuknutí profil vybere, i po dlouhém dotyku (#109);
+   * v režimu úprav místo toho otevře úpravu profilu (#160).
+   */
   profileButton(id: string): TapButton;
-  /** Tužka u profilu `id` (#107): ťuknutí otevře úpravu profilu. */
-  pencilButton(id: string): TapButton;
+  /** Tužka v liště výběru (#160): ťuknutí zapne nebo vypne režim úprav. */
+  readonly editPencilButton: TapButton;
+  /** Je výběr v režimu úprav (odznaky tužky, označená tužka)? Mimo výběr `false`. */
+  isEditing(): boolean;
   /** „+“: ťuknutí otevře formulář nového profilu (#109). */
   readonly addButton: TapButton;
 
@@ -247,6 +255,8 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
   const store = options.profiles;
   let screen: ProfileScreen = 'closed';
   let draft = emptyDraft();
+  /** Režim úprav na výběru (#160); platí jen, dokud je vidět výběr. */
+  let editing = false;
 
   function emit(event: ProfileFeedback): void {
     options.feedback(event);
@@ -314,6 +324,18 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
     }
     draft = editDraft(profile);
     screen = 'nickname';
+    editing = false;
+    emit({ kind: 'tap', target: 'profile' });
+  }
+
+  /** Výběr profilu mimo režim úprav: po otevření, z formuláře i po smazání. */
+  function showPicker(): void {
+    screen = 'picker';
+    editing = false;
+  }
+
+  function isEditing(): boolean {
+    return screen === 'picker' && editing;
   }
 
   function tapProfile(id: string): void {
@@ -336,30 +358,20 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
     }
     const button = createTapButton({
       isEnabled: () => screen === 'picker' && findProfile(id) !== undefined,
-      onTap: () => tapProfile(id),
+      // V úpravách kolečko otevře úpravu a nic nevybere (#160).
+      onTap: () => (isEditing() ? openEdit(id) : tapProfile(id)),
     });
     profileButtons.set(id, button);
     return button;
   }
 
-  /** Tužky u profilů podle označení (#107); vzniknou při prvním dotazu. */
-  const pencilButtons = new Map<string, TapButton>();
-
-  function pencilButton(id: string): TapButton {
-    const existing = pencilButtons.get(id);
-    if (existing !== undefined) {
-      return existing;
-    }
-    const button = createTapButton({
-      isEnabled: () => screen === 'picker' && findProfile(id) !== undefined,
-      onTap: () => {
-        openEdit(id);
-        emit({ kind: 'tap', target: 'pencil' });
-      },
-    });
-    pencilButtons.set(id, button);
-    return button;
-  }
+  const editPencilButton = createTapButton({
+    isEnabled: () => screen === 'picker',
+    onTap: () => {
+      editing = !editing;
+      emit({ kind: 'tap', target: 'pencil' });
+    },
+  });
 
   /** Uloží formulář: nový profil, nebo úpravu. */
   function saveDraft(): void {
@@ -376,13 +388,13 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
   function closeAfterDelete(deletedId: string): void {
     // Tlačítko smazaného profilu už nikdo nepoužije.
     profileButtons.delete(deletedId);
-    pencilButtons.delete(deletedId);
     draft = emptyDraft();
     if (store.profiles().length >= 2) {
-      screen = 'picker';
+      showPicker();
       return;
     }
     screen = 'closed';
+    editing = false;
     options.onProfileChosen();
   }
 
@@ -443,7 +455,7 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
 
     open(): void {
       draft = emptyDraft();
-      screen = 'picker';
+      showPicker();
     },
 
     pickerItems: () => store.profiles().map(pickerItemOf),
@@ -451,7 +463,8 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
 
     tapProfile,
     profileButton,
-    pencilButton,
+    editPencilButton,
+    isEditing,
     addButton,
     formMode,
 
@@ -514,7 +527,7 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
     tapBack(): void {
       if (screen === 'nickname') {
         draft = emptyDraft();
-        screen = 'picker';
+        showPicker();
         emit({ kind: 'tap', target: 'back' });
       } else if (screen === 'color') {
         screen = 'nickname';
@@ -542,7 +555,7 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
       }
       saveDraft();
       draft = emptyDraft();
-      screen = 'picker';
+      showPicker();
       emit({ kind: 'tap', target: 'save' });
     },
 

@@ -59,6 +59,8 @@ const PRESS = { scale: 0.92, durationMs: 70 };
 const HELD_SCALE = 0.95;
 const SHAKE = { distance: 8, durationMs: 50, repeat: 3 };
 const WOBBLE = { angle: 8, durationMs: 90 };
+/** Odznak tužky je malý, zhoupne se víc, aby bylo vidět, že přibyl (#160). */
+const BADGE_WOBBLE_ANGLE = 20;
 /**
  * Kroužek podržení „Smazat“ (#108): uvnitř okraje tlačítka jako u kolečka
  * nastavení. Kolečka profilů a „+“ reagují ťuknutím bez kroužku (#109).
@@ -70,9 +72,12 @@ const FIELD_TEXT_INSET = 14;
 const CARET_WIDTH = 3;
 /** Kroužek kolem zvolené barvy: bílá mezera a tmavý okraj. */
 const SWATCH_RING = { gap: 3, width: 3 };
-/** Tužka u profilu (#107): okraj 2 px a symbol 30 px v kolečku 64 px. */
+/** Tužka v liště (#160, dřív u profilu #107): okraj 2 px a symbol 30 px v kolečku 64 px. */
 const PENCIL_BORDER = 2;
 const PENCIL_ICON_SIZE = 30;
+/** Odznak tužky na kolečku (#160): bílý okraj 3 px, tužka přes 1,2 poloměru. */
+const EDIT_BADGE_BORDER = 3;
+const EDIT_BADGE_ICON_RATIO = 1.2;
 
 export interface ProfileSceneHost {
   readonly screens: ProfileScreens;
@@ -204,6 +209,8 @@ export class ProfileScene extends Phaser.Scene {
   private holding: { readonly key: string; readonly startedAt: number } | null = null;
   private selectedSwatch: Tappable | undefined;
   private trashItem: Tappable | undefined;
+  /** Odznaky tužky na kolečkách v úpravách (#160), zhoupnou se po zapnutí úprav. */
+  private editBadges: Phaser.GameObjects.Container[] = [];
   private confirmDeleteItem: Tappable | undefined;
 
   private keyboardListening = false;
@@ -280,6 +287,7 @@ export class ProfileScene extends Phaser.Scene {
       screens.deleteConfirmProfile(),
       screens.canAddProfile(),
       screens.pickerItems(),
+      screens.isEditing(),
       menu.isLanguageMenuOpen(),
       menu.languageButtonLabel(),
     ]);
@@ -406,6 +414,10 @@ export class ProfileScene extends Phaser.Scene {
       object.destroy();
     }
     this.drawn = [];
+    for (const badge of this.editBadges) {
+      this.tweens.killTweensOf(badge);
+    }
+    this.editBadges = [];
     this.regions = [];
     this.letterItems = new Map();
     this.keyItems = {};
@@ -529,12 +541,14 @@ export class ProfileScene extends Phaser.Scene {
         profile.symbol,
         layout.symbolFontSize,
       );
-      // Ťuknutí profil vybere, i po dlouhém dotyku a bez kroužku (#109).
+      // Ťuknutí profil vybere, i po dlouhém dotyku a bez kroužku (#109);
+      // v úpravách otevře úpravu profilu (#160).
       this.region(slot.circle, item, () => undefined, {
         button: screens.profileButton(profile.id),
       });
-      // Tužka vpravo od kolečka otevře úpravu ťuknutím (#107).
-      this.drawPencil(slot.pencil, profile.id);
+      if (screens.isEditing()) {
+        this.drawEditBadge(item, slot.circle, slot.editBadge);
+      }
       if (profile.nickname !== null) {
         this.drawNicknameLines(slot.nickname, profile.nickname, layout);
       }
@@ -543,6 +557,7 @@ export class ProfileScene extends Phaser.Scene {
       this.drawAddButton(layout.add, layout.symbolFontSize);
     }
     this.drawLanguage(layout);
+    this.drawEditPencil(layout.editPencil, screens.isEditing());
   }
 
   private drawCircle(box: MenuBox, color: string, symbol: string, fontSize: number): Tappable {
@@ -594,27 +609,67 @@ export class ProfileScene extends Phaser.Scene {
     make(letters.slice(at).join(''), 1);
   }
 
-  /** Tužka (#107): světle modré kolečko s okrajem a modrou tužkou šikmo. */
-  private drawPencil(box: MenuBox, id: string): void {
+  /**
+   * Tužka v liště (#160): světle modré kolečko s okrajem a modrou tužkou
+   * šikmo, v režimu úprav označená plným modrým kolečkem s bílou tužkou.
+   * Ťuknutí režim úprav zapne nebo vypne.
+   */
+  private drawEditPencil(box: MenuBox, selected: boolean): void {
     const item = this.tappable(box);
     const radius = ((box.right - box.left) / 2) * UNIT;
     const background = this.add.graphics();
-    background
-      .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.pencilBorder), 1)
+    if (selected) {
+      background
+        .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.pencilSelectedBackground), 1)
+        .fillCircle(0, 0, radius);
+    } else {
+      background
+        .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.pencilBorder), 1)
+        .fillCircle(0, 0, radius)
+        .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.pencilBackground), 1)
+        .fillCircle(0, 0, radius - PENCIL_BORDER * UNIT);
+    }
+    const symbol = selected
+      ? PROFILE_SCREEN_STYLE.pencilSelectedSymbol
+      : PROFILE_SCREEN_STYLE.pencilSymbol;
+    item.container.add([background, this.pencilIcon(PENCIL_ICON_SIZE * UNIT, symbol)]);
+    this.region(box, item, () => undefined, { button: this.host.screens.editPencilButton });
+  }
+
+  /**
+   * Odznak tužky na kolečku profilu v úpravách (#160): modré kolečko
+   * s bílým okrajem a bílou tužkou. Patří do kontejneru kolečka, aby se
+   * s ním zmáčkl; ťukací plochu nemá, ťuknutí na něj je ťuknutí na kolečko.
+   */
+  private drawEditBadge(circleItem: Tappable, circle: MenuBox, badge: MenuBox): void {
+    const center = centerOf(circle);
+    const badgeCenter = centerOf(badge);
+    const radius = ((badge.right - badge.left) / 2) * UNIT;
+    const graphics = this.add.graphics();
+    graphics
+      .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.editBadgeBorder), 1)
       .fillCircle(0, 0, radius)
-      .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.pencilBackground), 1)
-      .fillCircle(0, 0, radius - PENCIL_BORDER * UNIT);
-    item.container.add([background, this.pencilIcon(PENCIL_ICON_SIZE * UNIT)]);
-    this.region(box, item, () => undefined, { button: this.host.screens.pencilButton(id) });
+      .fillStyle(colorNumber(PROFILE_SCREEN_STYLE.editBadgeBackground), 1)
+      .fillCircle(0, 0, radius - EDIT_BADGE_BORDER * UNIT);
+    const icon = this.pencilIcon(
+      radius * EDIT_BADGE_ICON_RATIO,
+      PROFILE_SCREEN_STYLE.editBadgeSymbol,
+    );
+    const badgeItem = this.add.container(badgeCenter.x - center.x, badgeCenter.y - center.y, [
+      graphics,
+      icon,
+    ]);
+    circleItem.container.add(badgeItem);
+    this.editBadges.push(badgeItem);
   }
 
   /** Tužka jako čáry (tělo s hrotem a čárka u gumy) v ploše `size` × `size`. */
-  private pencilIcon(size: number): Phaser.GameObjects.Graphics {
+  private pencilIcon(size: number, color: string): Phaser.GameObjects.Graphics {
     // Souřadnice z obrázku tuzka-*.png v mřížce 24 × 24 se středem v počátku.
     const unit = size / 24;
     const at = (value: number): number => (value - 12) * unit;
     const icon = this.add.graphics();
-    icon.lineStyle(2.2 * unit, colorNumber(PROFILE_SCREEN_STYLE.pencilSymbol), 1);
+    icon.lineStyle(2.2 * unit, colorNumber(color), 1);
     icon.beginPath();
     icon.moveTo(at(15.5), at(4.5));
     icon.lineTo(at(19.5), at(8.5));
@@ -626,7 +681,7 @@ export class ProfileScene extends Phaser.Scene {
     icon.lineTo(at(17), at(11));
     icon.strokePath();
     // Zaoblené rohy jako v obrázku: v každém rohu malé kolečko tloušťky čáry.
-    icon.fillStyle(colorNumber(PROFILE_SCREEN_STYLE.pencilSymbol), 1);
+    icon.fillStyle(colorNumber(color), 1);
     const corners: ReadonlyArray<readonly [number, number]> = [
       [15.5, 4.5],
       [19.5, 8.5],
@@ -1322,8 +1377,11 @@ export class ProfileScene extends Phaser.Scene {
       case 'save':
       case 'profile':
       case 'add':
-      case 'pencil':
         // Obrazovka se hned změní, zmáčknutí by nebylo vidět; zvuk už zazněl.
+        break;
+      case 'pencil':
+        // Po zapnutí úprav se odznaky krátce zhoupnou (#160), po vypnutí zmizí.
+        this.editBadges.forEach((badge) => this.wobbleBadge(badge));
         break;
     }
   }
@@ -1369,6 +1427,22 @@ export class ProfileScene extends Phaser.Scene {
       onComplete: () => {
         item.container.x = item.homeX;
       },
+    });
+  }
+
+  private wobbleBadge(badge: Phaser.GameObjects.Container): void {
+    if (!badge.active) {
+      return;
+    }
+    this.tweens.killTweensOf(badge);
+    badge.setAngle(0);
+    this.tweens.chain({
+      targets: badge,
+      tweens: [
+        { angle: BADGE_WOBBLE_ANGLE, duration: WOBBLE.durationMs, ease: 'Sine.easeOut' },
+        { angle: -BADGE_WOBBLE_ANGLE, duration: 2 * WOBBLE.durationMs, ease: 'Sine.easeInOut' },
+        { angle: 0, duration: WOBBLE.durationMs, ease: 'Sine.easeIn' },
+      ],
     });
   }
 
