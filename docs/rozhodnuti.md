@@ -349,3 +349,4 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-19 #159: klíč čeká v zámku 5 s od doletu, listování výběru ho vrátí do ukazatele, při nenačteném obrysu klíč nevyletí. Klíč v ukazateli je při letu ztlumený, v zámku poskakuje a pootáčí se. Nahrazuje spotřebu klíče jedním ťuknutím z #140 AC5.
 - 2026-11-20 Rychlé přepínání v Omalovánkách (#148) bylo matoucí: první tlačítko je vždy nástroj, kterým se maluje (s gumou ten před ní), a přepíná se jen mezi ním a gumou (#163).
 - 2026-11-20 Hra bude mít jednu hlavní animovanou postavičku, která děti provází: panda červená, poměrně realistická. Vzhled 3D jako předem vyrenderované animace (ne skutečné 3D ve hře). Nahrazuje zákaz postaviček z 2026-11-05.
+- 2026-11-20 Vybrána panda červená varianta 4 z návrhů (ElevenLabs generace `1c0GWhsdj9afuDSs5fed`, GPT Image 2.5, 252 kreditů za 4 návrhy). Je to základ všech dalších póz a pohybů.
