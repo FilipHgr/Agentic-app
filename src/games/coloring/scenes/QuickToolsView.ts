@@ -1,11 +1,10 @@
 /**
- * Dvě tlačítka rychlého přepínání v pruhu ovládání (#148) místo nedávných
- * barev z #99, ve vzhledu tlačítek nástrojů v panelu. První tlačítko
- * ukazuje předchozí nástroj: jeho ikonu a vpravo dole kolečko jeho barvy
- * jako u nástroje v panelu a v úchytu (#110, #114), duha bez kolečka.
- * Bez předchozího nástroje je první tlačítko prázdné místo (slabý obrys).
- * Druhé tlačítko je vždy guma; vybraná guma má silný modrý okraj jako
- * vybraný nástroj v panelu. Ťuknutí pozná scéna přes `touchTargetAt`, co
+ * Dvě tlačítka rychlého přepínání v pruhu ovládání (#148, #163) místo
+ * nedávných barev z #99, ve vzhledu tlačítek nástrojů v panelu. První
+ * tlačítko ukazuje kreslicí nástroj: jeho ikonu a vpravo dole kolečko jeho
+ * barvy jako u nástroje v panelu a v úchytu (#110, #114), duha bez kolečka.
+ * Druhé tlačítko je vždy guma. Vybrané z obou tlačítek má silný modrý okraj
+ * jako vybraný nástroj v panelu (#163 AC3). Ťuknutí pozná scéna přes `touchTargetAt`, co
  * se vybere, řídí logika (`savedPicture.ts`, `quickTools.ts`).
  */
 
@@ -13,10 +12,9 @@ import Phaser from 'phaser';
 
 import { toolSlotColorDot, toolSlotIcon } from '../logic/coloringLayout';
 import type { LayoutRect } from '../logic/coloringLayout';
-import type { PreviousToolView, QuickToolButton } from '../logic/quickTools';
+import type { QuickDrawingToolView, QuickToolButton } from '../logic/quickTools';
 import { colorHex } from '../logic/toolColorSets';
 import { drawColorDot } from './colorDot';
-import { drawEmptySlot } from './emptySlot';
 import { showToolIcon } from './toolIconTextures';
 import { drawToolButton } from './ToolPanelView';
 
@@ -28,9 +26,9 @@ const PRESS = { scale: 0.9, durationMs: 70 };
 
 /** Co tlačítka ukazují. */
 export interface QuickToolsLook {
-  /** Předchozí nástroj na prvním tlačítku, `null` u prázdného místa. */
-  readonly previous: PreviousToolView | null;
-  /** Je vybraná guma (druhé tlačítko označené)? */
+  /** Kreslicí nástroj na prvním tlačítku. */
+  readonly drawingTool: QuickDrawingToolView;
+  /** Je vybraná guma (označené druhé tlačítko), nebo kreslicí nástroj (první)? */
   readonly eraserSelected: boolean;
 }
 
@@ -52,23 +50,23 @@ export class QuickToolsView {
 
   /** Postaví obě tlačítka na místa z rozložení v hloubce `depth`, např. po otočení. */
   place(
-    places: { readonly previousTool: LayoutRect; readonly eraser: LayoutRect },
+    places: { readonly drawingTool: LayoutRect; readonly eraser: LayoutRect },
     cssScale: number,
     depth: number,
   ): void {
     this.destroy();
     this.cssScale = cssScale;
     this.buttons = {
-      previousTool: this.build(places.previousTool, depth),
+      drawingTool: this.build(places.drawingTool, depth),
       eraser: this.build(places.eraser, depth),
     };
   }
 
-  /** Překreslí obě tlačítka podle předchozího nástroje a vybrané gumy. */
+  /** Překreslí obě tlačítka podle kreslicího nástroje a vybrané gumy. */
   show(look: QuickToolsLook): void {
-    const previous = this.buttons.previousTool;
-    if (previous !== undefined) {
-      this.showPrevious(previous, look.previous);
+    const drawing = this.buttons.drawingTool;
+    if (drawing !== undefined) {
+      this.showDrawingTool(drawing, look.drawingTool, !look.eraserSelected);
     }
     const eraser = this.buttons.eraser;
     if (eraser !== undefined) {
@@ -76,7 +74,7 @@ export class QuickToolsView {
     }
   }
 
-  /** Prázdné místo nebo už vybraná guma: tlačítko se jen zhoupne (#148 AC3). */
+  /** Už vybrané tlačítko se jen zhoupne (#163 AC3). */
   wobble(button: QuickToolButton): void {
     const container = this.buttons[button]?.container;
     if (container === undefined) {
@@ -138,19 +136,18 @@ export class QuickToolsView {
     return { ...rect, left: -rect.width / 2, top: -rect.height / 2 };
   }
 
-  private showPrevious(parts: QuickButtonParts, previous: PreviousToolView | null): void {
+  private showDrawingTool(
+    parts: QuickButtonParts,
+    drawing: QuickDrawingToolView,
+    selected: boolean,
+  ): void {
     parts.background.clear();
     parts.dot.clear();
     const local = this.centered(parts.rect);
-    if (previous === null) {
-      parts.icon.setVisible(false);
-      drawEmptySlot(parts.background, parts.rect, this.cssScale, local.left, local.top);
-      return;
-    }
-    drawToolButton(parts.background, parts.rect, this.cssScale, false);
-    showToolIcon(parts.icon, previous.tool, toolSlotIcon(local), this.cssScale);
+    drawToolButton(parts.background, parts.rect, this.cssScale, selected);
+    showToolIcon(parts.icon, drawing.tool, toolSlotIcon(local), this.cssScale);
     // Duha je bez kolečka (#148 AC1); malovací nástroj má kolečko své barvy.
-    const hex = previous.color === null ? undefined : colorHex(previous.color);
+    const hex = drawing.color === null ? undefined : colorHex(drawing.color);
     if (hex !== undefined) {
       drawColorDot(parts.dot, toolSlotColorDot(local), { kind: 'color', hex }, this.cssScale);
     }

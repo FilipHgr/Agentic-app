@@ -276,7 +276,7 @@ describe('#105 AC6: pravidla rozložení z #96 platí pro oba kroky ve všech ok
     }
   });
 
-  it('krok nepřekryje domeček ani 8 px kolem něj, úchyt, Zpět, předchozí nástroj ani gumu v pruhu', () => {
+  it('krok nepřekryje domeček ani 8 px kolem něj, úchyt, Zpět, kreslicí nástroj ani gumu v pruhu', () => {
     for (const testCase of stepCases()) {
       for (const [name, control] of stripControls(testCase)) {
         expect(
@@ -484,7 +484,7 @@ describe('#105 AC2, AC4, AC5: kam patří dotyk v krocích panelu', () => {
     }
   });
 
-  it('Zpět, předchozí nástroj a guma v pruhu jdou ťuknout se zavřeným panelem i v obou krocích', () => {
+  it('Zpět, kreslicí nástroj a guma v pruhu jdou ťuknout se zavřeným panelem i v obou krocích', () => {
     for (const testCase of cases()) {
       const undo = center(testCase.layout.undoButton);
       expect(

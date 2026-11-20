@@ -6,9 +6,9 @@
  *
  * Od #96 je obrázek přes celou obrazovku a vedle něj jen úzký pruh
  * ovládání: domeček, úchyt panelu, Zpět a od #148 místo 2 nedávných barev
- * tlačítko předchozího nástroje a guma (`quickTools`).
+ * tlačítko kreslicího nástroje a guma (`quickTools`).
  * Na šířku je pruh vlevo a panel vyjíždí zleva (L-A), na výšku je pruh
- * dole, úchyt uprostřed, Zpět vpravo, předchozí nástroj a guma vlevo a panel
+ * dole, úchyt uprostřed, Zpět vpravo, kreslicí nástroj a guma vlevo a panel
  * vyjíždí zdola (P-A). Domeček na výšku zůstává vlevo nahoře.
  *
  * Od #105 je panel ve dvou krocích se stejným rozměrem panelu: krok
@@ -41,7 +41,7 @@
  * - `picture: LayoutRect` plocha omalovánky,
  * - `handle: LayoutRect` úchyt panelu (#96),
  * - `undoButton: LayoutRect` Zpět v pruhu (#89, místo od #96),
- * - od #148 `previousToolButton: LayoutRect` a `quickEraserButton: LayoutRect`
+ * - od #148 `quickDrawingToolButton: LayoutRect` a `quickEraserButton: LayoutRect`
  *   místo `recentColors` (2 místa pro nedávné barvy z #99),
  * - `panel: LayoutRect` pozadí otevřeného panelu,
  * - `paletteColors: readonly LayoutRect[]` 12 míst pro barvy v panelu
@@ -147,7 +147,7 @@ export const PLANNED_LINE_SIZES = 4;
  */
 export const MAX_STEP_PLACES = 14;
 
-/** Tlačítka v pruhu místo 2 nedávných barev (#96 AC1): předchozí nástroj a guma (#148). */
+/** Tlačítka v pruhu místo 2 nedávných barev (#96 AC1): kreslicí nástroj a guma (#148). */
 export const QUICK_TOOL_PLACES = 2;
 
 export const PICTURE_NAME = 'plocha omalovánky';
@@ -177,23 +177,23 @@ export function lineSizeName(index: number): string {
  */
 export const PICTURE_EDGE_EXCEPTION = 0;
 
-/** Název tlačítka v pruhu: 0 předchozí nástroj, 1 guma (#148 AC1). */
+/** Název tlačítka v pruhu: 0 kreslicí nástroj, 1 guma (#148 AC1). */
 export function quickToolName(index: number): string {
-  return index === 0 ? 'předchozí nástroj' : 'guma v pruhu';
+  return index === 0 ? 'kreslicí nástroj' : 'guma v pruhu';
 }
 
 /** Kam má patřit dotyk na tlačítko `index` v pruhu (#148). */
 export function quickToolTarget(index: number): TouchTarget {
-  return index === 0 ? { kind: 'previousTool' } : { kind: 'quickEraser' };
+  return index === 0 ? { kind: 'quickDrawingTool' } : { kind: 'quickEraser' };
 }
 
 /**
- * Tlačítka předchozího nástroje a gumy v pořadí pruhu (#148). Před
+ * Tlačítka kreslicího nástroje a gumy v pořadí pruhu (#148). Před
  * implementací pole chybí a seznam je prázdný; testy #148 pak selžou na
  * vlastních kontrolách, ne tady.
  */
 export function quickToolRects(layout: ColoringLayout): LayoutRect[] {
-  const places = [layout.previousToolButton, layout.quickEraserButton] as Array<
+  const places = [layout.quickDrawingToolButton, layout.quickEraserButton] as Array<
     LayoutRect | undefined
   >;
   return places.filter((place): place is LayoutRect => place !== undefined);

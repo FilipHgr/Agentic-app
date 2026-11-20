@@ -54,7 +54,7 @@ import {
 } from './savedPictureHelpers';
 import { STRIPES, stripePixels } from './stripesHelpers';
 import { at } from './strokeHelpers';
-import { firstButton } from './quickToolsHelpers';
+import { firstButton, shownAs } from './quickToolsHelpers';
 
 /**
  * Testy k #102 AC5 (uložení): vzorek proužků přes vzor V se vejde do
@@ -259,8 +259,8 @@ describe('#102 AC5: dříve uložené obrázky se otevřou beze změny', () => {
     expect(game.palette().selected, 'vybraná barva').toBe(LEGACY_P3_DOTS_SELECTED_COLOR);
     expect(
       firstButton(game),
-      'první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
-    ).toBeNull();
+      'na prvním tlačítku štětec, starý záznam nedávných barev se nepoužije (#148, #163 AC5)',
+    ).toEqual(shownAs(game, 'brush'));
     expect(game.lineSize(), 'velikost').toBe(LEGACY_P3_DOTS_LINE_SIZE);
   });
 

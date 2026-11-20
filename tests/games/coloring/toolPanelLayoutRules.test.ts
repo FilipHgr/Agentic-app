@@ -27,7 +27,7 @@ import type { ColoringCase } from './coloringLayoutScenes';
  * AC1 obrázek a úzký pruh, AC2 úchyt, AC3 obsah panelu, AC4 dotyk na
  * panelu nemaluje a domeček je volný, AC6 pravidla rozložení v cyklu.
  * Rozložení L-A (pruh vlevo, panel vyjíždí zleva) a P-A (pruh dole, úchyt
- * uprostřed, Zpět vpravo, nedávné barvy vlevo (od #148 předchozí nástroj a guma), panel vyjíždí zdola) podle
+ * uprostřed, Zpět vpravo, nedávné barvy vlevo (od #148 kreslicí nástroj a guma), panel vyjíždí zdola) podle
  * schválení vlastníka v komentáři k issue. Každý test projde v cyklu
  * všechna okna se zavřeným panelem i v obou krocích panelu (#105);
  * obrazovku skládá
@@ -185,10 +185,10 @@ function gapPointsIn(testCase: ColoringCase): Array<{ x: number; y: number }> {
 }
 
 describe('#96 AC1: obrázek je přes celou obrazovku, vedle něj jen úzký pruh', () => {
-  it('v pruhu je domeček, úchyt, Zpět, předchozí nástroj a guma (#148), nic z nich neleží na obrázku', () => {
+  it('v pruhu je domeček, úchyt, Zpět, kreslicí nástroj a guma (#148), nic z nich neleží na obrázku', () => {
     for (const testCase of cases()) {
       const { label } = testCase.scene;
-      expect(testCase.quickTools.length, `${label}: tlačítek předchozího nástroje a gumy`).toBe(
+      expect(testCase.quickTools.length, `${label}: tlačítek kreslicího nástroje a gumy`).toBe(
         QUICK_TOOL_PLACES,
       );
       for (const control of [testCase.home, ...stripControls(testCase)]) {
@@ -286,7 +286,7 @@ describe('#96 AC2: úchyt jde trefit prstem a leží mimo obrázek', () => {
     }
   });
 
-  it('na výšku je úchyt dole uprostřed, předchozí nástroj a guma vlevo od něj a Zpět vpravo (P-A, #148)', () => {
+  it('na výšku je úchyt dole uprostřed, kreslicí nástroj a guma vlevo od něj a Zpět vpravo (P-A, #148)', () => {
     for (const testCase of cases().filter((each) => !each.landscape)) {
       const { label } = testCase.scene;
       const handleCenter = (testCase.handle.left + testCase.handle.right) / 2;
@@ -315,7 +315,7 @@ describe('#96 AC3, AC6: otevřený panel se v obou krocích vejde vedle pruhu', 
     }
   });
 
-  it('otevřený panel v obou krocích nepřekryje domeček, úchyt, Zpět, předchozí nástroj ani gumu v pruhu', () => {
+  it('otevřený panel v obou krocích nepřekryje domeček, úchyt, Zpět, kreslicí nástroj ani gumu v pruhu', () => {
     for (const testCase of openCases()) {
       const { label } = testCase.scene;
       const strip: Array<[string, Box]> = [

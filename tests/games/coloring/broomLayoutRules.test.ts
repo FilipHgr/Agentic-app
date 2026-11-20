@@ -57,7 +57,7 @@ const ONE_COLUMN_WINDOWS: readonly string[] = [
   'iPad na šířku z plochy (stavový řádek 24, lišta 20)',
 ];
 
-/** Kolik ploch má pruh na šířku v jednom sloupci: domeček, úchyt, Zpět, předchozí nástroj a guma (#148, dřív 2 nedávné barvy), fotoaparát. */
+/** Kolik ploch má pruh na šířku v jednom sloupci: domeček, úchyt, Zpět, kreslicí nástroj a guma (#148, dřív 2 nedávné barvy), fotoaparát. */
 const ONE_COLUMN_CONTROLS_ABOVE_BROOM = 6;
 
 interface BroomCase extends ColoringCase {
@@ -173,7 +173,7 @@ describe('#142 AC6: velikost a místo koštěte', () => {
     }
   });
 
-  it('od úchytu, Zpět, předchozího nástroje a gumy, obrázku a panelu v každém kroku je koště aspoň 8 px', () => {
+  it('od úchytu, Zpět, kreslicího nástroje a gumy, obrázku a panelu v každém kroku je koště aspoň 8 px', () => {
     for (const testCase of cases()) {
       const others: ReadonlyArray<readonly [string, Box]> = [
         [HANDLE_NAME, testCase.handle],

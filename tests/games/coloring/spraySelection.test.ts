@@ -11,7 +11,7 @@ import { choose, endOf } from './drawingToolHelpers';
 import { RecordingStorage, openOn, startStroke, twoHalves } from './savedPictureHelpers';
 import { SPRAY } from './sprayHelpers';
 import { at } from './strokeHelpers';
-import { tapPrevious } from './quickToolsHelpers';
+import { tapFirstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #104 AC1: výběr spreje v panelu a co ukazuje úchyt. Místo
@@ -167,13 +167,14 @@ describe('#104 AC1: sprej se vybírá v panelu jako ostatní nástroje', () => {
 
   // Nahrazuje k #148 test nedávné barvy v pruhu (#99): nedávné barvy
   // nejsou, první tlačítko vrátí nástroj i s jeho barvou.
-  it('první tlačítko v pruhu vrátí sprej i s jeho barvou a úchyt ukáže sprej v ní', () => {
+  it('po gumě první tlačítko v pruhu vrátí sprej i s jeho barvou a úchyt ukáže sprej v ní', () => {
     const game = fresh();
     choose(game, SPRAY);
     game.tapColor(PINK);
-    choose(game, 'brush');
+    // Od #163 vrací první tlačítko nástroj z doby před gumou.
+    choose(game, 'eraser');
 
-    const result = tapPrevious(game);
+    const result = tapFirstButton(game);
 
     expect(result.kind).toBe('picked');
     expect(game.selectedTool()).toBe(SPRAY);

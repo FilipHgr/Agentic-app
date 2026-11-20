@@ -135,8 +135,9 @@ describe('#131 AC1: ťuknutí na štětec otevře malování obrázku z alba', (
     expect(pixelsOf(game, page.regions)).toEqual(prepared.a);
   });
 
-  // Upraveno k #148 AC5: místo nedávných barev zůstane předchozí nástroj.
-  it('barvy nástrojů, předchozí nástroj a tloušťka čáry zůstanou a nástroj je štětec', async () => {
+  // Upraveno k #148 AC5 a #163 AC5: místo nedávných barev je na prvním
+  // tlačítku po otevření vždy štětec, nástroj z minula se nepamatuje.
+  it('barvy nástrojů a tloušťka čáry zůstanou, nástroj i první tlačítko je štětec', async () => {
     const prepared = await prepareSwap();
     const before = openColoring({
       regions: prepared.page.regions,
@@ -153,8 +154,7 @@ describe('#131 AC1: ťuknutí na štětec otevře malování obrázku z alba', (
     before.suspend();
     const tools = ['brush', 'marker', 'crayon', 'glitter'] as const;
     const toolColors = tools.map((tool) => before.toolColor(tool));
-    const first = firstButton(before);
-    expect(first?.tool, 'kontrola: na prvním tlačítku není štětec').not.toBe('brush');
+    expect(firstButton(before).tool, 'kontrola: na prvním tlačítku fix').toBe('marker');
 
     const game = await continueToPainting(prepared);
 
@@ -162,7 +162,10 @@ describe('#131 AC1: ťuknutí na štětec otevře malování obrázku z alba', (
       tools.map((tool) => game.toolColor(tool)),
       'barvy nástrojů',
     ).toEqual(toolColors);
-    expect(firstButton(game), 'předchozí nástroj').toEqual(first);
+    expect(firstButton(game), 'na prvním tlačítku štětec').toEqual({
+      tool: 'brush',
+      color: game.toolColor('brush'),
+    });
     expect(game.lineSize(), 'tloušťka čáry').toBe('large');
     expect(game.selectedTool(), 'nástroj je štětec jako při každém otevření').toBe('brush');
   });
@@ -497,7 +500,7 @@ describe('#131 AC6: dotyky na štětci', () => {
 
     expect(pixelsOf(game, twoHalves()), 'obrázek beze změny').toEqual(prepared.a);
     expect(game.palette(), 'barva beze změny').toEqual(palette);
-    expect(firstButton(game), 'předchozí nástroj beze změny').toEqual(first);
+    expect(firstButton(game), 'první tlačítko beze změny').toEqual(first);
     expect(game.panelView(), 'panel zůstal zavřený').toBe('closed');
   });
 });

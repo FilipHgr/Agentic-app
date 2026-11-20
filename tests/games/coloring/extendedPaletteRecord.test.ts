@@ -48,7 +48,7 @@ import {
   pixelsOf,
   twoHalves,
 } from './savedPictureHelpers';
-import { firstButton } from './quickToolsHelpers';
+import { firstButton, shownAs } from './quickToolsHelpers';
 
 /**
  * Testy k #100 AC3 (staré obrázky), AC4 (uložení a limit 50 000 znaků)
@@ -177,7 +177,9 @@ describe('#100 AC3: obrázek uložený verzí s 8 barvami se otevře beze změny
       'starý obrázek',
     ).toEqual([]);
     expect(game.palette().selected, 'vybraná barva').toBe(LEGACY_P2_SELECTED_COLOR);
-    expect(firstButton(game), 'první tlačítko prázdné (#148 AC5)').toBeNull();
+    expect(firstButton(game), 'na prvním tlačítku štětec (#148, #163 AC5)').toEqual(
+      shownAs(game, 'brush'),
+    );
   });
 
   it('dítě po otevření hry vidí obrázek ze záznamu p1 s vybranou barvou', () => {
@@ -235,9 +237,10 @@ describe('#100 AC3: obrázek uložený verzí s 8 barvami se otevře beze změny
 
     game.tapColor(GRAY);
 
-    expect(firstButton(game), 'první tlačítko').toBeNull();
+    expect(firstButton(game), 'první tlačítko').toEqual(shownAs(game, 'brush'));
     game.suspend();
-    expect(firstButton(openOn(storage, regions)), 'po návratu').toBeNull();
+    const again = openOn(storage, regions);
+    expect(firstButton(again), 'po návratu').toEqual(shownAs(again, 'brush'));
     expect(storage.data.get('recentColors.house'), 'starý záznam beze změny').toBe(oldRecent);
   });
 });
@@ -416,16 +419,16 @@ describe('#100 AC5: záznam s neznámou barvou se ukáže jako prázdná omalov�
 
   // Nahrazuje k #148 test nedávných barev mimo barvy hry (#100, #116):
   // starý záznam nedávných barev se nepoužije, ať je v něm cokoli.
-  it('starý záznam nedávných barev s barvami hry i mimo ně první tlačítko nezaplní a hru nezastaví', () => {
+  // Upraveno k #163 AC5: na prvním tlačítku je po otevření štětec.
+  it('starý záznam nedávných barev s barvami hry i mimo ně první tlačítko nezmění a hru nezastaví', () => {
     const regions = legacyP2Regions();
     for (const record of ['46,50', '99,8', '9,11', '']) {
       const storage = storageWithLegacyP2();
       storage.data.set('recentColors.house', record);
-      let first: ReturnType<typeof firstButton> = { tool: 'brush', color: null };
       expect(() => {
-        first = firstButton(openOn(storage, regions));
+        const game = openOn(storage, regions);
+        expect(firstButton(game), `záznam ${record}`).toEqual(shownAs(game, 'brush'));
       }, `záznam ${record}: hra se nezastaví`).not.toThrow();
-      expect(first, `záznam ${record}`).toBeNull();
     }
   });
 

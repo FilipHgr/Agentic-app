@@ -76,7 +76,7 @@ import {
   giveToolPlace,
   hexOf,
 } from './toolColorSetsHelpers';
-import { tapPrevious } from './quickToolsHelpers';
+import { tapFirstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #116 AC5 (starší uložené stavy) a AC6 první část (obrázek
@@ -286,7 +286,7 @@ describe('#116 AC5: starší uložené stavy', () => {
   // (#116 AC5): nedávné barvy nejsou, barvu mimo sadu má nástroj jen ze
   // staršího záznamu. Po přepnutí prvním tlačítkem v pruhu ji má dál
   // a maluje jí.
-  it('barvu mimo sadu ze staršího záznamu má nástroj i po přepnutí prvním tlačítkem a maluje jí', () => {
+  it('barvu mimo sadu ze staršího záznamu má nástroj i po gumě a přepnutí prvním tlačítkem a maluje jí', () => {
     const regions = legacyBefore111Regions();
     const outside = COLOR_TOOLS.filter((tool) => {
       const hex = hexOf(LEGACY_BEFORE_111_TOOL_COLORS[tool]);
@@ -301,10 +301,11 @@ describe('#116 AC5: starší uložené stavy', () => {
       const game = openOn(storage, regions);
       const color = LEGACY_BEFORE_111_TOOL_COLORS[tool];
       pickTool(game, tool);
-      pickTool(game, 'brush');
+      // Od #163 vrací první tlačítko nástroj z doby před gumou.
+      pickTool(game, 'eraser');
       game.tapHandle();
 
-      expect(tapPrevious(game).kind, `${TOOL_NAMES[tool]}: první tlačítko`).toBe('picked');
+      expect(tapFirstButton(game).kind, `${TOOL_NAMES[tool]}: první tlačítko`).toBe('picked');
 
       const what = `${TOOL_NAMES[tool]}, barva ${String(color)} mimo sadu`;
       expect(game.selectedTool(), `${what}: nástroj`).toBe(tool);

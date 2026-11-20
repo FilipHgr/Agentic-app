@@ -80,13 +80,13 @@ import {
 } from './toolColorsHelpers';
 import type { ColorTool } from './toolColorsHelpers';
 import { ALL_COLOR_COUNT } from './toolColorSetsHelpers';
-import { firstButton, tapPrevious } from './quickToolsHelpers';
+import { firstButton, shownAs, tapFirstButton, tapQuickEraser } from './quickToolsHelpers';
 
 /**
  * Testy k #110 AC5 (pamatování a výchozí barvy) a AC6 (staré uložené stavy
  * a špatný záznam), s doporučeními story-revieweru z komentáře k issue:
  * - nedávné barvy zůstanou po návratu stejné, i když se jedna shoduje
- *   s barvou štětce (od #148 místo nich předchozí nástroj se svou barvou),
+ *   s barvou štětce (od #148 místo nich nástroj na prvním tlačítku se svou barvou),
  * - poškozený záznam obrázku a platný záznam barev nástrojů: platí uložené
  *   barvy nástrojů (obrázek je prázdný),
  * - po ztrátě záznamu barev nástrojů dostanou všechny nástroje naposledy
@@ -206,9 +206,11 @@ describe('#110 AC5: barvy nástrojů se pamatují podle profilu a omalovánky', 
     const storage = new RecordingStorage();
     const regions = twoHalves();
     const game = openOn(storage, regions);
-    pickTool(game, 'stamp');
     giveColor(game, 'brush', YELLOW);
-    tapPrevious(game);
+    pickTool(game, 'stamp');
+    // Od #163 vrací první tlačítko nástroj z doby před gumou.
+    tapQuickEraser(game);
+    tapFirstButton(game);
     expect(game.selectedTool(), 'kontrola: razítkový fix z pruhu').toBe('stamp');
     game.tapColor(RED);
     expect(toolColorsOf(game).stamp, 'razítkový fix dostal červenou').toBe(RED);
@@ -324,21 +326,23 @@ describe('#110 AC5: barvy nástrojů se pamatují podle profilu a omalovánky', 
     expect(toolColorsOf(openOn(storage, regions)), 'první omalovánka').toEqual(CHOSEN);
   });
 
-  // Nahrazuje k #148 test „nedávné barvy zůstanou po návratu stejné …“:
-  // předchozí nástroj zůstane i se svou barvou, i když ji má i štětec.
-  it('předchozí nástroj zůstane po návratu stejný i se svou barvou, i když stejnou barvu má štětec', () => {
+  // Nahrazuje k #148 test „nedávné barvy zůstanou po návratu stejné …“.
+  // Upraveno k #163 AC5: po návratu je na prvním tlačítku štětec, barvy
+  // nástrojů zůstanou a pastelka má svou barvu, i když ji má i štětec.
+  it('po návratu je na prvním tlačítku štětec ve své barvě a pastelka si nechá svou, i když stejnou barvu má štětec', () => {
     const storage = new RecordingStorage();
     const regions = twoHalves();
     const game = openOn(storage, regions);
     giveColor(game, 'crayon', RED);
     giveColor(game, 'marker', GREEN);
-    expect(firstButton(game), 'pastelka v červené').toEqual({ tool: 'crayon', color: RED });
     game.suspend();
 
     const again = openOn(storage, regions);
 
     expect(again.handleView(), 'štětec je červený').toMatchObject({ tool: 'brush', color: RED });
-    expect(firstButton(again), 'pořád pastelka v červené').toEqual({ tool: 'crayon', color: RED });
+    expect(firstButton(again), 'štětec v červené').toEqual({ tool: 'brush', color: RED });
+    pickTool(again, 'crayon');
+    expect(firstButton(again), 'pastelka v červené').toEqual({ tool: 'crayon', color: RED });
   });
 
   it('při plném úložišti jde vybírat barvy dál bez chyby a platí aspoň do odchodu', () => {
@@ -483,7 +487,7 @@ describe('#110 AC6: obrázky uložené před tímto úkolem', () => {
       const game = openOn(storage, regions);
 
       expect(pixelsOf(game, regions), `${name}: obrázek`).toEqual(pixels);
-      expect(firstButton(game), `${name}: první tlačítko`).toBeNull();
+      expect(firstButton(game), `${name}: první tlačítko`).toEqual(shownAs(game, 'brush'));
       expect(game.lineSize(), `${name}: velikost čáry`).toBe(size);
     }
   });

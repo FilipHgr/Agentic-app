@@ -86,7 +86,7 @@ describe('#90 AC5: štětec a guma jsou na vyhrazených místech v panelu', () =
     }
   });
 
-  it('štětec a guma nepřekrývají domeček, úchyt, Zpět, předchozí nástroj ani gumu v pruhu', () => {
+  it('štětec a guma nepřekrývají domeček, úchyt, Zpět, kreslicí nástroj ani gumu v pruhu', () => {
     for (const testCase of cases().filter((each) => each.panel === 'tools')) {
       const strip = [testCase.home, testCase.handle, testCase.undo, ...testCase.quickTools];
       for (const { name, index } of toolPlaces(testCase)) {

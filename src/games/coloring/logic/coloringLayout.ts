@@ -2,12 +2,12 @@
  * Rozložení obrazovky Omalovánek v herních jednotkách (#88, #96): obrázek
  * přes celou obrazovku (plocha `fullWindow`) a vedle něj jen úzký pruh
  * ovládání: domeček, úchyt panelu, Zpět a od #148 místo 2 nedávných barev
- * tlačítko předchozího nástroje a guma (rychlé přepínání nástrojů).
+ * tlačítko kreslicího nástroje a guma (rychlé přepínání nástrojů).
  *
  * - Na šířku (L-A) je pruh vlevo: v jednom sloupci, když se do výšky vejde,
- *   jinak ve dvou (úchyt a Zpět vedle sebe, předchozí nástroj a guma dole). Panel
+ *   jinak ve dvou (úchyt a Zpět vedle sebe, kreslicí nástroj a guma dole). Panel
  *   vyjíždí zleva hned vedle pruhu.
- * - Na výšku (P-A) je pruh dole: předchozí nástroj a guma vlevo, úchyt uprostřed
+ * - Na výšku (P-A) je pruh dole: kreslicí nástroj a guma vlevo, úchyt uprostřed
  *   a Zpět vpravo, domeček zůstává vlevo nahoře. Panel vyjíždí zdola hned
  *   nad pruhem.
  *
@@ -61,8 +61,8 @@ export interface ColoringLayout {
   readonly handle: LayoutRect;
   /** Tlačítko Zpět (#89) v pruhu u úchytu. */
   readonly undoButton: LayoutRect;
-  /** První tlačítko rychlého přepínání: předchozí nástroj (#148), na místě 1. nedávné barvy. */
-  readonly previousToolButton: LayoutRect;
+  /** První tlačítko rychlého přepínání: kreslicí nástroj (#148, #163), na místě 1. nedávné barvy. */
+  readonly quickDrawingToolButton: LayoutRect;
   /** Druhé tlačítko rychlého přepínání: guma (#148), na místě 2. nedávné barvy. */
   readonly quickEraserButton: LayoutRect;
   /** Fotoaparát, uloží hotový obrázek do alba (#126). */
@@ -102,8 +102,8 @@ export type TouchTarget =
   | { readonly kind: 'undo' }
   | { readonly kind: 'camera' }
   | { readonly kind: 'broom' }
-  /** První tlačítko v pruhu: předchozí nástroj (#148). */
-  | { readonly kind: 'previousTool' }
+  /** První tlačítko v pruhu: kreslicí nástroj (#148, #163). */
+  | { readonly kind: 'quickDrawingTool' }
   /** Druhé tlačítko v pruhu: guma (#148). */
   | { readonly kind: 'quickEraser' }
   | { readonly kind: 'color'; readonly index: number }
@@ -122,10 +122,10 @@ export const PICTURE_ASPECT = 4 / 3;
 /** Obsah panelu (#96 AC3): barvy v kroku barev, nástroje v kroku nástrojů (#105). */
 export const PANEL_COLOR_PLACES = 12;
 export const PANEL_TOOL_PLACES = 10;
-/** Tlačítka rychlého přepínání v pruhu: předchozí nástroj a guma (#148). */
+/** Tlačítka rychlého přepínání v pruhu: kreslicí nástroj a guma (#148). */
 const QUICK_TOOL_PLACES = 2;
 
-/** Plochy pruhu na šířku: domeček, úchyt, Zpět, předchozí nástroj, guma a fotoaparát (#126). */
+/** Plochy pruhu na šířku: domeček, úchyt, Zpět, kreslicí nástroj, guma a fotoaparát (#126). */
 const LANDSCAPE_STRIP_CONTROLS = 4 + QUICK_TOOL_PLACES;
 
 /** Mezera mezi plochami a mezi pruhem a obrázkem v CSS px. */
@@ -320,7 +320,7 @@ function paddingFor(space: number, gridLength: number): number {
 interface Strip {
   readonly handle: LayoutRect;
   readonly undoButton: LayoutRect;
-  readonly previousToolButton: LayoutRect;
+  readonly quickDrawingToolButton: LayoutRect;
   readonly quickEraserButton: LayoutRect;
   readonly cameraButton: LayoutRect;
 }
@@ -344,7 +344,7 @@ function oneColumnStrip(home: LayoutRect): Strip {
   return {
     handle: square(home.left, below, side),
     undoButton: square(home.left, below + step, side),
-    previousToolButton: square(home.left, below + 2 * step, side),
+    quickDrawingToolButton: square(home.left, below + 2 * step, side),
     quickEraserButton: square(home.left, below + 3 * step, side),
     cameraButton: square(home.left, below + 4 * step, side),
   };
@@ -352,7 +352,7 @@ function oneColumnStrip(home: LayoutRect): Strip {
 
 /**
  * Pruh ve dvou sloupcích (L-A na telefonu): úchyt a Zpět vedle sebe, pod
- * nimi předchozí nástroj a guma (#148) a úplně dole fotoaparát (#126).
+ * nimi kreslicí nástroj a guma (#148) a úplně dole fotoaparát (#126).
  */
 function twoColumnStrip(home: LayoutRect, height: number): Strip {
   const side = home.width;
@@ -363,7 +363,7 @@ function twoColumnStrip(home: LayoutRect, height: number): Strip {
   return {
     handle: square(home.left, below, side),
     undoButton: square(secondColumn, below, side),
-    previousToolButton: square(home.left, quickTop, side),
+    quickDrawingToolButton: square(home.left, quickTop, side),
     quickEraserButton: square(secondColumn, quickTop, side),
     cameraButton: square(home.left, cameraTop, side),
   };
@@ -394,7 +394,7 @@ function stripRightOf(strip: Strip): number {
   return rightEdgeOf([
     strip.handle,
     strip.undoButton,
-    strip.previousToolButton,
+    strip.quickDrawingToolButton,
     strip.quickEraserButton,
     strip.cameraButton,
   ]);
@@ -469,7 +469,7 @@ function landscapeLayout(
 // ---------------------------------------------------------------------------
 
 /**
- * Pruh dole: předchozí nástroj a guma vlevo (#148), úchyt uprostřed, Zpět vpravo u palce.
+ * Pruh dole: kreslicí nástroj a guma vlevo (#148), úchyt uprostřed, Zpět vpravo u palce.
  * Fotoaparát je vpravo nahoře zrcadlově k domečku (#126), koště 16 px
  * vlevo od něj (#142).
  */
@@ -477,7 +477,7 @@ function portraitStrip(width: number, height: number, home: LayoutRect): StripWi
   const side = home.width;
   const top = height - home.top - side;
   const handleLeft = (width - side) / 2;
-  // Předchozí nástroj a guma od levého okraje jako domeček, v úzkém okně blíž k okraji.
+  // Kreslicí nástroj a guma od levého okraje jako domeček, v úzkém okně blíž k okraji.
   const quickLeft = Math.max(
     MIN_EDGE_CSS,
     Math.min(home.left, handleLeft - GAP_CSS - lineLength(QUICK_TOOL_PLACES, side)),
@@ -485,7 +485,7 @@ function portraitStrip(width: number, height: number, home: LayoutRect): StripWi
   return {
     handle: square(handleLeft, top, side),
     undoButton: square(width - home.left - side, top, side),
-    previousToolButton: square(quickLeft, top, side),
+    quickDrawingToolButton: square(quickLeft, top, side),
     quickEraserButton: square(quickLeft + side + GAP_CSS, top, side),
     cameraButton: square(width - home.left - side, home.top, side),
     broomButton: square(width - home.left - 2 * side - BROOM_GAP_CSS, home.top, side),
@@ -560,7 +560,7 @@ function layoutInUnits(css: CssLayout, unitsPerCss: number): ColoringLayout {
     picture: units(css.picture),
     handle: units(css.handle),
     undoButton: units(css.undoButton),
-    previousToolButton: units(css.previousToolButton),
+    quickDrawingToolButton: units(css.quickDrawingToolButton),
     quickEraserButton: units(css.quickEraserButton),
     cameraButton: units(css.cameraButton),
     broomButton: units(css.broomButton),
@@ -663,8 +663,8 @@ export function touchTargetAt(
   if (contains(layout.broomButton, x, y)) {
     return { kind: 'broom' };
   }
-  if (contains(layout.previousToolButton, x, y)) {
-    return { kind: 'previousTool' };
+  if (contains(layout.quickDrawingToolButton, x, y)) {
+    return { kind: 'quickDrawingTool' };
   }
   if (contains(layout.quickEraserButton, x, y)) {
     return { kind: 'quickEraser' };

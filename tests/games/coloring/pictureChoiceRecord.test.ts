@@ -32,7 +32,7 @@ import {
   giveColor,
   toolColorsOf,
 } from './toolColorsHelpers';
-import { firstButton } from './quickToolsHelpers';
+import { firstButton, shownAs } from './quickToolsHelpers';
 
 /**
  * Testy k #124 AC2 (každá omalovánka má svůj obrázek podle profilu)
@@ -98,7 +98,7 @@ describe('#124 AC2: každá omalovánka má svůj obrázek', () => {
   });
 
   // Upraveno k #148 AC5: místo nedávných barev se pamatuje předchozí nástroj.
-  it('po návratu k A je A stejná pixel po pixelu i po obnovení stránky, se stejnou barvou, barvami nástrojů a předchozím nástrojem', () => {
+  it('po návratu k A je A stejná pixel po pixelu i po obnovení stránky, se stejnou barvou a barvami nástrojů a se štětcem na prvním tlačítku', () => {
     const device = new DeviceStorage();
     const store = openProfiles(device);
     const regions = twoHalves();
@@ -111,8 +111,6 @@ describe('#124 AC2: každá omalovánka má svůj obrázek', () => {
     const pixels = pixelsOf(pictureA, regions);
     const selected = pictureA.palette().selected;
     const toolColors = toolColorsOf(pictureA);
-    const first = firstButton(pictureA);
-    expect(first?.tool, 'kontrola: fix na prvním tlačítku').toBe('marker');
     backToPicker(choice, pictureA);
 
     const otherPicture = openFromPicker(choice, 0, coloringStorage(store), regions);
@@ -123,7 +121,9 @@ describe('#124 AC2: každá omalovánka má svůj obrázek', () => {
     expect(pixelsOf(reloaded, regions), 'obrázek').toEqual(pixels);
     expect(reloaded.palette().selected, 'vybraná barva').toBe(selected);
     expect(toolColorsOf(reloaded), 'barvy nástrojů').toEqual(toolColors);
-    expect(firstButton(reloaded), 'předchozí nástroj').toEqual(first);
+    expect(firstButton(reloaded), 'štětec na prvním tlačítku (#163 AC5)').toEqual(
+      shownAs(reloaded, 'brush'),
+    );
   });
 
   // Upraveno k #148: nedávné barvy z #99 nejsou. Předchozí nástroj se
@@ -216,7 +216,9 @@ describe('#124 AC2: každá omalovánka má svůj obrázek', () => {
     for (const tool of COLOR_TOOLS) {
       expect(house.toolColor(tool), `barva nástroje ${tool}`).toBe(LEGACY_P4_TOOL_COLORS[tool]);
     }
-    expect(firstButton(house), 'první tlačítko prázdné (#148 AC5)').toBeNull();
+    expect(firstButton(house), 'na prvním tlačítku štětec (#163 AC5)').toEqual(
+      shownAs(house, 'brush'),
+    );
   });
 
   it('pevný záznam domku se neukáže v jiné omalovánce sady', () => {

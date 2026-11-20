@@ -33,7 +33,7 @@ import type { PaletteState } from '../logic/palette';
 import type { BroomFeedback } from '../logic/pictureChoice';
 import { BROOM_HOLD_MS } from '../logic/pictureChoice';
 import { holdRingAround } from '../logic/pickerLayout';
-import { QUICK_TOOL_WOBBLE_TONES } from '../logic/quickTools';
+import { INITIAL_DRAWING_TOOL, QUICK_TOOL_WOBBLE_TONES } from '../logic/quickTools';
 import type { QuickToolButton, QuickToolTap } from '../logic/quickTools';
 import { CAMERA_WOBBLE_TONES, UNDO_WOBBLE_TONES, openColoring } from '../logic/savedPicture';
 import type {
@@ -140,7 +140,7 @@ export interface ColoringSceneOptions {
  * smí jen u dotyku na obrázku. Stav panelu, vybraný nástroj (štětec nebo
  * guma, #90) i velikost čáry (#91) drží `savedPicture.ts`. Vedle úchytu
  * jsou od #148 místo nedávných barev (#99) dvě tlačítka rychlého přepínání:
- * předchozí nástroj a guma. Přepnou hned při dotyku prstu, co ukazují
+ * kreslicí nástroj a guma (#163). Přepnou hned při dotyku prstu, co ukazují
  * a co vyberou, řídí také `savedPicture.ts`.
  *
  * Od #105 je panel ve dvou krocích (nástroje, pak barva), krok drží také
@@ -385,7 +385,7 @@ export class ColoringScene extends Phaser.Scene {
     this.showHandle(view !== 'closed');
     this.undoView.place(this.layout.undoButton, this.gameArea.scale, STRIP_DEPTH);
     this.quickToolsView.place(
-      { previousTool: this.layout.previousToolButton, eraser: this.layout.quickEraserButton },
+      { drawingTool: this.layout.quickDrawingToolButton, eraser: this.layout.quickEraserButton },
       this.gameArea.scale,
       STRIP_DEPTH,
     );
@@ -543,17 +543,23 @@ export class ColoringScene extends Phaser.Scene {
     this.showHandle(this.isPanelOpen());
   }
 
-  /** Vybraná barva, nástroj a velikost v panelu i v úchytu, předchozí nástroj a guma v pruhu. */
+  /** Vybraná barva, nástroj a velikost v panelu i v úchytu, kreslicí nástroj a guma v pruhu. */
   private showSelection(): void {
     this.panelView.mark(this.panelSelection());
     this.showHandle(this.isPanelOpen());
     this.showQuickTools();
   }
 
-  /** Předchozí nástroj a guma v pruhu; dokud se obrázek připravuje, je první tlačítko prázdné. */
+  /**
+   * Kreslicí nástroj a guma v pruhu (#163); dokud se obrázek připravuje,
+   * je na prvním tlačítku vybraný štětec s barvou jako v úchytu.
+   */
   private showQuickTools(): void {
     this.quickToolsView.show({
-      previous: this.coloring?.previousTool() ?? null,
+      drawingTool: this.coloring?.quickDrawingTool() ?? {
+        tool: INITIAL_DRAWING_TOOL,
+        color: this.paletteBeforeReady.selected,
+      },
       eraserSelected: this.selectedTool() === 'eraser',
     });
   }
@@ -648,13 +654,13 @@ export class ColoringScene extends Phaser.Scene {
   }
 
   // -------------------------------------------------------------------------
-  // Předchozí nástroj a guma v pruhu (#148)
+  // Kreslicí nástroj a guma v pruhu (#148, #163)
   // -------------------------------------------------------------------------
 
   /**
    * Prst na tlačítku rychlého přepínání: nástroj se vybere hned s krátkým
-   * tónem, úchyt i otevřený panel ukážou nový nástroj (AC2). Prázdné místo
-   * a už vybraná guma se jen zhoupnou s tónem domečku (AC3). Když jiný prst
+   * tónem, úchyt i otevřený panel ukážou nový nástroj (AC2). Už vybrané
+   * tlačítko se jen zhoupne s tónem domečku (#163 AC3). Když jiný prst
    * maluje nebo drží tlačítko, ukládá se do alba nebo se drží domeček či
    * koště, nic (AC6). Dokud se obrázek připravuje, tlačítko se jen zhoupne.
    */
@@ -925,8 +931,8 @@ export class ColoringScene extends Phaser.Scene {
       case 'backToTools':
         this.onBackToToolsTapped();
         return;
-      case 'previousTool':
-        this.onQuickToolPressed('previousTool', pointer);
+      case 'quickDrawingTool':
+        this.onQuickToolPressed('drawingTool', pointer);
         return;
       case 'quickEraser':
         this.onQuickToolPressed('eraser', pointer);

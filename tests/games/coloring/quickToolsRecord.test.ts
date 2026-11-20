@@ -33,8 +33,7 @@ import {
   legacyP4Regions,
 } from './legacyP4RecordFixture';
 import { TOOL_NAMES } from './lineSizeHelpers';
-import { firstButton, shownAs, tapPrevious, tapQuickEraser } from './quickToolsHelpers';
-import { pick, seededRandom } from './randomHelpers';
+import { firstButton, shownAs, tapFirstButton, tapQuickEraser } from './quickToolsHelpers';
 import {
   RecordingStorage,
   enterColoring,
@@ -45,35 +44,27 @@ import {
 import { COLOR_TOOLS, GREEN, PINK, giveColor, pickTool } from './toolColorsHelpers';
 
 /**
- * Testy k #148 AC5 (předchozí nástroj se pamatuje podle profilu). Jedno
+ * Testy k #163 AC5 (po otevření hry štětec, pro přepínání se nic neukládá),
+ * které nahrazují testy pamatování předchozího nástroje z #148 AC5. Jedno
  * „otevření hry“ je `openColoring(…)` nad úložištěm hry profilu, „obnovení
  * stránky“ nové `openProfiles(storage)` nad stejným úložištěm zařízení,
  * odchod domečkem a schování stránky hlásí scéna jako `suspend()`
- * (`savedPictureHelpers.ts`). Nahrazují testy pamatování nedávných barev
- * z #99 AC5 (`recentColorsRecord.test.ts`).
+ * (`savedPictureHelpers.ts`).
  *
- * Testy neznají klíč ani tvar nového záznamu: záznam předchozího nástroje
- * je ten, který se v úložišti hry objeví nebo změní, když dítě jen
- * přepíná nástroje (barvy, tloušťka ani obrázek se tím nemění).
- *
- * Po otevření hry je vybraný štětec (#90). Testy proto pamatování ověřují
- * s předchozím nástrojem jiným než štětec; co má první tlačítko ukázat,
- * když si hra pamatuje štětec, zadání neříká (viz výstup testů #148).
- *
- * Starý záznam nedávných barev (#99) má klíč `recentColors.<omalovánka>`,
- * jak ho zapisovala dřívější verze (pevné záznamy `legacy*RecordFixture.ts`).
+ * Starý záznam předchozího nástroje z #148 má klíč `quickTools` v úložišti
+ * hry profilu (text „a,b“ s id nástrojů), starý záznam nedávných barev (#99)
+ * klíč `recentColors.<omalovánka>`, jak je zapisovaly dřívější verze (pevné
+ * záznamy `legacy*RecordFixture.ts`). Oba se nečtou ani nemažou.
  */
 
 /** Klíč, pod kterým dřívější verze ukládala nedávné barvy omalovánky domek. */
 const OLD_RECENT_KEY = 'recentColors.house';
 
-function copyOf(storage: RecordingStorage): RecordingStorage {
-  const copy = new RecordingStorage();
-  for (const [key, value] of storage.data) {
-    copy.data.set(key, value);
-  }
-  return copy;
-}
+/** Klíč, pod kterým verze z #148 ukládala předchozí nástroj. */
+const OLD_QUICK_TOOLS_KEY = 'quickTools';
+
+/** Záznamy, které mohla verze z #148 zapsat (i poškozené). */
+const OLD_QUICK_TOOLS_RECORDS = ['marker', 'marker,crayon', 'rainbow,spray', 'eraser', 'nesmysl'];
 
 function storageWith(entries: ReadonlyArray<readonly [string, string]>): RecordingStorage {
   const storage = new RecordingStorage();
@@ -83,265 +74,157 @@ function storageWith(entries: ReadonlyArray<readonly [string, string]>): Recordi
   return storage;
 }
 
-/**
- * Úložiště, kde si hra pamatuje fix jako předchozí nástroj (fix, pak
- * pastelka), a klíče, které zapsalo jen přepínání nástrojů.
- */
-function storageWithPreviousMarker(): {
-  storage: RecordingStorage;
-  previousKeys: string[];
-} {
-  const baseline = new RecordingStorage();
-  openOn(baseline, twoHalves()).suspend();
-  const storage = new RecordingStorage();
-  const game = openOn(storage, twoHalves());
+/** Dítě přepíná nástroje v panelu i v pruhu, barvy ani obrázek nemění. */
+function switchTools(game: SavedColoring): void {
   pickTool(game, 'marker');
-  pickTool(game, 'crayon');
-  game.suspend();
-  expect(firstButton(game)?.tool, 'kontrola: předchozí je fix').toBe('marker');
-  const previousKeys = storage
-    .keys()
-    .filter((key) => storage.data.get(key) !== baseline.data.get(key));
-  return { storage, previousKeys };
+  pickTool(game, 'rainbow');
+  tapQuickEraser(game);
+  tapFirstButton(game);
+  pickTool(game, 'spray');
+  tapQuickEraser(game);
+  if (game.panelOpen()) {
+    game.tapHandle();
+  }
 }
 
-describe('#148 AC5: předchozí nástroj se pamatuje podle profilu', () => {
-  it('po návratu z menu je na prvním tlačítku stejný nástroj se stejnou barvou', () => {
-    const store = openProfiles(new DeviceStorage());
-    const regions = twoHalves();
-    const game = enterColoring(store, regions);
-    giveColor(game, 'marker', GREEN);
-    pickTool(game, 'spray');
-    const before = firstButton(game);
-    expect(before, 'kontrola').toEqual({ tool: 'marker', color: GREEN });
-    game.suspend();
+/** Po otevření je vybraný štětec a na prvním tlačítku štětec (#163 AC5). */
+function expectBrushOnOpening(game: SavedColoring, what: string): void {
+  expect(game.selectedTool(), `${what}: vybraný štětec`).toBe('brush');
+  expect(firstButton(game), `${what}: na prvním tlačítku štětec`).toEqual(shownAs(game, 'brush'));
+}
 
-    const again = enterColoring(store, regions);
+describe('#163 AC5: po otevření hry je na prvním tlačítku štětec', () => {
+  it('v novém profilu je vybraný štětec a na prvním tlačítku štětec ve své barvě', () => {
+    const game = enterColoring(openProfiles(new DeviceStorage()), twoHalves());
 
-    expect(firstButton(again)).toEqual(before);
+    expectBrushOnOpening(game, 'nový profil');
+    expect(firstButton(game).color, 'kolečko jako v úchytu').toBe(game.handleView().color);
   });
 
-  it('předchozí nástroj platí podle profilu, ne podle omalovánky: v jiné omalovánce je stejný', () => {
-    const storage = new RecordingStorage();
-    const regions = twoHalves();
-    const pictureA = openOn(storage, regions, { id: 'house', version: 1 });
-    giveColor(pictureA, 'marker', GREEN);
-    pickTool(pictureA, 'spray');
-    const shown = firstButton(pictureA);
-    expect(shown, 'kontrola').toEqual({ tool: 'marker', color: GREEN });
-    pictureA.suspend();
+  it('ťuknutí na štětec na prvním tlačítku po otevření ho jen zhoupne', () => {
+    const game = enterColoring(openProfiles(new DeviceStorage()), twoHalves());
 
-    const pictureB = openOn(storage, regions, { id: 'cat', version: 1 });
-
-    expect(firstButton(pictureB)?.tool, 'omalovánka B').toBe('marker');
-    expect(tapPrevious(pictureB).kind, 'ťuknutí v omalovánce B').toBe('picked');
-    expect(pictureB.selectedTool(), 'vybraný fix').toBe('marker');
+    expect(tapFirstButton(game).kind).toBe('wobble');
+    expect(game.selectedTool(), 'nástroj se nezměnil').toBe('brush');
   });
 
-  it('po obnovení stránky je na prvním tlačítku stejný nástroj a ťuknutí ho vybere', () => {
-    for (const tool of [...COLOR_TOOLS, 'rainbow'] as const) {
-      if (tool === 'brush') {
-        continue;
-      }
-      const device = new DeviceStorage();
+  it('po gumě hned po otevření vrátí první tlačítko štětec', () => {
+    const game = enterColoring(openProfiles(new DeviceStorage()), twoHalves());
+    tapQuickEraser(game);
+
+    expect(firstButton(game), 's gumou').toEqual(shownAs(game, 'brush'));
+    expect(tapFirstButton(game).kind, 'ťuknutí').toBe('picked');
+    expect(game.selectedTool(), 'vybraný štětec').toBe('brush');
+  });
+
+  it('po návratu z menu je na prvním tlačítku štětec, ať dítě předtím vybralo cokoli', () => {
+    for (const last of [...COLOR_TOOLS, 'rainbow', 'eraser'] as const) {
+      const store = openProfiles(new DeviceStorage());
       const regions = twoHalves();
-      const game = enterColoring(openProfiles(device), regions);
-      pickTool(game, tool);
-      pickTool(game, tool === 'crayon' ? 'stamp' : 'crayon');
-      const before = firstButton(game);
+      const game = enterColoring(store, regions);
+      giveColor(game, 'marker', GREEN);
+      pickTool(game, last);
       game.suspend();
 
-      const reloaded = enterColoring(openProfiles(device), regions);
-      expect(firstButton(reloaded), `${TOOL_NAMES[tool]}: po obnovení`).toEqual(before);
-
-      expect(tapPrevious(reloaded).kind, `${TOOL_NAMES[tool]}: ťuknutí`).toBe('picked');
-      expect(reloaded.selectedTool(), `${TOOL_NAMES[tool]}: vybraný`).toBe(tool);
+      expectBrushOnOpening(enterColoring(store, regions), TOOL_NAMES[last]);
     }
   });
 
-  it('předchozí nástroj zapamatovaný před gumou platí i po obnovení stránky', () => {
+  it('po obnovení stránky je na prvním tlačítku štětec a nástroj z minula jde vybrat v panelu', () => {
     const device = new DeviceStorage();
     const regions = twoHalves();
     const game = enterColoring(openProfiles(device), regions);
-    pickTool(game, 'glitter');
-    pickTool(game, 'dots');
+    giveColor(game, 'crayon', PINK);
     tapQuickEraser(game);
-    const before = firstButton(game);
-    expect(before?.tool, 'kontrola: na prvním tlačítku není guma').not.toBe('eraser');
     game.suspend();
 
     const reloaded = enterColoring(openProfiles(device), regions);
+    expectBrushOnOpening(reloaded, 'po obnovení');
+    pickTool(reloaded, 'crayon');
 
-    expect(firstButton(reloaded)).toEqual(before);
+    expect(firstButton(reloaded), 'pastelka si nechala barvu').toEqual({
+      tool: 'crayon',
+      color: PINK,
+    });
   });
 
-  it('v novém profilu je první tlačítko prázdné a ťuknutí ho jen zhoupne', () => {
-    const game = enterColoring(openProfiles(new DeviceStorage()), twoHalves());
-    expect(firstButton(game), 'prázdné místo').toBeNull();
-
-    const result = tapPrevious(game);
-
-    expect(result.kind).toBe('wobble');
-    expect(game.selectedTool(), 'nástroj se nezměnil').toBe('brush');
-    expect(firstButton(game), 'pořád prázdné').toBeNull();
-  });
-
-  it('jiný profil začíná s prázdným místem a jeho přepínání nezmění první tlačítko prvního', () => {
+  it('v jiné omalovánce i v jiném profilu začíná první tlačítko štětcem', () => {
     const device = new DeviceStorage();
     const store = openProfiles(device);
     const regions = twoHalves();
-    const first = store.activeProfile();
+    const first = enterColoring(store, regions);
+    switchTools(first);
+    first.suspend();
+    const otherPicture = openOn(new RecordingStorage(), regions, { id: 'cat', version: 1 });
     const second = store.createProfile({ nickname: 'BETA', color: PROFILE_COLORS[1] });
-
-    const firstGame = enterColoring(store, regions);
-    pickTool(firstGame, 'marker');
-    pickTool(firstGame, 'crayon');
-    const firstShown = firstButton(firstGame);
-    firstGame.suspend();
-
     store.selectProfile(second.id);
-    const secondGame = enterColoring(store, regions);
-    expect(firstButton(secondGame), 'druhý profil začíná prázdný').toBeNull();
-    pickTool(secondGame, 'spray');
-    pickTool(secondGame, 'rainbow');
-    const secondShown = firstButton(secondGame);
-    secondGame.suspend();
 
-    const reloaded = openProfiles(device);
-    reloaded.selectProfile(first.id);
-    expect(firstButton(enterColoring(reloaded, regions)), 'první profil').toEqual(firstShown);
-    reloaded.selectProfile(second.id);
-    expect(firstButton(enterColoring(reloaded, regions)), 'druhý profil').toEqual(secondShown);
-  });
-
-  it('smazaný a znovu založený profil začíná s prázdným místem, i po obnovení stránky', () => {
-    const device = new DeviceStorage();
-    const store = openProfiles(device);
-    const regions = twoHalves();
-    const keeper = store.activeProfile();
-    const child = store.createProfile({ nickname: 'ALFA', color: PROFILE_COLORS[3] });
-    store.selectProfile(child.id);
-    const game = enterColoring(store, regions);
-    pickTool(game, 'marker');
-    pickTool(game, 'crayon');
-    game.suspend();
-
-    store.selectProfile(keeper.id);
-    expect(store.deleteProfile(child.id)).toBe(true);
-    const again = store.createProfile({ nickname: 'ALFA', color: PROFILE_COLORS[3] });
-    store.selectProfile(again.id);
-
-    expect(firstButton(enterColoring(store, regions))).toBeNull();
-    const reloaded = openProfiles(device);
-    reloaded.selectProfile(again.id);
-    expect(firstButton(enterColoring(reloaded, regions)), 'po obnovení').toBeNull();
+    expectBrushOnOpening(otherPicture, 'jiná omalovánka');
+    expectBrushOnOpening(enterColoring(store, regions), 'jiný profil');
   });
 });
 
-describe('#148 AC5: chybějící, poškozený nebo neznámý záznam dá prázdné místo', () => {
-  it('přepínání nástrojů zapíše záznam předchozího nástroje', () => {
-    expect(storageWithPreviousMarker().previousKeys.length).toBeGreaterThan(0);
-  });
-
-  it('smazaný záznam dá prázdné místo a barvy nástrojů i tloušťka zůstanou', () => {
-    const { storage, previousKeys } = storageWithPreviousMarker();
-    const reference = openOn(copyOf(storage), twoHalves());
-    for (const key of previousKeys) {
-      storage.data.delete(key);
-    }
-
+describe('#163 AC5: pro přepínání se nic neukládá', () => {
+  it('přepínání nástrojů v panelu i v pruhu nic do úložiště nezapíše', () => {
+    const baseline = new RecordingStorage();
+    openOn(baseline, twoHalves()).suspend();
+    const storage = new RecordingStorage();
     const game = openOn(storage, twoHalves());
 
-    expect(firstButton(game)).toBeNull();
-    expect(game.lineSize(), 'tloušťka').toBe(reference.lineSize());
-    for (const tool of COLOR_TOOLS) {
-      expect(game.toolColor(tool), TOOL_NAMES[tool]).toBe(reference.toolColor(tool));
+    switchTools(game);
+    game.suspend();
+
+    expect(Object.fromEntries(storage.data)).toEqual(Object.fromEntries(baseline.data));
+  });
+
+  it('starý záznam předchozího nástroje se nečte: první tlačítko je po otevření štětec', () => {
+    for (const record of OLD_QUICK_TOOLS_RECORDS) {
+      const game = openOn(storageWith([[OLD_QUICK_TOOLS_KEY, record]]), twoHalves());
+
+      expectBrushOnOpening(game, `záznam ${JSON.stringify(record)}`);
     }
   });
 
-  it('nesmyslný nebo neznámý záznam dá prázdné místo, hra se nezastaví a jde přepínat dál', () => {
-    const { storage, previousKeys } = storageWithPreviousMarker();
-    const nonsense = [
-      '',
-      'nesmysl',
-      'null',
-      'undefined',
-      '{}',
-      'eraser',
-      'pencil',
-      'guma',
-      '-1',
-      '99',
-      '1.5',
-      '["marker"]',
-      '\u0000\u0001',
-      'x'.repeat(10_000),
-    ];
-    for (const text of nonsense) {
-      const broken = copyOf(storage);
-      for (const key of previousKeys) {
-        broken.data.set(key, text);
-      }
-      const what = `záznam ${JSON.stringify(text.slice(0, 20))}`;
-      expect(() => {
-        const game = openOn(broken, twoHalves());
-        expect(firstButton(game), what).toBeNull();
-        expect(tapPrevious(game).kind, `${what}: prázdné místo se zhoupne`).toBe('wobble');
-        pickTool(game, 'stamp');
-        expect(firstButton(game), `${what}: přepínání po něm`).toEqual(shownAs(game, 'brush'));
-      }, `${what}: hra se nezastaví`).not.toThrow();
+  it('starý záznam předchozího nástroje zůstane v úložišti beze změny i po přepínání a odchodu', () => {
+    for (const record of OLD_QUICK_TOOLS_RECORDS) {
+      const storage = storageWith([[OLD_QUICK_TOOLS_KEY, record]]);
+      const game = openOn(storage, twoHalves());
+
+      switchTools(game);
+      game.suspend();
+
+      expect(storage.data.get(OLD_QUICK_TOOLS_KEY), JSON.stringify(record)).toBe(record);
     }
   });
 
-  it('jakkoli poškozený záznam nikdy nedá na první tlačítko gumu ani neznámý nástroj', () => {
-    const { storage, previousKeys } = storageWithPreviousMarker();
-    const known: readonly ToolId[] = [...COLOR_TOOLS, 'rainbow'];
-    const random = seededRandom(14801);
-    const alphabet = '0123456789,[]|{}":-.abcdeimnorstuy ';
-    for (const key of previousKeys) {
-      const original = storage.data.get(key) ?? '';
-      for (let attempt = 0; attempt < 200; attempt += 1) {
-        const characters = [...original];
-        const changes = 1 + pick(random, 3);
-        for (let change = 0; change < changes; change += 1) {
-          const position = pick(random, characters.length + 1);
-          characters.splice(position, 1, alphabet[pick(random, alphabet.length)] ?? '');
-        }
-        const text = characters.join('');
-        const broken = copyOf(storage);
-        broken.data.set(key, text);
-        const what = `pokus ${attempt + 1}: ${JSON.stringify(text)}`;
-        let shown: ReturnType<typeof firstButton> = null;
-        expect(() => {
-          shown = firstButton(openOn(broken, twoHalves()));
-        }, `${what}: hra se nezastaví`).not.toThrow();
-        if (shown !== null) {
-          const { tool } = shown as { tool: ToolId };
-          expect(known, `${what}: nástroj ${tool}`).toContain(tool);
-        }
-      }
-    }
+  it('bez starého záznamu se záznam předchozího nástroje nezaloží', () => {
+    const storage = new RecordingStorage();
+    const game = openOn(storage, twoHalves());
+
+    switchTools(game);
+    game.suspend();
+
+    expect(storage.data.has(OLD_QUICK_TOOLS_KEY)).toBe(false);
   });
 
-  it('nečitelné úložiště dá prázdné místo a hra se nezastaví', () => {
-    const { storage } = storageWithPreviousMarker();
+  it('nečitelné úložiště: hra se nezastaví a na prvním tlačítku je štětec', () => {
+    const storage = new RecordingStorage();
     storage.failReads = true;
 
-    let shown: ReturnType<typeof firstButton> = { tool: 'brush', color: null };
     expect(() => {
-      shown = firstButton(openOn(storage, twoHalves()));
+      expectBrushOnOpening(openOn(storage, twoHalves()), 'nečitelné úložiště');
     }).not.toThrow();
-    expect(shown).toBeNull();
   });
 
-  it('zakázané úložiště dá prázdné místo a přepínání funguje aspoň do odchodu', () => {
+  it('zakázané úložiště: přepínání funguje aspoň do odchodu', () => {
     expect(() => {
       const game = enterColoring(openProfiles(forbiddenStorage()), twoHalves());
-      expect(firstButton(game)).toBeNull();
+      expectBrushOnOpening(game, 'zakázané úložiště');
       pickTool(game, 'marker');
-      tapPrevious(game);
-      expect(game.selectedTool()).toBe('brush');
-      expect(firstButton(game)?.tool).toBe('marker');
+      tapQuickEraser(game);
+      tapFirstButton(game);
+      expect(game.selectedTool()).toBe('marker');
+      expect(firstButton(game).tool).toBe('marker');
       game.suspend();
     }).not.toThrow();
   });
@@ -353,11 +236,10 @@ describe('#148 AC5: chybějící, poškozený nebo neznámý záznam dá prázdn
 
     expect(() => {
       pickTool(game, 'marker');
-      tapPrevious(game);
       tapQuickEraser(game);
-      tapPrevious(game);
+      tapFirstButton(game);
     }).not.toThrow();
-    expect(game.selectedTool()).not.toBe('eraser');
+    expect(game.selectedTool()).toBe('marker');
   });
 });
 
@@ -426,12 +308,13 @@ describe('#148 AC5: starý záznam nedávných barev se ignoruje a nesmaže', ()
     }
   });
 
-  it('se starým záznamem nedávných barev je první tlačítko prázdné', () => {
+  // Upraveno k #163 AC5: na prvním tlačítku je po otevření vždy štětec.
+  it('se starým záznamem nedávných barev je po otevření na prvním tlačítku štětec', () => {
     for (const legacy of LEGACY_STATES) {
       const game = openOn(storageWith(legacy.storage), legacy.regions());
 
-      expect(firstButton(game), legacy.name).toBeNull();
-      expect(tapPrevious(game).kind, `${legacy.name}: ťuknutí`).toBe('wobble');
+      expectBrushOnOpening(game, legacy.name);
+      expect(tapFirstButton(game).kind, `${legacy.name}: ťuknutí`).toBe('wobble');
     }
   });
 
@@ -454,9 +337,7 @@ describe('#148 AC5: starý záznam nedávných barev se ignoruje a nesmaže', ()
       const original = storage.data.get(OLD_RECENT_KEY);
       const game = openOn(storage, legacy.regions());
 
-      pickTool(game, 'marker');
-      tapPrevious(game);
-      tapQuickEraser(game);
+      switchTools(game);
       giveColor(game, 'crayon', PINK);
       game.suspend();
 
@@ -464,28 +345,18 @@ describe('#148 AC5: starý záznam nedávných barev se ignoruje a nesmaže', ()
     }
   });
 
-  it('po přepínání a obnovení se starý stav otevře se stejným obrázkem a předchozím nástrojem', () => {
+  // Upraveno k #163 AC5: po obnovení je na prvním tlačítku štětec.
+  it('po přepínání a obnovení se starý stav otevře se stejným obrázkem a štětcem na prvním tlačítku', () => {
     for (const legacy of LEGACY_STATES) {
       const storage = storageWith(legacy.storage);
       const game = openOn(storage, legacy.regions());
-      pickTool(game, 'stripes');
-      pickTool(game, 'spray');
+      switchTools(game);
       game.suspend();
 
       const again = openOn(storage, legacy.regions());
 
       expectSameAsLegacy(again, legacy, `${legacy.name} po obnovení`);
-      expect(firstButton(again)?.tool, `${legacy.name}: první tlačítko`).toBe('stripes');
+      expectBrushOnOpening(again, legacy.name);
     }
-  });
-
-  it('záznam nedávných barev vedle nového záznamu předchozího nástroje nic nezmění', () => {
-    const { storage } = storageWithPreviousMarker();
-    const withOld = copyOf(storage);
-    withOld.data.set(OLD_RECENT_KEY, '4,5');
-
-    expect(firstButton(openOn(withOld, twoHalves()))).toEqual(
-      firstButton(openOn(storage, twoHalves())),
-    );
   });
 });

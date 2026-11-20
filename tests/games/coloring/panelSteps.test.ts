@@ -17,7 +17,7 @@ import {
 } from './legacyP3GlitterRecordFixture';
 import { TOOL_NAMES } from './lineSizeHelpers';
 import { DEFAULT_TOOL_COLORS, defaultsWithBrush, isColorTool } from './toolColorsHelpers';
-import { firstButton, tapPrevious, tapQuickEraser } from './quickToolsHelpers';
+import { firstButton, shownAs, tapFirstButton, tapQuickEraser } from './quickToolsHelpers';
 import { pick, seededRandom } from './randomHelpers';
 import { TOOL_SETS, giveToolPlace, stepHexes } from './toolColorSetsHelpers';
 import { at } from './strokeHelpers';
@@ -41,7 +41,7 @@ import {
  *
  * Doporučení story-revieweru z komentáře k issue jsou zohledněná takto:
  * - guma a duha: tón kratší než 1 s a úchyt bez barvy (AC4),
- * - už vybraná barva: tón, panel se zavře, barva ani předchozí nástroj
+ * - už vybraná barva: tón, panel se zavře, barva ani první tlačítko
  *   (do #148 nedávné barvy) se nezmění (AC3),
  * - jedno ťuknutí udělá jen jednu věc: ťuknutí na nástroj nevybere barvu
  *   a návrat k nástrojům nezmění nástroj, barvu ani velikost (AC5);
@@ -53,8 +53,9 @@ import {
  * stránky“ nové `openProfiles(storage)` (`savedPictureHelpers.ts`).
  * Ťuknutí scéna hlásí podle `touchTargetAt(…)`: úchyt `tapHandle()`,
  * nástroj `tapTool(i)`, barva `tapColor(i)`, vybraný nástroj v kroku
- * barev `tapBackToTools()`, předchozí nástroj (od #148 místo nedávné barvy)
- * `pressQuickTool('previousTool', prst)` (`quickToolsHelpers.ts`), Zpět
+ * barev `tapBackToTools()`, kreslicí nástroj v pruhu (od #148 místo nedávné
+ * barvy, od #163 jen nástroj z doby před gumou)
+ * `pressQuickTool('drawingTool', prst)` (`quickToolsHelpers.ts`), Zpět
  * `tapUndo()`, schování stránky a domeček `suspend()`.
  *
  * Navržené rozhraní (`SavedColoring` v `savedPicture.ts`, `toolPanel.ts`):
@@ -137,7 +138,7 @@ function onColorStep(tool: ToolId = 'stamp', game: SavedColoring = onToolStep())
 /**
  * Hra s panelem v kroku `step` bez změny nástroje (#148): krok barev
  * otevře znovu ťuknutí na vybraný malovací nástroj, aby se nezměnil
- * předchozí nástroj na prvním tlačítku (#148 AC4).
+ * nástroj na prvním tlačítku (#163 AC4).
  */
 function inStepWithSameTool(step: 'tools' | 'colors', game: SavedColoring): SavedColoring {
   onToolStep(game);
@@ -162,7 +163,7 @@ function inStep(step: PanelView, game: SavedColoring = returningGame()): SavedCo
   return game;
 }
 
-/** Co dítě vidí z výběru: nástroj, barva, předchozí nástroj (#148) a velikost. */
+/** Co dítě vidí z výběru: nástroj, barva, první tlačítko v pruhu (#148) a velikost. */
 function selectionOf(game: SavedColoring): {
   tool: ToolId;
   color: number;
@@ -317,18 +318,20 @@ describe('#105 AC2: nástroj s barvou otevře krok barev', () => {
 });
 
 describe('#105 AC3: výběr barvy panel zavře', () => {
-  // Upraveno k #148: nedávné barvy z #99 nejsou, výběr barvy nemění ani
-  // první tlačítko (předchozí nástroj, #148 AC4).
-  it('ťuknutí na barvu v kroku barev ji vybere, zazní tón, předchozí nástroj zůstane a panel se zavře', () => {
+  // Upraveno k #148 a #163: nedávné barvy z #99 nejsou, na prvním tlačítku
+  // zůstane vybraný nástroj a kolečko ukáže jeho novou barvu (#163 AC4).
+  it('ťuknutí na barvu v kroku barev ji vybere, zazní tón, první tlačítko ukáže nástroj v ní a panel se zavře', () => {
     for (const color of [BLUE, BLACK, YELLOW, PINK]) {
       const game = onColorStep('marker');
-      const before = firstButton(game);
 
       const tones = game.tapColor(color);
 
       expectShortTone(tones, `barva ${color}`);
       expect(game.palette().selected, `barva ${color}: vybraná`).toBe(color);
-      expect(firstButton(game), `barva ${color}: první tlačítko`).toEqual(before);
+      expect(firstButton(game), `barva ${color}: první tlačítko`).toEqual({
+        tool: 'marker',
+        color,
+      });
       expect(game.panelView(), `barva ${color}: panel zavřený`).toBe('closed');
       expect(game.handleView(), `barva ${color}: úchyt`).toMatchObject({ tool: 'marker', color });
     }
@@ -348,7 +351,7 @@ describe('#105 AC3: výběr barvy panel zavře', () => {
 
   // Upraveno k #110 AC7: modrou dostane razítkový fix ve svém kroku barev,
   // pak se mu znovu vybere tatáž barva.
-  it('ťuknutí na už vybranou barvu panel zavře s tónem a barvu ani předchozí nástroj nezmění', () => {
+  it('ťuknutí na už vybranou barvu panel zavře s tónem a barvu ani první tlačítko nezmění', () => {
     const game = gameWithColor(PINK);
     onColorStep('stamp', onToolStep(game));
     game.tapColor(BLUE);
@@ -505,7 +508,7 @@ describe('#105 AC5: okrajové případy', () => {
   // Upraveno k #110: dřív se po ťuknutí na nástroj čekala stejná barva jako
   // u štětce. Od #110 ukáže nástroj svou barvu (proužkový fix výchozí
   // růžovou), ale žádnou barvu nevybere: štětec zůstane. Od #148 se
-  // ťuknutím na nástroj mění i předchozí nástroj (#148 AC4), barva ne.
+  // ťuknutím na nástroj mění i první tlačítko (#163 AC4), barva ne.
   it('jedno ťuknutí udělá jen jednu věc: nástroj nevybere barvu a návrat nic nevybere', () => {
     const game = gameWithColor(PINK);
     game.tapColor(GREEN);
@@ -572,35 +575,32 @@ describe('#105 AC5: okrajové případy', () => {
     }
   });
 
-  // Nahrazuje k #148 test nedávné barvy v obou krocích (#99): první
-  // tlačítko s malovacím nástrojem v obou krocích nástroj vybere.
-  it('předchozí malovací nástroj v obou krocích nástroj vybere a krok panelu nezmění', () => {
-    for (const step of ['tools', 'colors'] as const) {
-      const game = returningGame();
-      onToolStep(game);
-      choose(game, 'marker');
-      onToolStep(game);
-      choose(game, 'brush');
-      // Upraveno k #148: `inStep` by krok barev otevřel výběrem razítkového
-      // fixu a ten by podle #148 AC4 dal na první tlačítko štětec.
-      inStepWithSameTool(step, game);
-      expect(firstButton(game)?.tool, `kontrola v kroku ${step}`).toBe('marker');
+  // Nahrazuje k #148 test nedávné barvy v obou krocích (#99). Od #163 je
+  // na prvním tlačítku nástroj z doby před gumou: s gumou jde jen o krok
+  // nástrojů (guma nemá krok barev), z kroku barev přepne guma v pruhu.
+  it('s gumou v kroku nástrojů vybere první tlačítko malovací nástroj a krok nezmění', () => {
+    const game = returningGame();
+    onToolStep(game);
+    choose(game, 'marker');
+    onToolStep(game);
+    choose(game, 'eraser');
+    onToolStep(game);
+    expect(firstButton(game).tool, 'kontrola: fix na prvním tlačítku').toBe('marker');
 
-      const result = tapPrevious(game);
+    const result = tapFirstButton(game);
 
-      expect(result.kind, `předchozí nástroj v kroku ${step}`).toBe('picked');
-      expect(game.selectedTool(), `předchozí nástroj v kroku ${step}`).toBe('marker');
-      expect(game.panelView(), `krok ${step} po předchozím nástroji`).toBe(step);
-    }
+    expect(result.kind, 'první tlačítko').toBe('picked');
+    expect(game.selectedTool(), 'vybraný fix').toBe('marker');
+    expect(game.panelView(), 'krok nástrojů zůstal').toBe('tools');
   });
 
-  it('prázdné první tlačítko se v obou krocích jen zhoupne a krok nezmění', () => {
+  it('první tlačítko s už vybraným nástrojem se v obou krocích jen zhoupne a krok nezmění', () => {
     for (const step of ['tools', 'colors'] as const) {
       // Upraveno k #148: `inStep` by krok barev otevřel výběrem razítkového
-      // fixu a ten by podle #148 AC4 dal na první tlačítko štětec.
+      // fixu, tady zůstane vybraný štětec.
       const game = inStepWithSameTool(step, openOn(new RecordingStorage(), twoHalves()));
 
-      expect(tapPrevious(game).kind, `prázdné místo v kroku ${step}`).toBe('wobble');
+      expect(tapFirstButton(game).kind, `už vybraný nástroj v kroku ${step}`).toBe('wobble');
       expect(game.panelView(), `krok ${step}`).toBe(step);
     }
   });
@@ -620,19 +620,17 @@ describe('#105 AC5: okrajové případy', () => {
     const game = returningGame();
     let expected: PanelView = 'closed';
     let expectedTool = 'brush' as ToolId;
-    // Od #148: poslední dva různé kreslicí nástroje (guma mezi ně nepatří).
+    // Od #163: naposledy vybraný kreslicí nástroj (guma mezi ně nepatří).
     let latest = 'brush' as ToolId;
-    let before = null as ToolId | null;
     const selectExpected = (tool: ToolId): void => {
       expectedTool = tool;
-      if (tool !== 'eraser' && tool !== latest) {
-        before = latest;
+      if (tool !== 'eraser') {
         latest = tool;
       }
     };
     /** Přepnutí tlačítkem v pruhu: otevřený panel zůstane, krok barev bez barev nástroje je krok nástrojů (#148 bod 5). */
-    const quickSwitch = (tool: ToolId | null): void => {
-      if (tool === null || tool === expectedTool) {
+    const quickSwitch = (tool: ToolId): void => {
+      if (tool === expectedTool) {
         return;
       }
       selectExpected(tool);
@@ -663,11 +661,11 @@ describe('#105 AC5: okrajové případy', () => {
         game.tapBackToTools();
         expected = 'tools';
       } else if (action === 'previous') {
-        // Od #148 místo nedávné barvy: první tlačítko vybere předchozí nástroj,
-        // otevřený panel zůstane, krok barev u gumy a duhy přejde na krok
-        // nástrojů (upřesnění bod 5).
-        tapPrevious(game);
-        quickSwitch(expectedTool === 'eraser' ? latest : before);
+        // Od #148 místo nedávné barvy: první tlačítko vybere kreslicí nástroj
+        // z doby před gumou (#163), otevřený panel zůstane, krok barev u gumy
+        // a duhy přejde na krok nástrojů (upřesnění bod 5).
+        tapFirstButton(game);
+        quickSwitch(latest);
       } else if (action === 'quickEraser') {
         tapQuickEraser(game);
         quickSwitch('eraser');
@@ -681,8 +679,7 @@ describe('#105 AC5: okrajové případy', () => {
       }
       expect(game.panelView(), label).toBe(expected);
       expect(game.selectedTool(), `${label}: nástroj`).toBe(expectedTool);
-      const shown: ToolId | null = expectedTool === 'eraser' ? latest : before;
-      expect(firstButton(game)?.tool ?? null, `${label}: první tlačítko`).toBe(shown);
+      expect(firstButton(game).tool, `${label}: první tlačítko`).toBe(latest);
     }
   });
 });
@@ -696,7 +693,9 @@ describe('#105 AC5: záznamy se ukládají beze změny', () => {
     const game = openOn(storage, regions);
     expect(pixelsOf(game, regions), 'obrázek po otevření').toEqual(legacyP3GlitterPixels());
     expect(game.palette().selected, 'vybraná barva').toBe(LEGACY_P3_GLITTER_SELECTED_COLOR);
-    expect(firstButton(game), 'první tlačítko prázdné (#148 AC5)').toBeNull();
+    expect(firstButton(game), 'na prvním tlačítku štětec (#148, #163 AC5)').toEqual(
+      shownAs(game, 'brush'),
+    );
     expect(game.lineSize(), 'velikost').toBe(LEGACY_P3_GLITTER_LINE_SIZE);
 
     game.tapHandle();
@@ -710,12 +709,12 @@ describe('#105 AC5: záznamy se ukládají beze změny', () => {
     const reopened = openOn(storage, regions);
     expect(pixelsOf(reopened, regions), 'obrázek po návratu').toEqual(legacyP3GlitterPixels());
     expect(reopened.palette().selected, 'vybraná barva').toBe(LEGACY_P3_GLITTER_SELECTED_COLOR);
-    // Upraveno podle upřesnění #148 (bod 3): po otevření je vybraný štětec
-    // a na prvním tlačítku naposledy zapamatovaný kreslicí nástroj, který
-    // není štětec, tady razítkový fix vybraný před odchodem.
-    expect(firstButton(reopened)?.tool, 'předchozí nástroj (#148)').toBe('stamp');
+    // Upraveno k #163 AC5: po otevření je vybraný štětec a na prvním
+    // tlačítku také štětec, razítkový fix z minula se nepamatuje.
+    expect(firstButton(reopened), 'štětec na prvním tlačítku (#163 AC5)').toEqual(
+      shownAs(reopened, 'brush'),
+    );
     expect(reopened.lineSize(), 'velikost').toBe(LEGACY_P3_GLITTER_LINE_SIZE);
-    // Upraveno k #148: přepnutí nástroje zapíše záznam předchozího nástroje.
     // Krok panelu se dál neukládá: záznamy jsou stejné jako po stejném
     // přepnutí nástroje bez návratu ke kroku nástrojů.
     const reference = storageWith(LEGACY_P3_GLITTER_STORAGE);
@@ -730,7 +729,7 @@ describe('#105 AC5: záznamy se ukládají beze změny', () => {
     expect(decodePicture(picture, PICTURE, regions), 'záznam obrázku jde přečíst').not.toBeNull();
   });
 
-  it('výběr přes oba kroky uloží obrázek, barvu, velikost a předchozí nástroj stejně jako dosud', () => {
+  it('výběr přes oba kroky uloží obrázek, barvu a velikost stejně jako dosud', () => {
     const viaSteps = new RecordingStorage();
     const direct = new RecordingStorage();
     for (const storage of [viaSteps, direct]) {
@@ -768,7 +767,7 @@ describe('#105 AC5: záznamy se ukládají beze změny', () => {
 
 /** Ťuknutí, která dítě v daném kroku panelu může udělat. */
 function availableActions(step: PanelView): readonly string[] {
-  // Od #148 jsou tlačítka předchozího nástroje a gumy v pruhu ve všech krocích.
+  // Od #148 jsou tlačítka kreslicího nástroje a gumy v pruhu ve všech krocích.
   const always = ['handle', 'undo', 'paint', 'suspend', 'previous', 'quickEraser'];
   if (step === 'tools') {
     return [...always, 'tool', 'tool', 'tool'];

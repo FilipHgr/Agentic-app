@@ -38,7 +38,7 @@ import {
   openToolStep,
   pickTool,
 } from './toolColorsHelpers';
-import { firstButton } from './quickToolsHelpers';
+import { firstButton, shownAs } from './quickToolsHelpers';
 
 /**
  * Testy k #127 AC2 (vzorek tahu je v uloženém obrázku stejný na výšku i na
@@ -314,8 +314,8 @@ describe('#127 AC4: obrázek uložený před #111 se otevře beze změny', () =>
     expect(differingPixels(pixelsOf(game, regions), legacyBefore111Pixels()), 'pixely').toBe(0);
     expect(
       firstButton(game),
-      'první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
-    ).toBeNull();
+      'na prvním tlačítku štětec, starý záznam nedávných barev se nepoužije (#148, #163 AC5)',
+    ).toEqual(shownAs(game, 'brush'));
     expect(game.lineSize(), 'velikost čáry').toBe(LEGACY_BEFORE_111_LINE_SIZE);
     for (const tool of PANEL_TOOLS) {
       expect(game.toolColor(tool), `barva nástroje ${tool}`).toBe(

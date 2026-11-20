@@ -5,7 +5,7 @@
  * dvě místa nedávných barev (#99) v pořadí pruhu.
  *
  * Hlídají #148 AC7 (obrázek má stejnou velikost jako dnes) a AC1 (na výšku
- * jsou tlačítka předchozího nástroje a gumy na dnešním místě nedávných
+ * jsou tlačítka kreslicího nástroje a gumy na dnešním místě nedávných
  * barev).
  *
  * Jak vznikly (jen pro představu, znovu se negenerují): jednorázový test

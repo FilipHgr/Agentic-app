@@ -106,7 +106,7 @@ import {
   decodeInOrder,
 } from './tightStrokesHelpers';
 import { pickTool } from './toolColorsHelpers';
-import { firstButton } from './quickToolsHelpers';
+import { firstButton, shownAs } from './quickToolsHelpers';
 
 /**
  * Testy k #119 (obrázek s těsnými tahy se vejde do limitu uložení), které
@@ -398,8 +398,8 @@ describe('#119 AC3: staré obrázky', () => {
     }
     expect(
       firstButton(game),
-      'první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
-    ).toBeNull();
+      'na prvním tlačítku štětec, starý záznam nedávných barev se nepoužije (#148, #163 AC5)',
+    ).toEqual(shownAs(game, 'brush'));
     expect(game.lineSize(), 'tloušťka').toBe(LEGACY_P4_LINE_SIZE);
   });
 

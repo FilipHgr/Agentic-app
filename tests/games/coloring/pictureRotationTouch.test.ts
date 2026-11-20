@@ -305,7 +305,7 @@ describe('#127 AC2: na výšku barví tah přesně místo pod prstem', () => {
 });
 
 describe('#127 AC2 (#111 AC2 beze změny): dotyk na ovládání nikdy nemaluje', () => {
-  /** Ovládání pruhu v herních jednotkách: domeček, úchyt, Zpět, předchozí nástroj a guma (#148). */
+  /** Ovládání pruhu v herních jednotkách: domeček, úchyt, Zpět, kreslicí nástroj a guma (#148). */
   function controlsOf(testCase: ColoringCase): Array<[string, Box]> {
     const units = (box: Box): Box => unitsOf(testCase, box);
     return [
@@ -316,7 +316,7 @@ describe('#127 AC2 (#111 AC2 beze změny): dotyk na ovládání nikdy nemaluje',
     ];
   }
 
-  it('dotyk na domečku, úchytu, Zpět, předchozím nástroji ani gumě v pruhu nemaluje, se zavřeným panelem ani v obou krocích', () => {
+  it('dotyk na domečku, úchytu, Zpět, kreslicím nástroji ani gumě v pruhu nemaluje, se zavřeným panelem ani v obou krocích', () => {
     for (const testCase of cases()) {
       for (const [name, control] of controlsOf(testCase)) {
         for (const point of pointsInside(control, 4)) {

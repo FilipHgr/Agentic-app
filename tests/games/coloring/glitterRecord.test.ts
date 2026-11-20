@@ -70,7 +70,7 @@ import {
 import { bigBlank, widthOf } from './stampHelpers';
 import { at } from './strokeHelpers';
 import type { Point } from './outlineFixtures';
-import { firstButton } from './quickToolsHelpers';
+import { firstButton, shownAs } from './quickToolsHelpers';
 
 /**
  * Testy k #103 AC3 (uložený i vrácený obrázek obsahuje jen jiskry ze
@@ -399,8 +399,8 @@ describe('#103 AC5: dříve uložené obrázky se otevřou beze změny', () => {
     expect(game.palette().selected, 'vybraná barva').toBe(LEGACY_P3_STRIPES_SELECTED_COLOR);
     expect(
       firstButton(game),
-      'první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
-    ).toBeNull();
+      'na prvním tlačítku štětec, starý záznam nedávných barev se nepoužije (#148, #163 AC5)',
+    ).toEqual(shownAs(game, 'brush'));
     expect(game.lineSize(), 'velikost').toBe(LEGACY_P3_STRIPES_LINE_SIZE);
   });
 

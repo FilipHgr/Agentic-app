@@ -81,7 +81,7 @@ type Place =
   | { readonly kind: 'handle' }
   | { readonly kind: 'undo' }
   | { readonly kind: 'camera' }
-  /** Od #148 místo nedávné barvy: předchozí nástroj, nebo guma v pruhu. */
+  /** Od #148 místo nedávné barvy: kreslicí nástroj, nebo guma v pruhu. */
   | { readonly kind: 'quickTool'; readonly button: QuickButton }
   /** Místo štětce v panelu; při zavřeném panelu je tam obrázek. */
   | { readonly kind: 'brushSlot' };
@@ -154,7 +154,7 @@ function move(game: SavedColoring, id: number, path: readonly Point[]): boolean 
 
 /**
  * Profil, který Omalovánky už otevřel (panel začíná zavřený), s barvami
- * z dřívějška a od #148 s fixem jako předchozím nástrojem.
+ * z dřívějška a od #148 s fixem jako nástrojem na prvním tlačítku.
  */
 function profileWithHistory(): RecordingStorage {
   const storage = new RecordingStorage();
@@ -251,7 +251,7 @@ describe('#130 AC2: ťuknutí, které omalovánku otevřelo, nic nenamaluje ani 
     expect(paintedPixels(game, regions)).toBe(0);
   });
 
-  it('prst z otevírání, který se po obrázku posune a pustí nad předchozím nástrojem, gumou, Zpět a fotoaparátem, nic nevybere', () => {
+  it('prst z otevírání, který se po obrázku posune a pustí nad prvním tlačítkem, gumou, Zpět a fotoaparátem, nic nevybere', () => {
     const { game } = opened(profileWithHistory());
     const palette = game.palette();
     const first = firstButton(game);
@@ -259,7 +259,7 @@ describe('#130 AC2: ťuknutí, které omalovánku otevřelo, nic nenamaluje ani 
     move(game, FINGER, [LEFT_SPOT, at(0, 0), at(-20, 40)]);
     game.pointerUp(FINGER);
     expect(game.palette(), 'barva beze změny').toEqual(palette);
-    expect(firstButton(game), 'předchozí nástroj beze změny').toEqual(first);
+    expect(firstButton(game), 'první tlačítko beze změny').toEqual(first);
     expect(game.selectedTool(), 'nástroj beze změny').toBe(tool);
     expect(game.panelView(), 'panel zůstal zavřený').toBe('closed');
     expect(game.savingToAlbum(), 'fotoaparát nic neukládá').toBe(false);

@@ -40,14 +40,14 @@
  * a do Zpět se nepočítá.
  *
  * Od #148 jsou v pruhu místo nedávných barev (#99) dvě tlačítka rychlého
- * přepínání: předchozí nástroj a guma (`quickTools.ts`). Předchozí nástroj
- * se mění každou změnou nástroje (v panelu, tlačítkem i barvou, která
- * přepne gumu nebo duhu), pamatuje se podle profilu v samostatném záznamu
- * vedle obrázku a Zpět ho nemění. Přepnutí platí hned při dotyku prstu
+ * přepínání, od #163 jen mezi kreslicím nástrojem a gumou (`quickTools.ts`).
+ * Kreslicí nástroj na prvním tlačítku se mění jen výběrem jiného kreslicího
+ * nástroje (v panelu nebo barvou, která přepne gumu nebo duhu), střídání
+ * s gumou ani Zpět ho nemění a nikam se neukládá. Přepnutí platí hned při dotyku prstu
  * (`pressQuickTool`); dokud prst tlačítko drží, další prsty nic nedělají.
  * Nic nedělají ani během tahu, ukládání do alba, po odchodu a když se drží
- * domeček (`homeHolding`) nebo koště. Starý záznam nedávných barev se
- * ignoruje a nemaže.
+ * domeček (`homeHolding`) nebo koště. Starý záznam nedávných barev (#99)
+ * ani předchozího nástroje (#148) se nečte a nemaže.
  *
  * Každý malovací nástroj má od #110 svou barvu (`toolColors.ts`). Výběr
  * barvy ji dá jen nástroji, který barvu dostává: vybranému malovacímu
@@ -71,8 +71,8 @@
  * nedostupné nebo ještě nepřečtené album a dočasný profil fotoaparát jen
  * zhoupnou. Jinak hned cvak a ukládání; během ukládání se nemaluje
  * a další ťuknutí fotoaparát jen zhoupne. Teprve po potvrzeném uložení je
- * omalovánka čistá a zapíše se do úložiště; barvy nástrojů, předchozí nástroj
- * a tloušťka zůstanou a historie Zpět se vyprázdní. Ukládání doběhne
+ * omalovánka čistá a zapíše se do úložiště; barvy nástrojů, nástroj na prvním
+ * tlačítku a tloušťka zůstanou a historie Zpět se vyprázdní. Ukládání doběhne
  * i po odchodu z malování. Odložená stránka z výměny s albem (#131), která
  * do alba ještě přibude, se do plného alba počítá.
  *
@@ -84,7 +84,7 @@
  * u malování z výběru čistý obrys, u obrázku z alba (`origin: 'album'`)
  * obrázek tak, jak byl při otevření, a po vyfocení v témže malování čistý
  * obrys. Do alba nic neuloží ani z něj nic nesmaže. Barvy nástrojů,
- * předchozí nástroj, tloušťka a nástroj zůstanou, historie Zpět se vyprázdní.
+ * nástroj na prvním tlačítku, tloušťka a nástroj zůstanou, historie Zpět se vyprázdní.
  * Stránka stejná jako začátek se nezmění. Koště nic neudělá během tahu,
  * během ukládání do alba a po odchodu; dokud se drží, fotoaparát nic
  * neudělá (`broomHolding`) a tlačítka rychlého přepínání také ne (#148 AC6).
@@ -119,17 +119,17 @@ import {
 import type { LayerCodeVersion } from './colorLayerCode';
 import type { RegionMap } from './regionMap';
 import {
+  INITIAL_DRAWING_TOOL,
   QUICK_TOOL_TONES,
   QUICK_TOOL_WOBBLE_TONES,
-  drawingToolsAfterPick,
-  encodeQuickTools,
   isDrawingTool,
-  loadQuickTools,
-  openingDrawingTools,
-  previousToolOf,
-  storeQuickTools,
 } from './quickTools';
-import type { DrawingTools, PreviousToolView, QuickToolButton, QuickToolTap } from './quickTools';
+import type {
+  DrawingToolId,
+  QuickDrawingToolView,
+  QuickToolButton,
+  QuickToolTap,
+} from './quickTools';
 import { createUndoHistory } from './strokeHistory';
 import { ALL_COLOR_COUNT, TOOL_COLOR_SETS, placeInSet } from './toolColorSets';
 import {
@@ -302,15 +302,15 @@ export interface SavedColoring {
    */
   tapColor(index: number): readonly Tone[];
   /**
-   * Co ukazuje první tlačítko v pruhu (#148 AC1): předchozí nástroj a barva
-   * jeho kolečka jako v úchytu (u duhy `null`), `null` u prázdného místa.
-   * Nikdy guma.
+   * Co ukazuje první tlačítko v pruhu (#163 AC1): vybraný kreslicí nástroj,
+   * s vybranou gumou ten těsně před ní, a barva jeho kolečka jako v úchytu
+   * (u duhy `null`). Nikdy guma a nikdy prázdné.
    */
-  previousTool(): PreviousToolView | null;
+  quickDrawingTool(): QuickDrawingToolView;
   /**
-   * Prst `pointerId` se dotkl tlačítka `button` (#148 AC2, AC3): přepnutí
-   * platí hned. První tlačítko vybere předchozí nástroj s jeho barvou,
-   * druhé gumu; prázdné místo a už vybraná guma se jen zhoupnou. Otevřený
+   * Prst `pointerId` se dotkl tlačítka `button` (#163 AC2, AC3): přepnutí
+   * platí hned. První tlačítko vybere svůj kreslicí nástroj s jeho barvou,
+   * druhé gumu; už vybrané tlačítko se jen zhoupne. Otevřený
    * panel zůstane otevřený a ukáže nový nástroj. Dokud prst tlačítko drží
    * (do `releaseQuickTool`), další prsty nic nedělají (AC6).
    */
@@ -751,14 +751,10 @@ export function openColoring(options: {
   /** Vybraný nástroj; nepamatuje se, po otevření je vždy štětec (#90 AC1). */
   let tool: ToolId = INITIAL_TOOL;
   /**
-   * Poslední dva různé kreslicí nástroje (#148): první je naposledy vybraný
-   * malovací nástroj, na který přepne barva po gumě (#93 AC5), druhý
-   * předchozí nástroj. Pamatují se podle profilu, štětec vybraný po otevření
-   * je vždy první.
+   * Naposledy vybraný kreslicí nástroj (#163): je na prvním tlačítku a přepne
+   * na něj barva po gumě (#93 AC5). Jen v paměti, po otevření štětec (AC5).
    */
-  let drawingTools: DrawingTools = openingDrawingTools(loadQuickTools(storage));
-  /** Naposledy uložený nebo přečtený záznam předchozího nástroje; stejný se znovu nezapíše. */
-  let quickToolsRecord: string = encodeQuickTools(drawingTools, tool);
+  let drawingTool: DrawingToolId = INITIAL_DRAWING_TOOL;
   /** Prst, který drží tlačítko rychlého přepínání (#148 AC6). */
   let quickPointer: number | null = null;
   /** Drží se domeček (#148 AC6)? Mezitím tlačítka rychlého přepínání nic. */
@@ -771,29 +767,20 @@ export function openColoring(options: {
 
   /**
    * Vybere nástroj `picked` (z panelu, tlačítkem i barvou): kreslicí nástroj
-   * posune předchozí nástroj (#148 AC2, AC4), guma ho nechá (AC3). Změněný
-   * záznam předchozího nástroje hned uloží.
+   * dá na první tlačítko (#163 AC4), guma ho nechá (AC2).
    */
   const selectTool = (picked: ToolId): void => {
     tool = picked;
     if (isDrawingTool(picked)) {
-      drawingTools = drawingToolsAfterPick(drawingTools, picked);
-    }
-    const record = encodeQuickTools(drawingTools, tool);
-    if (record !== quickToolsRecord) {
-      quickToolsRecord = record;
-      storeQuickTools(storage, record);
+      drawingTool = picked;
     }
   };
 
-  /** Co ukazuje první tlačítko: předchozí nástroj s barvou jako v úchytu, nebo nic. */
-  const previousTool = (): PreviousToolView | null => {
-    const shown = previousToolOf(drawingTools, tool);
-    if (shown === null) {
-      return null;
-    }
-    return { tool: shown, color: isColorTool(shown) ? toolColors[shown] : null };
-  };
+  /** Co ukazuje první tlačítko: kreslicí nástroj s barvou jako v úchytu. */
+  const quickDrawingTool = (): QuickDrawingToolView => ({
+    tool: drawingTool,
+    color: isColorTool(drawingTool) ? toolColors[drawingTool] : null,
+  });
 
   /**
    * Otevřený panel po přepnutí tlačítkem (#148 AC2, upřesnění bod 5):
@@ -810,8 +797,8 @@ export function openColoring(options: {
 
   /** Ťuknutí na tlačítko, když nic jiného nebrání: vybere nástroj, nebo zhoupne. */
   const quickPick = (button: QuickToolButton): QuickToolTap => {
-    const target = button === 'eraser' ? 'eraser' : previousToolOf(drawingTools, tool);
-    if (target === null || target === tool) {
+    const target: ToolId = button === 'eraser' ? 'eraser' : drawingTool;
+    if (target === tool) {
       return { kind: 'wobble', tones: QUICK_TOOL_WOBBLE_TONES };
     }
     selectTool(target);
@@ -855,14 +842,14 @@ export function openColoring(options: {
   /**
    * Dá barvu `index` (z panelu i z pruhu) nástroji, který barvu dostává,
    * a vybere ho: po gumě se maluje hned touto barvou (#90 AC4), u duhy
-   * štětcem (#97 AC4); přepnutí nástroje se počítá do předchozího nástroje
-   * (#148, upřesnění bod 4). Hned uloží. Neplatný index nic nezmění.
+   * štětcem (#97 AC4); přepnutí nástroje dá nástroj na první tlačítko
+   * (#163 AC4). Hned uloží. Neplatný index nic nezmění.
    */
   const pickColor = (index: number): readonly Tone[] => {
     if (!isPaletteIndex(index, paletteSize)) {
       return [];
     }
-    const receiving = toolReceivingColor(drawingTools.latest);
+    const receiving = toolReceivingColor(drawingTool);
     selectTool(receiving);
     const previous = toolColors[receiving];
     const { state, tones } = tapColor({ selected: previous }, index, paletteSize);
@@ -1033,7 +1020,7 @@ export function openColoring(options: {
       return pickColor(index);
     },
 
-    previousTool,
+    quickDrawingTool,
 
     pressQuickTool(button, pointerId) {
       const busy =
@@ -1074,12 +1061,12 @@ export function openColoring(options: {
       return { kind: 'undone', changed: change.area, tones: UNDO_TONES };
     },
 
-    palette: () => ({ selected: toolColors[toolReceivingColor(drawingTools.latest)] }),
+    palette: () => ({ selected: toolColors[toolReceivingColor(drawingTool)] }),
 
-    colorStep: () => TOOL_COLOR_SETS[toolReceivingColor(drawingTools.latest)],
+    colorStep: () => TOOL_COLOR_SETS[toolReceivingColor(drawingTool)],
 
     markedColorPlace() {
-      const receiving = toolReceivingColor(drawingTools.latest);
+      const receiving = toolReceivingColor(drawingTool);
       return placeInSet(receiving, toolColors[receiving]);
     },
 

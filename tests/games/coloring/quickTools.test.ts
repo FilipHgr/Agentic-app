@@ -9,10 +9,9 @@ import {
   firstButton,
   lineSizeAndColors,
   shownAs,
-  tapPrevious,
+  tapFirstButton,
   tapQuickEraser,
 } from './quickToolsHelpers';
-import type { FirstButton } from './quickToolsHelpers';
 import { pick, seededRandom } from './randomHelpers';
 import { RecordingStorage, openOn, paint, twoHalves } from './savedPictureHelpers';
 import { at } from './strokeHelpers';
@@ -23,56 +22,49 @@ import {
   PINK,
   YELLOW,
   giveColor,
-  isColorTool,
   openToolStep,
   pickTool,
   toolColorsOf,
 } from './toolColorsHelpers';
 
 /**
- * Testy k #148 AC1 (co ukazují dvě tlačítka), AC2 (přepnutí), AC3 (guma)
- * a AC4 (výběr v panelu). Nahrazují testy nedávných barev z #99
- * (`recentColors.test.ts`) a #110 AC4 (`toolColorsRecent.test.ts`).
- * Pamatování (AC5) je v `quickToolsRecord.test.ts`, dotyky (AC6)
- * v `quickToolsTouch.test.ts`, rozložení (AC1 místo, AC7)
- * v `quickToolsLayoutRules.test.ts`. Navržené rozhraní je
+ * Testy k #163 (rychlé přepínání jen mezi kreslicím nástrojem a gumou),
+ * které nahrazují testy předchozího nástroje z #148 AC1 až AC4: AC1 (co
+ * ukazuje první tlačítko), AC2 (střídání guma / nástroj), AC3 (už vybrané
+ * tlačítko) a AC4 (výběr v panelu a barvou). Otevření hry a úložiště (AC5)
+ * jsou v `quickToolsRecord.test.ts`, dotyky (AC6) v `quickToolsTouch.test.ts`,
+ * rozložení pruhu v `quickToolsLayoutRules.test.ts`. Rozhraní je
  * v `quickToolsHelpers.ts`.
  *
- * X je vybraný nástroj, Y předchozí (na prvním tlačítku). Zkušební obrázek
- * 300 × 200 má oblast A vlevo od čáry x 150.
- *
- * Co je na prvním tlačítku hned po ťuknutí na gumu a jak začíná „nový
- * profil, který začne gumou“, rozhodlo upřesnění zadání #148 (bod 1): hra
- * si pamatuje poslední dva různé kreslicí nástroje, guma mezi ně nepatří,
- * takže s gumou je na prvním tlačítku nástroj, kterým se kreslilo těsně
- * před gumou, i výchozí štětec. Návrat z gumy výběrem X (tlačítkem i v
- * panelu) dá na první tlačítko nástroj před X (bod 2).
+ * Kreslicí nástroj je každý kromě gumy. Zkušební obrázek 300 × 200 má
+ * oblast A vlevo od čáry x 150.
  */
 
 function fresh(): SavedColoring {
   return openOn(new RecordingStorage(), twoHalves());
 }
 
-/** Hra, kde je vybraný X a na prvním tlačítku Y (Y vybraný v panelu dřív než X). */
-function withSelectedAndPrevious(x: ToolId, y: ToolId): SavedColoring {
+/** Hra s vybraným nástrojem `tool` (vybraný v panelu, panel zůstane, jak ho výběr nechá). */
+function withSelected(tool: ToolId): SavedColoring {
   const game = fresh();
-  if (y !== 'brush') {
-    pickTool(game, y);
+  if (tool !== 'brush') {
+    pickTool(game, tool);
   }
-  pickTool(game, x);
-  expect(game.selectedTool(), `kontrola: vybraný ${TOOL_NAMES[x]}`).toBe(x);
-  expect(firstButton(game)?.tool, `kontrola: na prvním tlačítku ${TOOL_NAMES[y]}`).toBe(y);
+  expect(game.selectedTool(), `kontrola: vybraný ${TOOL_NAMES[tool]}`).toBe(tool);
   return game;
 }
 
 /** Nástroje kromě gumy (smí být na prvním tlačítku). */
-const NOT_ERASER: readonly ToolId[] = [...COLOR_TOOLS, 'rainbow'];
+const DRAWING_TOOLS: readonly ToolId[] = [...COLOR_TOOLS, 'rainbow'];
 
-/** Dvojice různých nástrojů kromě gumy (X vybraný, Y předchozí). */
+/** Všechny nástroje panelu: kreslicí a guma. */
+const ALL_TOOLS: readonly ToolId[] = [...DRAWING_TOOLS, 'eraser'];
+
+/** Dvojice různých kreslicích nástrojů. */
 function pairs(): Array<[ToolId, ToolId]> {
   const result: Array<[ToolId, ToolId]> = [];
-  for (const x of NOT_ERASER) {
-    for (const y of NOT_ERASER) {
+  for (const x of DRAWING_TOOLS) {
+    for (const y of DRAWING_TOOLS) {
       if (x !== y) {
         result.push([x, y]);
       }
@@ -81,50 +73,22 @@ function pairs(): Array<[ToolId, ToolId]> {
   return result;
 }
 
-function describeButton(button: FirstButton | null): string {
-  return button === null ? 'prázdné' : `${TOOL_NAMES[button.tool]} ${String(button.color)}`;
+/** Ťuknutí na gumu v pruhu, nebo výběr gumy v panelu. */
+function chooseEraser(game: SavedColoring, how: 'tlačítko' | 'panel'): void {
+  if (how === 'tlačítko') {
+    tapQuickEraser(game);
+  } else {
+    pickTool(game, 'eraser');
+  }
 }
 
-describe('#148 AC1: dvě tlačítka místo nedávných barev', () => {
-  // Nahrazuje test přes přetypování (review #148): nedávné barvy nejsou,
-  // výběr barev nikdy nedá na první tlačítko barvu a přepínání barev nejde.
-  it('nedávné barvy ve hře nejsou: výběr barev první tlačítko nemění a nabízí jen předchozí nástroj', () => {
-    const game = fresh();
-    pickTool(game, 'marker');
-    const before = firstButton(game);
-    expect(before, 'kontrola: štětec na prvním tlačítku').toEqual(shownAs(game, 'brush'));
+const ERASER_WAYS = ['tlačítko', 'panel'] as const;
 
-    for (const color of [PINK, GRAY, GREEN, YELLOW]) {
-      giveColor(game, 'marker', color);
-      expect(firstButton(game), `fix dostal ${color}`).toEqual(before);
-    }
-    const result = tapPrevious(game);
-
-    expect(result.kind, 'první tlačítko').toBe('picked');
-    expect(game.selectedTool(), 'vybral se nástroj, ne předchozí barva').toBe('brush');
-    expect(game.toolColor('marker'), 'fix si nechal poslední barvu').toBe(YELLOW);
-    expect(firstButton(game), 'na prvním tlačítku fix v poslední barvě').toEqual({
-      tool: 'marker',
-      color: YELLOW,
-    });
-  });
-
-  it('první tlačítko ukazuje předchozí nástroj s barvou, jakou má (jako kolečko v úchytu)', () => {
-    for (const tool of COLOR_TOOLS.filter((each) => each !== 'brush')) {
-      const game = fresh();
-      giveColor(game, tool, PINK);
-      pickTool(game, 'brush');
-
-      expect(firstButton(game), TOOL_NAMES[tool]).toEqual({ tool, color: PINK });
-    }
-  });
-
-  it('barva předchozího nástroje na prvním tlačítku je stejná, jakou by ukázal úchyt', () => {
-    for (const tool of COLOR_TOOLS.filter((each) => each !== 'brush')) {
-      const game = fresh();
-      giveColor(game, tool, GRAY);
+describe('#163 AC1: první tlačítko ukazuje kreslicí nástroj', () => {
+  it('první tlačítko ukazuje vybraný kreslicí nástroj s barvou, jakou ukazuje úchyt', () => {
+    for (const tool of DRAWING_TOOLS) {
+      const game = withSelected(tool);
       const handle = game.handleView();
-      pickTool(game, 'brush');
 
       expect(firstButton(game), TOOL_NAMES[tool]).toEqual({
         tool: handle.tool,
@@ -133,18 +97,62 @@ describe('#148 AC1: dvě tlačítka místo nedávných barev', () => {
     }
   });
 
+  it('malovací nástroj je na prvním tlačítku s kolečkem své barvy', () => {
+    for (const tool of COLOR_TOOLS) {
+      const game = fresh();
+      giveColor(game, tool, PINK);
+
+      expect(firstButton(game), TOOL_NAMES[tool]).toEqual({ tool, color: PINK });
+    }
+  });
+
   it('duha je na prvním tlačítku bez kolečka barvy', () => {
-    const game = fresh();
-    pickTool(game, 'rainbow');
-    pickTool(game, 'marker');
+    const game = withSelected('rainbow');
 
     expect(firstButton(game)).toEqual({ tool: 'rainbow', color: null });
   });
 
-  it('druhé tlačítko je vždy guma: z každého nástroje vybere gumu', () => {
-    for (const tool of NOT_ERASER) {
+  it('s vybranou gumou ukazuje první tlačítko nástroj, kterým se kreslilo těsně před gumou', () => {
+    for (const [before, tool] of pairs()) {
+      for (const how of ERASER_WAYS) {
+        const game = withSelected(before);
+        pickTool(game, tool);
+        const drawnWith = shownAs(game, tool);
+
+        chooseEraser(game, how);
+
+        const what = `${TOOL_NAMES[before]}, ${TOOL_NAMES[tool]}, guma (${how})`;
+        expect(game.selectedTool(), what).toBe('eraser');
+        expect(firstButton(game), `${what}: první tlačítko`).toEqual(drawnWith);
+      }
+    }
+  });
+
+  it('první tlačítko nikdy není prázdné ani guma, ať dítě ťuká jakkoli', () => {
+    const known: readonly string[] = DRAWING_TOOLS;
+    for (const seed of [163, 2026]) {
+      const random = seededRandom(seed);
       const game = fresh();
-      pickTool(game, tool);
+      for (let step = 0; step < 200; step += 1) {
+        const roll = random();
+        if (roll < 0.3) {
+          pickTool(game, ALL_TOOLS[pick(random, ALL_TOOLS.length)] ?? 'eraser');
+        } else if (roll < 0.55) {
+          tapFirstButton(game);
+        } else if (roll < 0.8) {
+          tapQuickEraser(game);
+        } else {
+          game.tapColor(pick(random, 12));
+        }
+        const shown = firstButton(game);
+        expect(known, `seed ${seed}, krok ${step + 1}: ${shown.tool}`).toContain(shown.tool);
+      }
+    }
+  });
+
+  it('druhé tlačítko je vždy guma: z každého nástroje vybere gumu', () => {
+    for (const tool of DRAWING_TOOLS) {
+      const game = withSelected(tool);
 
       const result = tapQuickEraser(game);
 
@@ -152,62 +160,103 @@ describe('#148 AC1: dvě tlačítka místo nedávných barev', () => {
       expect(game.selectedTool(), TOOL_NAMES[tool]).toBe('eraser');
     }
   });
+
+  // Z #148 AC1: nedávné barvy z #99 nejsou ani po #163, tlačítka přepínají
+  // jen nástroje, nikdy barvu.
+  it('nedávné barvy ve hře nejsou: první tlačítko ukáže jen poslední barvu nástroje a barvu nepřepíná', () => {
+    const game = withSelected('marker');
+    for (const color of [PINK, GRAY, GREEN, YELLOW]) {
+      giveColor(game, 'marker', color);
+    }
+    tapQuickEraser(game);
+
+    expect(tapFirstButton(game).kind, 'první tlačítko').toBe('picked');
+    expect(game.selectedTool(), 'vybral se nástroj').toBe('marker');
+    expect(game.toolColor('marker'), 'fix si nechal poslední barvu').toBe(YELLOW);
+    expect(firstButton(game), 'fix v poslední barvě').toEqual({ tool: 'marker', color: YELLOW });
+  });
 });
 
-describe('#148 AC2: přepnutí na předchozí nástroj', () => {
-  it('ťuknutí na Y vybere Y s jeho zapamatovanou barvou a na prvním tlačítku je pak X se svou barvou', () => {
-    for (const [x, y] of pairs()) {
-      const game = withSelectedAndPrevious(x, y);
-      const before = { x: shownAs(game, x), y: shownAs(game, y) };
+describe('#163 AC2: střídání gumy a nástroje', () => {
+  it('s vybranou gumou ťuknutí na první tlačítko vybere ten nástroj s jeho barvou a první tlačítko ho ukazuje dál', () => {
+    for (const [before, tool] of pairs()) {
+      const game = withSelected(before);
+      pickTool(game, tool);
+      const shown = shownAs(game, tool);
+      tapQuickEraser(game);
 
-      const result = tapPrevious(game);
+      const result = tapFirstButton(game);
 
-      const what = `${TOOL_NAMES[x]} vybraný, ${TOOL_NAMES[y]} předchozí`;
+      const what = `${TOOL_NAMES[before]}, ${TOOL_NAMES[tool]}, guma`;
       expect(result.kind, what).toBe('picked');
-      expect(game.selectedTool(), `${what}: vybraný`).toBe(y);
-      expect(game.handleView(), `${what}: úchyt`).toMatchObject({
-        tool: y,
-        color: before.y.color,
-      });
-      expect(firstButton(game), `${what}: první tlačítko`).toEqual(before.x);
+      expect(game.selectedTool(), what).toBe(tool);
+      expect(game.handleView(), `${what}: úchyt`).toMatchObject({ tool, color: shown.color });
+      expect(firstButton(game), `${what}: první tlačítko`).toEqual(shown);
     }
   });
 
-  it('při přepnutí zazní krátký tón, kratší než 1 s', () => {
-    for (const [x, y] of pairs()) {
-      const result = tapPrevious(withSelectedAndPrevious(x, y));
+  it('opakované střídání gumy a nástroje první tlačítko nikdy nezmění', () => {
+    for (const [before, tool] of pairs()) {
+      const game = withSelected(before);
+      pickTool(game, tool);
+      const shown = firstButton(game);
 
-      const what = `${TOOL_NAMES[x]} → ${TOOL_NAMES[y]}`;
-      const tones = result.kind === 'picked' ? result.tones : [];
-      expect(tones.length, `${what}: nějaký tón zazní`).toBeGreaterThan(0);
-      expect(endOf(tones), `${what}: délka tónu v sekundách`).toBeLessThan(1);
+      for (let round = 0; round < 6; round += 1) {
+        const what = `${TOOL_NAMES[before]}, ${TOOL_NAMES[tool]}, kolo ${round + 1}`;
+        tapQuickEraser(game);
+        expect(game.selectedTool(), `${what}: guma`).toBe('eraser');
+        expect(firstButton(game), `${what}: s gumou`).toEqual(shown);
+        tapFirstButton(game);
+        expect(game.selectedTool(), `${what}: nástroj`).toBe(tool);
+        expect(firstButton(game), `${what}: s nástrojem`).toEqual(shown);
+      }
     }
   });
 
-  it('dvě ťuknutí za sebou přepnou tam a zpátky', () => {
-    const game = withSelectedAndPrevious('marker', 'crayon');
+  it('střídání gumy z panelu a nástroje z prvního tlačítka první tlačítko také nemění', () => {
+    const game = withSelected('crayon');
+    const shown = firstButton(game);
 
-    tapPrevious(game);
-    tapPrevious(game);
-
-    expect(game.selectedTool()).toBe('marker');
-    expect(firstButton(game)?.tool).toBe('crayon');
+    for (let round = 0; round < 4; round += 1) {
+      pickTool(game, 'eraser');
+      expect(firstButton(game), `kolo ${round + 1}: s gumou`).toEqual(shown);
+      tapFirstButton(game);
+      expect(game.selectedTool(), `kolo ${round + 1}: pastelka`).toBe('crayon');
+      expect(firstButton(game), `kolo ${round + 1}: s pastelkou`).toEqual(shown);
+    }
   });
 
-  it('předchozím nástrojem se hned maluje jeho barvou', () => {
+  it('při přepnutí na gumu i zpátky na nástroj zazní krátký tón, kratší než 1 s', () => {
+    for (const tool of DRAWING_TOOLS) {
+      const game = withSelected(tool);
+      for (const [name, result] of [
+        ['guma', tapQuickEraser(game)],
+        ['nástroj', tapFirstButton(game)],
+      ] as const) {
+        const what = `${TOOL_NAMES[tool]}: ${name}`;
+        const tones = result.kind === 'picked' ? result.tones : [];
+        expect(tones.length, `${what}: nějaký tón zazní`).toBeGreaterThan(0);
+        expect(endOf(tones), `${what}: délka tónu v sekundách`).toBeLessThan(1);
+      }
+    }
+  });
+
+  it('nástrojem z prvního tlačítka se po gumě hned maluje jeho barvou', () => {
     const game = fresh();
-    giveColor(game, 'marker', GREEN);
     giveColor(game, 'brush', YELLOW);
+    giveColor(game, 'marker', GREEN);
+    tapQuickEraser(game);
 
-    tapPrevious(game);
+    tapFirstButton(game);
     paint(game, [at(20, 100), at(140, 100)]);
 
     expect(game.colorAt(80, 100)).toBe(GREEN);
   });
 
-  it('úchyt hned ukazuje nový nástroj, se zavřeným panelem i s otevřeným', () => {
+  it('úchyt hned ukazuje nástroj z prvního tlačítka, se zavřeným panelem i s otevřeným', () => {
     for (const panel of ['closed', 'tools'] as const) {
-      const game = withSelectedAndPrevious('crayon', 'spray');
+      const game = withSelected('spray');
+      tapQuickEraser(game);
       if (panel === 'tools') {
         openToolStep(game);
       } else if (game.panelOpen()) {
@@ -215,44 +264,29 @@ describe('#148 AC2: přepnutí na předchozí nástroj', () => {
       }
       expect(game.panelView(), `kontrola: panel ${panel}`).toBe(panel);
 
-      tapPrevious(game);
+      tapFirstButton(game);
 
       expect(game.handleView().tool, `panel ${panel}: úchyt`).toBe('spray');
       expect(game.panelView(), `panel ${panel}: zůstal`).toBe(panel);
     }
   });
 
-  it('otevřený krok nástrojů hned označí nový nástroj', () => {
-    for (const [x, y] of pairs()) {
-      const game = withSelectedAndPrevious(x, y);
+  it('otevřený krok nástrojů hned označí nástroj z prvního tlačítka', () => {
+    for (const tool of DRAWING_TOOLS) {
+      const game = withSelected(tool);
+      tapQuickEraser(game);
       openToolStep(game);
 
-      tapPrevious(game);
+      tapFirstButton(game);
 
-      const what = `${TOOL_NAMES[x]} → ${TOOL_NAMES[y]}`;
-      expect(game.panelView(), `${what}: panel otevřený`).toBe('tools');
-      expect(game.selectedTool(), `${what}: označený nástroj`).toBe(y);
+      expect(game.panelView(), `${TOOL_NAMES[tool]}: panel otevřený`).toBe('tools');
+      expect(game.selectedTool(), `${TOOL_NAMES[tool]}: označený nástroj`).toBe(tool);
     }
   });
 
-  it('otevřený krok barev hned ukazuje sadu a barvu nového malovacího nástroje', () => {
-    for (const [x, y] of pairs().filter(([a, b]) => isColorTool(a) && isColorTool(b))) {
-      const game = withSelectedAndPrevious(x, y);
-      const reference = withSelectedAndPrevious(y, x);
-      expect(game.panelView(), 'kontrola: krok barev').toBe('colors');
-
-      tapPrevious(game);
-
-      const what = `${TOOL_NAMES[x]} → ${TOOL_NAMES[y]}`;
-      expect(game.panelView(), `${what}: panel otevřený`).not.toBe('closed');
-      expect(game.colorStep(), `${what}: sada barev`).toEqual(reference.colorStep());
-      expect(game.markedColorPlace(), `${what}: označená barva`).toBe(reference.markedColorPlace());
-    }
-  });
-
-  it('tloušťka čáry a barvy ostatních nástrojů se přepnutím nemění', () => {
-    for (const [x, y] of pairs()) {
-      const game = withSelectedAndPrevious(x, y);
+  it('tloušťka čáry a barvy nástrojů se střídáním nemění', () => {
+    for (const tool of DRAWING_TOOLS) {
+      const game = withSelected(tool);
       openToolStep(game);
       game.tapLineSize('large');
       if (game.panelOpen()) {
@@ -260,31 +294,74 @@ describe('#148 AC2: přepnutí na předchozí nástroj', () => {
       }
       const before = lineSizeAndColors(game);
 
-      tapPrevious(game);
-      tapPrevious(game);
+      tapQuickEraser(game);
+      tapFirstButton(game);
       tapQuickEraser(game);
 
-      expect(lineSizeAndColors(game), `${TOOL_NAMES[x]} a ${TOOL_NAMES[y]}`).toEqual(before);
+      expect(lineSizeAndColors(game), TOOL_NAMES[tool]).toEqual(before);
     }
   });
 
-  it('přepnutí nemění obrázek ani historii Zpět', () => {
+  it('střídání nemění obrázek ani historii Zpět', () => {
     const game = fresh();
     paint(game, [at(20, 100), at(140, 100)]);
     pickTool(game, 'marker');
     const before = game.colorAt(80, 100);
 
-    tapPrevious(game);
     tapQuickEraser(game);
-    tapPrevious(game);
+    tapFirstButton(game);
+    tapQuickEraser(game);
 
     expect(game.colorAt(80, 100), 'obrázek').toBe(before);
     expect(game.tapUndo().kind, 'Zpět vrátí tah štětcem').toBe('undone');
     expect(game.colorAt(80, 100), 'tah je vrácený').toBeNull();
   });
+
+  it('barvy nástrojů se při střídání pamatují každému zvlášť', () => {
+    const game = fresh();
+    giveColor(game, 'crayon', YELLOW);
+    giveColor(game, 'marker', GREEN);
+    const colors = toolColorsOf(game);
+
+    for (let round = 0; round < 4; round += 1) {
+      tapQuickEraser(game);
+      tapFirstButton(game);
+      expect(game.handleView().color, `kolo ${round + 1}: fix`).toBe(GREEN);
+    }
+    expect(toolColorsOf(game)).toEqual(colors);
+  });
 });
 
-describe('#148 AC3: guma', () => {
+describe('#163 AC3: už vybrané tlačítko', () => {
+  it('ťuknutí na první tlačítko s už vybraným nástrojem ho jen zhoupne s tónem domečku a nic nezmění', () => {
+    for (const tool of DRAWING_TOOLS) {
+      const game = withSelected(tool);
+      const before = firstButton(game);
+      const panel = game.panelView();
+
+      const result = tapFirstButton(game);
+
+      expect(result, TOOL_NAMES[tool]).toEqual({ kind: 'wobble', tones: HOME_WOBBLE_TONES });
+      expect(game.selectedTool(), `${TOOL_NAMES[tool]}: nástroj zůstal`).toBe(tool);
+      expect(firstButton(game), `${TOOL_NAMES[tool]}: první tlačítko`).toEqual(before);
+      expect(game.panelView(), `${TOOL_NAMES[tool]}: panel`).toBe(panel);
+    }
+  });
+
+  it('s vybranou gumou ťuknutí na gumu jen zhoupne s tónem domečku a nic nezmění', () => {
+    for (const how of ERASER_WAYS) {
+      const game = withSelected('dots');
+      chooseEraser(game, how);
+      const before = firstButton(game);
+
+      const result = tapQuickEraser(game);
+
+      expect(result, how).toEqual({ kind: 'wobble', tones: HOME_WOBBLE_TONES });
+      expect(game.selectedTool(), `${how}: guma zůstala`).toBe('eraser');
+      expect(firstButton(game), `${how}: první tlačítko`).toEqual(before);
+    }
+  });
+
   it('ťuknutí na gumu vybere gumu a gumou se hned gumuje', () => {
     const game = fresh();
     paint(game, [at(20, 100), at(140, 100)]);
@@ -296,283 +373,120 @@ describe('#148 AC3: guma', () => {
     expect(game.selectedTool()).toBe('eraser');
     expect(game.colorAt(80, 100), 'vygumováno').toBeNull();
   });
-
-  it('guma nikdy není na prvním tlačítku, ani po ťuknutí na gumu, ani po výběru gumy v panelu', () => {
-    for (const tool of NOT_ERASER) {
-      for (const how of ['tlačítko', 'panel'] as const) {
-        const game = withSelectedAndPrevious(tool, tool === 'marker' ? 'crayon' : 'marker');
-        if (how === 'tlačítko') {
-          tapQuickEraser(game);
-        } else {
-          pickTool(game, 'eraser');
-        }
-
-        const what = `${TOOL_NAMES[tool]} → guma (${how})`;
-        expect(game.selectedTool(), what).toBe('eraser');
-        expect(firstButton(game)?.tool, `${what}: první tlačítko`).not.toBe('eraser');
-      }
-    }
-  });
-
-  it('s vybranou gumou ťuknutí na gumu jen zhoupne s tónem domečku a nic nezmění', () => {
-    for (const how of ['tlačítko', 'panel'] as const) {
-      const game = withSelectedAndPrevious('dots', 'stripes');
-      if (how === 'tlačítko') {
-        tapQuickEraser(game);
-      } else {
-        pickTool(game, 'eraser');
-      }
-      const before = firstButton(game);
-
-      const result = tapQuickEraser(game);
-
-      expect(result, how).toEqual({ kind: 'wobble', tones: HOME_WOBBLE_TONES });
-      expect(game.selectedTool(), `${how}: guma zůstala`).toBe('eraser');
-      expect(firstButton(game), `${how}: první tlačítko`).toEqual(before);
-    }
-  });
-
-  it('s vybranou gumou ťuknutí na první tlačítko vybere nástroj, který na něm byl, s jeho barvou', () => {
-    for (const [x, y] of pairs()) {
-      const game = withSelectedAndPrevious(x, y);
-      tapQuickEraser(game);
-      const shown = firstButton(game);
-      expect(shown, `kontrola: po gumě (${TOOL_NAMES[x]}, ${TOOL_NAMES[y]})`).not.toBeNull();
-
-      const result = tapPrevious(game);
-
-      const what = `${TOOL_NAMES[x]}, ${TOOL_NAMES[y]}, guma, ${describeButton(shown)}`;
-      expect(result.kind, what).toBe('picked');
-      expect(game.selectedTool(), what).toBe(shown?.tool);
-      expect(game.handleView().color, `${what}: barva`).toBe(shown?.color);
-      expect(firstButton(game)?.tool, `${what}: guma není na prvním tlačítku`).not.toBe('eraser');
-    }
-  });
-
-  it('ťuknutí na první tlačítko s vybranou gumou udělá totéž jako výběr stejného nástroje v panelu', () => {
-    for (const [x, y] of pairs()) {
-      const fromButton = withSelectedAndPrevious(x, y);
-      const fromPanel = withSelectedAndPrevious(x, y);
-      tapQuickEraser(fromButton);
-      tapQuickEraser(fromPanel);
-      const shown = firstButton(fromButton);
-
-      tapPrevious(fromButton);
-      pickTool(fromPanel, shown?.tool ?? 'brush');
-
-      const what = `${TOOL_NAMES[x]}, ${TOOL_NAMES[y]}, guma`;
-      expect(fromButton.selectedTool(), what).toBe(fromPanel.selectedTool());
-      expect(firstButton(fromButton), `${what}: první tlačítko`).toEqual(firstButton(fromPanel));
-    }
-  });
-
-  it('po ťuknutí na gumu i po výběru gumy v panelu je na prvním tlačítku nástroj, kterým dítě kreslilo těsně před gumou', () => {
-    for (const [x, y] of pairs()) {
-      for (const how of ['tlačítko', 'panel'] as const) {
-        const game = withSelectedAndPrevious(x, y);
-        const drawnWith = shownAs(game, x);
-        if (how === 'tlačítko') {
-          tapQuickEraser(game);
-        } else {
-          pickTool(game, 'eraser');
-        }
-
-        const what = `${TOOL_NAMES[x]} vybraný, ${TOOL_NAMES[y]} předchozí, guma (${how})`;
-        expect(game.selectedTool(), what).toBe('eraser');
-        expect(firstButton(game), `${what}: první tlačítko`).toEqual(drawnWith);
-      }
-    }
-  });
-
-  it('nový profil, který začne gumou: na prvním tlačítku je výchozí štětec a ťuknutí ho vybere', () => {
-    for (const how of ['tlačítko', 'panel'] as const) {
-      const game = fresh();
-      expect(firstButton(game), `${how}: kontrola, na začátku prázdné`).toBeNull();
-      if (how === 'tlačítko') {
-        tapQuickEraser(game);
-      } else {
-        pickTool(game, 'eraser');
-      }
-
-      expect(firstButton(game), `${how}: štětec na prvním tlačítku`).toEqual(
-        shownAs(game, 'brush'),
-      );
-      expect(tapPrevious(game).kind, `${how}: ťuknutí`).toBe('picked');
-      expect(game.selectedTool(), `${how}: vybraný štětec`).toBe('brush');
-      expect(firstButton(game), `${how}: jiný kreslicí nástroj zatím nebyl`).toBeNull();
-    }
-  });
 });
 
-describe('#148 AC4: výběr v panelu', () => {
-  it('výběr nástroje Z jiného než vybraný X dá na první tlačítko X', () => {
+describe('#163 AC4: výběr v panelu a barvou', () => {
+  it('výběr jiného kreslicího nástroje v panelu ho dá na první tlačítko', () => {
     for (const [x, z] of pairs()) {
-      const game = fresh();
-      pickTool(game, x);
-      const shownX = shownAs(game, x);
+      const game = withSelected(x);
 
       pickTool(game, z);
 
-      expect(firstButton(game), `${TOOL_NAMES[x]} → ${TOOL_NAMES[z]}`).toEqual(shownX);
+      expect(firstButton(game), `${TOOL_NAMES[x]} → ${TOOL_NAMES[z]}`).toEqual(shownAs(game, z));
     }
   });
 
-  it('v novém profilu dá první výběr v panelu na první tlačítko štětec, se kterým hra začíná', () => {
-    for (const tool of NOT_ERASER.filter((each) => each !== 'brush')) {
-      const game = fresh();
-      expect(firstButton(game), 'kontrola: na začátku prázdné').toBeNull();
+  it('s vybranou gumou výběr nástroje v panelu ho vybere a dá na první tlačítko', () => {
+    for (const [x, z] of pairs()) {
+      const game = withSelected(x);
+      tapQuickEraser(game);
 
-      pickTool(game, tool);
+      pickTool(game, z);
 
-      expect(firstButton(game), TOOL_NAMES[tool]).toEqual(shownAs(game, 'brush'));
+      const what = `${TOOL_NAMES[x]}, guma, pak ${TOOL_NAMES[z]}`;
+      expect(game.selectedTool(), what).toBe(z);
+      expect(firstButton(game), what).toEqual(shownAs(game, z));
     }
   });
 
-  it('s vybranou gumou výběr Z v panelu vybere Z a na prvním tlačítku zůstane nástroj před gumou, pokud to není Z', () => {
-    for (const [x, y] of pairs()) {
-      for (const z of NOT_ERASER) {
-        const game = withSelectedAndPrevious(x, y);
-        tapQuickEraser(game);
-        const beforeEraser = firstButton(game);
+  it('nová barva vybraného nástroje se hned ukáže v kolečku na prvním tlačítku', () => {
+    for (const tool of COLOR_TOOLS) {
+      const game = withSelected(tool);
+      const newColor = game.toolColor(tool) === PINK ? GRAY : PINK;
 
-        pickTool(game, z);
+      giveColor(game, tool, newColor);
 
-        const what = `${TOOL_NAMES[x]}, ${TOOL_NAMES[y]}, guma, pak ${TOOL_NAMES[z]} (${describeButton(beforeEraser)})`;
-        expect(game.selectedTool(), what).toBe(z);
-        // Upraveno podle upřesnění #148 (bod 2): je-li Z nástroj před gumou,
-        // je na prvním tlačítku kreslicí nástroj před ním (tady Y), ne
-        // prázdné místo jako v AC4, stejně jako po ťuknutí na první tlačítko.
-        const expected = beforeEraser?.tool === z ? shownAs(game, y) : beforeEraser;
-        expect(firstButton(game), what).toEqual(expected);
-      }
+      expect(firstButton(game), TOOL_NAMES[tool]).toEqual({ tool, color: newColor });
+      expect(game.handleView().color, `${TOOL_NAMES[tool]}: úchyt`).toBe(newColor);
     }
   });
 
-  it('výběr stejného nástroje v panelu první tlačítko nemění', () => {
-    for (const [x, y] of pairs()) {
-      const game = withSelectedAndPrevious(x, y);
-      const before = firstButton(game);
-
-      pickTool(game, x);
-
-      expect(firstButton(game), `${TOOL_NAMES[x]} znovu`).toEqual(before);
-      expect(game.selectedTool(), `${TOOL_NAMES[x]} znovu: vybraný`).toBe(x);
-    }
-  });
-
-  it('jiná barva vybraného nástroje tlačítka nemění, změní se jen kolečko barvy v úchytu', () => {
-    for (const [x, y] of pairs().filter(([a]) => isColorTool(a))) {
-      const game = withSelectedAndPrevious(x, y);
-      const before = firstButton(game);
-      const newColor = game.toolColor(x) === PINK ? GRAY : PINK;
-
-      giveColor(game, x, newColor);
-
-      const what = `${TOOL_NAMES[x]} dostane ${newColor}, předchozí ${TOOL_NAMES[y]}`;
-      expect(firstButton(game), what).toEqual(before);
-      expect(game.selectedTool(), `${what}: nástroj`).toBe(x);
-      expect(game.handleView().color, `${what}: úchyt`).toBe(newColor);
-    }
-  });
-
-  it('dlouhá náhodná řada výběrů v panelu a ťuknutí na první tlačítko jde vždy podle pravidla', () => {
-    const colors = [PINK, GRAY, GREEN, YELLOW];
-    for (const seed of [148, 2026, 31337]) {
-      const random = seededRandom(seed);
-      const game = fresh();
-      let selected: ToolId = 'brush';
-      let previous: ToolId | null = null;
-      for (let step = 0; step < 300; step += 1) {
-        const roll = random();
-        let what: string;
-        if (roll < 0.4) {
-          const tool = NOT_ERASER[pick(random, NOT_ERASER.length)] ?? 'brush';
-          pickTool(game, tool);
-          if (tool !== selected) {
-            previous = selected;
-            selected = tool;
-          }
-          what = `panel ${TOOL_NAMES[tool]}`;
-        } else if (roll < 0.8) {
-          const result = tapPrevious(game);
-          if (previous === null) {
-            expect(result.kind, `seed ${seed}, krok ${step + 1}: prázdné místo`).toBe('wobble');
-          } else {
-            [selected, previous] = [previous, selected];
-          }
-          what = 'první tlačítko';
-        } else if (isColorTool(selected)) {
-          const color = colors[pick(random, colors.length)] ?? PINK;
-          giveColor(game, selected, color);
-          what = `barva ${color}`;
-        } else {
-          what = 'nic';
-        }
-        const label = `seed ${seed}, krok ${step + 1}: ${what}`;
-        expect(game.selectedTool(), `${label}: vybraný`).toBe(selected);
-        expect(firstButton(game), `${label}: první tlačítko`).toEqual(
-          previous === null ? null : shownAs(game, previous),
-        );
-      }
-    }
-  });
-
-  it('barvy nástrojů se při střídání přes první tlačítko pamatují každému zvlášť', () => {
-    const game = fresh();
-    giveColor(game, 'marker', GREEN);
-    giveColor(game, 'crayon', YELLOW);
-    const colors = toolColorsOf(game);
-
-    for (let round = 0; round < 4; round += 1) {
-      tapPrevious(game);
-      const tool = game.selectedTool();
-      expect(game.handleView().color, `kolo ${round + 1}: ${TOOL_NAMES[tool]}`).toBe(
-        isColorTool(tool) ? colors[tool] : null,
-      );
-    }
-    expect(toolColorsOf(game)).toEqual(colors);
-  });
-});
-
-describe('#148 upřesnění bod 4: ťuknutí na barvu, které přepne nástroj', () => {
-  it('fix, duha a ťuknutí na barvu: vybraný je štětec a na prvním tlačítku duha', () => {
-    const game = fresh();
-    pickTool(game, 'marker');
-    pickTool(game, 'rainbow');
-    expect(firstButton(game)?.tool, 'kontrola: na prvním tlačítku fix').toBe('marker');
-
-    game.tapColor(PINK);
-
-    expect(game.selectedTool(), 'barva po duze přepne na štětec').toBe('brush');
-    expect(game.handleView().color, 'štětec dostal barvu').toBe(PINK);
-    expect(firstButton(game), 'na prvním tlačítku duha').toEqual({ tool: 'rainbow', color: null });
-  });
-
-  it('fix, duha, guma a ťuknutí na barvu: vybraný je štětec a na prvním tlačítku duha', () => {
-    const game = fresh();
-    pickTool(game, 'marker');
-    pickTool(game, 'rainbow');
-    tapQuickEraser(game);
-    expect(firstButton(game)?.tool, 'kontrola: s gumou na prvním tlačítku duha').toBe('rainbow');
-
-    game.tapColor(PINK);
-
-    expect(game.selectedTool(), 'barva po gumě a duze přepne na štětec').toBe('brush');
-    expect(firstButton(game), 'na prvním tlačítku duha').toEqual({ tool: 'rainbow', color: null });
-  });
-
-  it('guma po malovacím nástroji a ťuknutí na barvu vrátí ten nástroj a první tlačítko se nezmění', () => {
-    const game = withSelectedAndPrevious('crayon', 'marker');
+  it('guma po malovacím nástroji a ťuknutí na barvu vrátí ten nástroj a kolečko na prvním tlačítku má novou barvu', () => {
+    const game = withSelected('crayon');
     tapQuickEraser(game);
 
     game.tapColor(PINK);
 
     expect(game.selectedTool()).toBe('crayon');
-    expect(firstButton(game), 'na prvním tlačítku fix').toEqual(shownAs(game, 'marker'));
+    expect(firstButton(game)).toEqual({ tool: 'crayon', color: PINK });
+  });
+
+  it('duha a ťuknutí na barvu: vybraný je štětec a na prvním tlačítku štětec v nové barvě', () => {
+    for (const withEraser of [false, true]) {
+      const game = withSelected('rainbow');
+      if (withEraser) {
+        tapQuickEraser(game);
+      }
+
+      game.tapColor(PINK);
+
+      const what = withEraser ? 'duha, guma, barva' : 'duha, barva';
+      expect(game.selectedTool(), what).toBe('brush');
+      expect(firstButton(game), what).toEqual({ tool: 'brush', color: PINK });
+    }
+  });
+
+  it('dlouhá náhodná řada výběrů v panelu, barev a ťuknutí na tlačítka jde vždy podle pravidla', () => {
+    const colors = [PINK, GRAY, GREEN, YELLOW];
+    for (const seed of [163, 2026, 31337]) {
+      const random = seededRandom(seed);
+      const game = fresh();
+      // Přetypování, aby TypeScript nezúžil typ podle první hodnoty.
+      let selected = 'brush' as ToolId;
+      let drawing = 'brush' as ToolId;
+      const select = (tool: ToolId): void => {
+        selected = tool;
+        if (tool !== 'eraser') {
+          drawing = tool;
+        }
+      };
+      for (let step = 0; step < 300; step += 1) {
+        const roll = random();
+        let what: string;
+        if (roll < 0.3) {
+          const tool = ALL_TOOLS[pick(random, ALL_TOOLS.length)] ?? 'brush';
+          pickTool(game, tool);
+          select(tool);
+          what = `panel ${TOOL_NAMES[tool]}`;
+        } else if (roll < 0.55) {
+          const result = tapFirstButton(game);
+          expect(result.kind, `seed ${seed}, krok ${step + 1}: první tlačítko`).toBe(
+            selected === drawing ? 'wobble' : 'picked',
+          );
+          select(drawing);
+          what = 'první tlačítko';
+        } else if (roll < 0.8) {
+          const result = tapQuickEraser(game);
+          expect(result.kind, `seed ${seed}, krok ${step + 1}: guma`).toBe(
+            selected === 'eraser' ? 'wobble' : 'picked',
+          );
+          select('eraser');
+          what = 'guma';
+        } else {
+          const color = colors[pick(random, colors.length)] ?? PINK;
+          game.tapColor(color);
+          select(drawing === 'rainbow' ? 'brush' : drawing);
+          what = `barva ${color}`;
+        }
+        const label = `seed ${seed}, krok ${step + 1}: ${what}`;
+        expect(game.selectedTool(), `${label}: vybraný`).toBe(selected);
+        expect(firstButton(game), `${label}: první tlačítko`).toEqual(shownAs(game, drawing));
+      }
+    }
   });
 });
 
-describe('#148 upřesnění bod 5: přepnutí na gumu a duhu s otevřeným krokem barev', () => {
+describe('#148 upřesnění bod 5: přepnutí s otevřeným panelem', () => {
   it('ťuknutí na gumu v pruhu v kroku barev nechá panel otevřený na kroku nástrojů s označenou gumou', () => {
     for (const tool of COLOR_TOOLS) {
       const game = fresh();
@@ -586,15 +500,16 @@ describe('#148 upřesnění bod 5: přepnutí na gumu a duhu s otevřeným kroke
     }
   });
 
-  it('ťuknutí na duhu na prvním tlačítku v kroku barev nechá panel otevřený na kroku nástrojů s označenou duhou', () => {
+  it('po gumě v kroku barev ťuknutí na první tlačítko nechá krok nástrojů s označeným nástrojem', () => {
     for (const tool of COLOR_TOOLS) {
-      const game = withSelectedAndPrevious(tool, 'rainbow');
-      expect(game.panelView(), `${TOOL_NAMES[tool]}: kontrola, krok barev`).toBe('colors');
+      const game = fresh();
+      pickTool(game, tool);
+      tapQuickEraser(game);
 
-      expect(tapPrevious(game).kind, TOOL_NAMES[tool]).toBe('picked');
+      expect(tapFirstButton(game).kind, TOOL_NAMES[tool]).toBe('picked');
 
       expect(game.panelView(), `${TOOL_NAMES[tool]}: krok nástrojů`).toBe('tools');
-      expect(game.selectedTool(), `${TOOL_NAMES[tool]}: označená duha`).toBe('rainbow');
+      expect(game.selectedTool(), `${TOOL_NAMES[tool]}: označený nástroj`).toBe(tool);
     }
   });
 });

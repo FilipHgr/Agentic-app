@@ -37,7 +37,7 @@ import {
   pixelsOf,
   twoHalves,
 } from './savedPictureHelpers';
-import { firstButton, tapPrevious } from './quickToolsHelpers';
+import { firstButton, tapFirstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #100 AC1 (nové barvy), AC2 (všechny nástroje) a AC5 druhá část
@@ -164,25 +164,27 @@ describe('#100 AC1: nová barva se vybírá stejně jako ostatní', () => {
 
   // Nahrazuje k #148 test „nová barva se objeví mezi nedávnými barvami“
   // (#99, #100): nedávné barvy nejsou, novou barvu ukáže kolečko prvního
-  // tlačítka u předchozího nástroje a ťuknutí ho vybere i s ní.
-  it('nová barva předchozího nástroje je na prvním tlačítku a jde s ním z pruhu znovu vybrat', () => {
+  // tlačítka u nástroje a ťuknutí ho vybere i s ní.
+  // Upraveno k #163: první tlačítko vrací po gumě nástroj z doby před ní.
+  it('nová barva nástroje je na prvním tlačítku a jde s ním z pruhu po gumě znovu vybrat', () => {
     const game = openOn(new RecordingStorage(), twoHalves());
     game.tapColor(PINK);
-    game.tapColor(GRAY);
     game.tapHandle();
     choose(game, 'marker');
     game.tapColor(LIGHT_BLUE);
-    expect(firstButton(game), 'štětec v šedé na prvním tlačítku').toEqual({
-      tool: 'brush',
-      color: GRAY,
+    game.tapHandle();
+    choose(game, 'eraser');
+    expect(firstButton(game), 'světle modrý fix na prvním tlačítku').toEqual({
+      tool: 'marker',
+      color: LIGHT_BLUE,
     });
 
-    const tap = tapPrevious(game);
+    const tap = tapFirstButton(game);
 
     expect(tap.kind).toBe('picked');
-    expect(game.handleView(), 'z pruhu se vybral šedý štětec').toMatchObject({
-      tool: 'brush',
-      color: GRAY,
+    expect(game.handleView(), 'z pruhu se vybral světle modrý fix').toMatchObject({
+      tool: 'marker',
+      color: LIGHT_BLUE,
     });
     expect(firstButton(game)).toEqual({ tool: 'marker', color: LIGHT_BLUE });
   });
@@ -316,7 +318,9 @@ describe('#100 AC5: vybraná nová barva se pamatuje podle profilu', () => {
 
   // Nahrazuje k #148 test „nové barvy mezi nedávnými barvami se pamatují“
   // (#99, #100): pamatuje se předchozí nástroj s novou barvou.
-  it('předchozí nástroj s novou barvou se pamatuje po obnovení stránky', () => {
+  // Upraveno k #163 AC5: nástroj na prvním tlačítku se nepamatuje, barva
+  // nástroje ano a po jeho výběru ji ukáže i první tlačítko.
+  it('nástroj s novou barvou ji má po obnovení stránky i na prvním tlačítku, když ho dítě vybere', () => {
     const storage = new DeviceStorage();
     const regions = twoHalves();
     const game = enterColoring(openProfiles(storage), regions);
@@ -329,6 +333,8 @@ describe('#100 AC5: vybraná nová barva se pamatuje podle profilu', () => {
     game.suspend();
 
     const again = enterColoring(openProfiles(storage), regions);
+    again.tapHandle();
+    choose(again, 'marker');
 
     expect(firstButton(again)).toEqual({ tool: 'marker', color: SKIN });
   });

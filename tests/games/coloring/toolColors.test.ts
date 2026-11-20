@@ -32,14 +32,14 @@ import {
   toolColorsOf,
 } from './toolColorsHelpers';
 import type { ColorTool } from './toolColorsHelpers';
-import { firstButton, tapPrevious, tapQuickEraser } from './quickToolsHelpers';
+import { firstButton, tapFirstButton, tapQuickEraser } from './quickToolsHelpers';
 
 /**
  * Testy k #110 (každý nástroj v Omalovánkách si pamatuje svou barvu):
  * AC1 každý malovací nástroj má svou barvu, AC2 barva nástroje je vidět
  * (část, kterou jde ověřit logikou), AC3 barva po gumě a duze a AC7
  * okrajové případy. Nedávné barvy (AC4) od #148 nejsou, jejich testy
- * (`toolColorsRecent.test.ts`) nahradily testy předchozího nástroje
+ * (`toolColorsRecent.test.ts`) nahradily testy rychlého přepínání
  * (`quickTools*.test.ts`); pamatování a staré záznamy (AC5, AC6) jsou
  * v `toolColorsRecord.test.ts`.
  *
@@ -94,7 +94,7 @@ function colorsBetween(
   return [...found];
 }
 
-/** Co dítě vidí z barev: barvy nástrojů, předchozí nástroj (#148), vybraný nástroj a velikost. */
+/** Co dítě vidí z barev: barvy nástrojů, první tlačítko v pruhu (#148), vybraný nástroj a velikost. */
 function snapshotOf(game: SavedColoring): {
   colors: Record<ColorTool, number | null>;
   first: ReturnType<typeof firstButton>;
@@ -196,8 +196,8 @@ describe('#110 AC1: každý malovací nástroj má svou barvu', () => {
     expect(colorsBetween(game, regions, 152, 299), 'fix').toEqual([BROWN]);
   });
 
-  // Upraveno k #148: místo nedávných barev ťuká dítě na předchozí nástroj.
-  it('dlouhá náhodná řada ťuknutí na nástroje, barvy a předchozí nástroj mění barvu jen jednoho nástroje', () => {
+  // Upraveno k #148: místo nedávných barev ťuká dítě na první tlačítko v pruhu.
+  it('dlouhá náhodná řada ťuknutí na nástroje, barvy a první tlačítko mění barvu jen jednoho nástroje', () => {
     const allTools: readonly ToolId[] = [...COLOR_TOOLS, ...TOOLS_WITHOUT_COLOR];
     for (const seed of [110, 2026, 4242]) {
       const random = seededRandom(seed);
@@ -222,12 +222,10 @@ describe('#110 AC1: každý malovací nástroj má svou barvu', () => {
           what = `barva ${picked}`;
         } else {
           const shown = firstButton(game);
-          tapPrevious(game);
-          if (shown !== null) {
-            tool = shown.tool;
-            paintingTool = shown.tool;
-          }
-          what = `předchozí nástroj (${shown === null ? 'prázdné' : TOOL_NAMES[shown.tool]})`;
+          tapFirstButton(game);
+          tool = shown.tool;
+          paintingTool = shown.tool;
+          what = `první tlačítko (${TOOL_NAMES[shown.tool]})`;
         }
         if (picked !== null) {
           // Barvu dostane vybraný malovací nástroj, po gumě naposledy vybraný, po duze štětec (AC3).
@@ -383,11 +381,13 @@ describe('#110 AC3: barva po gumě a duze', () => {
 
   // Nahrazuje k #148 test „s duhou dá nedávná barva barvu štětci“ (#99,
   // #110): duha vybraná prvním tlačítkem se k barvě chová jako z panelu.
+  // Upraveno k #163: první tlačítko vrátí duhu po gumě.
   it('s duhou vybranou prvním tlačítkem dá barva barvu štětci', () => {
     const game = fresh();
-    pickTool(game, 'rainbow');
     giveColor(game, 'spray', YELLOW);
-    tapPrevious(game);
+    pickTool(game, 'rainbow');
+    tapQuickEraser(game);
+    tapFirstButton(game);
     expect(game.selectedTool(), 'kontrola: duha').toBe('rainbow');
 
     game.tapColor(GRAY);
@@ -413,20 +413,19 @@ describe('#110 AC3: barva po gumě a duze', () => {
 });
 
 describe('#110 AC7: okrajové případy', () => {
-  // Upraveno k #148: místo nedávné barvy předchozí nástroj a guma v pruhu.
-  it('ťuknutí druhým prstem během tahu na nástroj, barvu, předchozí nástroj nebo gumu v pruhu se nepočítá a tah pokračuje', () => {
+  // Upraveno k #148: místo nedávné barvy první tlačítko a guma v pruhu.
+  it('ťuknutí druhým prstem během tahu na nástroj, barvu, první tlačítko nebo gumu v pruhu se nepočítá a tah pokračuje', () => {
     const taps: ReadonlyArray<[string, (game: SavedColoring) => unknown]> = [
       ['nástroj', (game) => choose(game, 'marker')],
       ['barva', (game) => game.tapColor(GRAY)],
-      ['předchozí nástroj', (game) => tapPrevious(game)],
+      ['první tlačítko', (game) => tapFirstButton(game)],
       ['guma v pruhu', (game) => tapQuickEraser(game)],
     ];
     for (const [what, tap] of taps) {
       const regions = twoHalves();
       const game = openOn(new RecordingStorage(), regions);
-      pickTool(game, 'crayon');
       giveColor(game, 'brush', YELLOW);
-      expect(firstButton(game)?.tool, `${what}: pastelka na prvním tlačítku`).toBe('crayon');
+      expect(firstButton(game).tool, `${what}: štětec na prvním tlačítku`).toBe('brush');
       startStroke(game, [at(20, 100), at(60, 100)]);
       const before = snapshotOf(game);
 
@@ -439,7 +438,7 @@ describe('#110 AC7: okrajové případy', () => {
     }
   });
 
-  it('Zpět vrací jen tahy, barvy nástrojů ani předchozí nástroj nemění', () => {
+  it('Zpět vrací jen tahy, barvy nástrojů ani nástroj na prvním tlačítku nemění', () => {
     const regions = twoHalves();
     const game = openOn(new RecordingStorage(), regions);
     giveColor(game, 'brush', YELLOW);
@@ -489,14 +488,16 @@ describe('#110 AC7: okrajové případy', () => {
     }
   });
 
-  // Nahrazuje k #148 test prázdného nedávného místa (#99, #110).
-  it('ťuknutí na prázdné první tlačítko se jen zhoupne a žádnému nástroji barvu nedá', () => {
+  // Nahrazuje k #148 test prázdného nedávného místa (#99, #110). Upraveno
+  // k #163 AC3: první tlačítko není nikdy prázdné, s už vybraným nástrojem
+  // se jen zhoupne.
+  it('ťuknutí na první tlačítko s už vybraným nástrojem se jen zhoupne a žádnému nástroji barvu nedá', () => {
     const game = fresh();
     const before = snapshotOf(game);
-    expect(before.first, 'kontrola: prázdné').toBeNull();
+    expect(before.first.tool, 'kontrola: vybraný štětec').toBe('brush');
 
     for (let tap = 1; tap <= 2; tap += 1) {
-      expect(tapPrevious(game).kind, `${tap}. ťuknutí`).toBe('wobble');
+      expect(tapFirstButton(game).kind, `${tap}. ťuknutí`).toBe('wobble');
     }
 
     expect(snapshotOf(game)).toEqual(before);
@@ -504,21 +505,17 @@ describe('#110 AC7: okrajové případy', () => {
 
   // Nahrazuje k #148 test „nedávná barva, kterou už nástroj má“ (#110):
   // ťuknutí na první tlačítko vybere nástroj a žádnou barvu nezmění.
-  it('ťuknutí na první tlačítko vybere předchozí nástroj a barvy nástrojů ani tloušťku nezmění', () => {
+  it('ťuknutí na první tlačítko po gumě vybere nástroj a barvy nástrojů ani tloušťku nezmění', () => {
     const game = fresh();
     giveColor(game, 'marker', RED);
     giveColor(game, 'marker', GREEN);
-    pickTool(game, 'brush');
+    pickTool(game, 'eraser');
     game.tapHandle();
     const before = snapshotOf(game);
 
-    const result = tapPrevious(game);
+    const result = tapFirstButton(game);
 
     expect(result.kind).toBe('picked');
-    expect(snapshotOf(game)).toEqual({
-      ...before,
-      tool: 'marker',
-      first: { tool: 'brush', color: before.colors.brush },
-    });
+    expect(snapshotOf(game)).toEqual({ ...before, tool: 'marker' });
   });
 });

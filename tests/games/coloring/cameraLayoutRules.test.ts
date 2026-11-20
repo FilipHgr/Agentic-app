@@ -136,7 +136,7 @@ describe('#126 AC6: velikost a místo fotoaparátu', () => {
     }
   });
 
-  it('od úchytu, Zpět, předchozího nástroje a gumy, obrázku a panelu v každém kroku je fotoaparát aspoň 8 px', () => {
+  it('od úchytu, Zpět, kreslicího nástroje a gumy, obrázku a panelu v každém kroku je fotoaparát aspoň 8 px', () => {
     for (const testCase of cases()) {
       const others: ReadonlyArray<readonly [string, Box]> = [
         [HANDLE_NAME, testCase.handle],
@@ -154,7 +154,7 @@ describe('#126 AC6: velikost a místo fotoaparátu', () => {
     }
   });
 
-  it('na šířku je fotoaparát v levém pruhu pod předchozím nástrojem a gumou (schválené obrázky, #148)', () => {
+  it('na šířku je fotoaparát v levém pruhu pod kreslicím nástrojem a gumou (schválené obrázky, #148)', () => {
     for (const testCase of cases().filter((each) => each.landscape)) {
       const what = testCase.scene.label;
       expect(testCase.camera.right, `${what}: vlevo od obrázku`).toBeLessThanOrEqual(

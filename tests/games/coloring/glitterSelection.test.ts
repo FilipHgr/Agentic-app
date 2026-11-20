@@ -11,7 +11,7 @@ import { choose, endOf } from './drawingToolHelpers';
 import { GLITTER } from './glitterHelpers';
 import { RecordingStorage, openOn, startStroke, twoHalves } from './savedPictureHelpers';
 import { at } from './strokeHelpers';
-import { tapPrevious } from './quickToolsHelpers';
+import { tapFirstButton } from './quickToolsHelpers';
 
 /**
  * Testy k #103 AC1: výběr třpytek v panelu a co ukazuje úchyt. Místo
@@ -175,13 +175,14 @@ describe('#103 AC1: třpytky se vybírají v panelu jako ostatní nástroje', ()
 
   // Nahrazuje k #148 test nedávné barvy v pruhu (#99): nedávné barvy
   // nejsou, první tlačítko vrátí nástroj i s jeho barvou.
-  it('první tlačítko v pruhu vrátí třpytky i s jejich barvou a úchyt ukáže třpytky v ní', () => {
+  it('po gumě první tlačítko v pruhu vrátí třpytky i s jejich barvou a úchyt ukáže třpytky v ní', () => {
     const game = fresh();
     choose(game, GLITTER);
     game.tapColor(PINK);
-    choose(game, 'brush');
+    // Od #163 vrací první tlačítko nástroj z doby před gumou.
+    choose(game, 'eraser');
 
-    const result = tapPrevious(game);
+    const result = tapFirstButton(game);
 
     expect(result.kind).toBe('picked');
     expect(game.selectedTool()).toBe(GLITTER);

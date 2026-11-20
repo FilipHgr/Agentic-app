@@ -27,7 +27,7 @@ import {
   isColorTool,
   pickTool,
 } from './toolColorsHelpers';
-import { firstButton, tapPrevious } from './quickToolsHelpers';
+import { firstButton, tapFirstButton } from './quickToolsHelpers';
 
 /**
  * Testy chování k #106 AC6 (úchyt vždy ukazuje aktuální nástroj a barvu)
@@ -137,44 +137,55 @@ describe('#106 AC6: úchyt vždy ukazuje aktuální nástroj a barvu', () => {
   });
 
   // Nahrazuje k #148 testy nedávné barvy v úchytu (#99, #110 AC4):
-  // nedávné barvy nejsou, první tlačítko v pruhu vrátí předchozí nástroj.
-  it('po ťuknutí na první tlačítko se zavřeným panelem ukáže úchyt hned předchozí nástroj v jeho barvě (#148)', () => {
+  // nedávné barvy nejsou, první tlačítko v pruhu vrátí po gumě nástroj
+  // z doby před ní (#163).
+  it('po gumě a ťuknutí na první tlačítko se zavřeným panelem ukáže úchyt hned nástroj v jeho barvě (#148, #163)', () => {
     for (const tool of COLOR_TOOLS) {
       const other = tool === 'brush' ? 'marker' : 'brush';
       const game = returningGame();
-      giveColor(game, tool, PINK);
       giveColor(game, other, BLUE);
+      giveColor(game, tool, PINK);
+      game.tapHandle();
+      choose(game, 'eraser');
       expect(game.panelView(), `${TOOL_NAMES[tool]}: panel zavřený`).toBe('closed');
       expect(firstButton(game), `${TOOL_NAMES[tool]}: na prvním tlačítku`).toEqual({
         tool,
         color: PINK,
       });
 
-      const result = tapPrevious(game);
+      const result = tapFirstButton(game);
 
-      expect(result.kind, `${TOOL_NAMES[tool]}: předchozí nástroj vybraný`).toBe('picked');
+      expect(result.kind, `${TOOL_NAMES[tool]}: nástroj vybraný`).toBe('picked');
       expectHandleShows(game, tool, PINK, `${TOOL_NAMES[tool]}, první tlačítko`);
     }
   });
 
-  it('po ťuknutí na první tlačítko s gumou nebo duhou ukáže úchyt hned nástroj z tlačítka v jeho barvě', () => {
-    for (const tool of ['eraser', 'rainbow'] as const) {
+  // Upraveno k #163: s vybranou duhou je duha i na prvním tlačítku, proto
+  // se úchyt s gumou ověřuje po malovacím nástroji i po duze.
+  it('po ťuknutí na první tlačítko s gumou ukáže úchyt hned nástroj z tlačítka v jeho barvě', () => {
+    for (const drawn of ['marker', 'rainbow'] as const) {
+      const tool = 'eraser';
       const game = returningGame();
       giveColor(game, 'marker', PINK);
       game.tapHandle();
+      choose(game, drawn);
+      if (game.panelOpen()) {
+        game.tapHandle();
+      }
+      game.tapHandle();
       choose(game, tool);
-      expect(game.panelView(), `${TOOL_NAMES[tool]}: panel zavřený`).toBe('closed');
+      expect(game.panelView(), `${TOOL_NAMES[drawn]}: panel zavřený`).toBe('closed');
       const before = handleLook(game);
       const shown = firstButton(game);
-      expect(shown, `${TOOL_NAMES[tool]}: na prvním tlačítku je nástroj`).not.toBeNull();
+      expect(shown.tool, `${TOOL_NAMES[drawn]}: na prvním tlačítku je nástroj`).toBe(drawn);
 
-      tapPrevious(game);
+      tapFirstButton(game);
 
       expectHandleShows(
         game,
-        shown?.tool ?? 'brush',
-        shown?.color ?? PINK,
-        `${TOOL_NAMES[tool]} a první tlačítko`,
+        shown.tool,
+        shown.color ?? PINK,
+        `${TOOL_NAMES[drawn]}, guma a první tlačítko`,
       );
       expect(
         before,

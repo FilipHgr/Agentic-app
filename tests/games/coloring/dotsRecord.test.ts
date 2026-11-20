@@ -48,7 +48,7 @@ import {
   twoHalves,
 } from './savedPictureHelpers';
 import { at } from './strokeHelpers';
-import { firstButton } from './quickToolsHelpers';
+import { firstButton, shownAs } from './quickToolsHelpers';
 
 /**
  * Testy k #101 AC5 (uložení): vzorek puntíků přes vzor V se vejde do
@@ -232,8 +232,8 @@ describe('#101 AC5: dříve uložené obrázky se otevřou beze změny', () => {
     expect(game.palette().selected, 'vybraná barva').toBe(LEGACY_P3_SELECTED_COLOR);
     expect(
       firstButton(game),
-      'první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
-    ).toBeNull();
+      'na prvním tlačítku štětec, starý záznam nedávných barev se nepoužije (#148, #163 AC5)',
+    ).toEqual(shownAs(game, 'brush'));
     expect(game.lineSize(), 'velikost').toBe(LEGACY_P3_LINE_SIZE);
   });
 
@@ -277,8 +277,8 @@ describe('#101 AC5: dříve uložené obrázky se otevřou beze změny', () => {
     ).toEqual([]);
     expect(
       firstButton(p2),
-      'p2: první tlačítko prázdné, starý záznam nedávných barev se nepoužije (#148 AC5)',
-    ).toBeNull();
+      'p2: na prvním tlačítku štětec, starý záznam nedávných barev se nepoužije (#148, #163 AC5)',
+    ).toEqual(shownAs(p2, 'brush'));
 
     const p1 = openOn(storageWithLegacyP1(), legacyRegions());
     expect(

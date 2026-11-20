@@ -381,7 +381,7 @@ describe('#116 AC4: každý nástroj si pamatuje svou barvu ze sady', () => {
 
         const what = `${TOOL_NAMES[tool]}, ${placeName(place)}`;
         expect(toolColorsOf(game), `${what}: barvy nástrojů`).toEqual(colors);
-        expect(firstButton(game), `${what}: předchozí nástroj`).toEqual(first);
+        expect(firstButton(game), `${what}: první tlačítko`).toEqual(first);
         expect(game.selectedTool(), `${what}: nástroj`).toBe(tool);
         pickTool(game, tool);
         expect(game.markedColorPlace(), `${what}: označené místo`).toBe(place);
@@ -390,26 +390,21 @@ describe('#116 AC4: každý nástroj si pamatuje svou barvu ze sady', () => {
   });
 
   // Nahrazuje k #148 test posunu nedávných barev podle #99 (nedávné barvy
-  // nejsou): výběr barvy ze sady první tlačítko nezmění, změní ho jen
-  // přepnutí nástroje (#148 AC4).
-  it('výběr barvy ze sady změní první tlačítko jen přepnutím nástroje, ne barvou', () => {
+  // nejsou). Upraveno k #163 AC4: na prvním tlačítku je vybraný nástroj
+  // a jeho kolečko ukáže barvu vybranou ze sady.
+  it('výběr barvy ze sady ukáže na prvním tlačítku vybraný nástroj v této barvě', () => {
     for (const seed of [99, 116, 4242]) {
       const random = seededRandom(seed);
       const game = fresh();
       for (let step = 0; step < 200; step += 1) {
         const tool = COLOR_TOOLS[pick(random, COLOR_TOOLS.length)] ?? 'brush';
         const place = pick(random, SET_SIZE);
-        const before = firstButton(game);
         const selectedBefore = game.selectedTool();
 
         giveToolPlace(game, tool, place);
 
         const label = `seed ${seed}, krok ${step + 1}: ${TOOL_NAMES[selectedBefore]} → ${TOOL_NAMES[tool]}, ${placeName(place)}`;
-        expect(firstButton(game), label).toEqual(
-          tool === selectedBefore
-            ? before
-            : { tool: selectedBefore, color: game.toolColor(selectedBefore) },
-        );
+        expect(firstButton(game), label).toEqual({ tool, color: game.toolColor(tool) });
       }
     }
   });

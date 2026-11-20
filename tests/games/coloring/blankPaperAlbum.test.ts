@@ -24,7 +24,7 @@ import {
 import type { PaperPage, Pixels } from './blankPaperHelpers';
 import { outcomeOf } from './continuePaintingHelpers';
 import { choose } from './drawingToolHelpers';
-import { tapPrevious, tapQuickEraser } from './quickToolsHelpers';
+import { tapFirstButton, tapQuickEraser } from './quickToolsHelpers';
 import { paint } from './savedPictureHelpers';
 import { at } from './strokeHelpers';
 
@@ -225,22 +225,23 @@ describe('#151 AC3: fotoaparát, koště, velký obrázek, koš, Malovat dál a 
     expect(game.colorAt(510, 100)).toBe(OTHER_COLOR);
   });
 
-  it('rychlé přepnutí na předchozí nástroj a na gumu funguje na papíře', async () => {
+  // Upraveno k #163: první tlačítko vrací nástroj z doby před gumou.
+  it('rychlé přepnutí na gumu a zpátky na nástroj funguje na papíře', async () => {
     const page = await openPaperGame(await deviceWithHouses(0));
     const game = await openPaper(page);
     choose(game, 'marker');
     game.tapColor(PAPER_COLOR);
-    choose(game, 'brush');
-
-    expect(tapPrevious(game).kind).toBe('picked');
-    expect(game.selectedTool(), 'předchozí nástroj').toBe('marker');
     paint(game, [at(100, 300), at(900, 300)]);
-    expect(game.colorAt(500, 300), 'fix maluje svou barvou').toBe(PAPER_COLOR);
 
     expect(tapQuickEraser(game).kind).toBe('picked');
     expect(game.selectedTool()).toBe('eraser');
     paint(game, [at(100, 300), at(900, 300)]);
     expect(game.colorAt(500, 300), 'guma vrátí bílou').toBeNull();
+
+    expect(tapFirstButton(game).kind).toBe('picked');
+    expect(game.selectedTool(), 'nástroj před gumou').toBe('marker');
+    paint(game, [at(100, 300), at(900, 300)]);
+    expect(game.colorAt(500, 300), 'fix maluje svou barvou').toBe(PAPER_COLOR);
   });
 });
 

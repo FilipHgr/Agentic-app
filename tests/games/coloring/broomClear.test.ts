@@ -160,7 +160,7 @@ describe('#142 AC1: podržení koštěte 1 s vrátí stránku na začátek', () 
   });
 
   // Upraveno k #148 AC5: místo nedávných barev zůstane předchozí nástroj.
-  it('barvy nástrojů, předchozí nástroj, tloušťka čáry a vybraný nástroj zůstanou', async () => {
+  it('barvy nástrojů, nástroj na prvním tlačítku, tloušťka čáry a vybraný nástroj zůstanou', async () => {
     const { page, game } = await freshPicker();
     paintLeft(game, PAGE_COLOR);
     choose(game, 'marker');
@@ -168,9 +168,10 @@ describe('#142 AC1: podržení koštěte 1 s vrátí stránku na začátek', () 
     game.tapLineSize('large');
     choose(game, 'crayon');
     game.tapColor(THIRD_COLOR);
+    choose(game, 'eraser');
     const toolColors = PANEL_TOOLS.map((tool) => game.toolColor(tool));
     const first = firstButton(game);
-    expect(first?.tool, 'kontrola: fix na prvním tlačítku').toBe('marker');
+    expect(first.tool, 'kontrola: pastelka na prvním tlačítku').toBe('crayon');
     const lineSize = game.lineSize();
     const tool = game.selectedTool();
 
@@ -181,7 +182,7 @@ describe('#142 AC1: podržení koštěte 1 s vrátí stránku na začátek', () 
       PANEL_TOOLS.map((each) => game.toolColor(each)),
       'barvy nástrojů',
     ).toEqual(toolColors);
-    expect(firstButton(game), 'předchozí nástroj').toEqual(first);
+    expect(firstButton(game), 'nástroj na prvním tlačítku').toEqual(first);
     expect(game.lineSize(), 'tloušťka čáry').toBe(lineSize);
     expect(game.selectedTool(), 'vybraný nástroj').toBe(tool);
 
@@ -194,7 +195,10 @@ describe('#142 AC1: podržení koštěte 1 s vrátí stránku na začátek', () 
       PANEL_TOOLS.map((each) => reopened.toolColor(each)),
       'barvy nástrojů po novém otevření',
     ).toEqual(toolColors);
-    expect(firstButton(reopened), 'předchozí nástroj po novém otevření').toEqual(first);
+    expect(firstButton(reopened), 'po novém otevření štětec (#163 AC5)').toEqual({
+      tool: 'brush',
+      color: reopened.toolColor('brush'),
+    });
     expect(reopened.lineSize(), 'tloušťka po novém otevření').toBe(lineSize);
   });
 

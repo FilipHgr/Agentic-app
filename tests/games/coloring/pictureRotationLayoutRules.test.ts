@@ -148,7 +148,7 @@ function allPortraitPictures(): PortraitPicture[] {
   return [...portraitCases().map(portraitPictureOf), nearlySquarePicture()];
 }
 
-/** Vršek spodní lišty na výšku: předchozí nástroj a guma (#148), úchyt a Zpět. */
+/** Vršek spodní lišty na výšku: kreslicí nástroj a guma (#148), úchyt a Zpět. */
 function stripTopOf(portrait: PortraitPicture): number {
   return Math.min(...[portrait.handle, portrait.undo, ...portrait.quickTools].map((b) => b.top));
 }
@@ -168,7 +168,7 @@ function fullWidthFits(portrait: PortraitPicture): boolean {
   return fullWidthOf(portrait) / PICTURE_ASPECT <= freePortraitHeightOf(portrait) + TOLERANCE;
 }
 
-/** Pravý okraj pruhu na šířku: domeček, úchyt, Zpět, předchozí nástroj a guma. */
+/** Pravý okraj pruhu na šířku: domeček, úchyt, Zpět, kreslicí nástroj a guma. */
 function stripRightOf(testCase: ColoringCase): number {
   return boundsOf([testCase.home, testCase.handle, testCase.undo, ...testCase.quickTools]).right;
 }
@@ -213,7 +213,7 @@ describe('#127 AC1: na výšku je obrázek rovně přes šířku okna', () => {
     );
     expect(
       portrait.handle.left,
-      `${label}: úchyt je vpravo od předchozího nástroje a gumy`,
+      `${label}: úchyt je vpravo od kreslicího nástroje a gumy`,
     ).toBeGreaterThan(Math.max(...portrait.quickTools.map((box) => box.left)));
     expect(portrait.undo.left, `${label}: Zpět je vpravo od úchytu`).toBeGreaterThan(
       portrait.handle.left,
@@ -322,7 +322,7 @@ describe('#127 AC1: na výšku je obrázek rovně přes šířku okna', () => {
 });
 
 describe('#127 AC3 (#111 AC3 beze změny): obrázek leží mezi lištami, ne pod nimi', () => {
-  it('domeček, úchyt, Zpět, předchozí nástroj a guma leží ve všech oknech mimo obrázek s mezerou aspoň 8 px', () => {
+  it('domeček, úchyt, Zpět, kreslicí nástroj a guma leží ve všech oknech mimo obrázek s mezerou aspoň 8 px', () => {
     for (const testCase of cases()) {
       const controls: Array<[string, Box]> = [
         [HOME_NAME, testCase.home],

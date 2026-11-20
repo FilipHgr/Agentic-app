@@ -13,7 +13,7 @@ import {
   firstButton,
   press,
   release,
-  tapPrevious,
+  tapFirstButton,
   tapQuickEraser,
 } from './quickToolsHelpers';
 import type { QuickButton } from './quickToolsHelpers';
@@ -22,7 +22,8 @@ import { at } from './strokeHelpers';
 import { GREEN, giveColor, pickTool } from './toolColorsHelpers';
 
 /**
- * Testy k #148 AC6 (dotyky na tlačítka předchozího nástroje a gumy).
+ * Testy k #148 AC6 (dotyky na tlačítka rychlého přepínání), od #163 AC6
+ * beze změny chování, jen s prvním tlačítkem pro kreslicí nástroj.
  * Rozhraní je v `quickToolsHelpers.ts`: dotyk prstu na tlačítko hlásí scéna
  * jako `pressQuickTool(tlačítko, prst)`, zvednutí jako
  * `releaseQuickTool(prst)`. Že tah začatý na tlačítku nemaluje, hlídá
@@ -33,22 +34,40 @@ import { GREEN, giveColor, pickTool } from './toolColorsHelpers';
  * a tlačítko se ani nezhoupne (`ignored`).
  */
 
-const BUTTONS: readonly QuickButton[] = ['previousTool', 'eraser'];
+const BUTTONS: readonly QuickButton[] = ['drawingTool', 'eraser'];
 
 const BUTTON_NAMES: Readonly<Record<QuickButton, string>> = {
-  previousTool: 'první tlačítko',
+  drawingTool: 'první tlačítko',
   eraser: 'guma',
 };
 
 /** Prst, který maluje po obrázku. */
 const PAINTING_FINGER = 2;
 
-/** Hra s vybraným fixem (zelený) a štětcem na prvním tlačítku. */
-function markerAfterBrush(): SavedColoring {
+/** Hra s vybraným fixem (zelený), fix je i na prvním tlačítku. */
+function markerSelected(): SavedColoring {
   const game = openOn(new RecordingStorage(), twoHalves());
   giveColor(game, 'marker', GREEN);
-  expect(firstButton(game)?.tool, 'kontrola: štětec na prvním tlačítku').toBe('brush');
+  expect(firstButton(game).tool, 'kontrola: fix na prvním tlačítku').toBe('marker');
   return game;
+}
+
+/** Hra s vybranou gumou a zeleným fixem na prvním tlačítku. */
+function eraserAfterMarker(): SavedColoring {
+  const game = markerSelected();
+  tapQuickEraser(game);
+  expect(game.selectedTool(), 'kontrola: guma').toBe('eraser');
+  return game;
+}
+
+/** Hra, ve které ťuknutí na `button` přepne nástroj (tlačítko není vybrané). */
+function readyFor(button: QuickButton): SavedColoring {
+  return button === 'eraser' ? markerSelected() : eraserAfterMarker();
+}
+
+/** Nástroj vybraný ťuknutím na `button` ve hře z `readyFor`. */
+function pickedBy(button: QuickButton): ToolId {
+  return button === 'eraser' ? 'eraser' : 'marker';
 }
 
 /** Co se nesmí změnit: nástroj a první tlačítko. */
@@ -59,8 +78,8 @@ function toolState(game: SavedColoring): { selected: ToolId; first: unknown } {
 describe('#148 AC6: když jiný prst maluje, nic se nepřepne', () => {
   it('ťuknutí na kterékoli tlačítko během tahu nic nepřepne a tah pokračuje stejným nástrojem', () => {
     for (const button of BUTTONS) {
-      const game = markerAfterBrush();
-      const untouched = markerAfterBrush();
+      const game = eraserAfterMarker();
+      const untouched = eraserAfterMarker();
       const before = toolState(game);
       const path = [at(20, 100), at(60, 100)];
       startStroke(game, path, PAINTING_FINGER);
@@ -83,20 +102,20 @@ describe('#148 AC6: když jiný prst maluje, nic se nepřepne', () => {
   });
 
   it('po zvednutí malujícího prstu tlačítka zase přepínají', () => {
-    const game = markerAfterBrush();
+    const game = eraserAfterMarker();
     startStroke(game, [at(20, 100), at(60, 100)], PAINTING_FINGER);
-    tapPrevious(game);
+    tapFirstButton(game);
     game.pointerUp(PAINTING_FINGER);
 
-    expect(tapPrevious(game).kind).toBe('picked');
-    expect(game.selectedTool()).toBe('brush');
+    expect(tapFirstButton(game).kind).toBe('picked');
+    expect(game.selectedTool()).toBe('marker');
   });
 });
 
 describe('#148 AC6: dva prsty přepnou jen jednou a platí první dotyk', () => {
   it('dva prsty na stejném tlačítku přepnou jen jednou', () => {
     for (const button of BUTTONS) {
-      const game = markerAfterBrush();
+      const game = readyFor(button);
 
       const first = press(game, button, QUICK_FINGER);
       const second = press(game, button, OTHER_QUICK_FINGER);
@@ -106,16 +125,16 @@ describe('#148 AC6: dva prsty přepnou jen jednou a platí první dotyk', () => 
       const what = BUTTON_NAMES[button];
       expect(first.kind, `${what}: první prst`).toBe('picked');
       expect(second, `${what}: druhý prst`).toEqual({ kind: 'ignored' });
-      expect(game.selectedTool(), what).toBe(button === 'eraser' ? 'eraser' : 'brush');
+      expect(game.selectedTool(), what).toBe(pickedBy(button));
     }
   });
 
   it('každý prst na jiném tlačítku: platí jen první dotyk', () => {
     for (const [firstTouch, secondTouch] of [
-      ['previousTool', 'eraser'],
-      ['eraser', 'previousTool'],
+      ['drawingTool', 'eraser'],
+      ['eraser', 'drawingTool'],
     ] as const) {
-      const game = markerAfterBrush();
+      const game = readyFor(firstTouch);
 
       const first = press(game, firstTouch, QUICK_FINGER);
       const second = press(game, secondTouch, OTHER_QUICK_FINGER);
@@ -125,37 +144,39 @@ describe('#148 AC6: dva prsty přepnou jen jednou a platí první dotyk', () => 
       const what = `${BUTTON_NAMES[firstTouch]}, pak ${BUTTON_NAMES[secondTouch]}`;
       expect(first.kind, `${what}: první dotyk`).toBe('picked');
       expect(second, `${what}: druhý dotyk`).toEqual({ kind: 'ignored' });
-      expect(game.selectedTool(), what).toBe(firstTouch === 'eraser' ? 'eraser' : 'brush');
+      expect(game.selectedTool(), what).toBe(pickedBy(firstTouch));
     }
   });
 
   it('druhý prst se nepočítá, ani když se první prst zvedne dřív než druhý', () => {
-    const game = markerAfterBrush();
-    press(game, 'previousTool', QUICK_FINGER);
-    press(game, 'previousTool', OTHER_QUICK_FINGER);
+    const game = markerSelected();
+    press(game, 'eraser', QUICK_FINGER);
+    press(game, 'drawingTool', OTHER_QUICK_FINGER);
     release(game, QUICK_FINGER);
     release(game, OTHER_QUICK_FINGER);
 
-    expect(game.selectedTool(), 'přepnuto jen jednou').toBe('brush');
-    expect(firstButton(game)?.tool).toBe('marker');
+    expect(game.selectedTool(), 'přepnuto jen jednou').toBe('eraser');
+    expect(firstButton(game).tool).toBe('marker');
   });
 
   it('po zvednutí obou prstů funguje další ťuknutí', () => {
-    const game = markerAfterBrush();
-    press(game, 'previousTool', QUICK_FINGER);
+    const game = eraserAfterMarker();
+    press(game, 'drawingTool', QUICK_FINGER);
     press(game, 'eraser', OTHER_QUICK_FINGER);
     release(game, OTHER_QUICK_FINGER);
     release(game, QUICK_FINGER);
 
-    expect(tapPrevious(game).kind, 'další ťuknutí').toBe('picked');
-    expect(game.selectedTool()).toBe('marker');
+    expect(tapQuickEraser(game).kind, 'další ťuknutí').toBe('picked');
+    expect(game.selectedTool()).toBe('eraser');
   });
 
-  it('rychlé dvojí ťuknutí jedním prstem přepne dvakrát (tam a zpátky)', () => {
-    const game = markerAfterBrush();
+  // Upraveno k #163: dvojí ťuknutí na stejné tlačítko podruhé jen zhoupne
+  // (AC3), tam a zpátky se přepíná gumou a prvním tlačítkem.
+  it('rychlé ťuknutí na gumu a hned na první tlačítko jedním prstem přepne dvakrát (tam a zpátky)', () => {
+    const game = markerSelected();
 
-    tapPrevious(game);
-    tapPrevious(game);
+    expect(tapQuickEraser(game).kind, 'guma').toBe('picked');
+    expect(tapFirstButton(game).kind, 'první tlačítko').toBe('picked');
 
     expect(game.selectedTool()).toBe('marker');
   });
@@ -166,8 +187,8 @@ describe('#148 AC6: během ukládání fotoaparátem tlačítka nic nedělají',
     const records = watchRecords(albumDevice().page());
     const game = await openWithAlbum({ storage: new RecordingStorage(), records });
     pickTool(game, 'marker');
-    pickTool(game, 'brush');
     paintLeft(game, GREEN);
+    tapQuickEraser(game);
     records.holdAdds();
     const camera = game.tapCamera();
     expect(camera.kind, 'kontrola: ukládá se').toBe('saving');
@@ -183,7 +204,7 @@ describe('#148 AC6: během ukládání fotoaparátem tlačítka nic nedělají',
     if (camera.kind === 'saving') {
       await camera.done;
     }
-    expect(tapPrevious(game).kind, 'po uložení').toBe('picked');
+    expect(tapFirstButton(game).kind, 'po uložení').toBe('picked');
     expect(game.selectedTool()).toBe('marker');
   });
 });
@@ -197,16 +218,16 @@ describe('#148 AC6: během držení domečku nebo koštěte tlačítka nic nedě
     vi.useRealTimers();
   });
 
-  /** Malování otevřené z výběru se štětcem a fixem na prvním tlačítku. */
+  /** Malování otevřené z výběru s gumou a fixem na prvním tlačítku. */
   async function painting(): Promise<{ page: BroomPage; game: SavedColoring }> {
     const page = await enterGame(new SwapDevice());
     const game = await openFromPicker(page);
     pickTool(game, 'marker');
-    pickTool(game, 'brush');
+    tapQuickEraser(game);
     if (game.panelOpen()) {
       game.tapHandle();
     }
-    expect(firstButton(game)?.tool, 'kontrola: fix na prvním tlačítku').toBe('marker');
+    expect(firstButton(game).tool, 'kontrola: fix na prvním tlačítku').toBe('marker');
     return { page, game };
   }
 
@@ -222,7 +243,7 @@ describe('#148 AC6: během držení domečku nebo koštěte tlačítka nic nedě
     expect(toolState(game), 'nic se nepřepnulo').toEqual(before);
 
     page.choice.homeHolding(false);
-    expect(tapPrevious(game).kind, 'po puštění domečku').toBe('picked');
+    expect(tapFirstButton(game).kind, 'po puštění domečku').toBe('picked');
     expect(game.selectedTool()).toBe('marker');
   });
 
@@ -239,7 +260,7 @@ describe('#148 AC6: během držení domečku nebo koštěte tlačítka nic nedě
     expect(toolState(game), 'nic se nepřepnulo').toEqual(before);
     page.choice.broomButton.release(BROOM_FINGER);
 
-    expect(tapQuickEraser(game).kind, 'po puštění koštěte').toBe('picked');
-    expect(game.selectedTool(), TOOL_NAMES.eraser).toBe('eraser');
+    expect(tapFirstButton(game).kind, 'po puštění koštěte').toBe('picked');
+    expect(game.selectedTool(), TOOL_NAMES.marker).toBe('marker');
   });
 });

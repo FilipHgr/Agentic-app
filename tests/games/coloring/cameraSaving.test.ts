@@ -166,7 +166,7 @@ describe('#126 AC1: ťuknutí na fotoaparát uloží hotový obrázek do alba', 
   });
 
   // Upraveno k #148 AC5: místo nedávných barev zůstane předchozí nástroj.
-  it('po uložení zůstanou barvy nástrojů, předchozí nástroj a tloušťka čáry, i po novém otevření', async () => {
+  it('po uložení zůstanou barvy nástrojů, nástroj na prvním tlačítku a tloušťka čáry, i po novém otevření', async () => {
     const storage = new RecordingStorage();
     const records = albumDevice().page();
     const game = await openWithAlbum({ storage, records });
@@ -175,9 +175,10 @@ describe('#126 AC1: ťuknutí na fotoaparát uloží hotový obrázek do alba', 
     game.tapColor(BLUE);
     game.tapLineSize('large');
     paintLeft(game, LAST_SET_COLOR);
+    choose(game, 'eraser');
     const toolColors = COLOR_TOOLS.map((tool) => game.toolColor(tool));
     const first = firstButton(game);
-    expect(first?.tool, 'kontrola: pastelka na prvním tlačítku').toBe('crayon');
+    expect(first.tool, 'kontrola: fix na prvním tlačítku').toBe('marker');
 
     await takePhoto(game);
 
@@ -185,7 +186,7 @@ describe('#126 AC1: ťuknutí na fotoaparát uloží hotový obrázek do alba', 
       COLOR_TOOLS.map((tool) => game.toolColor(tool)),
       'barvy nástrojů',
     ).toEqual(toolColors);
-    expect(firstButton(game), 'předchozí nástroj').toEqual(first);
+    expect(firstButton(game), 'nástroj na prvním tlačítku').toEqual(first);
     expect(game.lineSize(), 'tloušťka čáry').toBe('large');
 
     game.suspend();
@@ -194,7 +195,10 @@ describe('#126 AC1: ťuknutí na fotoaparát uloží hotový obrázek do alba', 
       COLOR_TOOLS.map((tool) => reopened.toolColor(tool)),
       'po otevření',
     ).toEqual(toolColors);
-    expect(firstButton(reopened), 'předchozí nástroj po otevření').toEqual(first);
+    expect(firstButton(reopened), 'po otevření štětec (#163 AC5)').toEqual({
+      tool: 'brush',
+      color: reopened.toolColor('brush'),
+    });
     expect(reopened.lineSize(), 'tloušťka po otevření').toBe('large');
   });
 

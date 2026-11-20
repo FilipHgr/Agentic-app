@@ -37,7 +37,7 @@ import { LAYOUT_BEFORE_148 } from './layoutBefore148Fixture';
 import type { FixedRect } from './layoutBefore148Fixture';
 
 /**
- * Testy rozložení k #148 AC1 (kde jsou tlačítka předchozího nástroje
+ * Testy rozložení k #148 AC1 (kde jsou tlačítka kreslicího nástroje
  * a gumy), AC6 (tah začatý na tlačítku nemaluje) a AC7 (pravidla v cyklu
  * pro všech 22 oken testů Omalovánek, na šířku i na výšku, se zavřeným
  * panelem i v obou krocích panelu, jeden test na pravidlo). Obrazovka je
@@ -45,12 +45,12 @@ import type { FixedRect } from './layoutBefore148Fixture';
  * (#126) a koště (#142). Nahrazují testy rozložení nedávných barev z #99
  * (`recentColorsLayoutRules.test.ts`).
  *
- * Navržené rozhraní `coloringLayout.ts` (herní jednotky) místo
+ * Rozhraní `coloringLayout.ts` (herní jednotky) místo
  * `recentColors: readonly LayoutRect[]`:
- * - `ColoringLayout.previousToolButton: LayoutRect` první tlačítko
- *   (předchozí nástroj),
+ * - `ColoringLayout.quickDrawingToolButton: LayoutRect` první tlačítko
+ *   (kreslicí nástroj, #163),
  * - `ColoringLayout.quickEraserButton: LayoutRect` druhé tlačítko (guma),
- * - `touchTargetAt` vrátí `{ kind: 'previousTool' }` a `{ kind: 'quickEraser' }`
+ * - `touchTargetAt` vrátí `{ kind: 'quickDrawingTool' }` a `{ kind: 'quickEraser' }`
  *   ve všech krocích panelu; `{ kind: 'recentColor' }` už nevrací.
  *
  * Kolečko barvy nepřekrývá okraj ikony (#114) je podle zadání ruční kontrola.
@@ -132,7 +132,7 @@ function othersOf(testCase: QuickCase): Array<[string, Box]> {
 }
 
 describe('#148 AC1: dvě tlačítka místo nedávných barev', () => {
-  it('ve všech oknech jsou v pruhu právě dvě tlačítka: předchozí nástroj a guma', () => {
+  it('ve všech oknech jsou v pruhu právě dvě tlačítka: kreslicí nástroj a guma', () => {
     for (const testCase of cases()) {
       expect(testCase.quickTools.length, testCase.scene.label).toBe(QUICK_TOOL_PLACES);
       const names = testCase.scene.items.map((item) => item.name);
@@ -152,7 +152,7 @@ describe('#148 AC1: dvě tlačítka místo nedávných barev', () => {
       'undo',
       'camera',
       'broom',
-      'previousTool',
+      'quickDrawingTool',
       'quickEraser',
       'picture',
       'panel',
@@ -173,7 +173,7 @@ describe('#148 AC1: dvě tlačítka místo nedávných barev', () => {
       for (const point of gridIn(whole, 60)) {
         const target = touchTargetAt(testCase.layout, testCase.panel, point.x, point.y);
         expect(known, `${testCase.scene.label}: ${target.kind}`).toContain(target.kind);
-        if (target.kind === 'previousTool' || target.kind === 'quickEraser') {
+        if (target.kind === 'quickDrawingTool' || target.kind === 'quickEraser') {
           quickHits.add(target.kind);
           const inside = quickToolRects(testCase.layout).some(
             (rect) =>
@@ -185,7 +185,10 @@ describe('#148 AC1: dvě tlačítka místo nedávných barev', () => {
           expect(inside, `${testCase.scene.label}: ${target.kind} mimo tlačítka`).toBe(true);
         }
       }
-      expect([...quickHits].sort(), testCase.scene.label).toEqual(['previousTool', 'quickEraser']);
+      expect([...quickHits].sort(), testCase.scene.label).toEqual([
+        'quickDrawingTool',
+        'quickEraser',
+      ]);
     }
   });
 
@@ -261,7 +264,7 @@ describe('#148 AC6: tah začatý na tlačítku nemaluje', () => {
   });
 });
 
-describe('#148 AC7: rozložení s tlačítky předchozího nástroje a gumy', () => {
+describe('#148 AC7: rozložení s tlačítky kreslicího nástroje a gumy', () => {
   it('zkouší se všech 22 oken Omalovánek na šířku i na výšku, se zavřeným panelem i v obou krocích', () => {
     expect(COLORING_WINDOWS.length).toBe(22);
     expect(cases().length).toBe(COLORING_WINDOWS.length * 3);
@@ -276,7 +279,7 @@ describe('#148 AC7: rozložení s tlačítky předchozího nástroje a gumy', ()
   });
 
   for (const [ruleName, rule] of Object.entries(LAYOUT_RULES)) {
-    it(`${ruleName} s tlačítky předchozího nástroje a gumy ve všech oknech`, () => {
+    it(`${ruleName} s tlačítky kreslicího nástroje a gumy ve všech oknech`, () => {
       for (const testCase of cases()) {
         expect(testCase.quickTools.length, `${testCase.scene.label}: tlačítka`).toBe(
           QUICK_TOOL_PLACES,
