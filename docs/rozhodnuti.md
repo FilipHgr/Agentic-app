@@ -347,3 +347,4 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-19 #157: tlačítko jazyka v liště menu je úplně vpravo, vyhrazené místo po „…“ je mezi profilem a jazykem (na telefonu na výšku jinak vypadala lišta rozbitě, UX kontrola).
 - 2026-11-19 #158: náhledy alba zůstávají přesně na místě z #149, karta stránky se přizpůsobí (okraj 8 px, kde se vejde, jinak nejméně 4 px; od domečku a šipek aspoň 4 px). Ťuknutí na prázdné okénko ho zhoupne s tónem domečku.
 - 2026-11-19 #159: klíč čeká v zámku 5 s od doletu, listování výběru ho vrátí do ukazatele, při nenačteném obrysu klíč nevyletí. Klíč v ukazateli je při letu ztlumený, v zámku poskakuje a pootáčí se. Nahrazuje spotřebu klíče jedním ťuknutím z #140 AC5.
+- 2026-11-20 Rychlé přepínání v Omalovánkách (#148) bylo matoucí: první tlačítko je vždy nástroj, kterým se maluje (s gumou ten před ní), a přepíná se jen mezi ním a gumou (#163).
