@@ -69,8 +69,11 @@
  * takže po ťuknutí hned ví, jestli se obrázek uloží (AC2 a). Prázdný
  * obrázek, obrázek stejný jako obrázek té omalovánky v albu, plné album,
  * nedostupné nebo ještě nepřečtené album a dočasný profil fotoaparát jen
- * zhoupnou. Jinak hned cvak a ukládání; během ukládání se nemaluje
- * a další ťuknutí fotoaparát jen zhoupne. Teprve po potvrzeném uložení je
+ * zhoupnou. Když se album nepřečetlo (na vytíženém zařízení se nestihne
+ * otevřít, #185), ťuknutí si vyžádá nové čtení (`readAgain`), nejvýš jedno
+ * najednou; po přečtení další ťuknutí obrázek uloží. Jinak hned cvak
+ * a ukládání; během ukládání se nemaluje a další ťuknutí fotoaparát jen
+ * zhoupne. Teprve po potvrzeném uložení je
  * omalovánka čistá a zapíše se do úložiště; barvy nástrojů, nástroj na prvním
  * tlačítku a tloušťka zůstanou a historie Zpět se vyprázdní. Ukládání doběhne
  * i po odchodu z malování. Odložená stránka z výměny s albem (#131), která
@@ -267,6 +270,16 @@ export type PaintingOrigin = 'picker' | 'album';
 export interface ColoringAlbum {
   readonly records: GameRecords | undefined;
   readonly contents: AlbumContents;
+  /**
+   * Čtení alba rozběhnuté už při otevření malování (#185); malování si jeho
+   * výsledek převezme samo a do jeho konce nové čtení nežádá.
+   */
+  readonly reading?: Promise<AlbumContents>;
+  /**
+   * Vyžádá nové čtení alba (#185). Malování ho zavolá, když se fotoaparát
+   * zhoupne kvůli nepřečtenému albu a žádné čtení neběží.
+   */
+  readonly readAgain?: () => Promise<AlbumContents>;
 }
 
 /** Tón, když se fotoaparát jen zhoupne (#126 AC2), stejný jako u domečku. */
@@ -724,6 +737,9 @@ export function openColoring(options: {
   /** Album přečtené při otevření; po každém uložení se doplní nový obrázek. */
   let album: AlbumContents = options.album?.contents ?? { status: 'unavailable' };
   const albumRecords = options.album?.records;
+  const readAlbumAgain = options.album?.readAgain;
+  /** Čte se album (čtení z otevření nebo vyžádané fotoaparátem, #185)? */
+  let readingAlbum = false;
   /** Ukládá se do alba (od cvaku po potvrzení)? */
   let savingToAlbum = false;
   /** Rozběhnuté ukládání fotoaparátem; odchod na něj počká (#141). */
@@ -893,6 +909,40 @@ export function openColoring(options: {
     );
   };
 
+  /** Převezme výsledek čtení alba; do jeho konce se nové čtení nežádá (#185). */
+  const followAlbumReading = (reading: Promise<AlbumContents>): void => {
+    readingAlbum = true;
+    reading.then(
+      (contents) => {
+        readingAlbum = false;
+        if (!savingToAlbum) {
+          album = contents;
+        }
+      },
+      (error: unknown) => {
+        // Čtení alba podle #125 nezamítá; kdyby přece, album zůstane nepřečtené.
+        readingAlbum = false;
+        console.warn('Omalovánky: album nejde přečíst', error);
+      },
+    );
+  };
+
+  /**
+   * Fotoaparát se zhoupl: když album není přečtené a nečte se, vyžádá nové
+   * čtení (#185 AC1, AC2). Dočasný profil bez záznamů nic nečte.
+   */
+  const readAlbumIfUnread = (): void => {
+    if (
+      album.status === 'read' ||
+      readingAlbum ||
+      readAlbumAgain === undefined ||
+      albumRecords === undefined
+    ) {
+      return;
+    }
+    followAlbumReading(readAlbumAgain());
+  };
+
   /** Po potvrzeném uložení: obrázek je v albu a omalovánka čistá jako nová stránka. */
   const afterAlbumSaved = (recordId: string, layer: Uint8Array): CameraSaveResult => {
     if (album.status === 'read') {
@@ -961,6 +1011,10 @@ export function openColoring(options: {
     }
     return leaving;
   };
+
+  if (options.album?.reading !== undefined) {
+    followAlbumReading(options.album.reading);
+  }
 
   return {
     pointerDown(pointer) {
@@ -1136,6 +1190,7 @@ export function openColoring(options: {
       const data =
         savingToAlbum || !albumAccepts(layer) ? null : albumRecordOf(picture, regions, layer);
       if (data === null || albumRecords === undefined) {
+        readAlbumIfUnread();
         return { kind: 'wobble', tones: CAMERA_WOBBLE_TONES };
       }
       savingToAlbum = true;

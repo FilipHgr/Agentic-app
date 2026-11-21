@@ -113,6 +113,11 @@ export interface ColoringSceneOptions {
    * počká spolu s obrysem, aby fotoaparát hned věděl, jestli obrázek uloží.
    */
   readonly album: () => Promise<AlbumContents>;
+  /**
+   * Výběr přečte album znovu (#185); malování to vyžádá, když se album
+   * nepřečetlo a dítě ťukne na fotoaparát.
+   */
+  readonly readAlbumAgain: () => Promise<AlbumContents>;
   /** Obrázek se uložil do alba (#126); výběr album přečte znovu. Platí i po odchodu z malování. */
   readonly onAlbumSaved: () => void;
   /**
@@ -353,12 +358,15 @@ export class ColoringScene extends Phaser.Scene {
       picture: this.options.picture,
       storage: outline.drawn ? host?.storage : undefined,
       // Album se dočte až potom; malování na něj nečeká (do přečtení se
-      // fotoaparát jen zhoupne).
-      album: { records, contents: { status: 'unavailable' } },
+      // fotoaparát jen zhoupne). Nepřečtené album si fotoaparát vyžádá znovu (#185).
+      album: {
+        records,
+        contents: { status: 'unavailable' },
+        reading: albumReading,
+        readAgain: this.options.readAlbumAgain,
+      },
       origin: this.options.origin,
     });
-    const coloring = this.coloring;
-    void albumReading.then((contents) => coloring.albumRead(contents));
     this.showSelection();
     this.showPanel();
     this.paintLayer = new PaintLayer(this, this.paintTextureKey, regions);

@@ -1552,6 +1552,10 @@ export class PickerScene extends Phaser.Scene {
       prepared: assets.prepared,
       onShown: () => this.choice.paintingShown(),
       album: () => this.albumReading,
+      readAlbumAgain: () => {
+        this.readAlbumAgain();
+        return this.albumReading;
+      },
       onAlbumSaved: () => this.onAlbumSaved(),
       pageSettled: () => this.choice.pageSettled(picture),
       origin,
