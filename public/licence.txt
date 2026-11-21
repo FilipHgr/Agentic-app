@@ -143,6 +143,27 @@ s průhledností. Zdrojová videa nejsou v repozitáři, otisky SHA-256 výsledk
   think.webp: ee17b32262afa102c1695c64af9d9f2700a6910d4840a7e95501f750f7f7e7f1
   celebrate.webp: 648573fbfa00cb7b516d0e185972fd36696adb0679730f6961ea8f2588a7e411
 
+Panda Rudy, nové pohyby pandy červené (src/shared/mascot/: klid
+rudy-idle.webp, pozdrav rudy-wave.webp, oslava rudy-celebrate.webp a mluví
+rudy-talk.webp) je vytvořená službou ElevenLabs (https://elevenlabs.io):
+výchozí obrázek s místem kolem uší modelem GPT Image 2.5 (generace
+gbJQu790nIS0Mdau7nlD), z něj videa modelem Kling 3 Pro (klid
+rCl07oAp6svAQx7ECbEJ, pozdrav NMwJYA882PRQoSZguVbG, oslava
+N35UnWbC8ymxWfzN4ZiB, mluví jZgYXHG36kxthHr7dD2a) a odstranění pozadí
+nástrojem VEED v ElevenLabs (jEzJqkTQkc077jcXR1Fs, Hp6StYQERZ7T3AQyR2Wp,
+LjuAoSwlkH1iP6aNW6X0, BJbFR1AJm9fDDeY5R6UJ). Použito v rámci komerčního
+tarifu vlastníka hry, stejně jako dlaždice her. Úprava: z každého videa
+37 snímků (12 snímků/s), společný výřez 439 × 480 px pro všechny pohyby,
+složeno do mřížky 6 sloupců a převedeno na WebP s průhledností (kvalita 88).
+Okraje dočištěné: neviditelné zbytky pozadí u horního, levého a pravého
+okraje snímků vynulované, maska zúžená o 1 px a v pásu 4 px u okraje
+odbarvený zelený lem po pozadí. Zdrojová videa nejsou v repozitáři, otisky
+SHA-256 výsledků:
+  rudy-idle.webp: 1b5726d0bc1ed0198f3fe5895e16b3b1fcac72c8634a75f91178fe9f7e7c63ef
+  rudy-wave.webp: f267086d9b7e695ee2805c8cfb03215ee5eb8b0c3fed1951325dac29af60c625
+  rudy-celebrate.webp: 51d53676d1b767e3e798059d572561fe2eec618789e4100ddf56d462a6bf92c9
+  rudy-talk.webp: 49da775fff9282197d79ca27e39a1aab10c0591fb002935d02e94219fb890358
+
 Vlajky v nabídce jazyků v menu (src/menu/flags/: flag-czechia,
 flag-united-kingdom) jsou ploché vlajky ze sady Noto Emoji, autor Google Inc.,
 https://github.com/googlefonts/noto-emoji, složka third_party/region-flags

@@ -23,7 +23,8 @@ const MAX_TOTAL_BYTES = 3.5 * 1024 * 1024;
 
 const FILES: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(
-    import.meta.glob<string>('../../src/shared/mascot/*', {
+    // Nové pohyby pandy Rudyho (`rudy-*`, #169) mají vlastní test `rudyFiles.test.ts`.
+    import.meta.glob<string>(['../../src/shared/mascot/*', '!../../src/shared/mascot/rudy-*'], {
       query: '?inline',
       import: 'default',
       eager: true,
