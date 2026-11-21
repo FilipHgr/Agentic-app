@@ -34,8 +34,6 @@ export function menuSoundFor(event: MenuFeedback): MenuSoundName | undefined {
   switch (event.kind) {
     case 'press':
     case 'profilePress':
-    case 'mascot':
-      // Ťuknutí na pandu zní jako zmáčknutí dlaždice (#168 AC4).
       return 'press';
     case 'shake':
       return 'shake';

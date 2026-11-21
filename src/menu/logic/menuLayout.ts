@@ -38,10 +38,6 @@
  * volné plochy vedle kategorií nebo pod výběrem kategorie. Velikost
  * a počet sloupců se řídí počtem her ve „Vše“, po přepnutí kategorie se
  * blok jen znovu vystředí. Když se nevejdou, platí posouvání z #69.
- *
- * Panda (#168): ve volné části posouvané plochy her vedle dlaždic nebo
- * pod nimi, jen když se mřížka neposouvá (`mascotPlace.ts`). Nic jiného
- * se kvůli ní neposune.
  */
 
 import {
@@ -50,7 +46,6 @@ import {
   safeAreaOrNone,
 } from '../../shared/logic/viewportLayout';
 import type { LayoutMode, Viewport } from '../../shared/logic/viewportLayout';
-import { menuMascotBox } from './mascotPlace';
 
 /** Obdélník v CSS px okna. */
 export interface MenuBox {
@@ -205,11 +200,6 @@ export interface MenuLayout {
    * a kategorie jsou ve sloupci. S výběrem je `categories` prázdné.
    */
   readonly categoryPicker: MenuCategoryPicker | null;
-  /**
-   * Panda (#168): snímek i ťukací plocha v CSS px okna ve volné části
-   * posouvané plochy her (`mascotPlace.ts`), nebo `null`, když se nevejde.
-   */
-  readonly mascot: MenuBox | null;
 }
 
 export interface MenuContent {
@@ -1040,8 +1030,6 @@ interface TileGridInput {
 interface TileGrid {
   readonly columns: number;
   readonly tiles: readonly MenuBox[];
-  /** Dlaždice všech her („Vše“); u posouvané mřížky prázdné (panda tam není). */
-  readonly allTiles: readonly MenuBox[];
   readonly tileHeight: number;
   readonly scroll: MenuScrollArea;
 }
@@ -1100,7 +1088,6 @@ function scrollingTileGrid(input: TileGridInput, today: TodayTiles): TileGrid {
   return {
     columns,
     tiles,
-    allTiles: [],
     tileHeight: height,
     scroll: {
       viewport,
@@ -1127,7 +1114,6 @@ function centeredTileGrid(input: TileGridInput, centered: CenteredGrid): TileGri
   return {
     columns: centered.columns,
     tiles: centeredTiles(tileArea, centered, input.tileCount),
-    allTiles: centeredTiles(tileArea, centered, input.allTileCount),
     tileHeight: centered.tileHeight,
     scroll: {
       viewport: {
@@ -1298,6 +1284,5 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
       maxOffset: categoryMaxOffset,
     },
     categoryPicker,
-    mascot: menuMascotBox(tileGrid.scroll, tileGrid.allTiles),
   };
 }

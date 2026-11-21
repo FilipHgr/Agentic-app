@@ -8,7 +8,9 @@
  * Během okna nereaguje nic pod ním: přes celou stránku leží průhledná
  * vrstva, která chytá všechny dotyky (i nad domečkem a kolečkem nastavení,
  * které jsou prvky stránky nad plátnem), takže se pod ní nezačne ani
- * podržení. Ťuknutí do vrstvy předá logice (zavře okno po 1 s).
+ * podržení. Ťuknutí do vrstvy předá logice (zavře okno po 1 s). Domeček
+ * a kolečko nastavení jsou během okna ztmavené stejně jako hra pod kartou
+ * (#170), aby bylo vidět, že teď nereagují.
  *
  * Archy pohybů se stahují Phaser loaderem až při použití okna. Chyba
  * stažení se jen zapíše do konzole, hráč nic nevidí a hra jde dál.
@@ -27,6 +29,7 @@ import { RUDY_MOVES, RUDY_SHEET } from '../logic/rudy';
 import type { RudyLineMove, RudyMove } from '../logic/rudy';
 import { RUDY_CARD_STYLE, layoutRudyCard, rudyCardPageBackdrop } from '../logic/rudyCard';
 import type { RudyRect } from '../logic/rudyCard';
+import { dimPageButtons } from '../logic/rudyPageButtons';
 import { createRudyWindowModel } from '../logic/rudyWindow';
 import type { RudyCommand, RudyWindowModel } from '../logic/rudyWindow';
 import { colorNumber } from '../logic/theme';
@@ -43,6 +46,9 @@ const SHEET_URLS: Readonly<Record<RudyMove, string>> = {
 
 /** Vrstva proti dotykům je nad vším na stránce (domeček a kolečko mají 10). */
 const TOUCH_SHIELD_Z_INDEX = '100';
+
+/** Tlačítka stránky nad plátnem (domeček a kolečko), která okno ztmaví. */
+const PAGE_BUTTON_IDS = ['home-button', 'settings-button'] as const;
 
 function textureKey(move: RudyMove): string {
   return `rudy:${move}`;
@@ -72,6 +78,11 @@ export interface RudyWindowOptions {
    * `null` (výchozí). Hra sem dá `setPageBackdrop` hostitele.
    */
   readonly pageBackdrop?: (backdrop: PageBackdrop | null) => void;
+  /**
+   * Herní plocha plátna v CSS px (výchozí plocha hry z registru). Menu má
+   * plátno přes celé okno s vlastním měřítkem.
+   */
+  readonly gameArea?: () => GameArea;
 }
 
 export interface RudyOpenOptions {
@@ -123,6 +134,9 @@ export class RudyWindow {
   private readonly model: RudyWindowModel = createRudyWindowModel();
   private readonly container: Phaser.GameObjects.Container;
   private readonly pageBackdrop: ((backdrop: PageBackdrop | null) => void) | undefined;
+  private readonly gameArea: (() => GameArea) | undefined;
+  /** Vrátí ztmaveným tlačítkům stránky původní `filter` (#170). */
+  private restoreButtons: (() => void) | null = null;
   /** Pohyby, jejichž stažení loader právě vyřizuje. */
   private readonly pending = new Set<RudyMove>();
   private drawn: Drawn | null = null;
@@ -141,6 +155,7 @@ export class RudyWindow {
   constructor(scene: Phaser.Scene, options: RudyWindowOptions = {}) {
     this.scene = scene;
     this.pageBackdrop = options.pageBackdrop;
+    this.gameArea = options.gameArea;
     this.container = scene.add.container(0, 0).setDepth(options.depth ?? 1000);
     this.container.setVisible(false);
     options.layer?.add(this.container);
@@ -170,6 +185,11 @@ export class RudyWindow {
     return this.model.isOpen();
   }
 
+  /** Je pohyb stažený, takže se při otevření hned přehraje? */
+  isLoaded(move: RudyMove): boolean {
+    return this.model.isLoaded(move);
+  }
+
   /**
    * Otevře okno s pohybem repliky. Vrátí `false`, když se okno neukáže
    * (klid není stažený nebo je okno už otevřené); `onClosed` se pak
@@ -190,6 +210,7 @@ export class RudyWindow {
     this.draw();
     this.addShield();
     this.cancelPagePresses();
+    this.dimPageButtons();
     this.pageBackdrop?.(rudyCardPageBackdrop());
     this.render();
     return true;
@@ -241,6 +262,9 @@ export class RudyWindow {
   }
 
   private readGameArea(): GameArea {
+    if (this.gameArea !== undefined) {
+      return this.gameArea();
+    }
     const stored: unknown = this.scene.game.registry.get(GAME_AREA_KEY);
     return isGameArea(stored) ? stored : gameAreaFor(readViewport());
   }
@@ -490,7 +514,19 @@ export class RudyWindow {
     this.clearDrawn();
     this.container.setVisible(false);
     this.releaseShield();
+    this.restorePageButtons();
     this.pageBackdrop?.(null);
+  }
+
+  /** Domeček a kolečko nad plátnem ztmavne jako hru pod kartou (#170). */
+  private dimPageButtons(): void {
+    this.restorePageButtons();
+    this.restoreButtons = dimPageButtons(PAGE_BUTTON_IDS.map((id) => document.getElementById(id)));
+  }
+
+  private restorePageButtons(): void {
+    this.restoreButtons?.();
+    this.restoreButtons = null;
   }
 
   private onUpdate(): void {

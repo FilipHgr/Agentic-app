@@ -4,7 +4,6 @@
  *
  * Pohyb je arch snímků v mřížce (`RUDY_SHEET`). Všechny pohyby mají
  * společný výřez s místem kolem uší, panda je ve všech na stejném místě.
- * Staré pohyby pandy z #166 (`mascot.ts`) jsou samostatné a zmizí v #170.
  */
 
 /** Pohyby pandy Rudyho; klid je první a v okně je vždy v paměti. */

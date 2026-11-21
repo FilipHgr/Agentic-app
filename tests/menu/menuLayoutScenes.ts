@@ -434,14 +434,6 @@ export function categoryPickerScenes(windows: readonly TestWindow[] = MENU_WINDO
 // Mřížka her a kategorie (dnešní obsah, #67)
 // ---------------------------------------------------------------------------
 
-/**
- * Panda (#168), když je vidět: ťukací plocha jako ostatní prvky menu
- * (64 px, 8 px od ostatních ťukacích ploch, nic se nepřekrývá).
- */
-export function mascotItems(layout: MenuLayout): LayoutItem[] {
-  return layout.mascot === null ? [] : [{ name: 'panda', box: layout.mascot, tappable: true }];
-}
-
 /** Názvy kategorií, které dnes menu ukáže, v jazyce. */
 export function todayCategoryTitles(language: Language = 'cs'): string[] {
   const all = [ALL_CATEGORY, ...GAME_CATEGORIES];
@@ -544,7 +536,6 @@ export function gridScenes(windows: readonly TestWindow[] = MENU_WINDOWS): Layou
           ...pickerButtonItems(layout, titles),
           ...todayCategoryItems(layout, titles, offset.value),
           ...tiles,
-          ...mascotItems(layout),
         ],
       }));
     }),
@@ -733,7 +724,6 @@ function fewGamesScene(
       ...pickerButtonItems(layout, pickerTitles),
       ...todayCategoryItems(layout, titles, categoryOffset.value),
       ...tiles,
-      ...mascotItems(layout),
     ],
     minGap: scrolledGap,
   };

@@ -2,6 +2,8 @@ import { createCountingSession } from '../../../src/games/counting/logic/countin
 import type {
   CountingSession,
   SessionPage,
+  SessionRudy,
+  SessionRudyEvents,
   SessionSounds,
   SessionTimers,
   SessionVoice,
@@ -11,6 +13,7 @@ import { serializeSettings } from '../../../src/games/counting/logic/settings';
 import type { GameSettings } from '../../../src/games/counting/logic/settings';
 import type { DigitRecognizer } from '../../../src/games/counting/logic/writingRound';
 import type { Tone } from '../../../src/shared/audio/tonePlayer';
+import type { RudyLineMove } from '../../../src/shared/logic/rudy';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 
 import { seededRandom } from './seededRandom';
@@ -131,6 +134,89 @@ export class FakePage implements SessionPage {
   }
 }
 
+/**
+ * Okno s pandou Rudym (#170) místo Phaser okna: zapíše, o co hra požádala,
+ * a test ho otevře (`openPending`) a zavře (`close`), nebo nechá ukázat se
+ * na čas `openMs` časovači hry. Bez otevření okno čeká jako na stažení.
+ */
+export class FakeRudy implements SessionRudy {
+  readonly requested: RudyLineMove[] = [];
+  /** Pohyby, které hra chtěla stáhnout dopředu, v pořadí. */
+  readonly prepared: RudyLineMove[] = [];
+  /** Okno, které čeká na ukázání, a okno, které je vidět. */
+  private waiting: { move: RudyLineMove; events: SessionRudyEvents } | null = null;
+  private shown: { move: RudyLineMove; events: SessionRudyEvents } | null = null;
+  stopped = 0;
+
+  /**
+   * `timers` a `openMs`: okno se ukáže hned po požádání a samo se zavře
+   * po `openMs` ms; bez nich řídí ukázání a zavření test.
+   */
+  constructor(
+    private readonly auto?: { readonly timers: SessionTimers; readonly openMs: number },
+  ) {}
+
+  readonly show = (move: RudyLineMove, events: SessionRudyEvents): void => {
+    this.requested.push(move);
+    this.waiting = { move, events };
+    if (this.auto !== undefined) {
+      this.openPending();
+      this.auto.timers.after(this.auto.openMs, () => this.close());
+    }
+  };
+
+  readonly prepare = (move: RudyLineMove): void => {
+    this.prepared.push(move);
+  };
+
+  readonly stop = (): void => {
+    this.stopped += 1;
+    this.waiting = null;
+    this.shown = null;
+  };
+
+  /** Pohyb okna, které je vidět, `null` bez okna. */
+  openMove(): RudyLineMove | null {
+    return this.shown?.move ?? null;
+  }
+
+  /** Pohyb okna, které čeká na ukázání. */
+  waitingMove(): RudyLineMove | null {
+    return this.waiting?.move ?? null;
+  }
+
+  /** Okno se stáhlo a ukázalo. */
+  openPending(): void {
+    const waiting = this.waiting;
+    if (waiting === null) {
+      return;
+    }
+    this.waiting = null;
+    this.shown = waiting;
+    waiting.events.onOpened();
+  }
+
+  /** Okno se zavřelo (samo nebo ťuknutím). */
+  close(): void {
+    const shown = this.shown;
+    if (shown === null) {
+      return;
+    }
+    this.shown = null;
+    shown.events.onClosed();
+  }
+
+  /** Okno se nestáhlo včas: chvíle se vynechá a hra jde dál. */
+  giveUp(): void {
+    const waiting = this.waiting;
+    if (waiting === null) {
+      return;
+    }
+    this.waiting = null;
+    waiting.events.onClosed();
+  }
+}
+
 interface PendingLoad {
   succeed(recognizer?: DigitRecognizer): void;
   fail(): void;
@@ -200,9 +286,14 @@ export interface TestSession {
   changes(): number;
 }
 
-/** Jeden vstup do Počítání na zařízení `device`. */
-export function enterCounting(device: TestDevice, seed?: number): TestSession {
+/** Jeden vstup do Počítání na zařízení `device`; s `rudyFor` hra ukazuje okna s pandou (#170). */
+export function enterCounting(
+  device: TestDevice,
+  seed?: number,
+  rudyFor?: (timers: FakeTimers) => SessionRudy,
+): TestSession {
   const timers = new FakeTimers();
+  const rudy = rudyFor?.(timers);
   const recognizer = new FakeRecognizerLoader();
   let changes = 0;
   const session = createCountingSession({
@@ -213,6 +304,7 @@ export function enterCounting(device: TestDevice, seed?: number): TestSession {
     timers,
     page: device.page,
     loadRecognizer: recognizer.load,
+    rudy,
     onChange: () => {
       changes += 1;
     },

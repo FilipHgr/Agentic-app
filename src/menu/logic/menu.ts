@@ -83,8 +83,7 @@ export type WobbleTarget =
  * - `languageMenu` nabídka jazyků se otevřela nebo zavřela (#70),
  * - `language` vybral se jiný jazyk (#70),
  * - `categoryMenu` seznam kategorií se otevřel nebo zavřel (#95); `quiet`
- *   je zavření bez vlastního tónu (po výběru v seznamu nebo po otočení),
- * - `mascot` dítě ťuklo na pandu (#168): radost a tón jako zmáčknutí dlaždice.
+ *   je zavření bez vlastního tónu (po výběru v seznamu nebo po otočení).
  */
 export type MenuFeedback =
   | { readonly kind: 'press'; readonly gameId: string }
@@ -96,8 +95,7 @@ export type MenuFeedback =
   | { readonly kind: 'profilePress' }
   | { readonly kind: 'languageMenu'; readonly open: boolean }
   | { readonly kind: 'language'; readonly language: string }
-  | { readonly kind: 'categoryMenu'; readonly open: boolean; readonly quiet: boolean }
-  | { readonly kind: 'mascot' };
+  | { readonly kind: 'categoryMenu'; readonly open: boolean; readonly quiet: boolean };
 
 /** Jazyky v nabídce (#70): seznam, aktuální jazyk, výběr a vlastní názvy. */
 export interface MenuLanguageSource {
@@ -191,6 +189,11 @@ export interface Menu {
   tapTile(gameId: string): void;
   /** Hra, která naběhla, nebo `null` v menu. */
   runningGame(): GameEntry | null;
+  /**
+   * Stahuje se nebo spouští hra, nebo už běží (#170: pozdrav Rudyho se pak
+   * v menu neukáže).
+   */
+  isLaunching(): boolean;
   /** Název stránky: v menu název menu, po spuštění název hry. */
   pageTitle(): string;
   /** Kolečko nastavení jde otevřít, až když hra naběhne. */
@@ -216,12 +219,6 @@ export interface Menu {
   profileBadge(): MenuProfileBadge;
   /** Ťuknutí na profil: otevře výběr profilu (#72). */
   tapProfile(): void;
-  /**
-   * Ťuknutí na pandu (#168): odezva `mascot` (radost a tón). S otevřenou
-   * nabídkou jazyků nebo seznamem kategorií je jen zavře, rozběhnuté
-   * stahování hry zruší jako ťuknutí jinam.
-   */
-  tapMascot(): void;
   /** Tlačítko výběru kategorie (#95): symbol a název vybrané kategorie a šipka. */
   categoryButton(): MenuCategoryButton;
   isCategoryMenuOpen(): boolean;
@@ -480,6 +477,10 @@ export function createMenu(options: MenuOptions): Menu {
       return running;
     },
 
+    isLaunching(): boolean {
+      return launch !== null || running !== null;
+    },
+
     pageTitle(): string {
       return translate(running?.titleKey ?? PAGE_TITLE_KEY);
     },
@@ -570,14 +571,6 @@ export function createMenu(options: MenuOptions): Menu {
       cancelDownload();
       emit({ kind: 'profilePress' });
       options.onOpenProfilePicker?.();
-    },
-
-    tapMascot(): void {
-      if (running !== null || closeOpenMenuInstead()) {
-        return;
-      }
-      cancelDownload();
-      emit({ kind: 'mascot' });
     },
 
     categoryButton(): MenuCategoryButton {

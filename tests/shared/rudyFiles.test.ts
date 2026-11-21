@@ -12,7 +12,7 @@ import type { AlphaPlane } from './webpAlpha';
  * 12 snímcích/s. U horního, levého a pravého okraje každého snímku je pás
  * aspoň 6 px úplně průhledný, aby uši nikde nebyly useknuté. Každý soubor
  * má nejvýš 700 KiB, všechny dohromady nejvýš 2,8 MiB, původ je
- * v `public/licence.txt`. Staré pohyby z #166 zůstávají (smažou se v #170).
+ * v `public/licence.txt`. Staré pohyby z #166 jsou smazané (#170 AC1).
  */
 
 const MASCOT_FOLDER = 'src/shared/mascot';
@@ -30,7 +30,7 @@ const FILES: Readonly<Record<string, string>> = Object.fromEntries(
   ).map(([path, dataUrl]) => [path.replace('../../', ''), dataUrl]),
 );
 
-const OLD_MOVE_FILES: readonly string[] = Object.keys(
+const OTHER_FILES: readonly string[] = Object.keys(
   import.meta.glob('../../src/shared/mascot/!(rudy-)*', { query: '?url', eager: true }),
 );
 
@@ -113,16 +113,8 @@ describe('#169 AC1: soubory pohybů pandy Rudyho', () => {
     });
   });
 
-  it('staré pohyby z #166 zatím zůstávají vedle nových', () => {
-    const oldNames = OLD_MOVE_FILES.map((path) => path.slice(path.lastIndexOf('/') + 1)).sort();
-    expect(oldNames).toEqual([
-      'celebrate.webp',
-      'encourage.webp',
-      'idle.webp',
-      'joy.webp',
-      'think.webp',
-      'wave.webp',
-    ]);
+  it('#170 AC1: staré pohyby z #166 jsou smazané, ve složce je jen Rudy', () => {
+    expect(OTHER_FILES).toEqual([]);
   });
 
   it('každý pohyb je mřížka snímků s průhledným pozadím', () => {

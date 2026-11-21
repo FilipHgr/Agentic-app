@@ -22,6 +22,7 @@ import { seededRandom } from './seededRandom';
 import {
   FakePage,
   FakeRecognizerLoader,
+  FakeRudy,
   FakeTimers,
   FakeVoice,
   KEYPAD_SETTINGS,
@@ -32,22 +33,27 @@ import type { TestDevice } from './sessionFakes';
 import type { GameSettings } from '../../../src/games/counting/logic/settings';
 
 /**
- * Testy k #154 AC1–AC6 na časové ose oslavy v sezení hry: od odpovědi,
- * která dala 10. hvězdičku, začne oslava do 0,5 s a okno s mapou (#145)
+ * Testy k #154 AC1–AC6 na časové ose oslavy v sezení hry: po zavření okna
+ * s oslavou (#170 AC3) začne oslava do 0,5 s a okno s mapou (#145)
  * se ukáže do 1,5 s, mezi tím není pauza delší než 0,5 s (AC1, AC2).
  * Hvězdičky z řady odletí do mapy, řada je pak prázdná, a melodie cíle ani
  * klíč se nepřekrývají s melodií oslavy (AC3). Bez ťuknutí přijde další
- * příklad nejvýš 8,5 s po 10. hvězdičce (AC4). Během oslavy a letu se
+ * příklad nejvýš 8,5 s po zavření okna s oslavou (AC4). Během oslavy a letu se
  * neodpovídá (AC5), přerušení nastavením nebo domečkem nic nedohraje
  * a další plná řada průběh zopakuje (AC6).
- * Čas se měří od 10. odpovědi po 1 ms, falešné časovače a stránka jsou ze
+ * Čas se měří po 1 ms, falešné časovače, stránka a okno s pandou jsou ze
  * `sessionFakes.ts`, klíče profilu z `keyRewardFakes.ts`.
+ *
+ * #170 AC3: po 10. hvězdičce se nejdřív ukáže okno s oslavou (Rudy). „Od
+ * 10. odpovědi“ z #154 se od #170 počítá od zavření okna s oslavou:
+ * `answerTenth` nechá okno `RUDY_OPEN_MS` otevřené, hodiny vynuluje
+ * a okno zavře. Ostatní časy karty a klíče se počítají od otevření karty.
  *
  * Navržené rozhraní (navíc k dnešnímu, bez nových metod sezení):
  * - `starCount()` je při ukázání okna ještě 10 (hvězdičky jsou v řadě
  *   a odtud odletí), po doletu do mapy 0,
  * - `celebrating()` platí od 10. odpovědi do doletu hvězdiček do mapy,
- * - `mapShown` přijde nejpozději 1,5 s po 10. odpovědi, i když melodie
+ * - `mapShown` přijde nejpozději 1,5 s po zavření okna s oslavou, i když melodie
  *   a konfety oslavy ještě běží (`celebrationEnded` smí přijít až po ní),
  * - zvuk zastávky, melodie cíle a tón klíče zazní až po doletu hvězdiček.
  * Časová osa letu je v `mapAnimation.ts` (`starFlight.test.ts`).
@@ -58,10 +64,10 @@ import type { GameSettings } from '../../../src/games/counting/logic/settings';
  * překreslí polohy, časy běží v sezení).
  */
 
-/** Nejpozději tehdy začnou konfety a melodie oslavy, ms od 10. odpovědi (AC1). */
+/** Nejpozději tehdy začnou konfety a melodie oslavy, ms od zavření okna s oslavou (AC1). */
 const CELEBRATION_START_LIMIT_MS = 500;
 
-/** Nejpozději tehdy se ukáže okno s mapou, ms od 10. odpovědi (AC1). */
+/** Nejpozději tehdy se ukáže okno s mapou, ms od zavření okna s oslavou (AC1). */
 const CARD_LIMIT_MS = 1500;
 
 /** Nejdelší chvíle, kdy se nic nehýbe ani nezní (AC2). */
@@ -76,13 +82,16 @@ const CLOSABLE_LIMIT_MS = 5600;
 /** Jak dlouho je okno otevřené bez ťuknutí (AC4, #145). */
 const CARD_OPEN_MS = 7000;
 
-/** Nejpozději tehdy přijde bez ťuknutí další příklad, ms od 10. odpovědi (AC4). */
+/** Nejpozději tehdy přijde bez ťuknutí další příklad, ms od zavření okna s oslavou (AC4). */
 const NEXT_PROBLEM_LIMIT_MS = 8500;
 
-/** Do kdy se po 10. odpovědi čeká, ms. */
+/** Do kdy se po zavření okna s oslavou čeká, ms. */
 const WATCH_MS = 12_000;
 
-/** Co se stalo a kdy (ms od 10. odpovědi). */
+/** Jak dlouho je okno s oslavou otevřené (bez hlasu 3,5 s, #169). */
+const RUDY_OPEN_MS = 3500;
+
+/** Co se stalo a kdy (ms od zavření okna s oslavou). */
 interface Timed<T> {
   readonly value: T;
   readonly atMs: number;
@@ -93,7 +102,8 @@ interface TimedCounting {
   readonly session: CountingSession;
   readonly timers: FakeTimers;
   readonly page: FakePage;
-  /** Kolik ms uběhlo od 10. odpovědi (posouvá `tick`). */
+  readonly rudy: FakeRudy;
+  /** Kolik ms uběhlo od zavření okna s oslavou (posouvá `tick`). */
   readonly clock: { nowMs: number };
   readonly changes: Array<Timed<SessionChange['kind']>>;
   readonly sounds: Array<Timed<readonly Tone[]>>;
@@ -103,6 +113,7 @@ interface TimedCounting {
 function enterTimed(storage: KeyValueStorage, keyRewards?: KeyRewards): TimedCounting {
   const timers = new FakeTimers();
   const page = new FakePage();
+  const rudy = new FakeRudy();
   const clock = { nowMs: 0 };
   const changes: Array<Timed<SessionChange['kind']>> = [];
   const sounds: Array<Timed<readonly Tone[]>> = [];
@@ -110,6 +121,7 @@ function enterTimed(storage: KeyValueStorage, keyRewards?: KeyRewards): TimedCou
     session: undefined as unknown as CountingSession,
     timers,
     page,
+    rudy,
     clock,
     changes,
     sounds,
@@ -129,8 +141,12 @@ function enterTimed(storage: KeyValueStorage, keyRewards?: KeyRewards): TimedCou
     page,
     loadRecognizer: new FakeRecognizerLoader().load,
     keyRewards,
+    rudy,
     onChange: (change) => changes.push({ value: change.kind, atMs: clock.nowMs }),
   });
+  // Pozdrav po otevření hry (#170 AC2) se ukáže a zavře, pak se hraje.
+  rudy.openPending();
+  rudy.close();
   return Object.assign(test, { session });
 }
 
@@ -142,7 +158,7 @@ function tick(test: TimedCounting, ms = 1): void {
   }
 }
 
-/** Posouvá čas po 1 ms, dokud neplatí `condition`; vrátí čas od 10. odpovědi, nebo `null`. */
+/** Posouvá čas po 1 ms, dokud neplatí `condition`; vrátí čas od zavření okna s oslavou, nebo `null`. */
 function tickUntil(
   test: TimedCounting,
   condition: () => boolean,
@@ -158,7 +174,8 @@ function tickUntil(
 }
 
 /**
- * Dítě vyřeší 9 příkladů a ťukne správně na 10.: hodiny začnou od nuly
+ * Dítě vyřeší 9 příkladů a ťukne správně na 10.; po doletu hvězdičky se
+ * ukáže okno s oslavou (#170 AC3). Před jeho zavřením začnou hodiny od nuly
  * a zápis změn a zvuků začne znovu.
  */
 function answerTenth(test: TimedCounting): void {
@@ -166,10 +183,15 @@ function answerTenth(test: TimedCounting): void {
     test.session.tapAnswer(test.session.problem().result);
     test.timers.runAll();
   }
+  test.session.tapAnswer(test.session.problem().result);
+  tick(test, STAR_FLIGHT_MS);
+  expect(test.rudy.waitingMove(), 'po doletu 10. hvězdičky okno s oslavou').toBe('celebrate');
+  test.rudy.openPending();
+  tick(test, RUDY_OPEN_MS);
   test.changes.length = 0;
   test.sounds.length = 0;
   test.clock.nowMs = 0;
-  test.session.tapAnswer(test.session.problem().result);
+  test.rudy.close();
 }
 
 function firstChange(test: TimedCounting, kind: SessionChange['kind']): number | null {
@@ -232,7 +254,7 @@ const ROW_CASES: readonly RowCase[] = [
   },
 ];
 
-/** Hlavní body časové osy jedné plné řady bez ťuknutí, ms od 10. odpovědi. */
+/** Hlavní body časové osy jedné plné řady bez ťuknutí, ms od zavření okna s oslavou. */
 interface RowTimeline {
   readonly celebrationAt: number | null;
   readonly cardAt: number | null;
@@ -270,7 +292,7 @@ function probeTimes(open: () => TimedCounting): { cardAt: number; rowEmptyAt: nu
 }
 
 describe('#154 AC1: oslava začne hned a okno s mapou se ukáže do 1,5 s', () => {
-  it('konfety a melodie oslavy začnou nejpozději 0,5 s po odpovědi, která dala 10. hvězdičku', () => {
+  it('konfety a melodie oslavy začnou nejpozději 0,5 s po zavření okna s oslavou', () => {
     for (const { label, open } of ROW_CASES) {
       const test = open();
       answerTenth(test);
@@ -289,7 +311,7 @@ describe('#154 AC1: oslava začne hned a okno s mapou se ukáže do 1,5 s', () =
     }
   });
 
-  it('okno s mapou se ukáže nejpozději 1,5 s po desáté hvězdičce, na zastávce i v cíli', () => {
+  it('okno s mapou se ukáže nejpozději 1,5 s po zavření okna s oslavou, na zastávce i v cíli', () => {
     for (const { label, reachedGoal, open } of ROW_CASES) {
       const test = open();
       answerTenth(test);
@@ -320,18 +342,18 @@ describe('#154 AC1: oslava začne hned a okno s mapou se ukáže do 1,5 s', () =
   });
 });
 
-describe('#154 AC2: od 10. hvězdičky do ukázání okna není pauza delší než 0,5 s', () => {
-  it('v každé chvíli se něco hýbe nebo zní: let hvězdičky do řady, zvuk odpovědi, oslava, okno', () => {
+describe('#154 AC2: po zavření okna s oslavou do ukázání mapy není pauza delší než 0,5 s', () => {
+  it('v každé chvíli po zavření okna s oslavou něco zní: melodie oslavy až do mapy', () => {
     for (const { label, open } of ROW_CASES) {
       const test = open();
       const { cardAt } = watchRow(test);
       expect(cardAt, label).not.toBeNull();
       const until = cardAt ?? 0;
 
-      // Co se hýbe nebo zní: hvězdička letí do řady hned po odpovědi
-      // a každý zvuk po celou svou délku. Konfety se nepočítají, jejich
-      // délku určuje scéna (ruční kontrola), pauzu musí pokrýt zvuky.
-      const busy: Array<readonly [number, number]> = [[0, STAR_FLIGHT_MS]];
+      // Od zavření okna s oslavou se počítají jen zvuky, každý po celou
+      // svou délku (let hvězdičky do řady proběhl už před oknem). Konfety
+      // se nepočítají, jejich délku určuje scéna (ruční kontrola).
+      const busy: Array<readonly [number, number]> = [];
       for (const sound of test.sounds) {
         busy.push([sound.atMs, sound.atMs + lengthMs(sound.value)]);
       }
@@ -431,7 +453,7 @@ describe('#154 AC4: okno se zavře samo 7 s od ukázání a další příklad p�
     }
   });
 
-  it('bez ťuknutí uplyne od 10. hvězdičky do dalšího příkladu nejvýš 8,5 s', () => {
+  it('bez ťuknutí uplyne od zavření okna s oslavou do dalšího příkladu nejvýš 8,5 s', () => {
     for (const { label, open } of ROW_CASES) {
       const test = open();
       const { nextProblemAt } = watchRow(test);
@@ -458,7 +480,7 @@ describe('#154 AC4: okno se zavře samo 7 s od ukázání a další příklad p�
 });
 
 describe('#154 AC5: během oslavy a letu se neodpovídá a hvězdička nepřibude', () => {
-  it('číselník, psaní, nápověda ani tečky nic nezadají od 10. odpovědi do doletu hvězdiček', () => {
+  it('číselník, psaní, nápověda ani tečky nic nezadají po zavření okna s oslavou do doletu hvězdiček', () => {
     for (const map of [
       { step: 0, completedMaps: 0 },
       { step: MAP_STEPS - 1, completedMaps: 0 },
@@ -597,7 +619,7 @@ describe('#154 AC6: přerušení během oslavy nebo letu nic nedohraje', () => {
     }
   });
 
-  it('další plná řada průběh zopakuje: oslava do 0,5 s, okno do 1,5 s, další příklad do 8,5 s', () => {
+  it('další plná řada průběh zopakuje: po zavření okna s oslavou oslava do 0,5 s, mapa do 1,5 s, příklad do 8,5 s', () => {
     const test = enterTimed(testDevice().storage);
     const steps: number[] = [];
     for (let row = 0; row < MAP_STEPS + 1; row += 1) {

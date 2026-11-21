@@ -28,8 +28,6 @@
  *   panel seznam jen zavře a nic jiného neposune ani nespustí. Po otevření
  *   je vybraná kategorie v seznamu celá vidět. Rozložení bez výběru
  *   (otočení na šířku) seznam potichu zavře.
- * - Panda (#168): ťuknutí na ni (mimo dlaždice) ohlásí menu. S otevřenou
- *   nabídkou jazyků nebo seznamem kategorií je to ťuknutí mimo ně.
  */
 
 import type { Menu } from './menu';
@@ -94,9 +92,7 @@ type TapTarget =
   /** Kategorie v otevřeném seznamu (#95). */
   | { readonly kind: 'categoryRow'; readonly categoryId: string }
   /** Ťuknutí nebo tah mimo otevřený seznam kategorií (#95). */
-  | { readonly kind: 'outsideCategoryMenu' }
-  /** Panda ve volném místě vedle dlaždic (#168). */
-  | { readonly kind: 'mascot' };
+  | { readonly kind: 'outsideCategoryMenu' };
 
 interface Sample {
   readonly timeMs: number;
@@ -292,7 +288,8 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
       const offset = part.scroller.offset();
       const index = part.boxes.findIndex((box) => contains(shifted(box, part.axis, offset), point));
       if (part === grid) {
-        return { part, target: gridTarget(layout, index, point) };
+        const gameId = menu.tiles()[index]?.gameId;
+        return { part, target: gameId === undefined ? undefined : { kind: 'tile', gameId } };
       }
       const categoryId = menu.categories()[index]?.id;
       return {
@@ -309,23 +306,6 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
     }
     // Místo vyhrazené v liště (#157) je prázdné místo: nic nevybere.
     return {};
-  }
-
-  /** Dlaždice pod prstem, jinak panda (#168), když je prst na ní. */
-  function gridTarget(
-    current: MenuLayout,
-    index: number,
-    point: TouchPoint,
-  ): TapTarget | undefined {
-    const gameId = menu.tiles()[index]?.gameId;
-    if (gameId !== undefined) {
-      return { kind: 'tile', gameId };
-    }
-    // Panda je jen u mřížky, která se neposouvá, takže stojí bez posunu.
-    if (current.mascot !== null && contains(current.mascot, point)) {
-      return { kind: 'mascot' };
-    }
-    return undefined;
   }
 
   function tap(target: TapTarget): void {
@@ -372,9 +352,6 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
       }
       case 'outsideCategoryMenu':
         menu.closeCategoryMenu();
-        break;
-      case 'mascot':
-        menu.tapMascot();
         break;
     }
   }
@@ -562,7 +539,6 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
         case 'outsideLanguageMenu':
         case 'categoryButton':
         case 'outsideCategoryMenu':
-        case 'mascot':
           return undefined;
       }
     },

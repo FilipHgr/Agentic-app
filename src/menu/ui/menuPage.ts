@@ -16,6 +16,11 @@
  * spí; po výběru profilu se menu probudí a nakreslí s novým kolečkem
  * a hra pak dostane úložiště vybraného profilu.
  *
+ * Rudy pozdraví (#170 AC4) při prvním ukázání menu po načtení stránky
+ * (po výběru profilu, pokud se ukazuje) a po návratu ze hry, jen když od
+ * posledního pozdravu uběhlo aspoň 10 minut (`logic/menuGreeting.ts`).
+ * Po změně profilu ani jazyka ne. Po spuštění hry se panda uvolní z paměti.
+ *
  * Nová verze webu (#76): když se hra nestáhne a server stránky odpovídá,
  * stránka se sama jednou obnoví (`pageUpdate`). Dotaz jde jen na stejný
  * původ, nikdy na cizí server.
@@ -32,6 +37,8 @@ import type { ProfileStore } from '../../shared/storage/profileStorage';
 import { currentLanguage } from '../../shared/texts/languages';
 import { readViewport, watchViewport } from '../../shared/ui/viewport';
 import type { Menu } from '../logic/menu';
+import { createMenuGreeting } from '../logic/menuGreeting';
+import type { MenuShownReason } from '../logic/menuGreeting';
 import { menuLayoutFor } from '../logic/menuLayout';
 import type { MenuLayout } from '../logic/menuLayout';
 import { menuText } from '../logic/menuTexts';
@@ -203,13 +210,27 @@ export function startMenuPage(options: MenuPageOptions): void {
   // Obrázky dlaždic žijí s menu po celé načtení stránky, takže se po
   // návratu z hry nic nenačítá znovu (#122 AC7).
   const tileImages = createTileImages(options.games);
+  // Pozdrav Rudyho je v paměti jen pro toto načtení stránky (#170 AC4).
+  const greeting = createMenuGreeting();
+  /** Menu je vidět: Rudy pozdraví, když má (výběr profilu přes menu pozdrav nespustí). */
+  const greetIfDue = (reason: MenuShownReason): void => {
+    if (screens.screen() !== 'closed') {
+      return;
+    }
+    if (greeting.menuShown(reason, performance.now())) {
+      scene.greet(() => greeting.greeted(performance.now()));
+    }
+  };
   const scene = new MenuScene({
     menu,
     touch,
     tileImages,
     layout,
     onTapped: () => scene.redrawIfSelectionChanged(),
-    onCreated: () => showOnlyCurrentScene(),
+    onCreated: () => {
+      showOnlyCurrentScene();
+      greetIfDue('shown');
+    },
   });
   view.scene = scene;
   const profileScene = new ProfileScene({
@@ -277,6 +298,7 @@ export function startMenuPage(options: MenuPageOptions): void {
   view.closeProfiles = () => {
     showOnlyCurrentScene();
     scene.requestRedraw();
+    greetIfDue('shown');
   };
 
   view.close = () => {
@@ -295,7 +317,6 @@ export function startMenuPage(options: MenuPageOptions): void {
     }
     menuGame.loop.wake();
     fitToWindow();
-    // Po návratu ze hry panda zamává (#168), po změně profilu ani jazyka ne.
-    scene.shownAgain('returnedFromGame');
+    greetIfDue('returnedFromGame');
   };
 }

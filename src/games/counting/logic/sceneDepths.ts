@@ -7,9 +7,6 @@
  * (`PANEL_DEPTH` ve `scenes/SettingsPanel.ts`).
  */
 
-/** Hloubka, kterou mají prvky kola bez vlastní hloubky (Phaser výchozí). */
-export const ROUND_DEPTH = 0;
-
 /** Karta s mapou a ztmavení pod ní leží nad příkladem i řadou hvězdiček, pod panely rodičů. */
 export const MAP_DEPTH = 20;
 
@@ -18,9 +15,3 @@ export const MAP_DEPTH = 20;
  * z řady do něj přiletí (#154 AC1, AC3). Pořád pod panely rodičů.
  */
 export const ABOVE_MAP_DEPTH = MAP_DEPTH + 5;
-
-/**
- * Panda (#167) je pod vším, co hra kreslí: pod příkladem, hvězdičkami
- * (i letícími), konfetami, kartou s mapou a jejím ztmavením (AC4).
- */
-export const MASCOT_DEPTH = ROUND_DEPTH - 1;

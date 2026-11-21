@@ -7,13 +7,20 @@ import { DEFAULT_PROFILE_COLOR } from '../../../shared/logic/profiles';
 import type { GameHost } from '../../../shared/logic/gameHost';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
+import type { RudyLineMove } from '../../../shared/logic/rudy';
+import { RudyMoments } from '../../../shared/ui/rudyMoments';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY, readViewport } from '../../../shared/ui/viewport';
 import type { TapOutcome } from '../logic/answerRound';
 import { createCountingSession } from '../logic/countingSession';
-import type { CountingSession, SessionChange, SessionPage } from '../logic/countingSession';
+import type {
+  CountingSession,
+  SessionChange,
+  SessionPage,
+  SessionRudy,
+  SessionRudyEvents,
+} from '../logic/countingSession';
 import { isTwoBoxRound, playStateAfterResize } from '../logic/deviceLayout';
-import { moveForAnswer, moveForHintButton } from '../logic/mascotCues';
 import type { PlayState } from '../logic/deviceLayout';
 import { createMapPictureLoading } from '../logic/mapPictureLoading';
 import type { MapLook, MapPictureId } from '../logic/mapPictureLoading';
@@ -33,7 +40,6 @@ import type { TwoBoxConfirmResult, TwoBoxRound } from '../logic/twoBoxWriting';
 import { highlightCorrectButton } from './AnswerButton';
 import type { AnswerButton } from './AnswerButton';
 import { Confetti } from './Confetti';
-import { CountingMascot } from './CountingMascot';
 import { ParentPanels } from './ParentPanels';
 import { loadMapPicture, preloadGoalSymbols } from './mapPictureTextures';
 import { ProgressMapView } from './ProgressMapView';
@@ -55,7 +61,9 @@ const NO_PAGE: SessionPage = { attachSettingsGear: () => () => undefined };
  * Části obrazovky kreslí samostatné soubory vedle (#57): `RoundView`
  * (příklad, číselník, okénka, nápověda), `StarRow`, `Confetti`,
  * `ProgressMapView` (mapa postupu po oslavě, #87) a `ParentPanels`
- * (nastavení a průvodce).
+ * (nastavení a průvodce). Okno s pandou Rudym (#170: pozdrav po otevření
+ * hry, oslava po 10. hvězdičce) je sdílené `RudyMoments`; kdy se ukáže,
+ * řídí sezení.
  */
 export class GameScene extends Phaser.Scene {
   /**
@@ -87,15 +95,10 @@ export class GameScene extends Phaser.Scene {
     onWritingConfirmed: (result) => this.onWritingConfirmed(result),
     onDotTapped: (index, circle) => this.onDotTapped(index, circle),
     onHintButtonTapped: () => this.onHintButtonTapped(),
+    onWritingStarted: () => this.session.writingStarted(),
   });
   private readonly starRow = new StarRow(this, this.layouts, () => this.currentProgress());
   private readonly confetti = new Confetti(this);
-  /** Panda, která se raduje, povzbudí a slaví (#167); jen kde je pro ni místo. */
-  private readonly mascot = new CountingMascot(this, () => ({
-    gameArea: this.gameArea,
-    settings: this.session.settings(),
-    starCount: this.session.starCount(),
-  }));
   private readonly progressMap = new ProgressMapView(
     this,
     () => this.profileMarker(),
@@ -107,6 +110,8 @@ export class GameScene extends Phaser.Scene {
   );
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu (#67 AC6).
   private readonly sounds = createTonePlayer(sharedToneContext);
+  /** Okno s pandou Rudym (#170); vznikne v `create`, kód a obrázky stáhne až při pozdravu. */
+  private rudy!: RudyMoments;
 
   constructor() {
     super('game');
@@ -128,6 +133,10 @@ export class GameScene extends Phaser.Scene {
       this.session.leave();
     });
     const host = this.readHost();
+    this.rudy = new RudyMoments(this, {
+      // Okraje stránky kolem plátna ztmavne okno stejně jako hru (#169).
+      pageBackdrop: (backdrop) => host?.setPageBackdrop?.(backdrop),
+    });
     const session = createCountingSession({
       // Úložiště aktivního profilu od stránky (#71); bez stránky jen paměť.
       storage: host?.storage,
@@ -144,6 +153,7 @@ export class GameScene extends Phaser.Scene {
       loadRecognizer: loadDigitRecognizer,
       // Klíče aktivního profilu od stránky (#139); bez stránky mapa klíč nedává.
       keyRewards: host?.keyRewards,
+      rudy: this.sessionRudy(),
       onChange: (change) => this.onSessionChange(change),
     });
     this.session = session;
@@ -153,16 +163,27 @@ export class GameScene extends Phaser.Scene {
     this.starRow.create();
     this.starRow.paint();
     this.view.listenForKeypadRelease();
-    // Panda stahuje pohyby hned se scénou, aby se první radost netrhla (#167).
-    this.mascot.layout();
     // První spuštění: místo prvního příkladu průvodce nastavením pro rodiče (#49).
     if (session.guideOpen()) {
       this.panels.openSetupGuide();
     } else {
       this.drawNewRound();
-      this.mascot.gameScreenShown();
     }
     this.updateHome();
+  }
+
+  /** Okno s pandou pro sezení; kdy se co ukáže a stáhne dopředu, řídí sezení (#170). */
+  private sessionRudy(): SessionRudy {
+    const rudy = this.rudy;
+    return {
+      show: (move: RudyLineMove, events: SessionRudyEvents) =>
+        rudy.show(move, {
+          onOpened: () => events.onOpened(),
+          onClosed: () => events.onClosed(),
+        }),
+      prepare: (move: RudyLineMove) => rudy.prepare(move),
+      stop: () => rudy.stop(),
+    };
   }
 
   /** Stránka s kolečkem a domečkem z registru; bez ní hra běží jen bez nich. */
@@ -191,7 +212,6 @@ export class GameScene extends Phaser.Scene {
       case 'roundStarted':
         this.drawNewRound();
         this.prepareMapPicture();
-        this.mascot.starsChanged();
         break;
       case 'celebrationStarted':
         this.confetti.throw(this.gameArea, this.layouts.keypad().detailScale);
@@ -208,7 +228,6 @@ export class GameScene extends Phaser.Scene {
         this.confetti.clear();
         this.starRow.stopMapFlight();
         this.starRow.paint();
-        this.mascot.starsChanged();
         break;
       case 'mapShown':
         this.showProgressMap();
@@ -217,25 +236,18 @@ export class GameScene extends Phaser.Scene {
         // Okno se zavřelo: zbylé konfety dopadnou samy (#154 AC1).
         this.confetti.forget();
         this.hideProgressMap();
-        this.mascot.rest();
         break;
       case 'mapStopped':
         // Nastavení přerušilo okno i let hvězdiček: nic se nedohraje (#154 AC6).
         this.confetti.clear();
         this.starRow.stopMapFlight();
         this.hideProgressMap();
-        this.mascot.rest();
         break;
       case 'settingsOpened':
         this.panels.openSettings();
         break;
       case 'settingsClosed':
-        // Jiný rozsah nebo ovládání: panda může mít jiné místo (#167 AC3).
-        this.mascot.layout();
-        break;
       case 'guideClosed':
-        this.mascot.layout();
-        this.mascot.gameScreenShown();
         break;
       case 'recognizer':
         this.onRecognizerStatus(change.status);
@@ -363,7 +375,7 @@ export class GameScene extends Phaser.Scene {
     this.relayoutRound();
     this.relayoutProgressMap();
     this.panels.fitTo(this.gameArea);
-    this.mascot.layout();
+    this.rudy.relayout();
   }
 
   /**
@@ -405,7 +417,6 @@ export class GameScene extends Phaser.Scene {
   override update(time: number): void {
     this.view.writingPad?.update(time);
     this.view.update(this.time.now);
-    this.mascot.update();
   }
 
   private currentProgress(): GameProgress {
@@ -478,8 +489,6 @@ export class GameScene extends Phaser.Scene {
     origin: Origin,
     visuals: { onCorrect: () => void; onWrong: () => void },
   ): void {
-    // Desátá správná (plná řada) spustí oslavu místo radosti (#167 AC4).
-    this.mascot.react(moveForAnswer(outcome, outcome === 'correct' && this.session.celebrating()));
     if (outcome === 'correct') {
       visuals.onCorrect();
       this.view.hideHintButton();
@@ -508,13 +517,7 @@ export class GameScene extends Phaser.Scene {
   /** Tlačítko nápovědy (#84): tón zahraje sezení, tlačítko se zhoupne a tečky naskočí. */
   private onHintButtonTapped(): void {
     const session = this.session;
-    if (this.hintIsShown) {
-      return;
-    }
-    const shown = session.tapHintButton();
-    // Panda přemýšlí s dítětem (#167 AC4).
-    this.mascot.react(moveForHintButton(shown));
-    if (!shown) {
+    if (this.hintIsShown || !session.tapHintButton()) {
       return;
     }
     this.hintIsShown = true;

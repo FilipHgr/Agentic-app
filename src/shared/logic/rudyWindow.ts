@@ -15,8 +15,8 @@
  * staženého klidu se okno vůbec neukáže.
  *
  * Stahování řídí model příkazy (`RudyCommand`), pohled je jen vykoná
- * a zpátky ohlásí dočtení (`loaded`) nebo chybu (`failed`), jako u pandy
- * z #166. Čas (ms) dává volající, model sám čas nečte.
+ * a zpátky ohlásí dočtení (`loaded`) nebo chybu (`failed`). Čas (ms) dává
+ * volající, model sám čas nečte.
  */
 
 import { loopFrameAt, onceFrameAt, rudyMoveDurationMs } from './rudy';
