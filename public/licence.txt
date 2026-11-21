@@ -122,6 +122,27 @@ Zdrojový arch není v repozitáři, otisky SHA-256 zdroje a ikon:
   action-trash.webp: 804cb9af64d4a0618d1a4c4af1bf403856ff9dae5353e05fbc75aa90fb940375
   action-broom.webp: 3848dfba7702c2eeebbd3ebd22b22cbaddd2addf50694de70a56d11c0661b14c
 
+Animovaná panda červená (src/shared/mascot/: pozdrav wave.webp, klid
+idle.webp, radost joy.webp, povzbuzení encourage.webp, přemýšlí think.webp
+a oslava celebrate.webp) je vytvořená službou ElevenLabs
+(https://elevenlabs.io): výchozí obrázek modelem GPT Image 2.5 (generace
+1c0GWhsdj9afuDSs5fed), z něj videa modelem Kling 3 Pro (pozdrav
+X88otXkyNx6w3OLTOUrS, klid QHnPPBNWkOjIcYQ9AI3d, radost HBnmOQgbVfqwpz8LpElO,
+povzbuzení BgLFBjh1fXTnJNdL57Vn, přemýšlí efQfT9W9s49nU1cATtSz, oslava
+1zl06Acd3iEfta0rFfBf) a odstranění pozadí nástrojem VEED v ElevenLabs
+(tcKPfcdOlJuqrXmwjpiG, dnjMaw0suIDRIgVNGoYY, MzT7vW2NVSVOCahTROv2,
+hBdAUU19ELcqp0pLnC8g, G3UKdEOGJ8NCx3t4mVdA, 0HIoCNYevPgM2QD4gXey). Použito
+v rámci komerčního tarifu vlastníka hry, stejně jako dlaždice her. Úprava:
+z každého videa 37 snímků (12 snímků/s), společný výřez 363 × 360 px pro
+všechny pohyby, složeno do mřížky 6 sloupců a převedeno na WebP
+s průhledností. Zdrojová videa nejsou v repozitáři, otisky SHA-256 výsledků:
+  wave.webp: 081eb7bc6475c58307a7846af5de4ed4adefc11fb08b40461bea0b7f21953712
+  idle.webp: 670b933f8dce816781bb8917edee775cbfedeb9f2c0a49d6bd6f9ecb8123cd1c
+  joy.webp: 0bdf17d0513ea6be78dabba420c070d5f764d29ceaedfe5097e7dcd0efb344c7
+  encourage.webp: 7ee63c1d339bc5670537df6cca7649627473ba01138c13774e61be8c263096a9
+  think.webp: ee17b32262afa102c1695c64af9d9f2700a6910d4840a7e95501f750f7f7e7f1
+  celebrate.webp: 648573fbfa00cb7b516d0e185972fd36696adb0679730f6961ea8f2588a7e411
+
 Vlajky v nabídce jazyků v menu (src/menu/flags/: flag-czechia,
 flag-united-kingdom) jsou ploché vlajky ze sady Noto Emoji, autor Google Inc.,
 https://github.com/googlefonts/noto-emoji, složka third_party/region-flags
