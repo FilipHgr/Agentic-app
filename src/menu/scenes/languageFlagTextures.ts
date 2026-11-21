@@ -2,13 +2,16 @@
  * Vlajky jazyků (#138): v nabídce jazyků a pod kódem na tlačítku jazyka.
  * SVG ze složky `src/menu/flags/` Vite přibalí k menu jako samostatné
  * soubory (`?no-inline`, nikdy ne z cizího serveru), scéna je načte
- * v `preload`. Pro každou zobrazenou velikost se SVG vykreslí do vlastní
+ * v `preload`. Každou vlajku stáhne jen první scéna, která o ni požádá (#172).
+ * Pro každou zobrazenou velikost se SVG vykreslí do vlastní
  * textury v bodech plátna se zaoblenými rohy, aby byla vlajka ostrá i na
  * retině iPadu a nebyla rozmazaná zvětšením malé bitmapy.
  */
 
-import type Phaser from 'phaser';
+import Phaser from 'phaser';
 
+import { createFlagLoads } from '../logic/flagLoads';
+import type { FlagLoads } from '../logic/flagLoads';
 import { fitFlag, svgAspectRatio } from '../logic/languageFlags';
 import type { FlagFit, LanguageFlag } from '../logic/languageFlags';
 import type { MenuBox } from '../logic/menuLayout';
@@ -54,17 +57,51 @@ function aspectRatioOf(file: string): number {
   return svgAspectRatio(FLAG_SOURCES[file] ?? '') ?? 3 / 2;
 }
 
-/** Načte SVG všech vlajek; volá se v `preload` scény. */
-export function preloadLanguageFlags(scene: Phaser.Scene): void {
-  for (const [file, url] of Object.entries(FLAG_URLS)) {
-    if (scene.textures.exists(sourceKey(file))) {
-      continue;
-    }
-    scene.load.svg(sourceKey(file), url, {
-      width: Math.round(SOURCE_HEIGHT_PX * aspectRatioOf(file)),
-      height: SOURCE_HEIGHT_PX,
-    });
+/**
+ * Záznam stahovaných vlajek pro každý správce textur: menu a výběr profilu
+ * sdílí textury jedné hry Phaseru (#172).
+ */
+const flagLoadsByTextures = new WeakMap<Phaser.Textures.TextureManager, FlagLoads>();
+
+function flagLoadsOf(textures: Phaser.Textures.TextureManager): FlagLoads {
+  const existing = flagLoadsByTextures.get(textures);
+  if (existing !== undefined) {
+    return existing;
   }
+  const created = createFlagLoads();
+  flagLoadsByTextures.set(textures, created);
+  return created;
+}
+
+/**
+ * Načte SVG vlajek, které ještě nikdo nestahuje; volá se v `preload` scény.
+ * Vlajku, kterou právě stahuje jiná scéna, znovu nestahuje a až dorazí,
+ * zavolá `onFlagArrived`, aby se scéna s vlajkou nakreslila znovu.
+ */
+export function preloadLanguageFlags(scene: Phaser.Scene, onFlagArrived: () => void): void {
+  const flagLoads = flagLoadsOf(scene.textures);
+  for (const [file, url] of Object.entries(FLAG_URLS)) {
+    const key = sourceKey(file);
+    const decision = flagLoads.decide(key, scene.textures.exists(key));
+    if (decision === 'load') {
+      scene.load.svg(key, url, {
+        width: Math.round(SOURCE_HEIGHT_PX * aspectRatioOf(file)),
+        height: SOURCE_HEIGHT_PX,
+      });
+    } else if (decision === 'wait') {
+      waitForFlag(scene, key, onFlagArrived);
+    }
+  }
+}
+
+/** Po doražení vlajky ze stahování jiné scény ji tato scéna nakreslí. */
+function waitForFlag(scene: Phaser.Scene, key: string, onFlagArrived: () => void): void {
+  const event = `${Phaser.Textures.Events.ADD_KEY}${key}`;
+  scene.textures.once(event, onFlagArrived);
+  // Skončená scéna už nic nekreslí, posluchač se uklidí.
+  scene.events.once(Phaser.Scenes.Events.DESTROY, () => {
+    scene.textures.off(event, onFlagArrived);
+  });
 }
 
 /**

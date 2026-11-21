@@ -158,7 +158,7 @@ export class MenuScene extends Phaser.Scene {
 
   /** Vlajky nabídky jazyků (#138) jsou malé a načtou se se scénou. */
   preload(): void {
-    preloadLanguageFlags(this);
+    preloadLanguageFlags(this, () => this.requestRedraw());
   }
 
   create(): void {
