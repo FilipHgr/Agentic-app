@@ -111,14 +111,15 @@ describe('#88 AC1: Omalovánky jsou hned dostupné, bez odemykání', () => {
   });
 });
 
-describe('#88 AC7 (část): hra nemá žádné texty kromě názvu v menu', () => {
+describe('#88 AC7 (část): hra nemá na obrazovce žádné texty kromě názvu v menu', () => {
   it('Omalovánky mají soubor textů aspoň v češtině', () => {
     expect(Object.keys(COLORING_FILES)).toContain('cs');
   });
 
-  it('texty Omalovánek v každém jazyce obsahují jen název hry', () => {
+  it('texty Omalovánek v každém jazyce obsahují jen název hry a repliky Rudyho, které jen zazní (#175)', () => {
     for (const [language, texts] of Object.entries(COLORING_FILES)) {
-      expect([...leavesOf(texts).keys()], language).toEqual(['title']);
+      const shown = [...leavesOf(texts).keys()].filter((key) => !key.startsWith('rudyLines.'));
+      expect(shown, language).toEqual(['title']);
     }
   });
 

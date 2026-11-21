@@ -1,11 +1,17 @@
 {
   "character:rudy": {
     "cs": {
+      "coloring/greeting": "afd6e043675e4d07c42cd5957b03062fbb86cf1dc252135787f39b075a068313",
+      "coloring/praiseBeautiful": "0f5a648995243d877d277ecb71b4fea34cc2e1ec1889deb8a5cfaa2ccd6591a9",
+      "coloring/praiseColors": "15616feeeeb2a58401ea0c4782d4b0090066b601235058c83518595ca4f3aa0a",
       "counting/celebration": "38860bf3524437d37218e462879ba7b8dbec93da20d4ce5b4759ea7f0a2f11d9",
       "counting/greeting": "8c04793c5c528c3876247dfd3821a6a4a90b495118a2af56757f9683589ebcd3",
       "menu/greeting": "d302102dda30ca84a130c40d0799be855cc9478ed56635b9d13ce9f72df3e743"
     },
     "en": {
+      "coloring/greeting": "621991b2a46f108cabd04b2917a763b386a81a64c6f3b73f8bbd1d548f34b4ba",
+      "coloring/praiseBeautiful": "6f388c2f00494fd5780ca99af80ee7c03c61c72b0e32f7c887ba91241a090585",
+      "coloring/praiseColors": "5dd3319f837cc6d305a7e9d2dd328eefde7d43f7c46c780a05ddc3063126ac4e",
       "counting/celebration": "6209ba9c0df5152931e2f3b1dc80bc8d808bf2ff729e35284c82842cd2cfcebb",
       "counting/greeting": "d2b93e4729224a215000823e39aa3194bd1f075e7dc12fa1a17fa1a1e289308a",
       "menu/greeting": "5bdfda93b764b93c120af70a395bfad007c9236d493f8f20ea55b2cedac0659d"

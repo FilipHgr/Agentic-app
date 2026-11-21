@@ -19,9 +19,10 @@ import { dictionariesByLanguage } from '../shared/textChecks';
 const MAX_LINE_MS = 4000;
 /** Limit jedné nahrávky jako u nahrávek průvodce (#50) a všech replik Rudyho dohromady. */
 const MAX_RECORDING_BYTES = 150 * 1024;
-const MAX_ALL_RUDY_BYTES = 300 * 1024;
+/** Od #175 i s replikami Omalovánek (dnes asi 319 KB, limit 350 KB). */
+const MAX_ALL_RUDY_BYTES = 350 * 1024;
 
-/** Velikosti všech replik Rudyho (Počítání i menu, všechny jazyky) podle cesty. */
+/** Velikosti všech replik Rudyho (Počítání, menu i Omalovánky, všechny jazyky) podle cesty. */
 const ALL_RUDY_SIZES: Record<string, number> = Object.fromEntries(
   Object.entries(
     import.meta.glob<string>('../../public/voice/*/*/rudy-*.mp3', {
@@ -102,10 +103,10 @@ describe('#171 AC1: pozdrav Rudyho v menu má nahrávky', () => {
   }
 });
 
-describe('#171: velikost replik Rudyho', () => {
-  it('všechny repliky Rudyho (Počítání i menu, všechny jazyky) mají dohromady nejvýš 300 KB', () => {
+describe('#171, #175: velikost replik Rudyho', () => {
+  it('všechny repliky Rudyho (Počítání, menu i Omalovánky, všechny jazyky) mají dohromady nejvýš 350 KB', () => {
     const sizes = Object.values(ALL_RUDY_SIZES);
-    expect(sizes.length).toBeGreaterThanOrEqual(LANGUAGES.length * 3);
+    expect(sizes.length).toBeGreaterThanOrEqual(LANGUAGES.length * 6);
     expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThanOrEqual(MAX_ALL_RUDY_BYTES);
   });
 });

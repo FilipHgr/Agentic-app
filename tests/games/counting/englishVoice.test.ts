@@ -71,7 +71,7 @@ const ENGLISH = 'en' as string as Language;
 
 /**
  * Všechny nahrávky v `public/voice/` jako bajty, podle cesty od kořene repa,
- * kromě replik pandy Rudyho (jen `public/voice/<jazyk>/{counting,menu}/rudy-<id>.mp3`,
+ * kromě replik pandy Rudyho (jen `public/voice/<jazyk>/{counting,menu,coloring}/rudy-<id>.mp3`,
  * #171): ty nejsou nahrávky průvodce a hlídá je `rudyVoiceFiles.test.ts`.
  * Zbloudilý `rudy-*.mp3` jinde kontrola dál najde.
  */
@@ -83,7 +83,9 @@ const RECORDINGS: Record<string, Uint8Array> = Object.fromEntries(
       eager: true,
     }),
   )
-    .filter(([path]) => !/\/voice\/[a-z]+\/(counting|menu)\/rudy-[a-zA-Z]+\.mp3$/.test(path))
+    .filter(
+      ([path]) => !/\/voice\/[a-z]+\/(counting|menu|coloring)\/rudy-[a-zA-Z]+\.mp3$/.test(path),
+    )
     .map(([path, dataUrl]) => [path.replace('../../../', ''), bytesOfDataUrl(dataUrl)]),
 );
 

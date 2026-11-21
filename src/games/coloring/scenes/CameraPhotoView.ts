@@ -26,6 +26,12 @@ export interface CameraPhotoStart {
   readonly camera: IconButtonView;
   readonly cssScale: number;
   readonly depth: number;
+  /**
+   * Animace skončila: fotka doletěla, nebo ji něco přerušilo (otočení,
+   * nepovedené uložení, nový cvak, konec scény). Po ní přijde pochvala
+   * Rudyho (#175). Zavolá se vždy, i když se animace vůbec nespustila.
+   */
+  readonly onEnded?: () => void;
 }
 
 const style = CAMERA_PHOTO_STYLE;
@@ -52,6 +58,8 @@ export class CameraPhotoView {
   private camera: IconButtonView | null = null;
   /** Číslo další textury fotky, aby nová nikdy nepřepsala tu, která je vidět. */
   private photoCount = 0;
+  /** Komu dát vědět, až rozběhnutá animace skončí (#175). */
+  private onEnded: (() => void) | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -64,8 +72,10 @@ export class CameraPhotoView {
     this.photoCount += 1;
     const key = `${this.name}:${this.photoCount}`;
     if (this.scene.textures.addCanvas(key, start.snapshot) === null) {
+      start.onEnded?.();
       return;
     }
+    this.onEnded = start.onEnded ?? null;
     this.snapshotKey = key;
     this.camera = start.camera;
     this.photo = this.buildPhoto(start, key);
@@ -203,5 +213,8 @@ export class CameraPhotoView {
       this.scene.textures.remove(this.snapshotKey);
     }
     this.snapshotKey = null;
+    const onEnded = this.onEnded;
+    this.onEnded = null;
+    onEnded?.();
   }
 }

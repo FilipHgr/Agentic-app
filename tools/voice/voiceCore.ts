@@ -477,7 +477,7 @@ export const VOICE_CHARACTERS = ['rudy'] as const;
 export type VoiceCharacter = (typeof VOICE_CHARACTERS)[number];
 
 /** Části stránky, ve kterých postavička mluví; každá má repliky ve svých textech. */
-export const CHARACTER_PLACES = ['counting', 'menu'] as const;
+export const CHARACTER_PLACES = ['counting', 'menu', 'coloring'] as const;
 
 export type CharacterPlace = (typeof CHARACTER_PLACES)[number];
 
@@ -485,6 +485,7 @@ export type CharacterPlace = (typeof CHARACTER_PLACES)[number];
 export const CHARACTER_TEXTS_DIRS: Readonly<Record<CharacterPlace, string>> = {
   counting: 'src/games/counting/texts',
   menu: 'src/menu/texts',
+  coloring: 'src/games/coloring/texts',
 };
 
 /** Nejdelší replika postavičky v ms (okno s postavičkou je krátké). */

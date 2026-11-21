@@ -32,8 +32,9 @@ describe('#137 AC1: anglické texty Omalovánek', () => {
     expect(Object.keys(COLORING_FILES)).toContain('en');
   });
 
-  it('hra se anglicky jmenuje „Colouring“ a jiný text nemá', () => {
-    expect(COLORING_FILES['en']).toEqual({ title: 'Colouring' });
+  it('hra se anglicky jmenuje „Colouring“ a kromě něj má jen repliky Rudyho (#175)', () => {
+    expect(COLORING_FILES['en']?.['title']).toBe('Colouring');
+    expect(Object.keys(COLORING_FILES['en'] ?? {}).sort()).toEqual(['rudyLines', 'title']);
   });
 
   it('angličtina má stejné texty jako čeština a žádný není prázdný', () => {
@@ -48,9 +49,12 @@ describe('#137 AC1: anglické texty Omalovánek', () => {
   }
 });
 
+/** Repliky Rudyho (#175) z češtiny, aby umělý jazyk měl chybu jen v názvu. */
+const RUDY_LINES = COLORING_FILES['cs']?.['rudyLines'];
+
 describe('#137 AC1: kontrola textů Omalovánek opravdu najde chybu (umělý jazyk jen v testu)', () => {
   it('chybějící název hry najde a řekne jazyk, část a klíč', () => {
-    const problems = checkColoring('xx', {});
+    const problems = checkColoring('xx', { rudyLines: RUDY_LINES });
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain('xx');
     expect(problems[0]).toContain('Omalovánky');
@@ -58,10 +62,12 @@ describe('#137 AC1: kontrola textů Omalovánek opravdu najde chybu (umělý jaz
   });
 
   it('prázdný název hry najde', () => {
-    expect(checkColoring('xx', { title: ' ' })).toHaveLength(1);
+    expect(checkColoring('xx', { title: ' ', rudyLines: RUDY_LINES })).toHaveLength(1);
   });
 
   it('text navíc najde', () => {
-    expect(checkColoring('xx', { title: 'Colouring', subtitle: 'Paint' })).toHaveLength(1);
+    expect(
+      checkColoring('xx', { title: 'Colouring', subtitle: 'Paint', rudyLines: RUDY_LINES }),
+    ).toHaveLength(1);
   });
 });
