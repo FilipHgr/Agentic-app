@@ -13,7 +13,7 @@ import {
   selectedOptions,
 } from '../../../src/games/counting/logic/settingsSession';
 import type { SettingsSession } from '../../../src/games/counting/logic/settingsSession';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import { SETTINGS_LABEL_COLOR, settingsOptionLook } from '../../../src/games/counting/logic/theme';
 
 /**

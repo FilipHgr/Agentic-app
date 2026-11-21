@@ -25,7 +25,7 @@ import type {
   WritingAreaSlot,
 } from '../../../src/games/counting/logic/screenLayout';
 import type { MaxNumber, OperationMode } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import {
   PHONE_PORTRAIT_EDGE_WINDOWS,
   PHONE_PORTRAIT_WINDOWS,

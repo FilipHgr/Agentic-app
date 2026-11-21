@@ -14,7 +14,7 @@ import {
   serializeProgress,
 } from '../../../src/games/counting/logic/progress';
 import type { GameProgress } from '../../../src/games/counting/logic/progress';
-import { createStarProgress, starsAfterTap } from '../../../src/games/counting/logic/stars';
+import { createStarProgress, starsAfterTap } from '../../../src/shared/logic/stars';
 import {
   boxDigit,
   boxFadingStrokes,

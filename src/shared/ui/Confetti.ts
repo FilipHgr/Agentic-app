@@ -1,9 +1,8 @@
 import Phaser from 'phaser';
 
-import { CONFETTI_COLORS } from '../logic/theme';
-import { colorNumber } from '../../../shared/logic/theme';
-import { ABOVE_MAP_DEPTH } from '../logic/sceneDepths';
-import type { GameSize } from '../../../shared/logic/viewportLayout';
+import { CONFETTI_COLORS } from '../logic/confetti';
+import { colorNumber } from '../logic/theme';
+import type { GameSize } from '../logic/viewportLayout';
 
 const CONFETTI_COUNT = 80;
 /** Velikost konfet, odkud padají a jak daleko uletí do strany (na iPadu). */
@@ -16,11 +15,18 @@ const CONFETTI_END_MARGIN = 30;
 /** Konfety v barvách, které jsou na světlém pozadí vidět (#53). */
 const CONFETTI_COLOR_NUMBERS = CONFETTI_COLORS.map(colorNumber);
 
-/** Konfety při oslavě po zaplnění řady hvězdiček. */
+/** Konfety při oslavě po zaplnění řady hvězdiček, společné pro všechny hry. */
 export class Confetti {
   private pieces: Phaser.GameObjects.Rectangle[] = [];
 
-  constructor(private readonly scene: Phaser.Scene) {}
+  /**
+   * @param depth Hloubka konfet ve scéně (Phaser `setDepth`); hra ji zvolí
+   *   podle svých vrstev, např. aby konfety doběhly přes okno s mapou.
+   */
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly depth = 0,
+  ) {}
 
   /**
    * Konfety spadnou shora přes celou herní plochu.
@@ -42,8 +48,7 @@ export class Confetti {
           color,
         )
         .setAngle(Phaser.Math.Between(0, 360))
-        // Konfety smí doběhnout přes okno s mapou (#154 AC1).
-        .setDepth(ABOVE_MAP_DEPTH);
+        .setDepth(this.depth);
       this.pieces.push(piece);
 
       this.scene.tweens.add({

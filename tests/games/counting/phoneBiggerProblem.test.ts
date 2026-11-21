@@ -17,7 +17,7 @@ import { HINT_BUTTON_MIN_SIDE } from '../../../src/games/counting/logic/phonePla
 import { slotWidth } from '../../../src/games/counting/logic/screenLayout';
 import type { HintDot } from '../../../src/games/counting/logic/screenLayout';
 import type { MaxNumber, OperationMode } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import {
   PORTRAIT_FONT_BEFORE,
   fontWithHintBefore,

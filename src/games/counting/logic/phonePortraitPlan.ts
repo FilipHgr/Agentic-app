@@ -24,7 +24,7 @@ import type { PortraitLayoutSettings } from './phonePortraitHint';
 import { FONT_SIZES, STAR_SIZE } from './phonePlan';
 import type { FreeSize, PhonePlan, PhonePlanRequest } from './phonePlan';
 import type { Point } from './screenLayout';
-import { STARS_PER_SET } from './stars';
+import { STARS_PER_SET } from '../../../shared/logic/stars';
 
 export type { PortraitLayoutSettings } from './phonePortraitHint';
 

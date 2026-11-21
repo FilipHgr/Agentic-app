@@ -16,7 +16,7 @@ import {
 } from '../../../src/games/counting/logic/progress';
 import type { GameProgress } from '../../../src/games/counting/logic/progress';
 import type { GameSettings } from '../../../src/games/counting/logic/settings';
-import { createStarProgress, starsAfterTap } from '../../../src/games/counting/logic/stars';
+import { createStarProgress, starsAfterTap } from '../../../src/shared/logic/stars';
 import {
   RECOGNITION_DELAY_MS,
   REJECTED_FADE_MS,

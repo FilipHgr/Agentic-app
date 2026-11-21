@@ -6,11 +6,7 @@ import { recognizeDigit } from '../../../src/games/counting/logic/digitRecogniti
 import type { Stroke, WritingAreaSize } from '../../../src/games/counting/logic/digitRecognition';
 import type { Problem } from '../../../src/games/counting/logic/problems';
 import { layoutWritingScreen } from '../../../src/games/counting/logic/screenLayout';
-import {
-  STARS_PER_SET,
-  createStarProgress,
-  starsAfterTap,
-} from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET, createStarProgress, starsAfterTap } from '../../../src/shared/logic/stars';
 import {
   boxDigit,
   canConfirmBoxes,

@@ -8,8 +8,10 @@ import type { GameHost } from '../../../shared/logic/gameHost';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import type { RudyLineMove } from '../../../shared/logic/rudy';
+import { Confetti } from '../../../shared/ui/Confetti';
 import { RudyMoments } from '../../../shared/ui/rudyMoments';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
+import type { Origin } from '../../../shared/ui/StarRow';
 import { GAME_AREA_KEY, readViewport } from '../../../shared/ui/viewport';
 import type { TapOutcome } from '../logic/answerRound';
 import { createCountingSession } from '../logic/countingSession';
@@ -36,20 +38,19 @@ import {
 import type { MapMarker, MapThemeId } from '../logic/progressMap';
 import { loadDigitRecognizer } from '../logic/recognizerLoading';
 import type { RecognizerLoadStatus } from '../logic/recognizerLoading';
+import { ABOVE_MAP_DEPTH } from '../logic/sceneDepths';
 import type { GameSettings } from '../logic/settings';
 import { switchToKeypad } from '../logic/twoBoxWriting';
 import type { TwoBoxConfirmResult, TwoBoxRound } from '../logic/twoBoxWriting';
 import { highlightCorrectButton } from './AnswerButton';
 import type { AnswerButton } from './AnswerButton';
-import { Confetti } from './Confetti';
 import { ParentPanels } from './ParentPanels';
 import { loadMapPicture, preloadGoalSymbols } from './mapPictureTextures';
 import { ProgressMapView } from './ProgressMapView';
 import type { MapScreen } from './ProgressMapView';
 import { RoundView } from './RoundView';
 import { SceneLayouts, gameAreaFromRegistry } from './SceneLayouts';
-import { StarRow } from './StarRow';
-import type { Origin } from './StarRow';
+import { MapStarRow } from './MapStarRow';
 
 /** Bez stránky (hra spuštěná jinak než z menu) kolečko nic neotevře. */
 const NO_PAGE: SessionPage = { attachSettingsGear: () => () => undefined };
@@ -61,7 +62,8 @@ const NO_PAGE: SessionPage = { attachSettingsGear: () => () => undefined };
  * Rozložení se bere podle herní plochy (iPad, telefon na šířku #54, nebo
  * na výšku #56) a při otočení telefonu se překreslí bez nového příkladu.
  * Části obrazovky kreslí samostatné soubory vedle (#57): `RoundView`
- * (příklad, číselník, okénka, nápověda), `StarRow`, `Confetti`,
+ * (příklad, číselník, okénka, nápověda), `MapStarRow` (sdílená řada
+ * hvězdiček s letem do mapy), sdílené `Confetti`,
  * `ProgressMapView` (mapa postupu po oslavě, #87) a `ParentPanels`
  * (nastavení a průvodce). Okno s pandou Rudym (#170: pozdrav po otevření
  * hry, oslava po 10. hvězdičce) je sdílené `RudyMoments`; kdy se ukáže,
@@ -99,8 +101,8 @@ export class GameScene extends Phaser.Scene {
     onHintButtonTapped: () => this.onHintButtonTapped(),
     onWritingStarted: () => this.session.writingStarted(),
   });
-  private readonly starRow = new StarRow(this, this.layouts, () => this.currentProgress());
-  private readonly confetti = new Confetti(this);
+  private readonly starRow = new MapStarRow(this, this.layouts, () => this.currentProgress());
+  private readonly confetti = new Confetti(this, ABOVE_MAP_DEPTH);
   private readonly progressMap = new ProgressMapView(
     this,
     () => this.profileMarker(),

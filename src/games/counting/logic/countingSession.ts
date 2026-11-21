@@ -47,8 +47,8 @@ import type { LoadRecognizer, RecognizerLoadStatus } from './recognizerLoading';
 import { isWritingActive } from './settings';
 import type { AnswerInput, GameSettings } from './settings';
 import { confirmSettings as confirmSettingsChoice } from './settingsSession';
-import { STARS_PER_SET, startNewStarSet, starsAfterTap } from './stars';
-import type { StarProgress } from './stars';
+import { STARS_PER_SET, startNewStarSet, starsAfterTap } from '../../../shared/logic/stars';
+import type { StarProgress } from '../../../shared/logic/stars';
 import type { DigitRecognizer } from './writingRound';
 
 /** Jak dlouho se po správné odpovědi čeká na nový příklad. */

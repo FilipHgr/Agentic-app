@@ -20,7 +20,7 @@ import type {
   WritingLayout,
 } from '../../../src/games/counting/logic/screenLayout';
 import type { MaxNumber } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import type { Placement } from '../../shared/viewportFixtures';
 
 const RANGES: MaxNumber[] = [5, 10, 20];

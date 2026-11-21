@@ -5,8 +5,7 @@
  */
 
 import type { TapOutcome } from './answerRound';
-import { STARS_PER_SET } from './stars';
-import type { StarProgress } from './stars';
+import { STAR_STYLE } from '../../../shared/logic/stars';
 import type { MapLook } from './mapPictureLoading';
 import type { MapThemeId } from './progressMap';
 import {
@@ -103,32 +102,6 @@ export function answerButtonLook(state: AnswerButtonState): AnswerButtonLook {
   return state === 'wrong' ? WRONG_BUTTON : IDLE_BUTTON;
 }
 
-export const STAR_STYLE = {
-  earnedColor: '#FFCC00',
-  earnedOutlineColor: '#A67C00',
-  earnedOutlineWidth: 1.5,
-  emptyColor: '#D2D2D7',
-} as const;
-
-export interface StarLook {
-  readonly fill: string;
-  readonly outlineColor: string | null;
-  readonly outlineWidth: number;
-}
-
-/** Hvězdičky v řadě zleva: získané zlaté s obrysem, ostatní šedé. */
-export function starLooks(progress: StarProgress): readonly StarLook[] {
-  return Array.from({ length: STARS_PER_SET }, (_, index) =>
-    index < progress.earned
-      ? {
-          fill: STAR_STYLE.earnedColor,
-          outlineColor: STAR_STYLE.earnedOutlineColor,
-          outlineWidth: STAR_STYLE.earnedOutlineWidth,
-        }
-      : { fill: STAR_STYLE.emptyColor, outlineColor: null, outlineWidth: 0 },
-  );
-}
-
 export const HINT_DOT_STYLE = {
   /** Každé číslo příkladu má svou barvu (#30). */
   groupColors: ['#FFCC00', '#5AC8FA'],
@@ -208,16 +181,6 @@ export const GUIDE_STYLE = {
   frameColor: BLUE,
   frameLineWidth: 4,
 } as const;
-
-/** Konfety oslavy: každá barva je na světlém pozadí vidět (aspoň 3 : 1). */
-export const CONFETTI_COLORS: readonly string[] = [
-  BLUE,
-  SUCCESS_GREEN,
-  '#FF3B30',
-  '#AF52DE',
-  '#C93400',
-  STAR_STYLE.earnedOutlineColor,
-];
 
 // ---------------------------------------------------------------------------
 // Mapa postupu (#87, #133, #134): obrázek prostředí, bez něj zástupný vzhled.

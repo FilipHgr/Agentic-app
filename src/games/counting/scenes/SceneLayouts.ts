@@ -10,7 +10,7 @@ import type { DeviceScreenLayout, DeviceWritingLayout } from '../logic/deviceLay
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { isWritingActive } from '../logic/settings';
 import type { GameSettings } from '../logic/settings';
-import { STARS_PER_SET } from '../logic/stars';
+import { STARS_PER_SET } from '../../../shared/logic/stars';
 
 /** Co scéna právě ukazuje; podle toho se vybírá rozložení. */
 export interface LayoutInputs {

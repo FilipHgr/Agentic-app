@@ -17,7 +17,7 @@ import type { MapMove } from './progressMap';
 import type { MapPoint, ProgressMapLayout } from './progressMapLayout';
 import { pathPoseBetween, walkBetween } from './progressMapPath';
 import type { PathWalk } from './progressMapPath';
-import { STARS_PER_SET } from './stars';
+import { STARS_PER_SET } from '../../../shared/logic/stars';
 
 /** Jak dlouho letí jedna hvězdička z řady ke značce (#154 AC3). */
 export const STAR_TO_MAP_FLIGHT_MS = 420;

@@ -15,7 +15,7 @@ import type {
   MaxNumber,
   Operation,
 } from '../../../src/games/counting/logic/settings';
-import { createStarProgress, starsAfterTap } from '../../../src/games/counting/logic/stars';
+import { createStarProgress, starsAfterTap } from '../../../src/shared/logic/stars';
 
 import { seededRandom } from './seededRandom';
 

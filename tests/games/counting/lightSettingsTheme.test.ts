@@ -32,8 +32,8 @@ import {
   stepIndicatorText,
 } from '../../../src/games/counting/logic/setupGuide';
 import type { GuideState, GuideStep } from '../../../src/games/counting/logic/setupGuide';
+import { CONFETTI_COLORS } from '../../../src/shared/logic/confetti';
 import {
-  CONFETTI_COLORS,
   CONFIRM_BUTTON_STYLE,
   GUIDE_STYLE,
   KEYPAD_BUTTON_STYLE,
@@ -49,7 +49,8 @@ import type { SettingsOptionLook } from '../../../src/games/counting/logic/theme
  * Testy k #53 (světlý vzhled nastavení, průvodce a oslavy, dokončení A3):
  * stránka při otevřeném nastavení a průvodci (AC1), volby v nastavení (AC2),
  * texty a tlačítka průvodce (AC3), zvýrazněná a ztlumené řady (AC4),
- * konfety (AC5) a nic tmavě zeleného nezůstane (AC6).
+ * konfety (AC5, sdílené v `tests/shared/confetti.test.ts`) a nic tmavě
+ * zeleného nezůstane (AC6).
  *
  * Ručně se kontroluje: ztlumení kolečka za 150 ms, že ťuknutí neprojdou
  * pod panel do hry, pulzování reproduktoru, počet konfet, délka oslavy,
@@ -410,42 +411,6 @@ describe('#53 AC4: zvýrazněná a ztlumené řady v průvodci', () => {
     }
     const changed = chooseGuideOption(summary, { operations: 'minus' });
     expect(guideSelection(changed).operations).toBe('minus');
-  });
-});
-
-describe('#53 AC5: konfety jsou na světlém pozadí vidět', () => {
-  it('konfety mají modrou, zelenou, červenou, fialovou, oranžovou a zlatou ze zadání', () => {
-    const colors = CONFETTI_COLORS.map((color) => color.toLowerCase()).sort();
-    expect(colors).toEqual(
-      ['#0062CC', '#248A3D', '#FF3B30', '#AF52DE', '#C93400', '#A67C00']
-        .map((color) => color.toLowerCase())
-        .sort(),
-    );
-  });
-
-  it('každá konfeta má proti pozadí kontrast aspoň 3 : 1', () => {
-    for (const color of CONFETTI_COLORS) {
-      expect(contrastRatio(color, PAGE_BACKGROUND), color).toBeGreaterThanOrEqual(GRAPHIC_CONTRAST);
-    }
-  });
-
-  it('žádná konfeta není bílá, žlutá #FFCC00 ani v barvě pozadí', () => {
-    for (const color of CONFETTI_COLORS) {
-      expect(['#ffffff', '#ffcc00', PAGE_BACKGROUND.toLowerCase()]).not.toContain(
-        color.toLowerCase(),
-      );
-    }
-  });
-
-  it('žádná konfeta nemá dnešní bledou barvu', () => {
-    for (const color of CONFETTI_COLORS) {
-      expect(OLD_CONFETTI_COLORS, color).not.toContain(color.toLowerCase());
-    }
-  });
-
-  it('každá konfeta má jinou barvu', () => {
-    const colors = CONFETTI_COLORS.map((color) => color.toLowerCase());
-    expect(new Set(colors).size).toBe(colors.length);
   });
 });
 

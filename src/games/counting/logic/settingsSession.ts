@@ -6,7 +6,7 @@
 import type { GameProgress } from './progress';
 import { answerInputOf } from './settings';
 import type { AnswerInput, GameSettings, MaxNumber, OperationMode } from './settings';
-import { STARS_PER_SET } from './stars';
+import { STARS_PER_SET } from '../../../shared/logic/stars';
 import { PAGE_BACKGROUND } from '../../../shared/logic/theme';
 
 export type SettingsSession =

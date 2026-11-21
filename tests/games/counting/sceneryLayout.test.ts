@@ -15,7 +15,7 @@ import type {
 import type { GameArea, LayoutMode } from '../../../src/shared/logic/viewportLayout';
 import type { Problem } from '../../../src/games/counting/logic/problems';
 import type { MaxNumber, OperationMode } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import {
   IPAD_WINDOWS,
   NO_NOTCH,

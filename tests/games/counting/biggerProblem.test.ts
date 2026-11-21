@@ -38,12 +38,8 @@ import {
   CLOSED_SETTINGS,
 } from '../../../src/games/counting/logic/settingsSession';
 import type { GameSettings, MaxNumber } from '../../../src/games/counting/logic/settings';
-import {
-  STARS_PER_SET,
-  startNewStarSet,
-  starsAfterTap,
-} from '../../../src/games/counting/logic/stars';
-import { CONFETTI_COLORS } from '../../../src/games/counting/logic/theme';
+import { STARS_PER_SET, startNewStarSet, starsAfterTap } from '../../../src/shared/logic/stars';
+import { CONFETTI_COLORS } from '../../../src/shared/logic/confetti';
 import {
   IPAD_WINDOWS,
   NO_NOTCH,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ANSWER_CHOICES, tapAnswer } from '../../../src/games/counting/logic/answerRound';
-import type { AnswerRound, TapOutcome } from '../../../src/games/counting/logic/answerRound';
+import type { AnswerRound } from '../../../src/games/counting/logic/answerRound';
 import { SOUNDS, soundLengthSeconds } from '../../../src/games/counting/logic/answerSounds';
 import {
   HINT_DOT_SIZE,
@@ -9,13 +9,7 @@ import {
   layoutHint,
   layoutScreen,
 } from '../../../src/games/counting/logic/screenLayout';
-import {
-  STARS_PER_SET,
-  createStarProgress,
-  startNewStarSet,
-  starsAfterTap,
-} from '../../../src/games/counting/logic/stars';
-import type { StarProgress } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET, createStarProgress, starsAfterTap } from '../../../src/shared/logic/stars';
 
 const SCREEN_WIDTH = 1024;
 const SCREEN_HEIGHT = 768;
@@ -32,13 +26,10 @@ function roundThreePlusFour(): AnswerRound {
   };
 }
 
-/** Hvězdičky po řadě výsledků ťuknutí. */
-function starsAfter(outcomes: readonly TapOutcome[], start = createStarProgress()): StarProgress {
-  return outcomes.reduce((progress, outcome) => starsAfterTap(progress, outcome).progress, start);
-}
-
-/** Výsledky deseti správně vyřešených příkladů za sebou. */
-const TEN_CORRECT: TapOutcome[] = Array.from({ length: STARS_PER_SET }, () => 'correct');
+/*
+ * Hvězdičky bez hry (přibývání, chyby, oslava po desáté, nová řada) testuje
+ * sdílená část v `tests/shared/stars.test.ts` (#177).
+ */
 
 describe('AC1: nahoře je řada 10 hvězdiček, která nic nepřekrývá', () => {
   it('v řadě je 10 hvězdiček', () => {
@@ -90,17 +81,6 @@ describe('AC1: nahoře je řada 10 hvězdiček, která nic nepřekrývá', () =>
 });
 
 describe('AC2: po správné odpovědi se rozsvítí další hvězdička zleva', () => {
-  it('správná odpověď přidá hvězdičku', () => {
-    const result = starsAfterTap(createStarProgress(), 'correct');
-
-    expect(result.starEarned).toBe(true);
-    expect(result.progress.earned).toBe(1);
-  });
-
-  it('hvězdičky přibývají postupně po jedné', () => {
-    expect(starsAfter(['correct', 'correct', 'correct']).earned).toBe(3);
-  });
-
   it('správné ťuknutí ve hře opravdu přidá hvězdičku', () => {
     const tap = tapAnswer(roundThreePlusFour(), 7);
 
@@ -109,18 +89,6 @@ describe('AC2: po správné odpovědi se rozsvítí další hvězdička zleva', 
 });
 
 describe('AC3: hvězdička za každý vyřešený příklad, chyba ji nebere', () => {
-  it('špatná odpověď hvězdičku nepřidá ani nevezme', () => {
-    const progress = starsAfter(['correct', 'correct']);
-    const result = starsAfterTap(progress, 'wrong');
-
-    expect(result.starEarned).toBe(false);
-    expect(result.progress.earned).toBe(2);
-  });
-
-  it('ignorované ťuknutí hvězdičku nepřidá', () => {
-    expect(starsAfterTap(createStarProgress(), 'ignored').progress.earned).toBe(0);
-  });
-
   it('i po chybách a s nápovědou dostane hráč za vyřešení hvězdičku', () => {
     let round = roundThreePlusFour();
     let progress = createStarProgress();
@@ -133,33 +101,9 @@ describe('AC3: hvězdička za každý vyřešený příklad, chyba ji nebere', (
 
     expect(progress.earned).toBe(1);
   });
-
-  it('mnoho chyb za sebou hvězdičky nevynuluje', () => {
-    const wrongs: TapOutcome[] = Array.from({ length: 50 }, () => 'wrong');
-
-    expect(starsAfter(wrongs, starsAfter(['correct', 'correct', 'correct'])).earned).toBe(3);
-  });
 });
 
 describe('AC4: po desáté hvězdičce přijde oslava', () => {
-  it('desátá hvězdička spustí oslavu', () => {
-    const nine = starsAfter(TEN_CORRECT.slice(1));
-    const result = starsAfterTap(nine, 'correct');
-
-    expect(result.progress.earned).toBe(10);
-    expect(result.setCompleted).toBe(true);
-  });
-
-  it('dřív než po desáté hvězdičce oslava nepřijde', () => {
-    let progress = createStarProgress();
-
-    for (let star = 1; star < STARS_PER_SET; star += 1) {
-      const result = starsAfterTap(progress, 'correct');
-      expect(result.setCompleted).toBe(false);
-      progress = result.progress;
-    }
-  });
-
   it('oslavná melodie trvá asi 2 sekundy a je delší než běžný zvuk', () => {
     const length = soundLengthSeconds(SOUNDS.celebration);
 
@@ -174,32 +118,5 @@ describe('AC4: po desáté hvězdičce přijde oslava', () => {
     for (const tapped of ANSWER_CHOICES) {
       expect(tapAnswer(solved, tapped).outcome).toBe('ignored');
     }
-  });
-});
-
-describe('AC5: po oslavě začíná nová prázdná řada', () => {
-  it('nová řada nemá žádnou rozsvícenou hvězdičku', () => {
-    expect(startNewStarSet().earned).toBe(0);
-  });
-
-  it('po nové řadě se hvězdičky sbírají znovu od první', () => {
-    const afterCelebration = startNewStarSet();
-    const result = starsAfterTap(afterCelebration, 'correct');
-
-    expect(result.progress.earned).toBe(1);
-    expect(result.setCompleted).toBe(false);
-  });
-
-  it('i kdyby se plná řada nevyprázdnila, další hvězdička začne novou řadu', () => {
-    const full = starsAfter(TEN_CORRECT);
-    const result = starsAfterTap(full, 'correct');
-
-    expect(result.progress.earned).toBe(1);
-  });
-});
-
-describe('AC6: hra začíná bez hvězdiček', () => {
-  it('po načtení nesvítí žádná hvězdička', () => {
-    expect(createStarProgress().earned).toBe(0);
   });
 });

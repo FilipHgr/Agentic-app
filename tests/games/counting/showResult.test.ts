@@ -14,7 +14,7 @@ import { STAR_SIZE, layoutScreen } from '../../../src/games/counting/logic/scree
 import type { ScreenLayout } from '../../../src/games/counting/logic/screenLayout';
 import { MAX_NUMBER_OPTIONS, OPERATION_OPTIONS } from '../../../src/games/counting/logic/settings';
 import type { GameSettings } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET, starsAfterTap } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET, starsAfterTap } from '../../../src/shared/logic/stars';
 
 import { seededRandom } from './seededRandom';
 

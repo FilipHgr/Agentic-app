@@ -32,7 +32,7 @@ import {
   writtenStrokes,
 } from '../../../src/games/counting/logic/writingRound';
 import type { WritingRound } from '../../../src/games/counting/logic/writingRound';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import {
   CANVAS_PIXELS_PER_CSS_PX,
   canvasResolutionFor,

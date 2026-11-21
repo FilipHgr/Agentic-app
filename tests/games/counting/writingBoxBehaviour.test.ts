@@ -4,7 +4,7 @@ import type { AnswerRound } from '../../../src/games/counting/logic/answerRound'
 import { recognizeDigit } from '../../../src/games/counting/logic/digitRecognition';
 import type { Stroke, WritingAreaSize } from '../../../src/games/counting/logic/digitRecognition';
 import { layoutWritingScreen } from '../../../src/games/counting/logic/screenLayout';
-import { STARS_PER_SET, starsAfterTap } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET, starsAfterTap } from '../../../src/shared/logic/stars';
 import { confirmBoxes, createTwoBoxRound } from '../../../src/games/counting/logic/twoBoxWriting';
 import {
   RECOGNITION_DELAY_MS,

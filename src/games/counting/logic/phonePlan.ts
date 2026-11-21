@@ -5,7 +5,7 @@
 
 import type { ButtonSlot, HintDot, Point, WritingAreaSlot } from './screenLayout';
 import type { MaxNumber } from './settings';
-import { STARS_PER_SET } from './stars';
+import { STARS_PER_SET } from '../../../shared/logic/stars';
 
 export interface FreeSize {
   readonly width: number;

@@ -34,7 +34,7 @@ import {
 import type { FreeSize, PhonePlan, PhonePlanRequest } from './phonePlan';
 import { isValidPlan } from './phonePlanCheck';
 import type { HintDot, Point } from './screenLayout';
-import { STARS_PER_SET } from './stars';
+import { STARS_PER_SET } from '../../../shared/logic/stars';
 
 // ---------------------------------------------------------------------------
 // Horní pás

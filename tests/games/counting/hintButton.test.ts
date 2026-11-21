@@ -19,7 +19,7 @@ import { countDot, startDotCounting } from '../../../src/games/counting/logic/do
 import type { Problem } from '../../../src/games/counting/logic/problems';
 import { CLOSED_SETTINGS, openSettings } from '../../../src/games/counting/logic/settingsSession';
 import type { GameSettings, MaxNumber } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import {
   confirmBoxes,
   createTwoBoxRound,

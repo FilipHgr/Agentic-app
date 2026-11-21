@@ -8,7 +8,7 @@ import {
   starFlightShareAt,
 } from '../../../src/games/counting/logic/mapAnimation';
 import type { MapPoint } from '../../../src/games/counting/logic/progressMapLayout';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import type { KeyReward } from '../../../src/shared/logic/keyRewards';
 import { POINT_TOLERANCE, allMoves, samePoint } from './mapAnimationHelpers';
 

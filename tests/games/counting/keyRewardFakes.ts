@@ -3,7 +3,7 @@ import { STAR_FLIGHT_MS, CELEBRATION_MS } from '../../../src/games/counting/logi
 import { serializeMapProgress } from '../../../src/games/counting/logic/progressMap';
 import type { MapProgress } from '../../../src/games/counting/logic/progressMap';
 import { serializeSettings } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import { MAP_PROGRESS_KEY } from '../../../src/games/counting/storage/mapStorage';
 import type { KeyRewards } from '../../../src/shared/logic/keyRewards';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';

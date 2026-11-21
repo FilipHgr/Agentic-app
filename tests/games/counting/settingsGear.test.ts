@@ -15,7 +15,7 @@ import type {
 import type { Problem } from '../../../src/games/counting/logic/problems';
 import type { ButtonSlot, HintDot } from '../../../src/games/counting/logic/screenLayout';
 import type { MaxNumber } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import {
   MIN_GAP_TO_CONTROLS,
   PHONE_EDGE_OFFSET,

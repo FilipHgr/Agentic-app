@@ -10,11 +10,7 @@ import {
 import type { GameProgress } from '../../../src/games/counting/logic/progress';
 import { DEFAULT_SETTINGS } from '../../../src/games/counting/logic/settings';
 import type { GameSettings } from '../../../src/games/counting/logic/settings';
-import {
-  STARS_PER_SET,
-  startNewStarSet,
-  starsAfterTap,
-} from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET, startNewStarSet, starsAfterTap } from '../../../src/shared/logic/stars';
 import { loadProgress, saveProgress } from '../../../src/games/counting/storage/progressStorage';
 import { loadSettings, saveSettings } from '../../../src/games/counting/storage/settingsStorage';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';

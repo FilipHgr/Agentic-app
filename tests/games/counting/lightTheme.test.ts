@@ -31,17 +31,15 @@ import {
   pageAppearance,
 } from '../../../src/games/counting/logic/settingsSession';
 import { DEFAULT_SETTINGS } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET, STAR_STYLE, starLooks } from '../../../src/shared/logic/stars';
 import {
   CLEAR_ICON_COLOR,
   CONFIRM_BUTTON_STYLE,
   HINT_DOT_STYLE,
   KEYPAD_BUTTON_STYLE,
   PROBLEM_STYLE,
-  STAR_STYLE,
   WRITING_PAD_STYLE,
   answerButtonLook,
-  starLooks,
 } from '../../../src/games/counting/logic/theme';
 import {
   PAGE_BACKGROUND,
@@ -53,7 +51,8 @@ import {
 /**
  * Testy k #52 (světlý vzhled hlavní obrazovky, varianta A3): pozadí a písmo
  * (AC1), příklad (AC2), číselník (AC3), odezva na odpověď (AC4), hvězdičky
- * (AC5), tečky v nápovědě (AC6), psaní prstem a ovládání (AC7).
+ * (AC5, vzhled hvězdiček sdílený v `tests/shared/stars.test.ts`), tečky
+ * v nápovědě (AC6), psaní prstem a ovládání (AC7).
  *
  * Ručně se kontroluje: světlý vzhled při načítání a kolem hry na iPadu
  * i telefonu (index.html), že hra kvůli písmu nic nestahuje, poskočení
@@ -319,46 +318,6 @@ describe('#52 AC5: malé plné hvězdičky nahoře', () => {
       const keypad = layoutScreen(SCREEN_WIDTH, SCREEN_HEIGHT, max + 1, STARS_PER_SET);
       expect(writing.stars).toEqual(keypad.stars);
     }
-  });
-
-  it('získaná hvězdička je zlatá #FFCC00 s obrysem #A67C00 tlustým 1,5 px', () => {
-    expectColor(STAR_STYLE.earnedColor, '#FFCC00');
-    expectColor(STAR_STYLE.earnedOutlineColor, '#A67C00');
-    expect(STAR_STYLE.earnedOutlineWidth).toBe(1.5);
-  });
-
-  it('obrys získané hvězdičky má proti pozadí kontrast aspoň 3 : 1 (asi 3,5 : 1)', () => {
-    const ratio = contrastRatio(STAR_STYLE.earnedOutlineColor, PAGE_BACKGROUND);
-    expect(ratio).toBeGreaterThanOrEqual(GRAPHIC_CONTRAST);
-    expect(ratio).toBeCloseTo(3.5, 1);
-  });
-
-  it('nezískaná hvězdička je plná šedá #D2D2D7 bez obrysu', () => {
-    expectColor(STAR_STYLE.emptyColor, '#D2D2D7');
-    const [empty] = starLooks({ earned: 0 });
-    expectColor(empty?.fill ?? '', '#D2D2D7');
-    expect(empty?.outlineWidth).toBe(0);
-  });
-
-  it('po třech správných odpovědích jsou tři hvězdičky zleva zlaté s obrysem, zbytek šedý', () => {
-    const looks = starLooks({ earned: 3 });
-    expect(looks).toHaveLength(STARS_PER_SET);
-    looks.forEach((look, index) => {
-      if (index < 3) {
-        expectColor(look.fill, '#FFCC00');
-        expectColor(look.outlineColor ?? '', '#A67C00');
-        expect(look.outlineWidth).toBe(1.5);
-      } else {
-        expectColor(look.fill, '#D2D2D7');
-        expect(look.outlineWidth).toBe(0);
-      }
-    });
-  });
-
-  it('získaná a nezískaná hvězdička jdou rozlišit i bez barev, podle obrysu', () => {
-    const [earned, empty] = starLooks({ earned: 1 });
-    expect(earned?.outlineWidth).toBeGreaterThan(0);
-    expect(empty?.outlineWidth).toBe(0);
   });
 
   it('po obnovení stránky mají hvězdičky stejný vzhled jako před ním', () => {

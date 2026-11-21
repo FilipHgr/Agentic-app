@@ -4,8 +4,8 @@
  * `src/games/counting/storage/progressStorage.ts`.
  */
 
-import { STARS_PER_SET } from './stars';
-import type { StarProgress } from './stars';
+import { STARS_PER_SET } from '../../../shared/logic/stars';
+import type { StarProgress } from '../../../shared/logic/stars';
 
 export type GameProgress = StarProgress;
 

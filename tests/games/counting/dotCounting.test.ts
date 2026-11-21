@@ -19,7 +19,7 @@ import {
 } from '../../../src/games/counting/logic/dotCounting';
 import type { DotCounting } from '../../../src/games/counting/logic/dotCounting';
 import type { Problem } from '../../../src/games/counting/logic/problems';
-import { createStarProgress, starsAfterTap } from '../../../src/games/counting/logic/stars';
+import { createStarProgress, starsAfterTap } from '../../../src/shared/logic/stars';
 
 import { seededRandom } from './seededRandom';
 

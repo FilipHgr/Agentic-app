@@ -29,7 +29,6 @@ import {
 } from '../logic/progressMapLayout';
 import type { MapPoint, ProgressMapLayout } from '../logic/progressMapLayout';
 import {
-  CONFETTI_COLORS,
   PROGRESS_MAP_BACKGROUNDS,
   PROGRESS_MAP_CARD_STYLE,
   PROGRESS_MAP_EFFECTS,
@@ -38,6 +37,7 @@ import {
   progressMapStyleFor,
 } from '../logic/theme';
 import type { ProgressMapStyle } from '../logic/theme';
+import { CONFETTI_COLORS } from '../../../shared/logic/confetti';
 import { GoalKeyBadge } from './GoalKeyBadge';
 import { drawFootprints } from './MapFootprintPieces';
 import type { DrawnFootprints } from './MapFootprintPieces';

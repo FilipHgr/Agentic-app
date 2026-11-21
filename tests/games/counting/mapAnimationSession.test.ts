@@ -10,7 +10,7 @@ import {
   serializeMapProgress,
 } from '../../../src/games/counting/logic/progressMap';
 import type { MapProgress } from '../../../src/games/counting/logic/progressMap';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import { MAP_PROGRESS_KEY, loadMapProgress } from '../../../src/games/counting/storage/mapStorage';
 import { correctAnswerOf, enterCounting, solveProblems, testDevice } from './sessionFakes';
 import type { TestDevice, TestSession } from './sessionFakes';

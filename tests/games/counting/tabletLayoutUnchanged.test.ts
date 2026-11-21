@@ -10,7 +10,7 @@ import {
   layoutWritingScreen,
 } from '../../../src/games/counting/logic/screenLayout';
 import type { MaxNumber } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import {
   IPAD_WINDOWS,
   TODAY_GAME_HEIGHT,

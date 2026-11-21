@@ -23,7 +23,7 @@ import {
   serializeSettings,
 } from '../../../src/games/counting/logic/settings';
 import type { GameSettings } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import { loadSettings, saveSettings } from '../../../src/games/counting/storage/settingsStorage';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 

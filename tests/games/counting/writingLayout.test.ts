@@ -7,7 +7,7 @@ import type {
 } from '../../../src/games/counting/logic/screenLayout';
 import { writingBoxCount } from '../../../src/games/counting/logic/settings';
 import type { MaxNumber } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 
 /**
  * Testy rozložení při psaní (#41 a #42, AC7, jen to, co jde ověřit v logice

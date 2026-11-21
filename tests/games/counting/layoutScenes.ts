@@ -38,7 +38,7 @@ import { slotWidth } from '../../../src/games/counting/logic/screenLayout';
 import type { ButtonSlot } from '../../../src/games/counting/logic/screenLayout';
 import type { MaxNumber, OperationMode } from '../../../src/games/counting/logic/settings';
 import type { GuideStep } from '../../../src/games/counting/logic/setupGuide';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import { homeButtonFor } from '../../../src/shared/logic/homeButton';
 import { settingsGearFor } from '../../../src/shared/logic/settingsGear';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';

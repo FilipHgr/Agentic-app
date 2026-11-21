@@ -11,7 +11,7 @@ import {
 } from '../../../src/games/counting/logic/screenLayout';
 import type { ScreenLayout, WritingLayout } from '../../../src/games/counting/logic/screenLayout';
 import type { MaxNumber } from '../../../src/games/counting/logic/settings';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 
 /**
  * Testy ploch pro ťuknutí na tečky nápovědy (#43, AC7): u rozsahu 5 a 10,

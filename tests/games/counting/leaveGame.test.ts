@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SOUNDS } from '../../../src/games/counting/logic/answerSounds';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import { loadProgress } from '../../../src/games/counting/storage/progressStorage';
 import { loadSettings } from '../../../src/games/counting/storage/settingsStorage';
 import { createHoldButton } from '../../../src/shared/logic/holdButton';

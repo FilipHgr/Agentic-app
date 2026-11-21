@@ -8,7 +8,7 @@ import {
 } from '../../../src/games/counting/logic/countingSession';
 import type { SessionChange } from '../../../src/games/counting/logic/countingSession';
 import { SOUNDS } from '../../../src/games/counting/logic/answerSounds';
-import { STARS_PER_SET } from '../../../src/games/counting/logic/stars';
+import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import { seededRandom } from './seededRandom';
 import {
   FakeRecognizerLoader,
