@@ -17,5 +17,6 @@ export default {
   },
   rudyLines: {
     greeting: 'Ahoj, já jsem Rudy! Vyber si hru.',
+    greetingWhat: 'Ahoj! Na co máš dneska chuť?',
   },
 } satisfies MenuTexts;

@@ -208,7 +208,13 @@ describe('#65 AC4: kontrola textů Počítání opravdu najde chybu (umělé jaz
         answerInput: ['Keypad or pencil.', 'Pencil once they can write.'],
         summary: ['Done.', 'Hold the gear to change it later.'],
       },
-      rudyLines: { greeting: 'Hello!', celebration: 'Hooray!' },
+      rudyLines: {
+        greeting: 'Hello!',
+        greetingAgain: 'Hello again!',
+        celebration: 'Hooray!',
+        celebrationStars: 'Ten stars!',
+        celebrationStar: 'Star!',
+      },
     };
   }
 

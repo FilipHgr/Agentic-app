@@ -5,16 +5,24 @@
       "coloring/praiseBeautiful": "0f5a648995243d877d277ecb71b4fea34cc2e1ec1889deb8a5cfaa2ccd6591a9",
       "coloring/praiseColors": "15616feeeeb2a58401ea0c4782d4b0090066b601235058c83518595ca4f3aa0a",
       "counting/celebration": "38860bf3524437d37218e462879ba7b8dbec93da20d4ce5b4759ea7f0a2f11d9",
+      "counting/celebrationStar": "c2b945079e989096328c6db93f8c9be2c911285d36f4949851e2d0319409284a",
+      "counting/celebrationStars": "55659df7839a7ec1d6670a9bb383381f3dc436ff06c86ea8f64e2a0b252709e3",
       "counting/greeting": "8c04793c5c528c3876247dfd3821a6a4a90b495118a2af56757f9683589ebcd3",
-      "menu/greeting": "d302102dda30ca84a130c40d0799be855cc9478ed56635b9d13ce9f72df3e743"
+      "counting/greetingAgain": "e764e3eee1fbe5e31cd202cca09c56e03a96d6268fae200c91750678490c2145",
+      "menu/greeting": "d302102dda30ca84a130c40d0799be855cc9478ed56635b9d13ce9f72df3e743",
+      "menu/greetingWhat": "ed1056de8b3b851eb5564493600f511ebb9d1637272d933747191b7d28af4db9"
     },
     "en": {
       "coloring/greeting": "621991b2a46f108cabd04b2917a763b386a81a64c6f3b73f8bbd1d548f34b4ba",
       "coloring/praiseBeautiful": "6f388c2f00494fd5780ca99af80ee7c03c61c72b0e32f7c887ba91241a090585",
       "coloring/praiseColors": "5dd3319f837cc6d305a7e9d2dd328eefde7d43f7c46c780a05ddc3063126ac4e",
       "counting/celebration": "6209ba9c0df5152931e2f3b1dc80bc8d808bf2ff729e35284c82842cd2cfcebb",
+      "counting/celebrationStar": "ad8862bc0d31d56e7195bea0b904e25998f060a16c05545b9bfdc738021a63df",
+      "counting/celebrationStars": "ca2663410f7f0928413b8d36ecb243ba7c682dacccfe1fbe65789fda175f41fa",
       "counting/greeting": "d2b93e4729224a215000823e39aa3194bd1f075e7dc12fa1a17fa1a1e289308a",
-      "menu/greeting": "5bdfda93b764b93c120af70a395bfad007c9236d493f8f20ea55b2cedac0659d"
+      "counting/greetingAgain": "4ae6d194d87d30cabff6592aae548afd0924384f277ffbf441af5584b314d340",
+      "menu/greeting": "5bdfda93b764b93c120af70a395bfad007c9236d493f8f20ea55b2cedac0659d",
+      "menu/greetingWhat": "883a6fe34f4308ee160785bfb04eeeb3f3347460755b65238a99c9d892ecbf84"
     }
   },
   "cs": {

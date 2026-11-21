@@ -30,8 +30,8 @@ export interface CountingTexts {
    */
   readonly guideLines: Readonly<Record<GuideLineId, readonly [string, string]>>;
   /**
-   * Repliky pandy Rudyho (#171): pozdrav po otevření hry a oslava po 10
-   * hvězdičkách. Text se nezobrazuje, zazní jen nahrávka
+   * Repliky pandy Rudyho (#171): pozdravy po otevření hry a oslavy po 10
+   * hvězdičkách, varianty se střídají (#176). Text se nezobrazuje, zazní jen nahrávka
    * `public/voice/<jazyk>/counting/rudy-<id>.mp3`.
    */
   readonly rudyLines: Readonly<Record<CountingRudyLine, string>>;

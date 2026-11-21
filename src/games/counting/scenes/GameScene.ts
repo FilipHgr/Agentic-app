@@ -26,7 +26,8 @@ import { createMapPictureLoading } from '../logic/mapPictureLoading';
 import type { MapLook, MapPictureId } from '../logic/mapPictureLoading';
 import type { GameProgress } from '../logic/progress';
 import { mapMarkerFor, upcomingMapTheme } from '../logic/progressMap';
-import { countingRudyLineOf, countingRudyVoiceUrl } from '../logic/rudyLines';
+import { countingRudyLines, countingRudyVoiceUrl } from '../logic/rudyLines';
+import type { CountingRudyLines } from '../logic/rudyLines';
 import {
   layoutProgressMapCard,
   mapCardPageBackdrop,
@@ -154,7 +155,7 @@ export class GameScene extends Phaser.Scene {
       loadRecognizer: loadDigitRecognizer,
       // Klíče aktivního profilu od stránky (#139); bez stránky mapa klíč nedává.
       keyRewards: host?.keyRewards,
-      rudy: this.sessionRudy(),
+      rudy: this.sessionRudy(countingRudyLines(host?.storage)),
       onChange: (change) => this.onSessionChange(change),
     });
     this.session = session;
@@ -174,18 +175,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Okno s pandou pro sezení; kdy se co ukáže a stáhne dopředu, řídí sezení (#170). */
-  private sessionRudy(): SessionRudy {
+  private sessionRudy(lines: CountingRudyLines): SessionRudy {
     const rudy = this.rudy;
     return {
       // Replika zazní v jazyce zvoleném v menu ve chvíli, kdy hra o okno požádá (#171).
-      show: (move: RudyLineMove, events: SessionRudyEvents) =>
+      // Varianty se v profilu střídají; zapamatuje se až ta, jejíž okno se ukázalo (#176).
+      show: (move: RudyLineMove, events: SessionRudyEvents) => {
+        const line = lines.upcoming(move);
         rudy.show(move, {
-          onOpened: () => events.onOpened(),
+          onOpened: () => {
+            lines.said(move, line);
+            events.onOpened();
+          },
           onClosed: () => events.onClosed(),
-          voiceUrl: countingRudyVoiceUrl(countingRudyLineOf(move)),
-        }),
+          voiceUrl: countingRudyVoiceUrl(line),
+        });
+      },
       prepare: (move: RudyLineMove) =>
-        rudy.prepare(move, countingRudyVoiceUrl(countingRudyLineOf(move))),
+        rudy.prepare(move, countingRudyVoiceUrl(lines.upcoming(move))),
       stop: () => rudy.stop(),
     };
   }

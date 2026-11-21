@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   COUNTING_RUDY_LINES,
-  countingRudyLineOf,
+  countingRudyLines,
   countingRudyVoiceUrl,
 } from '../../../src/games/counting/logic/rudyLines';
 import { LANGUAGES, currentLanguage, selectLanguage } from '../../../src/shared/texts/languages';
@@ -29,8 +29,8 @@ import { dictionariesByLanguage } from '../../shared/textChecks';
 const MAX_LINE_MS = 4000;
 /** Limit jedné nahrávky jako u nahrávek průvodce (#50) a všech replik Rudyho dohromady. */
 const MAX_RECORDING_BYTES = 150 * 1024;
-/** Od #175 i s replikami Omalovánek (dnes asi 319 KB, limit 350 KB). */
-const MAX_ALL_RUDY_BYTES = 350 * 1024;
+/** Od #176 i s dalšími variantami replik (dnes asi 517 KB, limit 550 KB). */
+const MAX_ALL_RUDY_BYTES = 550 * 1024;
 
 /** Velikosti všech replik Rudyho (Počítání, menu i Omalovánky, všechny jazyky) podle cesty. */
 const ALL_RUDY_SIZES: Record<string, number> = Object.fromEntries(
@@ -76,7 +76,7 @@ afterEach(() => {
 
 describe('#171 AC1: repliky Rudyho v Počítání mají nahrávky', () => {
   for (const language of LANGUAGES) {
-    it(`jazyk ${language}: pozdrav a oslava jsou v textech Počítání`, () => {
+    it(`jazyk ${language}: pozdravy a oslavy jsou v textech Počítání`, () => {
       const lines = characterLinesOf('counting', COUNTING_FILES[language]);
       expect(lines.map((line) => line.id).sort()).toEqual([...COUNTING_RUDY_LINES].sort());
       expect(lines.every((line) => line.text.trim() !== '')).toBe(true);
@@ -119,18 +119,34 @@ describe('#171 AC1: repliky Rudyho v Počítání mají nahrávky', () => {
   }
 });
 
-describe('#171, #175: velikost replik Rudyho', () => {
-  it('všechny repliky Rudyho (Počítání, menu i Omalovánky, všechny jazyky) mají dohromady nejvýš 350 KB', () => {
+describe('#171, #175, #176: velikost replik Rudyho', () => {
+  it('všechny repliky Rudyho (Počítání, menu i Omalovánky, všechny jazyky) mají dohromady nejvýš 550 KB', () => {
     const sizes = Object.values(ALL_RUDY_SIZES);
-    expect(sizes.length).toBeGreaterThanOrEqual(LANGUAGES.length * 6);
+    expect(sizes.length).toBeGreaterThanOrEqual(LANGUAGES.length * 10);
     expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThanOrEqual(MAX_ALL_RUDY_BYTES);
+  });
+});
+
+describe('#176 AC3: nové repliky Rudyho v Počítání', () => {
+  it('česky a anglicky mají pozdrav a oslavy texty ze zadání', () => {
+    expect(COUNTING_FILES['cs']?.['rudyLines']).toMatchObject({
+      greetingAgain: 'Zase já, Rudy! Jdeme počítat!',
+      celebrationStars: 'Paráda! Máš všech deset hvězdiček!',
+      celebrationStar: 'Jupí! Jsi počítací hvězda!',
+    });
+    expect(COUNTING_FILES['en']?.['rudyLines']).toMatchObject({
+      greetingAgain: "Hi, it's me, Rudy, again! Let's count!",
+      celebrationStars: 'Awesome! You got all ten stars!',
+      celebrationStar: "Yippee! You're a counting star!",
+    });
   });
 });
 
 describe('#171 AC4: Rudy v Počítání mluví jazykem zvoleným v menu', () => {
   it('pozdrav (mávání) má repliku pozdravu, oslava repliku oslavy', () => {
-    expect(countingRudyLineOf('wave')).toBe('greeting');
-    expect(countingRudyLineOf('celebrate')).toBe('celebration');
+    const lines = countingRudyLines(undefined);
+    expect(lines.upcoming('wave')).toBe('greeting');
+    expect(lines.upcoming('celebrate')).toBe('celebration');
   });
 
   it('česky hra stahuje českou nahrávku pozdravu', () => {

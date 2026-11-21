@@ -43,6 +43,7 @@ import { readViewport, watchViewport } from '../../shared/ui/viewport';
 import type { Menu } from '../logic/menu';
 import { createMenuGreeting } from '../logic/menuGreeting';
 import type { MenuShownReason } from '../logic/menuGreeting';
+import { menuGreetingLines } from '../logic/menuRudyVoice';
 import { menuLayoutFor } from '../logic/menuLayout';
 import type { MenuLayout } from '../logic/menuLayout';
 import { menuText } from '../logic/menuTexts';
@@ -211,11 +212,21 @@ export function startMenuPage(options: MenuPageOptions): void {
     });
   // Pozdrav Rudyho je v paměti jen pro toto načtení stránky (#170 AC4).
   const greeting = createMenuGreeting();
-  const greetingRequest = (replay?: { readonly waitMs: number }): MenuGreetingRequest => ({
-    onOpened: (opened) => greeting.greeted(performance.now(), opened),
-    onClosed: () => greeting.greetingClosed(performance.now()),
-    ...(replay === undefined ? {} : { requireVoice: true, waitMs: replay.waitMs }),
-  });
+  // Pozdravy se v profilu střídají, poslední je v úložišti profilu (#176).
+  const greetingLines = menuGreetingLines(options.profiles);
+  const greetingRequest = (replay?: { readonly waitMs: number }): MenuGreetingRequest => {
+    // Zopakovaný tichý pozdrav (#173) řekne tutéž repliku, jen nahlas.
+    const line = replay === undefined ? greetingLines.next() : greetingLines.replay();
+    return {
+      line,
+      onOpened: (opened) => {
+        greetingLines.said(line);
+        greeting.greeted(performance.now(), opened);
+      },
+      onClosed: () => greeting.greetingClosed(performance.now()),
+      ...(replay === undefined ? {} : { requireVoice: true, waitMs: replay.waitMs }),
+    };
+  };
   // Posun mřížky a kategorií žije s menu po celé načtení stránky, takže
   // po návratu z hry zůstane, jak ho dítě nechalo (#69 AC5). Ťuknutí se
   // provede a může zopakovat tichý pozdrav (#173).
@@ -245,7 +256,7 @@ export function startMenuPage(options: MenuPageOptions): void {
       const audioUnlocked = isSharedAudioUnlocked();
       // Nahrávka pozdravu se stahuje hned po odemčení zvuku (#173).
       if (greeting.shouldPrepareVoice(audioUnlocked)) {
-        scene.prepareGreetingVoice();
+        scene.prepareGreetingVoice(greetingLines.replay());
       }
       // Zopakovaný pozdrav počká na odemčený zvuk a na menu bez panelu
       // nebo výběru profilu, nejdéle do limitu od ťuknutí (#173).

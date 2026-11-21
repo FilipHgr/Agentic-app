@@ -19,8 +19,8 @@ import { dictionariesByLanguage } from '../shared/textChecks';
 const MAX_LINE_MS = 4000;
 /** Limit jedné nahrávky jako u nahrávek průvodce (#50) a všech replik Rudyho dohromady. */
 const MAX_RECORDING_BYTES = 150 * 1024;
-/** Od #175 i s replikami Omalovánek (dnes asi 319 KB, limit 350 KB). */
-const MAX_ALL_RUDY_BYTES = 350 * 1024;
+/** Od #176 i s dalšími variantami replik (dnes asi 517 KB, limit 550 KB). */
+const MAX_ALL_RUDY_BYTES = 550 * 1024;
 
 /** Velikosti všech replik Rudyho (Počítání, menu i Omalovánky, všechny jazyky) podle cesty. */
 const ALL_RUDY_SIZES: Record<string, number> = Object.fromEntries(
@@ -61,7 +61,7 @@ afterEach(() => {
 
 describe('#171 AC1: pozdrav Rudyho v menu má nahrávky', () => {
   for (const language of LANGUAGES) {
-    it(`jazyk ${language}: pozdrav je v textech menu`, () => {
+    it(`jazyk ${language}: pozdravy jsou v textech menu`, () => {
       const lines = characterLinesOf('menu', MENU_FILES[language]);
       expect(lines.map((line) => line.id)).toEqual([...MENU_RUDY_LINES]);
       expect(lines.every((line) => line.text.trim() !== '')).toBe(true);
@@ -103,11 +103,30 @@ describe('#171 AC1: pozdrav Rudyho v menu má nahrávky', () => {
   }
 });
 
-describe('#171, #175: velikost replik Rudyho', () => {
-  it('všechny repliky Rudyho (Počítání, menu i Omalovánky, všechny jazyky) mají dohromady nejvýš 350 KB', () => {
+describe('#171, #175, #176: velikost replik Rudyho', () => {
+  it('všechny repliky Rudyho (Počítání, menu i Omalovánky, všechny jazyky) mají dohromady nejvýš 550 KB', () => {
     const sizes = Object.values(ALL_RUDY_SIZES);
-    expect(sizes.length).toBeGreaterThanOrEqual(LANGUAGES.length * 6);
+    expect(sizes.length).toBeGreaterThanOrEqual(LANGUAGES.length * 10);
     expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThanOrEqual(MAX_ALL_RUDY_BYTES);
+  });
+});
+
+describe('#176 AC3: nový pozdrav Rudyho v menu', () => {
+  it('česky a anglicky má druhý pozdrav text ze zadání', () => {
+    expect(MENU_FILES['cs']?.['rudyLines']).toMatchObject({
+      greetingWhat: 'Ahoj! Na co máš dneska chuť?',
+    });
+    expect(MENU_FILES['en']?.['rudyLines']).toMatchObject({
+      greetingWhat: 'Hi! What do you feel like playing today?',
+    });
+  });
+
+  it('adresa druhého pozdravu vede na nahrávku v repozitáři', () => {
+    for (const language of LANGUAGES) {
+      for (const line of MENU_RUDY_LINES) {
+        expect(RECORDINGS[`public/${menuRudyVoiceUrl(line, language)}`]).toBeDefined();
+      }
+    }
   });
 });
 

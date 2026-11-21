@@ -34,6 +34,9 @@ export default {
   },
   rudyLines: {
     greeting: 'Ahoj, já jsem Rudy! Pojďme spolu počítat.',
+    greetingAgain: 'Zase já, Rudy! Jdeme počítat!',
     celebration: 'Hurá! Deset hvězdiček, jsi šikula!',
+    celebrationStars: 'Paráda! Máš všech deset hvězdiček!',
+    celebrationStar: 'Jupí! Jsi počítací hvězda!',
   },
 } satisfies CountingTexts;

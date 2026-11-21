@@ -18,6 +18,7 @@ import type {
   MenuLayout,
 } from '../logic/menuLayout';
 import { menuRudyVoiceUrl } from '../logic/menuRudyVoice';
+import type { MenuRudyLine } from '../logic/menuRudyVoice';
 import { MENU_SOUNDS, menuSoundFor } from '../logic/menuSounds';
 import type { MenuTouch, TouchPoint } from '../logic/menuTouch';
 import { MENU_STYLE } from '../logic/menuTheme';
@@ -74,6 +75,8 @@ export interface MenuSceneHost {
 
 /** Pozdrav, o který stránka požádala, a co se o něm chce dozvědět. */
 export interface MenuGreetingRequest {
+  /** Který z pozdravů zazní (#176: střídají se). */
+  readonly line: MenuRudyLine;
   /** Okno se opravdu ukázalo; s hlasem, nebo bez, a jestli byl zvuk odemčený. */
   readonly onOpened: (opened: RudyMomentOpened) => void;
   /** Ukázané okno se zavřelo. */
@@ -264,9 +267,9 @@ export class MenuScene extends Phaser.Scene {
     this.greetingWanted = request;
   }
 
-  /** Nahrávka pozdravu se začne stahovat dopředu (#173: hned po odemčení zvuku). */
-  prepareGreetingVoice(): void {
-    this.rudy?.prepare('wave', menuRudyVoiceUrl('greeting'));
+  /** Nahrávka pozdravu `line` se začne stahovat dopředu (#173: hned po odemčení zvuku). */
+  prepareGreetingVoice(line: MenuRudyLine): void {
+    this.rudy?.prepare('wave', menuRudyVoiceUrl(line));
   }
 
   /** Je otevřené okno s Rudym? */
@@ -304,7 +307,7 @@ export class MenuScene extends Phaser.Scene {
           wanted.onClosed();
         }
       },
-      voiceUrl: menuRudyVoiceUrl('greeting'),
+      voiceUrl: menuRudyVoiceUrl(wanted.line),
       ...(wanted.requireVoice === undefined ? {} : { requireVoice: wanted.requireVoice }),
       ...(wanted.waitMs === undefined ? {} : { waitMs: wanted.waitMs }),
     });

@@ -6,6 +6,8 @@
  * Názvy her jsou v textech her, název stránky ve sdílených textech.
  */
 
+import type { MenuRudyLine } from '../logic/menuRudyVoice';
+
 export interface MenuTexts {
   readonly categories: {
     readonly all: { readonly title: string };
@@ -24,10 +26,9 @@ export interface MenuTexts {
     readonly deleteCancel: string;
   };
   /**
-   * Replika pandy Rudyho (#171): pozdrav v menu. Text se nezobrazuje, zazní
-   * jen nahrávka `public/voice/<jazyk>/menu/rudy-greeting.mp3`.
+   * Repliky pandy Rudyho (#171): pozdravy v menu, které se střídají (#176).
+   * Text se nezobrazuje, zazní jen nahrávka
+   * `public/voice/<jazyk>/menu/rudy-<id>.mp3`.
    */
-  readonly rudyLines: {
-    readonly greeting: string;
-  };
+  readonly rudyLines: Readonly<Record<MenuRudyLine, string>>;
 }

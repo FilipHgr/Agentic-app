@@ -18,5 +18,6 @@ export default {
   },
   rudyLines: {
     greeting: "Hi, I'm Rudy! Pick a game.",
+    greetingWhat: 'Hi! What do you feel like playing today?',
   },
 } satisfies MenuTexts;
