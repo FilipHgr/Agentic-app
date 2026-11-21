@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  quickToolColorDot,
-  toolSlotColorDot,
-  toolSlotIcon,
-} from '../../../src/games/coloring/logic/coloringLayout';
+import { toolSlotColorDot, toolSlotIcon } from '../../../src/games/coloring/logic/coloringLayout';
 import type { LayoutRect } from '../../../src/games/coloring/logic/coloringLayout';
 import {
   COLOR_BUTTON_STYLE,
@@ -307,23 +303,16 @@ describe('#114 AC2: kolečko zůstane v rohu, stejně velké a při výběru nep
   });
 
   // Upraveno k #164 AC4: střední kolečko z úchytu je od #164 na prvním
-  // tlačítku rychlého přepínání.
-  it('kolečko je stejně velké jako dnes a jako střední kolečko na prvním tlačítku rychlého přepínání', () => {
+  // tlačítku rychlého přepínání. Upraveno k #174: kolečko na prvním tlačítku
+  // roste s tloušťkou čáry výrazněji a střední už není stejně velké jako
+  // v panelu; v panelu zůstává kolečko stejně velké jako dnes.
+  it('kolečko je stejně velké jako dnes', () => {
     const problems = allPlaces().flatMap((place) => {
       const { fillDiameter } = slotDotCss(place);
-      const side = sideOfBox(place.box);
-      const today = side * TODAY_DOT_SHARE;
-      const button = place.testCase.layout.quickDrawingToolButton;
-      const buttonShare =
-        quickToolColorDot(button, 'medium').diameter / Math.min(button.width, button.height);
-      const asFirstButton = side * buttonShare;
-      return Math.abs(fillDiameter - today) <= TOLERANCE &&
-        Math.abs(fillDiameter - asFirstButton) <= TOLERANCE
+      const today = sideOfBox(place.box) * TODAY_DOT_SHARE;
+      return Math.abs(fillDiameter - today) <= TOLERANCE
         ? []
-        : [
-            `${place.where}: průměr ${fillDiameter.toFixed(2)} px, dnes ${today.toFixed(2)} px, ` +
-              `jako na prvním tlačítku ${asFirstButton.toFixed(2)} px`,
-          ];
+        : [`${place.where}: průměr ${fillDiameter.toFixed(2)} px, dnes ${today.toFixed(2)} px`];
     });
     expect(limited(problems)).toEqual([]);
   });

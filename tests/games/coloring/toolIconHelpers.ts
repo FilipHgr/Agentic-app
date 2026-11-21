@@ -21,6 +21,7 @@
 import {
   handleSymbol,
   quickToolColorDot,
+  quickToolIcon,
   toolSlotIcon,
 } from '../../../src/games/coloring/logic/coloringLayout';
 import type { LayoutRect } from '../../../src/games/coloring/logic/coloringLayout';
@@ -186,7 +187,7 @@ export function handleSymbolBox(testCase: ColoringCase): Box {
 
 /** Čtverec ikony nástroje na prvním tlačítku rychlého přepínání v CSS px okna. */
 export function firstButtonIconBox(testCase: ColoringCase): Box {
-  return toCss(boxOfRect(toolSlotIcon(testCase.layout.quickDrawingToolButton)), testCase.area);
+  return toCss(boxOfRect(quickToolIcon(testCase.layout.quickDrawingToolButton)), testCase.area);
 }
 
 /** Čtverec ikony v místě nástroje `index` v panelu v CSS px okna. */

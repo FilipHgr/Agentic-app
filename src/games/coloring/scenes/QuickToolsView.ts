@@ -11,7 +11,7 @@
 
 import Phaser from 'phaser';
 
-import { quickToolColorDot, toolSlotIcon } from '../logic/coloringLayout';
+import { quickToolColorDot, quickToolIcon } from '../logic/coloringLayout';
 import type { LayoutRect } from '../logic/coloringLayout';
 import { quickToolColorDotFill } from '../logic/quickTools';
 import type { QuickDrawingToolView, QuickToolButton } from '../logic/quickTools';
@@ -145,7 +145,7 @@ export class QuickToolsView {
     parts.dot.clear();
     const local = this.centered(parts.rect);
     drawToolButton(parts.background, parts.rect, this.cssScale, selected);
-    showToolIcon(parts.icon, look.drawingTool.tool, toolSlotIcon(local), this.cssScale);
+    showToolIcon(parts.icon, look.drawingTool.tool, quickToolIcon(local), this.cssScale);
     drawColorDot(
       parts.dot,
       quickToolColorDot(local, look.lineSize),
@@ -158,6 +158,6 @@ export class QuickToolsView {
     parts.background.clear();
     parts.dot.clear();
     drawToolButton(parts.background, parts.rect, this.cssScale, selected);
-    showToolIcon(parts.icon, 'eraser', toolSlotIcon(this.centered(parts.rect)), this.cssScale);
+    showToolIcon(parts.icon, 'eraser', quickToolIcon(this.centered(parts.rect)), this.cssScale);
   }
 }

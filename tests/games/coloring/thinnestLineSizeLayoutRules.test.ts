@@ -24,7 +24,7 @@ import { ALL_SIZES, SIZE_NAMES } from './lineSizeHelpers';
  * nejtenčí): AC1 (4 tlačítka v hlavičce od nejtenčí, kam patří dotyk),
  * AC3 (vlnky rostou od nejtenčí aspoň 1,5×, nejtenčí aspoň 1,5 CSS px,
  * kolečko barvy u nejtenčí jako u malé, od #164 na prvním tlačítku
- * rychlého přepínání místo v úchytu) a AC4 (rozměr a tvar
+ * rychlého přepínání místo v úchytu, od #174 u nejtenčí menší než u malé) a AC4 (rozměr a tvar
  * panelu, panel ve viditelné ploše, na výšku beze změny). Každé pravidlo je
  * jeden test, který v cyklu projde všechna okna z `coloringLayoutScenes.ts`
  * (iPad, telefon na šířku i na výšku, hranice, úzký iPad a okna z plochy);
@@ -256,11 +256,13 @@ describe('#118 AC3: vlnky a kolečko barvy', () => {
   // tlačítku rychlého přepínání. Úchyt má stálý symbol panelu, který na
   // velikosti čáry nezávisí vůbec (`handleSymbol.test.ts`), proto test
   // „ikona v úchytu u nejtenčí na stejném místě jako u malé“ nahrazuje tamní AC1.
-  it('u nejtenčí je kolečko barvy na prvním tlačítku stejně velké a na stejném místě jako u malé', () => {
+  // Upraveno k #174 AC1: kolečko u nejtenčí už není stejně velké jako u malé,
+  // je menší (o kolik, hlídá `quickToolColorDotLayoutRules.test.ts`).
+  it('u nejtenčí je kolečko barvy na prvním tlačítku menší než u malé', () => {
     for (const testCase of cases()) {
       const button = testCase.layout.quickDrawingToolButton;
-      expect(quickToolColorDot(button, 'tiny'), testCase.scene.label).toEqual(
-        quickToolColorDot(button, 'small'),
+      expect(quickToolColorDot(button, 'tiny').diameter, testCase.scene.label).toBeLessThan(
+        quickToolColorDot(button, 'small').diameter,
       );
     }
   });

@@ -50,12 +50,10 @@ const SMALLEST_PICTURE_WIDTH_CSS = 240 * (4 / 3);
 
 /**
  * Kolečko barvy na prvním tlačítku (#106, nahrazuje tečku velikosti, od
- * #164 místo v úchytu): výplň aspoň 12 CSS px. Celé kolečko i s bílým lemem
- * a šedou linkou nejvýš 0,32 strany tlačítka: čtvrtina (16 px u tlačítka 64 px) se při výplni 12 px a lemu 2 + 1 px
- * nevejde (18 px), maketa `sada-1.png` má 14 + 2 × 2 + 2 × 1 = 20 px, tj. 0,3125.
+ * #164 místo v úchytu): výplň aspoň 12 CSS px. Horní mez 0,32 strany
+ * tlačítka z makety `sada-1.png` od #174 neplatí (viz konec bloku níž).
  */
 const MIN_COLOR_DOT_CSS = 12;
-const MAX_COLOR_DOT_SHARE = 0.32;
 
 /**
  * Symbol v úchytu (#164, na místě ikony nástroje z #106): aspoň 0,45 strany (rozhodnutí koordinátora) a smí
@@ -179,15 +177,10 @@ describe('#91 AC1, #106 a #164: symbol v úchytu a kolečko barvy na prvním tla
     }
   });
 
-  it('velké kolečko i s lemem má průměr nejvýš jako v maketě (0,32 strany prvního tlačítka)', () => {
-    for (const testCase of cases()) {
-      const button = testCase.layout.quickDrawingToolButton;
-      const dot = colorDotWithRim(testCase, 'large');
-      expect(dot.diameter, testCase.scene.label).toBeLessThanOrEqual(
-        MAX_COLOR_DOT_SHARE * sideOf(button) + TOLERANCE,
-      );
-    }
-  });
+  // Pravidlo „velké kolečko i s lemem nejvýš 0,32 strany jako v maketě“
+  // nahradilo #174 AC2: kolečko roste výrazněji a hlídá se, že je celé
+  // uvnitř silného okraje tlačítka, zakryje nejvýš 25 % ikony a od duhy je
+  // aspoň 3 px (`quickToolColorDotLayoutRules.test.ts`).
 });
 
 describe('#91 AC3: stopa malé tloušťky je na obrazovce aspoň 3 CSS px', () => {

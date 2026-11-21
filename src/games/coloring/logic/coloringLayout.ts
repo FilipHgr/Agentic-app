@@ -683,16 +683,15 @@ export function touchTargetAt(
 /**
  * Kolečko barvy podle velikosti čáry (#91, #106, od #164 na prvním tlačítku
  * rychlého přepínání): průměr barevné výplně jako díl strany tlačítka.
- * Tlačítko má aspoň 64 CSS px, malé kolečko má tak aspoň 12 CSS px, velké
- * i s bílým lemem a šedou linkou (2 + 1 CSS px na každé straně) nejvýš
- * 0,32 strany jako v maketě `sada-1.png`.
+ * Tlačítko má aspoň 64 CSS px, nejtenčí kolečko má tak aspoň 12 CSS px.
+ * Od #174 roste každá další tloušťka aspoň o 20 % a velké je 1,8× nejtenčí,
+ * aby šlo tloušťku podle kolečka poznat (dřív jen asi o 13 % celkem).
  */
 const LINE_SIZE_COLOR_DOT_SHARES: Readonly<Record<LineSize, number>> = {
-  // U nejtenčí stejně velké jako u malé (#118 AC3), velikosti se nemění.
   tiny: 12 / 64,
-  small: 12 / 64,
-  medium: 12.8 / 64,
-  large: 13.6 / 64,
+  small: 14.5 / 64,
+  medium: 17.5 / 64,
+  large: 21.6 / 64,
 };
 
 /**
@@ -884,11 +883,33 @@ export function toolSlotIcon(slot: LayoutRect): LayoutRect {
 }
 
 /**
- * Kolečko barvy nástroje v místě panelu (#110 AC2): stejně velké jako
- * střední kolečko na prvním tlačítku rychlého přepínání, ať je velikost
- * čáry jakákoli (velikost platí pro všechny nástroje a ukazují ji tlačítka tloušťky).
+ * Ikona na tlačítkách rychlého přepínání (#174): menší než v panelu a víc
+ * nahoru doleva, aby se do pravého dolního rohu vešlo i velké kolečko barvy
+ * a od duhy zůstaly aspoň 3 CSS px. Od okraje tlačítka je ikona aspoň
+ * 10 % strany.
  */
-const TOOL_SLOT_COLOR_DOT_SHARE = LINE_SIZE_COLOR_DOT_SHARES.medium;
+const QUICK_TOOL_ICON_SHARE = 0.52;
+const QUICK_TOOL_ICON_SHIFT_SHARE = 0.14;
+
+/** Čtverec ikony nástroje na tlačítku rychlého přepínání (#163, #174). */
+export function quickToolIcon(slot: LayoutRect): LayoutRect {
+  const side = sideOf(slot) * QUICK_TOOL_ICON_SHARE;
+  const shift = sideOf(slot) * QUICK_TOOL_ICON_SHIFT_SHARE;
+  return {
+    left: slot.left + slot.width / 2 - side / 2 - shift,
+    top: slot.top + slot.height / 2 - side / 2 - shift,
+    width: side,
+    height: side,
+  };
+}
+
+/**
+ * Kolečko barvy nástroje v místě panelu (#110 AC2, #114): stejně velké, ať
+ * je velikost čáry jakákoli (velikost platí pro všechny nástroje a ukazují
+ * ji tlačítka tloušťky). Do #174 bylo stejné jako střední kolečko na prvním
+ * tlačítku rychlého přepínání, to od #174 roste s tloušťkou výrazněji.
+ */
+const TOOL_SLOT_COLOR_DOT_SHARE = 12.8 / 64;
 
 /**
  * Kolečko barvy s výplní `share` strany vpravo dole v tlačítku `slot`.
