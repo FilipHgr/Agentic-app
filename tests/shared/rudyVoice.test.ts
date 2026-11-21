@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { RUDY_WINDOW_TIMES, createRudyWindowModel } from '../../src/shared/logic/rudyWindow';
-import { createRudyVoice } from '../../src/shared/logic/rudyVoice';
+import { createRudyVoice, rudyVoiceOpening } from '../../src/shared/logic/rudyVoice';
 import type { RudyVoicePlayer } from '../../src/shared/logic/rudyVoice';
 
 /**
@@ -199,5 +199,39 @@ describe('#171 AC5: bez odemčeného zvuku nebo nahrávky je okno bez hlasu', ()
     expect(player.loads).toEqual([]);
     expect(voice.isSettled(undefined)).toBe(true);
     expect(voice.lineFor(undefined)).toBeNull();
+  });
+});
+
+describe('#173: okno ohlásí, jestli zaznělo s hlasem, zopakovaný pozdrav jen s hlasem', () => {
+  const LINE = { url: GREETING, lineMs: 2500 };
+
+  it('s připravenou replikou se okno otevře s hlasem', () => {
+    expect(rudyVoiceOpening(LINE, false)).toEqual({ kind: 'open', withVoice: true });
+    expect(rudyVoiceOpening(LINE, true)).toEqual({ kind: 'open', withVoice: true });
+  });
+
+  it('bez repliky se běžná chvíle otevře bez hlasu', () => {
+    expect(rudyVoiceOpening(null, false)).toEqual({ kind: 'open', withVoice: false });
+  });
+
+  it('bez repliky se chvíle, která musí mluvit, vůbec neukáže', () => {
+    expect(rudyVoiceOpening(null, true)).toEqual({ kind: 'skip' });
+  });
+
+  it('se zamčeným zvukem je okno bez hlasu a zopakování se neukáže', () => {
+    const { voice } = voiceWith({ value: false });
+    voice.request(GREETING);
+    expect(rudyVoiceOpening(voice.lineFor(GREETING), false)).toEqual({
+      kind: 'open',
+      withVoice: false,
+    });
+    expect(rudyVoiceOpening(voice.lineFor(GREETING), true)).toEqual({ kind: 'skip' });
+  });
+
+  it('když se nahrávka nestáhne, zopakování se neukáže', async () => {
+    const { player, voice } = voiceWith();
+    voice.request(GREETING);
+    await player.fail(GREETING);
+    expect(rudyVoiceOpening(voice.lineFor(GREETING), true)).toEqual({ kind: 'skip' });
   });
 });

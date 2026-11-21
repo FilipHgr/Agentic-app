@@ -14,6 +14,8 @@
  * stáhne, jak dlouho je okno otevřené a kdy hlas zazní, rozhoduje
  * `logic/rudyVoice.ts`; okno počká i na nahrávku a zavření okna hlas
  * zastaví. Bez odemčeného zvuku nebo nahrávky je okno bez hlasu.
+ * `onOpened` ohlásí, jestli okno zaznělo s hlasem; chvíle s `requireVoice`
+ * (zopakovaný pozdrav v menu, #173) se bez hlasu vůbec neukáže.
  */
 
 import Phaser from 'phaser';
@@ -22,17 +24,27 @@ import { createSharedRudyVoicePlayer } from '../audio/rudyVoicePlayer';
 import { isSharedAudioUnlocked } from '../audio/sharedAudio';
 import type { RudyLineMove, RudyMove } from '../logic/rudy';
 import { createRudyMomentGate } from '../logic/rudyMoment';
-import { createRudyVoice } from '../logic/rudyVoice';
+import { createRudyVoice, rudyVoiceOpening } from '../logic/rudyVoice';
 import type { RudyWindow, RudyWindowOptions } from './rudyWindow';
 
 type RudyWindowModule = typeof import('./rudyWindow');
 
+/** Jak se okno ukázalo: s hlasem (replika zazněla), nebo bez něj, a jestli byl zvuk odemčený. */
+export interface RudyMomentOpened {
+  readonly withVoice: boolean;
+  readonly audioUnlocked: boolean;
+}
+
 /** Co chvíle ohlásí: okno se ukázalo, nebo se zavřelo (i když se neukázalo). */
 export interface RudyMomentEvents {
-  readonly onOpened?: () => void;
+  readonly onOpened?: (opened: RudyMomentOpened) => void;
   readonly onClosed?: () => void;
   /** Nahrávka repliky v jazyce zvoleném v menu (#171); bez ní je okno bez hlasu. */
   readonly voiceUrl?: string;
+  /** Bez hlasu se okno neukáže a chvíle se vynechá (#173). */
+  readonly requireVoice?: boolean;
+  /** Na stažení se čeká nejvýš tolik ms (kratší než běžný limit, #173). */
+  readonly waitMs?: number;
 }
 
 export class RudyMoments {
@@ -76,7 +88,7 @@ export class RudyMoments {
     this.events = events;
     this.voiceUrl = events.voiceUrl;
     this.voice.request(events.voiceUrl);
-    this.gate.request(move, this.now());
+    this.gate.request(move, this.now(), events.waitMs);
     this.windowOrLoad()?.prepare(move);
   }
 
@@ -221,6 +233,12 @@ export class RudyMoments {
     }
     const onOpened = this.events.onOpened;
     const line = this.voice.lineFor(voiceUrl);
+    const opening = rudyVoiceOpening(line, this.events.requireVoice === true);
+    if (opening.kind === 'skip') {
+      // Hlas se nestáhl ani nepřehraje: chvíle bez hlasu se vynechá.
+      this.finish(id);
+      return;
+    }
     const shown = rudyWindow.open({
       move: step.move,
       ...(line === null ? {} : { lineMs: line.lineMs }),
@@ -236,7 +254,7 @@ export class RudyMoments {
     if (line !== null) {
       this.voice.play(line);
     }
-    onOpened?.();
+    onOpened?.({ withVoice: opening.withVoice, audioUnlocked: isSharedAudioUnlocked() });
   }
 
   /** Chvíle `id` skončila: ohlásí zavření, jen když ji mezitím nic nezastavilo. */

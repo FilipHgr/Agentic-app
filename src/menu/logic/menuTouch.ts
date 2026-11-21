@@ -28,6 +28,8 @@
  *   panel seznam jen zavře a nic jiného neposune ani nespustí. Po otevření
  *   je vybraná kategorie v seznamu celá vidět. Rozložení bez výběru
  *   (otočení na šířku) seznam potichu zavře.
+ * - Každé ťuknutí (ne tah) se po provedení ohlásí `onTap` (#173), i do
+ *   prázdného místa: na dlaždici hry (`game`), nebo jinam (`other`).
  */
 
 import type { Menu } from './menu';
@@ -41,8 +43,13 @@ export interface TouchPoint {
   readonly y: number;
 }
 
+/** Na co prst ťukl: na dlaždici hry, nebo kamkoli jinam (i do prázdného místa). */
+export type TapKind = 'game' | 'other';
+
 export interface MenuTouchOptions {
   readonly menu: Menu;
+  /** Po každém ťuknutí (ne tahu), i do prázdného místa (#173). */
+  readonly onTap?: (kind: TapKind, nowMs: number) => void;
 }
 
 export interface MenuTouch {
@@ -383,6 +390,34 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
     );
   }
 
+  /**
+   * Ohlásí ťuknutí stránce (#173). Hru spouští jen ťuknutí na dlaždici,
+   * které platí (ne to, které zastavilo dojíždění).
+   */
+  function reportTap(current: Gesture, nowMs: number): void {
+    if (current.dragging) {
+      return;
+    }
+    const launchesGame = current.canTap && current.target?.kind === 'tile';
+    options.onTap?.(launchesGame ? 'game' : 'other', nowMs);
+  }
+
+  /** Prst se zvedl: tah dojede, ťuknutí se provede. */
+  function finishGesture(current: Gesture, nowMs: number): void {
+    if (current.target?.kind === 'outsideCategoryMenu') {
+      // Ťuknutí i tah mimo seznam ho jen zavře, nic se neposune (#95 AC3).
+      tap(current.target);
+      return;
+    }
+    if (current.dragging) {
+      current.scroller?.release(fingerSpeed(current.samples, nowMs), nowMs);
+      return;
+    }
+    if (current.canTap && current.target !== undefined) {
+      tap(current.target);
+    }
+  }
+
   function follow(current: Gesture, point: TouchPoint, nowMs: number): void {
     const dx = point.x - current.start.x;
     const dy = point.y - current.start.y;
@@ -491,18 +526,8 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
       }
       follow(current, point, nowMs);
       gesture = null;
-      if (current.target?.kind === 'outsideCategoryMenu') {
-        // Ťuknutí i tah mimo seznam ho jen zavře, nic se neposune (#95 AC3).
-        tap(current.target);
-        return;
-      }
-      if (current.dragging) {
-        current.scroller?.release(fingerSpeed(current.samples, nowMs), nowMs);
-        return;
-      }
-      if (current.canTap && current.target !== undefined) {
-        tap(current.target);
-      }
+      finishGesture(current, nowMs);
+      reportTap(current, nowMs);
     },
 
     pointerCancel(pointerId: number): void {

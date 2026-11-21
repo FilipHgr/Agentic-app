@@ -124,3 +124,28 @@ describe('#170: oslava nečeká dlouho a pozadí čekání zruší', () => {
     expect(gate.pageHidden()).toBe(false);
   });
 });
+
+describe('#173: zopakovaný pozdrav čeká na stažení kratší dobu', () => {
+  it('s kratším limitem se chvíle bez stažení vynechá po něm', () => {
+    const gate = createRudyMomentGate();
+    gate.request('wave', 0, 900);
+    expect(gate.step(899, IDLE_ONLY)).toEqual<RudyMomentStep>({ kind: 'wait' });
+    expect(gate.step(900, NOTHING)).toEqual<RudyMomentStep>({ kind: 'giveUp' });
+  });
+
+  it('stažené okno se v kratším limitu ukáže jako obvykle', () => {
+    const gate = createRudyMomentGate();
+    gate.request('wave', 0, 900);
+    expect(gate.step(300, BOTH)).toEqual<RudyMomentStep>({ kind: 'open', move: 'wave' });
+  });
+
+  it('delší nebo nesmyslný limit běžné čekání neprodlouží', () => {
+    for (const waitMs of [RUDY_WAIT_MS * 2, Number.NaN]) {
+      const gate = createRudyMomentGate();
+      gate.request('wave', 0, waitMs);
+      expect(gate.step(RUDY_WAIT_MS, NOTHING), `limit ${waitMs}`).toEqual<RudyMomentStep>({
+        kind: 'giveUp',
+      });
+    }
+  });
+});

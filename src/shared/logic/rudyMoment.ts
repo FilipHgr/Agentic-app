@@ -35,8 +35,11 @@ export interface RudyLoaded {
 }
 
 export interface RudyMomentGate {
-  /** Požádá o chvíli s pohybem `move` v čase `now`; nahradí čekající. */
-  request(move: RudyLineMove, now: number): void;
+  /**
+   * Požádá o chvíli s pohybem `move` v čase `now`; nahradí čekající.
+   * `waitMs` zkrátí čekání na stažení (zopakovaný pozdrav v menu, #173).
+   */
+  request(move: RudyLineMove, now: number, waitMs?: number): void;
   /** Čekající chvíle se neukáže. */
   cancel(): void;
   /**
@@ -57,11 +60,17 @@ function elapsedSince(requestedAt: number, now: number): number {
 }
 
 export function createRudyMomentGate(): RudyMomentGate {
-  let waiting: { readonly move: RudyLineMove; readonly requestedAt: number } | null = null;
+  let waiting: {
+    readonly move: RudyLineMove;
+    readonly requestedAt: number;
+    readonly waitMs: number;
+  } | null = null;
 
   return {
-    request(move: RudyLineMove, now: number): void {
-      waiting = { move, requestedAt: now };
+    request(move: RudyLineMove, now: number, waitMs?: number): void {
+      const limit = waitMsFor(move);
+      const shorter = waitMs !== undefined && Number.isFinite(waitMs) && waitMs < limit;
+      waiting = { move, requestedAt: now, waitMs: shorter ? Math.max(0, waitMs) : limit };
     },
 
     cancel(): void {
@@ -80,8 +89,8 @@ export function createRudyMomentGate(): RudyMomentGate {
       if (waiting === null) {
         return { kind: 'none' };
       }
-      const { move, requestedAt } = waiting;
-      const timedOut = elapsedSince(requestedAt, now) >= waitMsFor(move);
+      const { move, requestedAt, waitMs } = waiting;
+      const timedOut = elapsedSince(requestedAt, now) >= waitMs;
       if (loaded.idle && (loaded.move || timedOut)) {
         waiting = null;
         return { kind: 'open', move };

@@ -20,6 +20,10 @@
  * (po výběru profilu, pokud se ukazuje) a po návratu ze hry, jen když od
  * posledního pozdravu uběhlo aspoň 10 minut (`logic/menuGreeting.ts`).
  * Po změně profilu ani jazyka ne. Po spuštění hry se panda uvolní z paměti.
+ * Když byl první pozdrav bez hlasu (Safari ještě nepustilo zvuk), Rudy ho
+ * po prvním ťuknutí mimo dlaždici hry (nebo po zavření tichého okna
+ * ťuknutím) zopakuje nahlas, nejvýš jednou za načtení stránky (#173).
+ * Ťuknutí se přitom provede normálně.
  *
  * Nová verze webu (#76): když se hra nestáhne a server stránky odpovídá,
  * stránka se sama jednou obnoví (`pageUpdate`). Dotaz jde jen na stejný
@@ -28,7 +32,7 @@
 
 import Phaser from 'phaser';
 
-import { unlockSharedAudio } from '../../shared/audio/sharedAudio';
+import { isSharedAudioUnlocked, unlockSharedAudio } from '../../shared/audio/sharedAudio';
 import { profileMarkerOf } from '../../shared/logic/gameHost';
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
 import { PAGE_BACKGROUND } from '../../shared/logic/theme';
@@ -50,6 +54,7 @@ import { shownSceneFor, showOnlyScene } from '../logic/menuSceneVisibility';
 import type { MenuSceneName, MenuSceneState } from '../logic/menuSceneVisibility';
 import { createTileImages } from '../logic/tileImages';
 import { MENU_SCENE_KEY, MENU_UNITS_PER_CSS_PX, MenuScene } from '../scenes/MenuScene';
+import type { MenuGreetingRequest } from '../scenes/MenuScene';
 import { PROFILE_SCENE_KEY, ProfileScene } from '../scenes/ProfileScene';
 import { showPageLanguage } from './pageLanguage';
 import { createPageMenu } from './pageMenu';
@@ -204,21 +209,30 @@ export function startMenuPage(options: MenuPageOptions): void {
       languageNames: menu.languages().map((language) => language.name),
       profileNickname: menu.profileBadge().nickname,
     });
+  // Pozdrav Rudyho je v paměti jen pro toto načtení stránky (#170 AC4).
+  const greeting = createMenuGreeting();
+  const greetingRequest = (replay?: { readonly waitMs: number }): MenuGreetingRequest => ({
+    onOpened: (opened) => greeting.greeted(performance.now(), opened),
+    onClosed: () => greeting.greetingClosed(performance.now()),
+    ...(replay === undefined ? {} : { requireVoice: true, waitMs: replay.waitMs }),
+  });
   // Posun mřížky a kategorií žije s menu po celé načtení stránky, takže
-  // po návratu z hry zůstane, jak ho dítě nechalo (#69 AC5).
-  const touch = createMenuTouch({ menu });
+  // po návratu z hry zůstane, jak ho dítě nechalo (#69 AC5). Ťuknutí se
+  // provede a může zopakovat tichý pozdrav (#173).
+  const touch = createMenuTouch({
+    menu,
+    onTap: (kind, nowMs) => greeting.tapped(kind, nowMs),
+  });
   // Obrázky dlaždic žijí s menu po celé načtení stránky, takže se po
   // návratu z hry nic nenačítá znovu (#122 AC7).
   const tileImages = createTileImages(options.games);
-  // Pozdrav Rudyho je v paměti jen pro toto načtení stránky (#170 AC4).
-  const greeting = createMenuGreeting();
   /** Menu je vidět: Rudy pozdraví, když má (výběr profilu přes menu pozdrav nespustí). */
   const greetIfDue = (reason: MenuShownReason): void => {
     if (screens.screen() !== 'closed') {
       return;
     }
     if (greeting.menuShown(reason, performance.now())) {
-      scene.greet(() => greeting.greeted(performance.now()));
+      scene.greet(greetingRequest());
     }
   };
   const scene = new MenuScene({
@@ -227,6 +241,23 @@ export function startMenuPage(options: MenuPageOptions): void {
     tileImages,
     layout,
     onTapped: () => scene.redrawIfSelectionChanged(),
+    onFrame: () => {
+      const audioUnlocked = isSharedAudioUnlocked();
+      // Nahrávka pozdravu se stahuje hned po odemčení zvuku (#173).
+      if (greeting.shouldPrepareVoice(audioUnlocked)) {
+        scene.prepareGreetingVoice();
+      }
+      // Zopakovaný pozdrav počká na odemčený zvuk a na menu bez panelu
+      // nebo výběru profilu, nejdéle do limitu od ťuknutí (#173).
+      const step = greeting.replayStep(performance.now(), {
+        audioUnlocked,
+        covered:
+          screens.screen() !== 'closed' || menu.isLanguageMenuOpen() || menu.isCategoryMenuOpen(),
+      });
+      if (step.kind === 'show') {
+        scene.greet(greetingRequest({ waitMs: step.waitMs }));
+      }
+    },
     onCreated: () => {
       showOnlyCurrentScene();
       greetIfDue('shown');
@@ -268,6 +299,17 @@ export function startMenuPage(options: MenuPageOptions): void {
 
   showPageLanguage(document, currentLanguage());
   unlockAudioOnTouch();
+  // Ťuknutí do okna s pozdravem (okno ho pohltí) zopakuje tichý pozdrav
+  // po zavření okna (#173). Zachytí se dřív, než ho okno pohltí.
+  document.addEventListener(
+    'pointerdown',
+    () => {
+      if (menuShown && scene.isGreetingOpen()) {
+        greeting.tapped('greetingWindow', performance.now());
+      }
+    },
+    { capture: true, passive: true },
+  );
 
   const parent = document.getElementById('menu');
   let menuShown = true;

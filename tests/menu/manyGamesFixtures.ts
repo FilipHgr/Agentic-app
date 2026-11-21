@@ -5,7 +5,7 @@ import type { MenuBox, MenuCategoryPicker, MenuLayout } from '../../src/menu/log
 import type { MenuSoundName } from '../../src/menu/logic/menuSounds';
 import { DRAG_THRESHOLD_PX } from '../../src/menu/logic/menuScroll';
 import { createMenuTouch } from '../../src/menu/logic/menuTouch';
-import type { MenuTouch } from '../../src/menu/logic/menuTouch';
+import type { MenuTouch, MenuTouchOptions } from '../../src/menu/logic/menuTouch';
 import type { GameCategory, GameEntry } from '../../src/shared/logic/gameRegistry';
 import {
   IPAD_WINDOWS,
@@ -229,6 +229,7 @@ export class FingerMenu {
     window: TestWindow,
     games: readonly GameEntry[] = MANY_GAMES,
     languages?: MenuLanguageSource,
+    onTap?: MenuTouchOptions['onTap'],
   ) {
     this.window = window;
     this.gameCount = games.length;
@@ -245,7 +246,9 @@ export class FingerMenu {
         this.profileOpened += 1;
       },
     });
-    this.touch = createMenuTouch({ menu: this.menu });
+    this.touch = createMenuTouch(
+      onTap === undefined ? { menu: this.menu } : { menu: this.menu, onTap },
+    );
     this.relayout();
   }
 

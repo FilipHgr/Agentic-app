@@ -8,6 +8,7 @@ import { gameAreaFor } from '../../shared/logic/viewportLayout';
 import type { GameArea } from '../../shared/logic/viewportLayout';
 import { applyPageBackdrop } from '../../shared/ui/pageBackdrop';
 import { RudyMoments } from '../../shared/ui/rudyMoments';
+import type { RudyMomentOpened } from '../../shared/ui/rudyMoments';
 import { readViewport } from '../../shared/ui/viewport';
 import type { Menu, MenuFeedback } from '../logic/menu';
 import type {
@@ -65,8 +66,22 @@ export interface MenuSceneHost {
   layout(): MenuLayout;
   /** Po každém zvednutí prstu. */
   onTapped(): void;
+  /** Každý snímek nakresleného menu (#173: čekání na odemčení zvuku). */
+  onFrame?(): void;
   /** Scéna se vytvořila; stránka nechá vidět jen menu, nebo jen výběr profilu. */
   onCreated(): void;
+}
+
+/** Pozdrav, o který stránka požádala, a co se o něm chce dozvědět. */
+export interface MenuGreetingRequest {
+  /** Okno se opravdu ukázalo; s hlasem, nebo bez, a jestli byl zvuk odemčený. */
+  readonly onOpened: (opened: RudyMomentOpened) => void;
+  /** Ukázané okno se zavřelo. */
+  readonly onClosed: () => void;
+  /** Zopakovaný pozdrav (#173) se bez hlasu neukáže. */
+  readonly requireVoice?: boolean;
+  /** Na stažení se čeká nejvýš tolik ms (#173). */
+  readonly waitMs?: number;
 }
 
 /** Prvek menu, který se dá zmáčknout, zhoupnout nebo zatřást. */
@@ -131,7 +146,7 @@ export class MenuScene extends Phaser.Scene {
   /** Vznikne se scénou; dřív se menu neukazuje. */
   private rudy: RudyMoments | undefined;
   /** Pozdrav čeká, až se menu nakreslí; zavolá se, když se okno opravdu ukáže. */
-  private greetingWanted: (() => void) | null = null;
+  private greetingWanted: MenuGreetingRequest | null = null;
   private categoryCamera!: Phaser.Cameras.Scene2D.Camera;
   private gridCamera!: Phaser.Cameras.Scene2D.Camera;
   private panelCamera!: Phaser.Cameras.Scene2D.Camera;
@@ -237,15 +252,26 @@ export class MenuScene extends Phaser.Scene {
     }
     this.scrollCameras();
     this.showHeld();
+    this.host.onFrame?.();
     this.showWantedGreeting();
   }
 
   /**
-   * Rudy pozdraví (#170 AC4), až bude menu nakreslené. `onGreeted` se
-   * zavolá, když se okno opravdu ukáže.
+   * Rudy pozdraví (#170 AC4), až bude menu nakreslené. Stránka se dozví,
+   * kdy se okno opravdu ukázalo (s hlasem, nebo bez) a kdy se zavřelo.
    */
-  greet(onGreeted: () => void): void {
-    this.greetingWanted = onGreeted;
+  greet(request: MenuGreetingRequest): void {
+    this.greetingWanted = request;
+  }
+
+  /** Nahrávka pozdravu se začne stahovat dopředu (#173: hned po odemčení zvuku). */
+  prepareGreetingVoice(): void {
+    this.rudy?.prepare('wave', menuRudyVoiceUrl('greeting'));
+  }
+
+  /** Je otevřené okno s Rudym? */
+  isGreetingOpen(): boolean {
+    return this.rudy?.isOpen() ?? false;
   }
 
   /** Menu se schovalo za hru: čekající pozdrav se zruší a panda se uvolní z paměti. */
@@ -261,13 +287,27 @@ export class MenuScene extends Phaser.Scene {
       this.rudy?.cancelWaiting();
       return;
     }
-    const onGreeted = this.greetingWanted;
-    if (onGreeted === null) {
+    const wanted = this.greetingWanted;
+    if (wanted === null) {
       return;
     }
     this.greetingWanted = null;
     // Pozdrav zazní v jazyce zvoleném v menu (#171).
-    this.rudy?.show('wave', { onOpened: onGreeted, voiceUrl: menuRudyVoiceUrl('greeting') });
+    let opened = false;
+    this.rudy?.show('wave', {
+      onOpened: (how) => {
+        opened = true;
+        wanted.onOpened(how);
+      },
+      onClosed: () => {
+        if (opened) {
+          wanted.onClosed();
+        }
+      },
+      voiceUrl: menuRudyVoiceUrl('greeting'),
+      ...(wanted.requireVoice === undefined ? {} : { requireVoice: wanted.requireVoice }),
+      ...(wanted.waitMs === undefined ? {} : { waitMs: wanted.waitMs }),
+    });
   }
 
   /** Plátno menu jako plocha pro okno s pandou: celé okno, CSS px na jednotku. */
