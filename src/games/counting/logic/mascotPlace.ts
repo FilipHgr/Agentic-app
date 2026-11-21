@@ -16,7 +16,11 @@
  * jednotky plochy, ve kterých scéna kreslí.
  */
 
-import { MASCOT_FRAME_SIZE } from '../../../shared/logic/mascot';
+import {
+  MASCOT_FRAME_SIZE,
+  MASCOT_MAX_HEIGHT_CSS_PX,
+  MASCOT_MIN_HEIGHT_CSS_PX,
+} from '../../../shared/logic/mascot';
 import type { MascotArea } from '../../../shared/logic/mascot';
 import { homeButtonFor } from '../../../shared/logic/homeButton';
 import { settingsGearFor } from '../../../shared/logic/settingsGear';
@@ -33,14 +37,8 @@ import type { GameSettings, Operation, OperationMode } from './settings';
 import { STARS_PER_SET } from './stars';
 import { hintGlowSpread } from './wrongAnswerFeedback';
 
-/** Nejmenší výška pandy v CSS px; menší by na obrazovce nebyla k poznání (AC1). */
-export const MASCOT_MIN_HEIGHT_CSS_PX = 96;
-
-/**
- * Největší výška pandy v CSS px: větší by na iPadu při rozsahu do 5
- * přebila příklad. V menším místě je panda menší.
- */
-export const MASCOT_MAX_HEIGHT_CSS_PX = 180;
+// Nejmenší a největší výška pandy jsou společné pro hry i menu (#168).
+export { MASCOT_MAX_HEIGHT_CSS_PX, MASCOT_MIN_HEIGHT_CSS_PX } from '../../../shared/logic/mascot';
 
 /** Odstup pandy od všech prvků hry a od okraje v CSS px (AC1). */
 export const MASCOT_GAP_CSS_PX = 4;

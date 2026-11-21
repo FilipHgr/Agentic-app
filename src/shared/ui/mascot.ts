@@ -51,6 +51,11 @@ function moveOfKey(key: string): MascotMove | null {
 export interface MascotOptions {
   /** Hloubka obrázku ve scéně (výchozí 0). */
   readonly depth?: number;
+  /**
+   * Kontejner, do kterého se obrázek přidá (výchozí scéna). Menu kreslí
+   * každou vrstvu svou kamerou a panda musí být jen ve své vrstvě (#168).
+   */
+  readonly layer?: Phaser.GameObjects.Container;
 }
 
 /** Sdílená panda ve scéně. Po konci scény se sama uklidí. */
@@ -72,6 +77,7 @@ export class Mascot {
       .setOrigin(0.5, 1)
       .setVisible(false)
       .setDepth(options.depth ?? 0);
+    options.layer?.add(this.image);
     scene.load.on(Phaser.Loader.Events.FILE_COMPLETE, this.onFileComplete, this);
     scene.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, this.onFileError, this);
     scene.load.on(Phaser.Loader.Events.COMPLETE, this.onLoaderComplete, this);
@@ -102,6 +108,11 @@ export class Mascot {
   /** Pohyb už nebude potřeba: uvolní se z paměti (stahovaný po dočtení). */
   discard(move: MascotMove): void {
     this.run(this.model.discard(move));
+  }
+
+  /** Který pohyb panda právě hraje (po dohrání jednorázového pohybu klid). */
+  currentMove(): MascotMove {
+    return this.model.currentMove(this.now());
   }
 
   /** Je pohyb stažený a jde přehrát hned? */

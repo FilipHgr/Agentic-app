@@ -281,6 +281,7 @@ export function startMenuPage(options: MenuPageOptions): void {
 
   view.close = () => {
     menuShown = false;
+    scene.hidden();
     menuGame.loop.sleep();
     if (parent) {
       parent.hidden = true;
@@ -294,5 +295,7 @@ export function startMenuPage(options: MenuPageOptions): void {
     }
     menuGame.loop.wake();
     fitToWindow();
+    // Po návratu ze hry panda zamává (#168), po změně profilu ani jazyka ne.
+    scene.shownAgain('returnedFromGame');
   };
 }

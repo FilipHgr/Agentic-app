@@ -24,6 +24,17 @@ export const MASCOT_SHEET_COLUMNS = 6;
 /** Počet snímků v každém pohybu. */
 export const MASCOT_FRAME_COUNT = 37;
 export const MASCOT_FRAMES_PER_SECOND = 12;
+/**
+ * Nejmenší výška pandy v CSS px; menší by na obrazovce nebyla k poznání.
+ * Hra i menu ji bez takového místa neukážou vůbec (#167, #168 AC1).
+ */
+export const MASCOT_MIN_HEIGHT_CSS_PX = 96;
+/**
+ * Největší výška pandy v CSS px, stejná ve hrách i v menu: větší by na
+ * iPadu přebila příklad v Počítání (#167). Ve větším místě je panda
+ * nejvýš takhle velká.
+ */
+export const MASCOT_MAX_HEIGHT_CSS_PX = 180;
 /** Kolik pohybů kromě klidu smí být najednou dekódovaných (AC4). */
 export const MAX_DECODED_MOVES = 3;
 

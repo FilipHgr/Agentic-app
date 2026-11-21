@@ -14,6 +14,9 @@ import type {
 import { MENU_SOUNDS, menuSoundFor } from '../logic/menuSounds';
 import type { MenuTouch, TouchPoint } from '../logic/menuTouch';
 import { MENU_STYLE } from '../logic/menuTheme';
+import { MENU_LAYERS } from '../logic/menuLayers';
+import type { MenuLayerName } from '../logic/menuLayers';
+import type { MenuShownReason } from '../logic/menuMascot';
 import type { TileImages } from '../logic/tileImages';
 import {
   LANGUAGE_PANEL_SHADOW,
@@ -23,6 +26,7 @@ import {
 } from './languageArt';
 import { preloadLanguageFlags } from './languageFlagTextures';
 import { categoryButtonArt, categoryRowArt } from './categoryPickerArt';
+import { MenuMascot } from './MenuMascot';
 
 /** Herní jednotky na 1 CSS px: plátno menu má dvojnásobné rozlišení okna. */
 export const MENU_UNITS_PER_CSS_PX = 2;
@@ -89,6 +93,10 @@ interface Tappable {
  * (karta a posouvané řádky). Otevření a zavření seznamu překreslí jen
  * tlačítko a seznam, výběr jiné kategorie celé menu.
  *
+ * Panda (#168) má vlastní vrstvu a kameru pod nabídkou jazyků a seznamem
+ * kategorií (pořadí vrstev `logic/menuLayers.ts`), stojí podle
+ * `MenuLayout.mascot` a ťuknutí na ni ohlásí logika menu (`mascot`).
+ *
  * Obrázky dlaždic (#122) načte scéna loaderem Phaseru a výsledek každého
  * hlásí do `TileImages`. Menu se nakreslí, až jsou obrázky vyřízené, nebo
  * nejdéle po limitu čekání; do té doby je vidět jen pozadí stránky.
@@ -115,12 +123,21 @@ export class MenuScene extends Phaser.Scene {
   private languageLayer!: Phaser.GameObjects.Container;
   private pickerPanelLayer!: Phaser.GameObjects.Container;
   private pickerListLayer!: Phaser.GameObjects.Container;
+  private mascotLayer!: Phaser.GameObjects.Container;
   private categoryCamera!: Phaser.Cameras.Scene2D.Camera;
   private gridCamera!: Phaser.Cameras.Scene2D.Camera;
   private panelCamera!: Phaser.Cameras.Scene2D.Camera;
   private languageCamera!: Phaser.Cameras.Scene2D.Camera;
   private pickerPanelCamera!: Phaser.Cameras.Scene2D.Camera;
   private pickerListCamera!: Phaser.Cameras.Scene2D.Camera;
+  private mascotCamera!: Phaser.Cameras.Scene2D.Camera;
+  /** Panda (#168), vzniká se scénou. */
+  private mascot!: MenuMascot;
+  /**
+   * Proč se menu ukázalo, dokud se pro to nenakreslí rozložení; panda pak
+   * podle toho zamává (#168 AC3). Na začátku otevření menu.
+   */
+  private shownReason: MenuShownReason | undefined = 'opened';
   private layout: MenuLayout | undefined;
   /** Dlaždice nebo kategorie, která je teď nakreslená jako zmáčknutá. */
   private held: Tappable | undefined;
@@ -147,40 +164,44 @@ export class MenuScene extends Phaser.Scene {
   create(): void {
     // Druhý prst Phaser ohlásí taky; logika dotyků ho ignoruje (#69 AC2).
     this.input.addPointer(1);
-    this.barLayer = this.add.container(0, 0);
-    this.categoryLayer = this.add.container(0, 0);
-    this.tileLayer = this.add.container(0, 0);
-    this.panelLayer = this.add.container(0, 0);
-    this.languageLayer = this.add.container(0, 0);
-    this.pickerPanelLayer = this.add.container(0, 0);
-    this.pickerListLayer = this.add.container(0, 0);
-    const layers = [
-      this.barLayer,
-      this.categoryLayer,
-      this.tileLayer,
-      this.panelLayer,
-      this.languageLayer,
-      this.pickerPanelLayer,
-      this.pickerListLayer,
-    ];
-    const onlyLayer = (camera: Phaser.Cameras.Scene2D.Camera, shown: unknown): void => {
-      camera.ignore(layers.filter((layer) => layer !== shown));
+    // Každá vrstva svou kamerou v pořadí `MENU_LAYERS`, pozdější leží nad
+    // dřívější. První vrstvu (lištu) kreslí hlavní kamera.
+    const container = (): Phaser.GameObjects.Container => this.add.container(0, 0);
+    const layers: Readonly<Record<MenuLayerName, Phaser.GameObjects.Container>> = {
+      bar: container(),
+      mascot: container(),
+      categories: container(),
+      tiles: container(),
+      languagePanel: container(),
+      languageList: container(),
+      pickerPanel: container(),
+      pickerList: container(),
     };
-    onlyLayer(this.cameras.main, this.barLayer);
-    this.categoryCamera = this.cameras.add(0, 0, 1, 1);
-    onlyLayer(this.categoryCamera, this.categoryLayer);
-    this.gridCamera = this.cameras.add(0, 0, 1, 1);
-    onlyLayer(this.gridCamera, this.tileLayer);
-    // Nabídka jazyků až po mřížce, aby ležela nad ní.
-    this.panelCamera = this.cameras.add(0, 0, 1, 1);
-    onlyLayer(this.panelCamera, this.panelLayer);
-    this.languageCamera = this.cameras.add(0, 0, 1, 1);
-    onlyLayer(this.languageCamera, this.languageLayer);
-    // Seznam kategorií (#95) také nad mřížkou.
-    this.pickerPanelCamera = this.cameras.add(0, 0, 1, 1);
-    onlyLayer(this.pickerPanelCamera, this.pickerPanelLayer);
-    this.pickerListCamera = this.cameras.add(0, 0, 1, 1);
-    onlyLayer(this.pickerListCamera, this.pickerListLayer);
+    const cameras = MENU_LAYERS.map((name, index) => {
+      const camera = index === 0 ? this.cameras.main : this.cameras.add(0, 0, 1, 1);
+      camera.ignore(Object.values(layers).filter((other) => other !== layers[name]));
+      return camera;
+    });
+    const camera = (name: MenuLayerName): Phaser.Cameras.Scene2D.Camera =>
+      cameras[MENU_LAYERS.indexOf(name)] ?? this.cameras.main;
+    const layer = (name: MenuLayerName): Phaser.GameObjects.Container => layers[name];
+    this.barLayer = layer('bar');
+    this.mascotLayer = layer('mascot');
+    this.categoryLayer = layer('categories');
+    this.tileLayer = layer('tiles');
+    this.panelLayer = layer('languagePanel');
+    this.languageLayer = layer('languageList');
+    this.pickerPanelLayer = layer('pickerPanel');
+    this.pickerListLayer = layer('pickerList');
+    this.mascotCamera = camera('mascot');
+    this.categoryCamera = camera('categories');
+    this.gridCamera = camera('tiles');
+    this.panelCamera = camera('languagePanel');
+    this.languageCamera = camera('languageList');
+    this.pickerPanelCamera = camera('pickerPanel');
+    this.pickerListCamera = camera('pickerList');
+    this.mascotCamera.setVisible(false);
+    this.mascot = new MenuMascot(this, this.mascotLayer, MENU_UNITS_PER_CSS_PX);
     this.listenToFingers();
     this.loadTileImages();
     this.showMenuWhenReady();
@@ -210,6 +231,22 @@ export class MenuScene extends Phaser.Scene {
     }
     this.scrollCameras();
     this.showHeld();
+    this.mascot.update();
+  }
+
+  /**
+   * Menu se znovu ukázalo (návrat ze hry): panda po dalším nakreslení
+   * zamává (#168 AC3). Po změně profilu nebo jazyka se to nevolá.
+   */
+  shownAgain(reason: MenuShownReason): void {
+    this.shownReason = reason;
+    this.requestRedraw();
+  }
+
+  /** Menu se schovalo (spustila se hra): panda uvolní pohyby kromě klidu. */
+  hidden(): void {
+    this.shownReason = undefined;
+    this.mascot.menuHidden();
   }
 
   /**
@@ -446,10 +483,30 @@ export class MenuScene extends Phaser.Scene {
     });
     this.redrawLanguagePanel();
     this.redrawCategoryPicker();
+    this.placeMascot(layout);
+  }
+
+  /** Panda podle rozložení; po otevření menu nebo návratu ze hry zamává. */
+  private placeMascot(layout: MenuLayout): void {
+    const box = layout.mascot;
+    this.mascotCamera.setVisible(box !== null);
+    if (box !== null) {
+      this.fitCamera(this.mascotCamera, box);
+    }
+    this.mascot.layout(box);
+    const reason = this.shownReason;
+    this.shownReason = undefined;
+    if (reason !== undefined) {
+      this.mascot.menuShown(reason);
+    }
   }
 
   /** Zahraje odezvu, kterou ohlásila logika menu: tón podle `menuSoundFor` a animaci. */
   play(event: MenuFeedback): void {
+    if (event.kind === 'mascot' && !this.mascot.isShown()) {
+      // Panda se ještě nestáhla, není vidět: ťuknutí jde do prázdna.
+      return;
+    }
     const sound = menuSoundFor(event);
     if (sound !== undefined) {
       this.playSound(MENU_SOUNDS[sound]);
@@ -472,6 +529,9 @@ export class MenuScene extends Phaser.Scene {
       case 'languageMenu':
         this.press(this.languageButton);
         this.panelRedrawWanted = true;
+        break;
+      case 'mascot':
+        this.mascot.tapped();
         break;
       case 'categoryMenu':
         // Šipka, okraj tlačítka a seznam se překreslí v dalším snímku.
