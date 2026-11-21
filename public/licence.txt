@@ -17,6 +17,15 @@ Xb7hH8MSUJpSbSDYk0k2, model eleven_multilingual_v2. Použito v rámci komerční
 tarifu vlastníka hry. Nahrávky vznikly přes napojení ElevenLabs s výchozím
 nastavením hlasu a jsou převedené na mono 44,1 kHz 64 kb/s.
 
+Hlas pandy Rudyho (repliky v public/voice/<jazyk>/counting/rudy-*.mp3
+a public/voice/<jazyk>/menu/rudy-*.mp3, čeština i angličtina) je vytvořený
+službou ElevenLabs (https://elevenlabs.io), hlas Peanut, ID
+rBkiq5ZQ43ogwd6i4uIQ, model eleven_v3 (generace PtuTPLjDrR4MgNUf8Myd,
+alNb0AxqvizgX682kSSu, 2krWV8AD00oySxffhXX4, SkFfajETNZgay7V5uYjh,
+5A4cOgFgvS2ZuX8E9cdC, GuwKo6iczEkc6mJSnHCi). Použito v rámci komerčního
+tarifu vlastníka hry. Nahrávky vznikly přes napojení ElevenLabs a jsou
+převedené na mono 44,1 kHz 64 kb/s.
+
 Obrázky na dlaždicích her v menu (src/games/counting/tile.webp,
 src/games/coloring/tile.webp) jsou vytvořené službou ElevenLabs
 (https://elevenlabs.io), model GPT Image 2.5. Použito v rámci komerčního

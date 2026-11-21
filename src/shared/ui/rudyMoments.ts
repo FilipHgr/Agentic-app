@@ -9,12 +9,20 @@
  * dostane `onClosed` hned (oslava čeká kratší dobu, `RUDY_CELEBRATION_WAIT_MS`).
  * Odchod stránky na pozadí čekání zruší. Chyba stažení se jen zapíše do konzole, hráč
  * nic nevidí.
+ *
+ * Hlas (#171): chvíle může mít nahrávku repliky (`voiceUrl`). Kdy se
+ * stáhne, jak dlouho je okno otevřené a kdy hlas zazní, rozhoduje
+ * `logic/rudyVoice.ts`; okno počká i na nahrávku a zavření okna hlas
+ * zastaví. Bez odemčeného zvuku nebo nahrávky je okno bez hlasu.
  */
 
 import Phaser from 'phaser';
 
+import { createSharedRudyVoicePlayer } from '../audio/rudyVoicePlayer';
+import { isSharedAudioUnlocked } from '../audio/sharedAudio';
 import type { RudyLineMove, RudyMove } from '../logic/rudy';
 import { createRudyMomentGate } from '../logic/rudyMoment';
+import { createRudyVoice } from '../logic/rudyVoice';
 import type { RudyWindow, RudyWindowOptions } from './rudyWindow';
 
 type RudyWindowModule = typeof import('./rudyWindow');
@@ -23,12 +31,20 @@ type RudyWindowModule = typeof import('./rudyWindow');
 export interface RudyMomentEvents {
   readonly onOpened?: () => void;
   readonly onClosed?: () => void;
+  /** Nahrávka repliky v jazyce zvoleném v menu (#171); bez ní je okno bez hlasu. */
+  readonly voiceUrl?: string;
 }
 
 export class RudyMoments {
   private readonly scene: Phaser.Scene;
   private readonly options: RudyWindowOptions;
   private readonly gate = createRudyMomentGate();
+  private readonly voice = createRudyVoice({
+    player: createSharedRudyVoicePlayer(),
+    isUnlocked: isSharedAudioUnlocked,
+  });
+  /** Nahrávka čekající chvíle. */
+  private voiceUrl: string | undefined;
   private module: RudyWindowModule | null = null;
   private loading: Promise<void> | null = null;
   private window: RudyWindow | null = null;
@@ -58,12 +74,18 @@ export class RudyMoments {
     }
     this.momentId += 1;
     this.events = events;
+    this.voiceUrl = events.voiceUrl;
+    this.voice.request(events.voiceUrl);
     this.gate.request(move, this.now());
     this.windowOrLoad()?.prepare(move);
   }
 
-  /** Stáhne pohyb dopředu (třeba oslavu po pozdravu), aby se pak přehrál hned. */
-  prepare(move: RudyMove): void {
+  /**
+   * Stáhne pohyb dopředu (třeba oslavu po pozdravu), aby se pak přehrál
+   * hned; s `voiceUrl` i nahrávku repliky.
+   */
+  prepare(move: RudyMove, voiceUrl?: string): void {
+    this.voice.request(voiceUrl);
     this.prepared = move;
     this.windowOrLoad()?.prepare(move);
   }
@@ -73,6 +95,7 @@ export class RudyMoments {
     this.momentId += 1;
     this.gate.cancel();
     this.events = {};
+    this.voice.stop();
     this.window?.close();
   }
 
@@ -113,6 +136,7 @@ export class RudyMoments {
     this.momentId += 1;
     this.gate.cancel();
     this.events = {};
+    this.voice.stop();
     this.window?.destroy();
     this.window = null;
     this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.onUpdate, this);
@@ -182,9 +206,10 @@ export class RudyMoments {
     if (waiting === null) {
       return;
     }
+    const voiceUrl = this.voiceUrl;
     const step = this.gate.step(this.now(), {
       idle: rudyWindow?.isReady() ?? false,
-      move: rudyWindow?.isLoaded(waiting) ?? false,
+      move: (rudyWindow?.isLoaded(waiting) ?? false) && this.voice.isSettled(voiceUrl),
     });
     const id = this.momentId;
     if (step.kind === 'giveUp') {
@@ -195,10 +220,23 @@ export class RudyMoments {
       return;
     }
     const onOpened = this.events.onOpened;
-    const shown = rudyWindow.open({ move: step.move, onClosed: () => this.finish(id) });
-    if (shown && id === this.momentId) {
-      onOpened?.();
+    const line = this.voice.lineFor(voiceUrl);
+    const shown = rudyWindow.open({
+      move: step.move,
+      ...(line === null ? {} : { lineMs: line.lineMs }),
+      onClosed: () => {
+        // Zavření okna (samo, ťuknutím, zvenku) hlas vždy zastaví.
+        this.voice.stop();
+        this.finish(id);
+      },
+    });
+    if (!shown || id !== this.momentId) {
+      return;
     }
+    if (line !== null) {
+      this.voice.play(line);
+    }
+    onOpened?.();
   }
 
   /** Chvíle `id` skončila: ohlásí zavření, jen když ji mezitím nic nezastavilo. */

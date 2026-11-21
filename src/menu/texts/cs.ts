@@ -15,4 +15,7 @@ export default {
     deleteConfirm: 'Smazat',
     deleteCancel: 'Zpět',
   },
+  rudyLines: {
+    greeting: 'Ahoj, já jsem Rudy! Vyber si hru.',
+  },
 } satisfies MenuTexts;

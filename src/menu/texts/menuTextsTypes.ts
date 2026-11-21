@@ -23,4 +23,11 @@ export interface MenuTexts {
     readonly deleteConfirm: string;
     readonly deleteCancel: string;
   };
+  /**
+   * Replika pandy Rudyho (#171): pozdrav v menu. Text se nezobrazuje, zazní
+   * jen nahrávka `public/voice/<jazyk>/menu/rudy-greeting.mp3`.
+   */
+  readonly rudyLines: {
+    readonly greeting: string;
+  };
 }

@@ -47,7 +47,12 @@ const ALL_IDS: readonly GuideLineId[] = GUIDE_SCRIPT.map((line) => line.id);
 /** Nová složka nahrávek Počítání v češtině (od kořene repa). */
 const CZECH_VOICE_DIR = 'public/voice/cs/counting/guide';
 
-/** Všechny nahrávky v `public/voice/` jako bajty, podle cesty od kořene repa. */
+/**
+ * Všechny nahrávky v `public/voice/` jako bajty, podle cesty od kořene repa,
+ * kromě replik pandy Rudyho (jen `public/voice/<jazyk>/{counting,menu}/rudy-<id>.mp3`,
+ * #171): ty nejsou nahrávky průvodce a hlídá je `rudyVoiceFiles.test.ts`.
+ * Zbloudilý `rudy-*.mp3` jinde kontrola dál najde.
+ */
 const RECORDINGS: Record<string, Uint8Array> = Object.fromEntries(
   Object.entries(
     import.meta.glob<string>('../../../public/voice/**/*.mp3', {
@@ -55,7 +60,9 @@ const RECORDINGS: Record<string, Uint8Array> = Object.fromEntries(
       import: 'default',
       eager: true,
     }),
-  ).map(([path, dataUrl]) => [path.replace('../../../', ''), bytesOfDataUrl(dataUrl)]),
+  )
+    .filter(([path]) => !/\/voice\/[a-z]+\/(counting|menu)\/rudy-[a-zA-Z]+\.mp3$/.test(path))
+    .map(([path, dataUrl]) => [path.replace('../../../', ''), bytesOfDataUrl(dataUrl)]),
 );
 
 /** `sha256sum` nahrávek před přesunem ze staré složky bez jazyka (#65 AC6). */

@@ -7,12 +7,18 @@
  * Počítání jen zvoleného jazyka, jeho hlasem, do `public/voice/<jazyk>/counting/guide/`.
  * Otisky jsou ve `fingerprints.json` v oddílu každého jazyka zvlášť.
  *
+ * Hlas postavičky (#171, panda Rudy) je samostatný oddíl `character:<jméno>`
+ * ve `voice.config.json` i ve `fingerprints.json`, jeden pro všechny jazyky.
+ * Nahrávky postavičky nejsou nahrávky průvodce: vytvoří je Claude přes
+ * napojení ElevenLabs a uloží je `importCharacterVoice` (`npm run
+ * voice:character`), viz konec souboru.
+ *
  * Postup: stáhne nahrávky změněných vět, zkontroluje je a celkovou velikost,
  * a teprve když je vše v pořádku, zapíše nové nahrávky, smaže staré a uloží
  * otisky. Přerušení nebo chyba klíče tak nikdy nenechá rozpracovaný stav.
  */
 
-import { readMp3FrameInfo } from './mp3Header';
+import { readMp3DurationMs, readMp3FrameInfo } from './mp3Header';
 
 export const API_KEY_ENV = 'ELEVENLABS_API_KEY';
 
@@ -459,4 +465,195 @@ function hideKey(text: string, key: string): string {
 function stopped(options: Pick<VoiceRunEnvironment, 'log'>, message: string): MakeVoiceResult {
   options.log(message);
   return { ok: false, created: [], skipped: [], deleted: [], failed: [] };
+}
+
+// ---------------------------------------------------------------------------
+// Hlas postavičky (#171)
+// ---------------------------------------------------------------------------
+
+/** Postavičky s vlastním hlasem. Hlas postavičky je jeden pro všechny jazyky. */
+export const VOICE_CHARACTERS = ['rudy'] as const;
+
+export type VoiceCharacter = (typeof VOICE_CHARACTERS)[number];
+
+/** Části stránky, ve kterých postavička mluví; každá má repliky ve svých textech. */
+export const CHARACTER_PLACES = ['counting', 'menu'] as const;
+
+export type CharacterPlace = (typeof CHARACTER_PLACES)[number];
+
+/** Složka textů každé části; repliky postavičky jsou v textech pod klíčem `rudyLines`. */
+export const CHARACTER_TEXTS_DIRS: Readonly<Record<CharacterPlace, string>> = {
+  counting: 'src/games/counting/texts',
+  menu: 'src/menu/texts',
+};
+
+/** Nejdelší replika postavičky v ms (okno s postavičkou je krátké). */
+export const MAX_CHARACTER_LINE_MS = 4000;
+
+const CHARACTER_RUN_COMMAND = 'npm run voice:character -- <jazyk> <složka s nahrávkami>';
+
+/** Replika postavičky: kde zazní, id (klíč v textech) a text. */
+export interface CharacterLine {
+  readonly place: CharacterPlace;
+  readonly id: string;
+  readonly text: string;
+}
+
+/**
+ * Oddíl hlasu postavičky ve `voice.config.json` i ve `fingerprints.json`.
+ * Dvojtečka zaručí, že se nikdy nesplete s kódem jazyka (jen malá písmena).
+ */
+export function characterSection(character: VoiceCharacter): string {
+  return `character:${character}`;
+}
+
+/** Hlas postavičky z `voice.config.json`, nebo `null`, když chybí nebo je neúplný. */
+export function characterVoiceOf(voices: unknown, character: VoiceCharacter): VoiceConfig | null {
+  return voiceOf(voices, characterSection(character));
+}
+
+/** Repliky postavičky z textů jedné části (`rudyLines`), seřazené podle id. */
+export function characterLinesOf(place: CharacterPlace, texts: unknown): CharacterLine[] {
+  const lines = isRecord(texts) ? texts.rudyLines : undefined;
+  if (!isRecord(lines)) {
+    return [];
+  }
+  return Object.entries(lines)
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    .map(([id, text]) => ({ place, id, text }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** Nahrávka repliky: `public/voice/<jazyk>/<část>/<postavička>-<id>.mp3`. */
+export function characterRecordingPath(
+  character: VoiceCharacter,
+  language: string,
+  line: Pick<CharacterLine, 'place' | 'id'>,
+): string {
+  if (!/^[a-z]+$/.test(language) || !/^[a-zA-Z]+$/.test(line.id)) {
+    throw new Error(`Neplatný jazyk nebo id repliky: ${language}, ${line.id}`);
+  }
+  return `public/voice/${language}/${line.place}/${character}-${line.id}.mp3`;
+}
+
+/** Klíč otisku repliky v oddílu jazyka: `<část>/<id>`. */
+export function characterFingerprintKey(line: Pick<CharacterLine, 'place' | 'id'>): string {
+  return `${line.place}/${line.id}`;
+}
+
+/** Otisk repliky postavičky, spočítaný stejně jako otisk věty průvodce. */
+export function voiceFingerprint(text: string, config: VoiceConfig): Promise<string> {
+  return fingerprintOf(text, config);
+}
+
+export interface ImportCharacterVoiceOptions {
+  readonly character: VoiceCharacter;
+  readonly language: string;
+  readonly lines: readonly CharacterLine[];
+  /** Obsah `voice.config.json`, ještě nezkontrolovaný. */
+  readonly voices: unknown;
+  /** Převedená nahrávka repliky (mono, 64 kb/s), nebo `null`, když chybí. */
+  readonly source: (line: CharacterLine) => Promise<Uint8Array | null>;
+  readonly files: VoiceFiles;
+  readonly log: (line: string) => void;
+}
+
+/**
+ * Uloží nahrávky replik postavičky v jednom jazyce, které vytvořil Claude
+ * přes napojení ElevenLabs hlasem postavičky (#171), a zapíše jejich otisky
+ * do oddílu postavičky. Nejdřív zkontroluje všechny (mono, nejvýš 64 kb/s,
+ * 150 KB a 4 s); s jedinou chybou nic nezmění. Nikdy nevyhodí výjimku.
+ */
+export async function importCharacterVoice(
+  options: ImportCharacterVoiceOptions,
+): Promise<MakeVoiceResult> {
+  const { character, language, lines, files } = options;
+  const config = characterVoiceOf(options.voices, character);
+  if (config === null) {
+    return stopped(
+      options,
+      `Postavička ${character} nemá hlas v oddílu ${characterSection(character)} ` +
+        `v ${CONFIG_PATH}. Nic jsem nezměnil.`,
+    );
+  }
+  if (!/^[a-z]+$/.test(language) || lines.length === 0) {
+    return stopped(
+      options,
+      `Jazyk „${language}“ nemá repliky postavičky v textech. Nic jsem nezměnil. ` +
+        `Spusť: ${CHARACTER_RUN_COMMAND}`,
+    );
+  }
+  try {
+    const checked: { readonly line: CharacterLine; readonly recording: Download }[] = [];
+    for (const line of lines) {
+      const problem = await checkCharacterSource(options, line);
+      if (typeof problem === 'string') {
+        return stopped(
+          options,
+          `Replika ${characterFingerprintKey(line)} (${language}): ${problem}. Nic jsem nezměnil.`,
+        );
+      }
+      const fingerprint = await fingerprintOf(line.text, config);
+      checked.push({
+        line,
+        recording: { id: characterFingerprintKey(line), bytes: problem, fingerprint },
+      });
+    }
+    const manifestFile = await readManifestFile(files);
+    const manifest: Manifest = {};
+    for (const { line, recording } of checked) {
+      await files.writeFile(characterRecordingPath(character, language, line), recording.bytes);
+      manifest[recording.id] = recording.fingerprint;
+    }
+    const section = { ...characterManifestSection(manifestFile, character), [language]: manifest };
+    const sortedSection = Object.fromEntries(
+      Object.entries(section)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, value]) => [key, sortedManifest(value)]),
+    );
+    await files.writeFile(
+      MANIFEST_PATH,
+      encodeManifestFile({ ...manifestFile, [characterSection(character)]: sortedSection }),
+    );
+    const created = checked.map(({ recording }) => recording.id);
+    options.log(`Hotovo: uloženo ${created.length} replik postavičky ${character} (${language}).`);
+    return { ok: true, created, skipped: [], deleted: [], failed: [] };
+  } catch (error) {
+    return stopped(options, `Nahrávky postavičky skončily chybou: ${String(error)}.`);
+  }
+}
+
+/** Převedená nahrávka repliky, nebo důvod, proč ji nejde použít. */
+async function checkCharacterSource(
+  options: ImportCharacterVoiceOptions,
+  line: CharacterLine,
+): Promise<Uint8Array | string> {
+  const bytes = await options.source(line);
+  if (bytes === null) {
+    return 'nahrávka chybí';
+  }
+  const checked = checkRecording(bytes);
+  if (checked.kind !== 'ok') {
+    return checked.kind === 'failed' ? checked.reason : 'nahrávku nejde použít';
+  }
+  const durationMs = readMp3DurationMs(bytes);
+  if (durationMs === null || durationMs > MAX_CHARACTER_LINE_MS) {
+    return `nahrávka je delší než ${MAX_CHARACTER_LINE_MS / 1000} s`;
+  }
+  return bytes;
+}
+
+/** Oddíl otisků postavičky podle jazyka; poškozený oddíl je prázdný. */
+function characterManifestSection(
+  manifestFile: ManifestFile,
+  character: VoiceCharacter,
+): Record<string, Manifest> {
+  const key = characterSection(character);
+  const section = Object.hasOwn(manifestFile, key) ? manifestFile[key] : undefined;
+  if (!isRecord(section)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(section).filter((entry): entry is [string, Manifest] => isManifest(entry[1])),
+  );
 }

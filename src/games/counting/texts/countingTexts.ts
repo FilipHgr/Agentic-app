@@ -8,6 +8,7 @@
 import { currentLanguage } from '../../../shared/texts/languages';
 import type { Language } from '../../../shared/texts/languages';
 import type { GuideLineId } from '../logic/guideScript';
+import type { CountingRudyLine } from '../logic/rudyLines';
 import type { SettingsRowKind } from '../logic/settingsLayout';
 import cs from './cs';
 import en from './en';
@@ -28,6 +29,12 @@ export interface CountingTexts {
    * sebou. Proto jsou číslice a značky vypsané slovy.
    */
   readonly guideLines: Readonly<Record<GuideLineId, readonly [string, string]>>;
+  /**
+   * Repliky pandy Rudyho (#171): pozdrav po otevření hry a oslava po 10
+   * hvězdičkách. Text se nezobrazuje, zazní jen nahrávka
+   * `public/voice/<jazyk>/counting/rudy-<id>.mp3`.
+   */
+  readonly rudyLines: Readonly<Record<CountingRudyLine, string>>;
 }
 
 const COUNTING_TEXTS: Record<Language, CountingTexts> = { cs, en };

@@ -54,6 +54,11 @@ const ENGLISH_COUNTING = {
       'Later, change them by holding the gear in the top right.',
     ],
   },
+  // Repliky pandy Rudyho (#171), jen pro nahrávky.
+  rudyLines: {
+    greeting: "Hi, I'm Rudy! Let's count together.",
+    celebration: 'Hooray! Ten stars, great job!',
+  },
 };
 
 function englishFile(): Record<string, unknown> {

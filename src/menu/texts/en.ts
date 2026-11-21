@@ -16,4 +16,7 @@ export default {
     deleteConfirm: 'Delete',
     deleteCancel: 'Back',
   },
+  rudyLines: {
+    greeting: "Hi, I'm Rudy! Pick a game.",
+  },
 } satisfies MenuTexts;

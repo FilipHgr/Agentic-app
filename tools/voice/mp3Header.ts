@@ -69,3 +69,62 @@ function firstFrameOffset(bytes: Uint8Array): number {
   );
   return ID3_HEADER_BYTES + size;
 }
+
+const SAMPLES_PER_FRAME_MPEG1 = 1152;
+const SAMPLES_PER_FRAME_MPEG2 = 576;
+
+/**
+ * Délka nahrávky v ms podle rámců (#171: replika postavičky má nejvýš 4 s).
+ * Projde rámec po rámci; rámec s hlavičkou Xing nebo Info je bez zvuku,
+ * proto se nepočítá. Vrátí `null`, když data nejsou platné mp3.
+ */
+export function readMp3DurationMs(bytes: Uint8Array): number | null {
+  let offset = firstFrameOffset(bytes);
+  let samples = 0;
+  let sampleRate = 0;
+  let frames = 0;
+  while (offset + 4 <= bytes.length) {
+    const frame = frameAt(bytes, offset);
+    if (frame === null) {
+      break;
+    }
+    if (!isInfoFrame(bytes, offset, frame.length)) {
+      samples += frame.samples;
+    }
+    sampleRate = frame.sampleRateHz;
+    frames += 1;
+    offset += frame.length;
+  }
+  if (frames === 0 || sampleRate === 0) {
+    return null;
+  }
+  return (samples / sampleRate) * 1000;
+}
+
+interface FrameAt {
+  readonly length: number;
+  readonly samples: number;
+  readonly sampleRateHz: number;
+}
+
+/** Délka rámce v bajtech a počet vzorků (jen Layer III), jinak `null`. */
+function frameAt(bytes: Uint8Array, offset: number): FrameAt | null {
+  const info = readMp3FrameInfo(bytes.subarray(offset, offset + 4));
+  if (info === null) {
+    return null;
+  }
+  const version = ((bytes[offset + 1] ?? 0) >> 3) & 3;
+  const padding = ((bytes[offset + 2] ?? 0) >> 1) & 1;
+  const samples = version === MPEG1 ? SAMPLES_PER_FRAME_MPEG1 : SAMPLES_PER_FRAME_MPEG2;
+  const length =
+    Math.floor((samples / 8) * ((info.bitrateKbps * 1000) / info.sampleRateHz)) + padding;
+  return length > 4 ? { length, samples, sampleRateHz: info.sampleRateHz } : null;
+}
+
+/** Rámec s hlavičkou Xing nebo Info (údaje o souboru, ne zvuk). */
+function isInfoFrame(bytes: Uint8Array, offset: number, length: number): boolean {
+  const text = new TextDecoder('latin1').decode(
+    bytes.subarray(offset, offset + Math.min(length, 64)),
+  );
+  return text.includes('Xing') || text.includes('Info');
+}

@@ -91,7 +91,12 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
      stáhne je jen nástrojem `tools/voice/fetch-voice.mjs`, převede na mono
      64 kb/s a otisky zapíše stejně jako skript `npm run voice -- <jazyk>`
      (kód jazyka malými písmeny přesně podle souboru textů, např.
-     `npm run voice -- cs`). Hlas se doplní do `public/licence.txt`,
+     `npm run voice -- cs`). Hlas se doplní do `public/licence.txt`.
+     Hlas postavičky (panda Rudy) je samostatný oddíl `character:rudy`
+     téhož configu, jeden pro všechny jazyky, a nemění se. Její nahrávky
+     nejsou nahrávky průvodce: repliky jsou v textech pod `rudyLines`,
+     nahrávky `rudy-<id>.mp3` v `public/voice/<jazyk>/<hra nebo menu>/`
+     (nejvýš 4 s), otisky zapíše `npm run voice:character -- <jazyk> <složka>`,
   4. jazyk se přidá do seznamu v `languages.ts` až s nahrávkami a vlajkou
      v `src/menu/flags/` (původ v `public/licence.txt`), v jednom commitu.
 - `npm run dev` vývojový server

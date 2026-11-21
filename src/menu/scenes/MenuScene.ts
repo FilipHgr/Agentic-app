@@ -16,6 +16,7 @@ import type {
   MenuLanguagePanel,
   MenuLayout,
 } from '../logic/menuLayout';
+import { menuRudyVoiceUrl } from '../logic/menuRudyVoice';
 import { MENU_SOUNDS, menuSoundFor } from '../logic/menuSounds';
 import type { MenuTouch, TouchPoint } from '../logic/menuTouch';
 import { MENU_STYLE } from '../logic/menuTheme';
@@ -265,7 +266,8 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
     this.greetingWanted = null;
-    this.rudy?.show('wave', { onOpened: onGreeted });
+    // Pozdrav zazní v jazyce zvoleném v menu (#171).
+    this.rudy?.show('wave', { onOpened: onGreeted, voiceUrl: menuRudyVoiceUrl('greeting') });
   }
 
   /** Plátno menu jako plocha pro okno s pandou: celé okno, CSS px na jednotku. */

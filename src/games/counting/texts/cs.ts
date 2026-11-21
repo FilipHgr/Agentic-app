@@ -32,4 +32,8 @@ export default {
       'Později je změníte podržením kolečka vpravo nahoře.',
     ],
   },
+  rudyLines: {
+    greeting: 'Ahoj, já jsem Rudy! Pojďme spolu počítat.',
+    celebration: 'Hurá! Deset hvězdiček, jsi šikula!',
+  },
 } satisfies CountingTexts;

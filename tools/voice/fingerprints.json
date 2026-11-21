@@ -1,4 +1,16 @@
 {
+  "character:rudy": {
+    "cs": {
+      "counting/celebration": "38860bf3524437d37218e462879ba7b8dbec93da20d4ce5b4759ea7f0a2f11d9",
+      "counting/greeting": "8c04793c5c528c3876247dfd3821a6a4a90b495118a2af56757f9683589ebcd3",
+      "menu/greeting": "d302102dda30ca84a130c40d0799be855cc9478ed56635b9d13ce9f72df3e743"
+    },
+    "en": {
+      "counting/celebration": "6209ba9c0df5152931e2f3b1dc80bc8d808bf2ff729e35284c82842cd2cfcebb",
+      "counting/greeting": "d2b93e4729224a215000823e39aa3194bd1f075e7dc12fa1a17fa1a1e289308a",
+      "menu/greeting": "5bdfda93b764b93c120af70a395bfad007c9236d493f8f20ea55b2cedac0659d"
+    }
+  },
   "cs": {
     "answerInput": "80a8cf2c6dfb85e86c50dea47f64c30b88748b11933de8fdcb818acf873e0fd2",
     "maxNumber": "3eaf10feb359c33d92e83f2ed847ebeb2f9bfcf478c6055b0206949690d9fd61",

@@ -26,6 +26,7 @@ import { createMapPictureLoading } from '../logic/mapPictureLoading';
 import type { MapLook, MapPictureId } from '../logic/mapPictureLoading';
 import type { GameProgress } from '../logic/progress';
 import { mapMarkerFor, upcomingMapTheme } from '../logic/progressMap';
+import { countingRudyLineOf, countingRudyVoiceUrl } from '../logic/rudyLines';
 import {
   layoutProgressMapCard,
   mapCardPageBackdrop,
@@ -176,12 +177,15 @@ export class GameScene extends Phaser.Scene {
   private sessionRudy(): SessionRudy {
     const rudy = this.rudy;
     return {
+      // Replika zazní v jazyce zvoleném v menu ve chvíli, kdy hra o okno požádá (#171).
       show: (move: RudyLineMove, events: SessionRudyEvents) =>
         rudy.show(move, {
           onOpened: () => events.onOpened(),
           onClosed: () => events.onClosed(),
+          voiceUrl: countingRudyVoiceUrl(countingRudyLineOf(move)),
         }),
-      prepare: (move: RudyLineMove) => rudy.prepare(move),
+      prepare: (move: RudyLineMove) =>
+        rudy.prepare(move, countingRudyVoiceUrl(countingRudyLineOf(move))),
       stop: () => rudy.stop(),
     };
   }

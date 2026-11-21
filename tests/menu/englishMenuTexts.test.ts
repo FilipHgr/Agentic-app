@@ -37,6 +37,10 @@ const ENGLISH_MENU = {
     deleteConfirm: 'Delete',
     deleteCancel: 'Back',
   },
+  // Replika pandy Rudyho (#171), jen pro nahrávku.
+  rudyLines: {
+    greeting: "Hi, I'm Rudy! Pick a game.",
+  },
 };
 
 function englishMenu(): Record<string, unknown> {
