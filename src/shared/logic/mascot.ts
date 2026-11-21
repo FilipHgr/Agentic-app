@@ -54,12 +54,19 @@ export interface MascotModel {
   prepare(move: MascotMove): MascotCommand[];
   /** Hra chce pohyb: načtený začne od 1. snímku, nenačtený nechá pandu v klidu a stáhne se. */
   play(move: MascotMove, now: number): MascotCommand[];
+  /**
+   * Pohyb už nebude potřeba (třeba vynechaný pozdrav, #167): stažený se
+   * uvolní hned, stahovaný po dočtení. Klid a právě hraný pohyb zůstanou.
+   */
+  discard(move: MascotMove): MascotCommand[];
   /** Pohled ohlásil, že je pohyb stažený a dekódovaný. Sám se nepřehraje. */
   loaded(move: MascotMove): MascotCommand[];
   /** Pohled ohlásil chybu stažení; příští vyžádání stažení zkusí znovu. */
   failed(move: MascotMove): void;
   /** Posun času: dohraný pohyb se vrátí do klidu, dohraný pozdrav se uvolní. */
   update(now: number): MascotCommand[];
+  /** Je pohyb stažený a dekódovaný (přehraje se hned)? */
+  isLoaded(move: MascotMove): boolean;
   /** Který pohyb panda v čase `now` hraje. */
   currentMove(now: number): MascotMove;
   /** Snímek v čase `now`, nebo `null`, dokud není načtený klid (panda není vidět). */
@@ -118,6 +125,8 @@ export function createMascotModel(): MascotModel {
   /** Kdy byl pohyb naposledy použit (pořadí, ne čas), pro uvolňování kvůli místu. */
   const lastUse = new Map<MascotMove, number>();
   let useCounter = 0;
+  /** Stahované pohyby, které se po dočtení hned uvolní (`discard`). */
+  const discarded = new Set<MascotMove>();
   let playing: Playing = { move: IDLE, startedAt: 0 };
   let disposed = false;
 
@@ -131,6 +140,8 @@ export function createMascotModel(): MascotModel {
   /** Stáhne pohyb, pokud není stažený ani se nestahuje (i po chybě). */
   function downloadIfNeeded(move: MascotMove): MascotCommand[] {
     const state = stateOf(move);
+    // Znovu vyžádaný pohyb se po dočtení neuvolní.
+    discarded.delete(move);
     if (disposed || state === 'loading' || state === 'loaded') {
       return [];
     }
@@ -209,8 +220,24 @@ export function createMascotModel(): MascotModel {
       return [...commands, ...switchTo({ move: IDLE, startedAt: now })];
     },
 
+    discard(move) {
+      if (disposed || move === IDLE || move === playing.move) {
+        return [];
+      }
+      const state = stateOf(move);
+      if (state === 'loading') {
+        discarded.add(move);
+        return [];
+      }
+      return state === 'loaded' ? [releaseMove(move)] : [];
+    },
+
     loaded(move) {
       if (disposed) {
+        return [release(move)];
+      }
+      if (discarded.delete(move)) {
+        loads.set(move, 'none');
         return [release(move)];
       }
       loads.set(move, 'loaded');
@@ -225,6 +252,8 @@ export function createMascotModel(): MascotModel {
     },
 
     update: (now) => (disposed ? [] : settle(now)),
+
+    isLoaded: (move) => !disposed && stateOf(move) === 'loaded',
 
     currentMove: (now) => frameOf(playing, now).move,
 

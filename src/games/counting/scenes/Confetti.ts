@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 
 import { CONFETTI_COLORS } from '../logic/theme';
 import { colorNumber } from '../../../shared/logic/theme';
-import { ABOVE_MAP_DEPTH } from './ProgressMapView';
+import { ABOVE_MAP_DEPTH } from '../logic/sceneDepths';
 import type { GameSize } from '../../../shared/logic/viewportLayout';
 
 const CONFETTI_COUNT = 80;

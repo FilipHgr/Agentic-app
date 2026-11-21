@@ -13,6 +13,7 @@ import type { TapOutcome } from '../logic/answerRound';
 import { createCountingSession } from '../logic/countingSession';
 import type { CountingSession, SessionChange, SessionPage } from '../logic/countingSession';
 import { isTwoBoxRound, playStateAfterResize } from '../logic/deviceLayout';
+import { moveForAnswer, moveForHintButton } from '../logic/mascotCues';
 import type { PlayState } from '../logic/deviceLayout';
 import { createMapPictureLoading } from '../logic/mapPictureLoading';
 import type { MapLook, MapPictureId } from '../logic/mapPictureLoading';
@@ -32,6 +33,7 @@ import type { TwoBoxConfirmResult, TwoBoxRound } from '../logic/twoBoxWriting';
 import { highlightCorrectButton } from './AnswerButton';
 import type { AnswerButton } from './AnswerButton';
 import { Confetti } from './Confetti';
+import { CountingMascot } from './CountingMascot';
 import { ParentPanels } from './ParentPanels';
 import { loadMapPicture, preloadGoalSymbols } from './mapPictureTextures';
 import { ProgressMapView } from './ProgressMapView';
@@ -88,6 +90,12 @@ export class GameScene extends Phaser.Scene {
   });
   private readonly starRow = new StarRow(this, this.layouts, () => this.currentProgress());
   private readonly confetti = new Confetti(this);
+  /** Panda, která se raduje, povzbudí a slaví (#167); jen kde je pro ni místo. */
+  private readonly mascot = new CountingMascot(this, () => ({
+    gameArea: this.gameArea,
+    settings: this.session.settings(),
+    starCount: this.session.starCount(),
+  }));
   private readonly progressMap = new ProgressMapView(
     this,
     () => this.profileMarker(),
@@ -145,11 +153,14 @@ export class GameScene extends Phaser.Scene {
     this.starRow.create();
     this.starRow.paint();
     this.view.listenForKeypadRelease();
+    // Panda stahuje pohyby hned se scénou, aby se první radost netrhla (#167).
+    this.mascot.layout();
     // První spuštění: místo prvního příkladu průvodce nastavením pro rodiče (#49).
     if (session.guideOpen()) {
       this.panels.openSetupGuide();
     } else {
       this.drawNewRound();
+      this.mascot.gameScreenShown();
     }
     this.updateHome();
   }
@@ -180,6 +191,7 @@ export class GameScene extends Phaser.Scene {
       case 'roundStarted':
         this.drawNewRound();
         this.prepareMapPicture();
+        this.mascot.starsChanged();
         break;
       case 'celebrationStarted':
         this.confetti.throw(this.gameArea, this.layouts.keypad().detailScale);
@@ -196,6 +208,7 @@ export class GameScene extends Phaser.Scene {
         this.confetti.clear();
         this.starRow.stopMapFlight();
         this.starRow.paint();
+        this.mascot.starsChanged();
         break;
       case 'mapShown':
         this.showProgressMap();
@@ -204,18 +217,25 @@ export class GameScene extends Phaser.Scene {
         // Okno se zavřelo: zbylé konfety dopadnou samy (#154 AC1).
         this.confetti.forget();
         this.hideProgressMap();
+        this.mascot.rest();
         break;
       case 'mapStopped':
         // Nastavení přerušilo okno i let hvězdiček: nic se nedohraje (#154 AC6).
         this.confetti.clear();
         this.starRow.stopMapFlight();
         this.hideProgressMap();
+        this.mascot.rest();
         break;
       case 'settingsOpened':
         this.panels.openSettings();
         break;
       case 'settingsClosed':
+        // Jiný rozsah nebo ovládání: panda může mít jiné místo (#167 AC3).
+        this.mascot.layout();
+        break;
       case 'guideClosed':
+        this.mascot.layout();
+        this.mascot.gameScreenShown();
         break;
       case 'recognizer':
         this.onRecognizerStatus(change.status);
@@ -343,6 +363,7 @@ export class GameScene extends Phaser.Scene {
     this.relayoutRound();
     this.relayoutProgressMap();
     this.panels.fitTo(this.gameArea);
+    this.mascot.layout();
   }
 
   /**
@@ -384,6 +405,7 @@ export class GameScene extends Phaser.Scene {
   override update(time: number): void {
     this.view.writingPad?.update(time);
     this.view.update(this.time.now);
+    this.mascot.update();
   }
 
   private currentProgress(): GameProgress {
@@ -456,6 +478,8 @@ export class GameScene extends Phaser.Scene {
     origin: Origin,
     visuals: { onCorrect: () => void; onWrong: () => void },
   ): void {
+    // Desátá správná (plná řada) spustí oslavu místo radosti (#167 AC4).
+    this.mascot.react(moveForAnswer(outcome, outcome === 'correct' && this.session.celebrating()));
     if (outcome === 'correct') {
       visuals.onCorrect();
       this.view.hideHintButton();
@@ -484,7 +508,13 @@ export class GameScene extends Phaser.Scene {
   /** Tlačítko nápovědy (#84): tón zahraje sezení, tlačítko se zhoupne a tečky naskočí. */
   private onHintButtonTapped(): void {
     const session = this.session;
-    if (this.hintIsShown || !session.tapHintButton()) {
+    if (this.hintIsShown) {
+      return;
+    }
+    const shown = session.tapHintButton();
+    // Panda přemýšlí s dítětem (#167 AC4).
+    this.mascot.react(moveForHintButton(shown));
+    if (!shown) {
       return;
     }
     this.hintIsShown = true;

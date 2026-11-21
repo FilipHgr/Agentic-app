@@ -99,6 +99,16 @@ export class Mascot {
     this.render();
   }
 
+  /** Pohyb už nebude potřeba: uvolní se z paměti (stahovaný po dočtení). */
+  discard(move: MascotMove): void {
+    this.run(this.model.discard(move));
+  }
+
+  /** Je pohyb stažený a jde přehrát hned? */
+  isReady(move: MascotMove): boolean {
+    return this.model.isLoaded(move);
+  }
+
   /** Ťuknutí na pandu; `null` dotyky zase vypne (výchozí stav). */
   setTapHandler(onTap: (() => void) | null): void {
     this.image.off(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN);
@@ -187,6 +197,8 @@ export class Mascot {
       this.shownKey = '';
       this.render();
     }
+    // Správce textur má každá hra Phaseru svůj (menu i každá hra mají vlastní
+    // Phaser.Game) a ve hře je jen jedna panda, takže textura nikomu jinému nepatří.
     if (this.scene.textures.exists(key)) {
       this.scene.textures.remove(key);
     }

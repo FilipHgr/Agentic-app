@@ -45,15 +45,7 @@ import { drawPlacePads } from './MapPlacePadPieces';
 import { drawScenery, moveScenery } from './MapSceneryPieces';
 import type { DrawnSceneryPiece } from './MapSceneryPieces';
 import { goalSymbolTextureKey, mapPictureTextureKey } from './mapPictureTextures';
-
-/** Mapa leží nad příkladem i řadou hvězdiček, pod panely rodičů. */
-const MAP_DEPTH = 20;
-
-/**
- * Nad kartou s mapou: konfety oslavy doběhnou přes okno a hvězdičky
- * z řady do něj přiletí (#154 AC1, AC3). Pořád pod panely rodičů.
- */
-export const ABOVE_MAP_DEPTH = MAP_DEPTH + 5;
+import { MAP_DEPTH } from '../logic/sceneDepths';
 
 /**
  * Předčasné ťuknutí kartu krátce zhoupne do stran (#145 AC4): jak daleko

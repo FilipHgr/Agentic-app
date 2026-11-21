@@ -6,7 +6,7 @@ import { STAR_STYLE, starLooks } from '../logic/theme';
 import { colorNumber } from '../../../shared/logic/theme';
 import { STARS_PER_SET } from '../logic/stars';
 import type { StarProgress } from '../logic/stars';
-import { ABOVE_MAP_DEPTH } from './ProgressMapView';
+import { ABOVE_MAP_DEPTH } from '../logic/sceneDepths';
 import type { SceneLayouts } from './SceneLayouts';
 
 const STAR_EMPTY_COLOR = colorNumber(STAR_STYLE.emptyColor);
