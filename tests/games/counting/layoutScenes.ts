@@ -292,7 +292,24 @@ export function playLabel(testCase: PlayCase): string {
   ].join(', ');
 }
 
+/**
+ * Spočítaná rozložení podle zadání. Rozložení je čistá funkce zadání a stejné
+ * zadání se měří v mnoha pravidlech (obrazovka s tečkami, s tlačítkem
+ * nápovědy i samotné rozložení), proto se počítá jen jednou (#194).
+ */
+const playLayoutCache = new WeakMap<PlayCase, { area: GameArea; layout: PlayLayout }>();
+
 export function playLayoutOf(testCase: PlayCase): { area: GameArea; layout: PlayLayout } {
+  const cached = playLayoutCache.get(testCase);
+  if (cached) {
+    return cached;
+  }
+  const computed = computePlayLayout(testCase);
+  playLayoutCache.set(testCase, computed);
+  return computed;
+}
+
+function computePlayLayout(testCase: PlayCase): { area: GameArea; layout: PlayLayout } {
   const area = gameAreaFor(viewportOf(testCase.window));
   const groups = testCase.hint ? hintDotGroups(testCase.hint) : [];
   const { maxNumber, starCount, operations } = testCase;

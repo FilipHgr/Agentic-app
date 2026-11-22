@@ -40,8 +40,28 @@ function possibleProblems(settings: PortraitLayoutSettings): Problem[] {
   return problems;
 }
 
+/**
+ * Spočítané nápovědy podle rozsahu a druhu příkladů. Nastavení je jen pár
+ * a rozložení na výšku je potřebuje při každém přepočtu, proto se počítají
+ * jednou (#194).
+ */
+const hintGroupsBySettings = new Map<string, readonly (readonly number[])[]>();
+
 /** Různé nápovědy (skupinky teček), které se s nastavením mohou ukázat. */
-export function possibleHintGroups(settings: PortraitLayoutSettings): number[][] {
+export function possibleHintGroups(
+  settings: PortraitLayoutSettings,
+): readonly (readonly number[])[] {
+  const key = `${settings.maxNumber}|${settings.operations}`;
+  const cached = hintGroupsBySettings.get(key);
+  if (cached) {
+    return cached;
+  }
+  const computed = computeHintGroups(settings);
+  hintGroupsBySettings.set(key, computed);
+  return computed;
+}
+
+function computeHintGroups(settings: PortraitLayoutSettings): number[][] {
   const unique = new Map<string, number[]>();
   for (const problem of possibleProblems(settings)) {
     const groups = hintDotGroups(problem);
@@ -68,10 +88,41 @@ export interface ReservedHintSize {
 }
 
 /**
+ * Spočítaná místa pro nápovědu podle seznamu nápověd (ten je pro stejné
+ * nastavení vždy stejný, `possibleHintGroups`) a mřížky a šířky. Při každém
+ * přepočtu rozložení se zkouší jen pár velikostí teček, proto se místo
+ * počítá jednou (#194).
+ */
+const reservedSizesByGroups = new WeakMap<
+  readonly (readonly number[])[],
+  Map<string, ReservedHintSize>
+>();
+
+/**
  * Místo pro nejvyšší nápovědu z `allGroups`, když je místo široké `width`.
  * Šířka je šířka nejširší nápovědy; větší než `width`, když se nevejde.
  */
 export function reservedHintSize(
+  allGroups: readonly (readonly number[])[],
+  grid: HintGrid,
+  width: number,
+): ReservedHintSize {
+  let sizes = reservedSizesByGroups.get(allGroups);
+  if (!sizes) {
+    sizes = new Map();
+    reservedSizesByGroups.set(allGroups, sizes);
+  }
+  const key = `${grid.cell}|${grid.groupGap}|${width}`;
+  const cached = sizes.get(key);
+  if (cached) {
+    return cached;
+  }
+  const computed = computeReservedHintSize(allGroups, grid, width);
+  sizes.set(key, computed);
+  return computed;
+}
+
+function computeReservedHintSize(
   allGroups: readonly (readonly number[])[],
   grid: HintGrid,
   width: number,

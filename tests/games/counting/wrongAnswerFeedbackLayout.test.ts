@@ -66,6 +66,10 @@ import type { PlayCase } from './layoutScenes';
  * dnes jen 4 CSS px k okraji, proto výška poskoku dostává rozložení
  * (`questionMarkLiftAt(elapsedMs, layout)`) a smí se mu přizpůsobit;
  * na telefonu se „?“ místo vyššího poskoku zvětší.
+ *
+ * Případů jsou desítky tisíc, proto pravidla sbírají porušení do seznamu
+ * a ověří ho jedním `expect` (prázdný seznam, jinak popis každého případu),
+ * a stejné výpočty (rozložení, obrazovky, průběhy) se dělají jen jednou (#194).
  */
 
 const WINDOWS: readonly TestWindow[] = [...PLAY_WINDOWS, ...HOME_SCREEN_WINDOWS];
@@ -102,6 +106,15 @@ function wrongButtonScales(): number[] {
 function glowScales(): number[] {
   const scales = timesUpTo(HINT_GLOW_PULSE_MS).map((time) => hintGlowFrameAt(time).scale);
   return [Math.min(...scales), Math.max(...scales)];
+}
+
+/** Porušení pravidla `ruleName` na všech obrazovkách, s popisem obrazovky. */
+function ruleViolations(ruleName: string, scenes: readonly LayoutScene[]): string[] {
+  const rule = LAYOUT_RULES[ruleName];
+  if (!rule) {
+    return [`pravidlo „${ruleName}“ chybí`];
+  }
+  return scenes.flatMap((scene) => rule(scene).map((violation) => `${scene.label}: ${violation}`));
 }
 
 /** Obdélník zvětšený nebo zmenšený `scale`krát kolem svého středu. */
@@ -158,7 +171,7 @@ function feedbackCases(): FeedbackCase[] {
     ...playCasesWithoutHint('číselník', WINDOWS),
     ...playCasesWithoutHint('psaní', WINDOWS),
   ].map((testCase) => ({ testCase, scene: playScene(testCase) }));
-  const withHint = playCasesWithHint(WINDOWS).flatMap((testCase) => [
+  const withHint = hintCases().flatMap((testCase) => [
     { testCase, scene: hintButtonScene(testCase) },
     { testCase, scene: playScene(testCase) },
   ]);
@@ -171,18 +184,37 @@ interface BulbCase {
   readonly scene: LayoutScene;
 }
 
+let cachedHintCases: PlayCase[] | undefined;
+/** Všechna zadání s nápovědou; stejné objekty, aby se jejich rozložení počítalo jednou. */
+function hintCases(): PlayCase[] {
+  cachedHintCases ??= playCasesWithHint(WINDOWS);
+  return cachedHintCases;
+}
+
 let cachedBulbCases: BulbCase[] | undefined;
 /** Obrazovky po 1. chybě s rozzářenou žárovkou (příklady s tečkami). */
 function bulbCases(): BulbCase[] {
-  cachedBulbCases ??= playCasesWithHint(WINDOWS)
+  cachedBulbCases ??= hintCases()
     .map((testCase) => ({ window: testCase.window, scene: hintButtonScene(testCase) }))
     .filter(({ scene }) => scene.items.some((item) => item.name === HINT_BUTTON_NAME));
   return cachedBulbCases;
 }
 
+let cachedKeypadScenes: LayoutScene[] | undefined;
+/** Obrazovky s číselníkem s tlačítky v nejmenší i největší velikosti odezvy. */
+function keypadScenes(): LayoutScene[] {
+  cachedKeypadScenes ??= feedbackCases()
+    .filter(({ testCase }) => testCase.mode === 'číselník')
+    .flatMap(({ scene }) =>
+      wrongButtonScales().map((scale) => withScaled(scene, isKeypadButton, scale, 'tlačítko na')),
+    );
+  return cachedKeypadScenes;
+}
+
 beforeAll(() => {
   feedbackCases();
   bulbCases();
+  keypadScenes();
 }, SCENES_TIMEOUT_MS);
 
 /** Ťukací plochy obrazovky a plochy domečku a kolečka v CSS px. */
@@ -194,29 +226,35 @@ function tapAreasOf(scene: LayoutScene, window: TestWindow): LayoutItem[] {
   ];
 }
 
+/** Časy, ve kterých se prochází poskok „?“. */
+const HOP_TIMES = timesUpTo(QUESTION_MARK_HOP_MS);
+
 /** Nejvyšší bod poskoku „?“ v herních jednotkách v daném rozložení. */
 function highestLift(layout: ReturnType<typeof playLayoutOf>['layout']): number {
-  return Math.max(
-    ...timesUpTo(QUESTION_MARK_HOP_MS).map((time) => questionMarkLiftAt(time, layout)),
-  );
+  return Math.max(...HOP_TIMES.map((time) => questionMarkLiftAt(time, layout)));
 }
 
 /** Největší zvětšení „?“ během poskoku v daném rozložení. */
 function largestScale(layout: ReturnType<typeof playLayoutOf>['layout']): number {
-  return Math.max(
-    ...timesUpTo(QUESTION_MARK_HOP_MS).map((time) => questionMarkScaleAt(time, layout)),
-  );
+  return Math.max(...HOP_TIMES.map((time) => questionMarkScaleAt(time, layout)));
 }
 
+const hoppedBoxes = new WeakMap<PlayCase, Box>();
 /** Box „?“ v nejvyšším bodě poskoku a v největším zvětšení, v CSS px okna. */
 function hoppedProblemBox(testCase: PlayCase): Box {
+  const cached = hoppedBoxes.get(testCase);
+  if (cached) {
+    return cached;
+  }
   const { area, layout } = playLayoutOf(testCase);
   const mark = questionMarkBox(layout);
   const scale = largestScale(layout);
-  return toCss(
+  const hopped = toCss(
     box(mark.x, mark.y - highestLift(layout), mark.width * scale, mark.height * scale),
     area,
   );
+  hoppedBoxes.set(testCase, hopped);
+  return hopped;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,41 +262,28 @@ function hoppedProblemBox(testCase: PlayCase): Box {
 // ---------------------------------------------------------------------------
 
 describe('AC6: zmenšené tlačítko číselníku nic nepřekryje a zůstane na obrazovce', () => {
-  function keypadScenes(): LayoutScene[] {
-    return feedbackCases()
-      .filter(({ testCase }) => testCase.mode === 'číselník')
-      .flatMap(({ scene }) =>
-        wrongButtonScales().map((scale) => withScaled(scene, isKeypadButton, scale, 'tlačítko na')),
-      );
-  }
-
   it('zmenšené tlačítko nepřekryje jinou plochu ve všech oknech, rozsazích a obrazovkách', () => {
-    const overlap = LAYOUT_RULES['nic se nepřekrývá'];
-    for (const scene of keypadScenes()) {
-      expect(overlap?.(scene), scene.label).toEqual([]);
-    }
+    expect(ruleViolations('nic se nepřekrývá', keypadScenes())).toEqual([]);
   });
 
   it('zmenšené tlačítko zůstane celé na obrazovce ve všech oknech, rozsazích a obrazovkách', () => {
-    const fit = LAYOUT_RULES['vejde se do okna i mimo výřez'];
-    for (const scene of keypadScenes()) {
-      expect(fit?.(scene), scene.label).toEqual([]);
-    }
+    expect(ruleViolations('vejde se do okna i mimo výřez', keypadScenes())).toEqual([]);
   });
 
   it('zmenšené tlačítko zůstane na svém místě uvnitř své plochy', () => {
+    const outside: string[] = [];
     for (const { scene } of feedbackCases().filter(
       ({ testCase }) => testCase.mode === 'číselník',
     )) {
       for (const scale of wrongButtonScales()) {
         for (const button of scene.items.filter(isKeypadButton)) {
-          expect(
-            isInside(scaleBox(button.box, scale), button.box),
-            `${scene.label}: ${button.name} na ${scale}`,
-          ).toBe(true);
+          if (!isInside(scaleBox(button.box, scale), button.box)) {
+            outside.push(`${scene.label}: ${button.name} na ${scale}`);
+          }
         }
       }
     }
+    expect(outside).toEqual([]);
   });
 });
 
@@ -268,32 +293,41 @@ describe('AC6: zmenšené tlačítko číselníku nic nepřekryje a zůstane na 
 
 describe('AC6: poskočený „?“ nepřekryje ťukací plochu a zůstane na obrazovce', () => {
   it('poskočený „?“ nepřekryje žádnou ťukací plochu ve všech oknech, rozsazích, ovládáních a obrazovkách', () => {
+    const overlapping: string[] = [];
     for (const { testCase, scene } of feedbackCases()) {
       const hopped = hoppedProblemBox(testCase);
       for (const other of tapAreasOf(scene, testCase.window)) {
-        expect(overlaps(hopped, other.box), `${scene.label}: poskočený „?“ a ${other.name}`).toBe(
-          false,
-        );
+        if (overlaps(hopped, other.box)) {
+          overlapping.push(`${scene.label}: poskočený „?“ a ${other.name}`);
+        }
       }
     }
+    expect(overlapping).toEqual([]);
   });
 
   it('„?“ se zvětší nejvýš na 1,15× a nikdy nezmenší', () => {
+    const wrongScales: string[] = [];
     for (const { testCase, scene } of feedbackCases()) {
       const { layout } = playLayoutOf(testCase);
       for (const time of timesUpTo(QUESTION_MARK_HOP_MS + 100)) {
         const scale = questionMarkScaleAt(time, layout);
-        expect(scale, `${scene.label}, ${time} ms`).toBeGreaterThanOrEqual(1);
-        expect(scale, `${scene.label}, ${time} ms`).toBeLessThanOrEqual(1.15 + 0.0001);
+        if (!(scale >= 1 && scale <= 1.15 + 0.0001)) {
+          wrongScales.push(`${scene.label}, ${time} ms: ${scale}`);
+        }
       }
-      expect(questionMarkScaleAt(QUESTION_MARK_HOP_MS, layout), scene.label).toBe(1);
+      const restingScale = questionMarkScaleAt(QUESTION_MARK_HOP_MS, layout);
+      if (restingScale !== 1) {
+        wrongScales.push(`${scene.label}, po poskoku: ${restingScale}`);
+      }
     }
+    expect(wrongScales).toEqual([]);
   });
 
   it('poskočený „?“ zůstane celý na obrazovce ve všech oknech, rozsazích, ovládáních a obrazovkách', () => {
-    for (const { testCase, scene } of feedbackCases()) {
-      expect(isInside(hoppedProblemBox(testCase), scene.free), scene.label).toBe(true);
-    }
+    const outside = feedbackCases()
+      .filter(({ testCase, scene }) => !isInside(hoppedProblemBox(testCase), scene.free))
+      .map(({ scene }) => scene.label);
+    expect(outside).toEqual([]);
   });
 });
 
@@ -317,20 +351,24 @@ describe('AC6: rozzářená žárovka zůstane v místě a velikosti podle #84 A
   });
 
   it('pulzující žárovka má pořád aspoň 64 × 64 px (v okně 932×500 u číselníku do 20 aspoň 60 px)', () => {
+    const tooSmall: string[] = [];
     for (const scene of pulsingScenes()) {
       const bulb = scene.items.find(isBulb);
       const minSide = bulb?.minSide ?? MIN_TAP_SIDE;
       const size = bulb ? `${widthOf(bulb.box)} × ${heightOf(bulb.box)}` : 'chybí';
-      expect(
+      const bigEnough =
         bulb !== undefined &&
-          widthOf(bulb.box) >= minSide - 0.01 &&
-          heightOf(bulb.box) >= minSide - 0.01,
-        `${scene.label}: žárovka ${size}`,
-      ).toBe(true);
+        widthOf(bulb.box) >= minSide - 0.01 &&
+        heightOf(bulb.box) >= minSide - 0.01;
+      if (!bigEnough) {
+        tooSmall.push(`${scene.label}: žárovka ${size}`);
+      }
     }
+    expect(tooSmall).toEqual([]);
   });
 
   it('pulzující žárovka je aspoň 8 px od číselníku, okének, smazání, ✓, domečku i kolečka', () => {
+    const tooClose: string[] = [];
     for (const { window, scene: base } of bulbCases()) {
       for (const scale of glowScales()) {
         const scene = withScaled(base, isBulb, scale, 'žárovka na');
@@ -343,17 +381,19 @@ describe('AC6: rozzářená žárovka zůstane v místě a velikosti podle #84 A
           ...scene.items.filter((item) => item.name.startsWith('okénko')),
         ];
         for (const other of others) {
-          expect(
-            gapBetween(bulb.box, other.box),
-            `${scene.label}: mezi žárovkou a ${other.name}`,
-          ).toBeGreaterThanOrEqual(MIN_TAP_GAP - 0.01);
+          const gap = gapBetween(bulb.box, other.box);
+          if (!(gap >= MIN_TAP_GAP - 0.01)) {
+            tooClose.push(`${scene.label}: mezi žárovkou a ${other.name} ${gap} px`);
+          }
         }
       }
     }
+    expect(tooClose).toEqual([]);
   });
 
   it('záře kolem žárovky nepřekryje žádnou ťukací plochu, okénko ani znaky příkladu', () => {
-    for (const testCase of playCasesWithHint(WINDOWS)) {
+    const problems: string[] = [];
+    for (const testCase of hintCases()) {
       const { area, layout } = playLayoutOf(testCase);
       const slot = testCase.hint
         ? layoutDeviceHintButton(layout, hintDotGroups(testCase.hint))
@@ -372,24 +412,29 @@ describe('AC6: rozzářená žárovka zůstane v místě a velikosti podle #84 A
         ...scene.items.filter((item) => item.name.startsWith('okénko')),
         { name: 'znaky příkladu', box: problem },
       ];
-      expect(spread, `${scene.label}: záře je vidět`).toBeGreaterThan(0);
+      if (!(spread > 0)) {
+        problems.push(`${scene.label}: záře není vidět (${spread})`);
+      }
       for (const other of others) {
-        expect(overlaps(glow, other.box), `${scene.label}: záře a ${other.name}`).toBe(false);
+        if (overlaps(glow, other.box)) {
+          problems.push(`${scene.label}: záře a ${other.name}`);
+        }
       }
     }
+    expect(problems).toEqual([]);
   });
 
   it('pulzující žárovka je celá na obrazovce', () => {
-    for (const scene of pulsingScenes()) {
-      const bulb = scene.items.find(isBulb);
-      expect(bulb !== undefined && isInside(bulb.box, scene.free), scene.label).toBe(true);
-    }
+    const outside = pulsingScenes()
+      .filter((scene) => {
+        const bulb = scene.items.find(isBulb);
+        return !(bulb !== undefined && isInside(bulb.box, scene.free));
+      })
+      .map((scene) => scene.label);
+    expect(outside).toEqual([]);
   });
 
   it('pulzující žárovka nepřekryje nic jiného', () => {
-    const overlap = LAYOUT_RULES['nic se nepřekrývá'];
-    for (const scene of pulsingScenes()) {
-      expect(overlap?.(scene), scene.label).toEqual([]);
-    }
+    expect(ruleViolations('nic se nepřekrývá', pulsingScenes())).toEqual([]);
   });
 });
