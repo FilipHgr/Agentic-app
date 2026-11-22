@@ -4,6 +4,7 @@ import type { GameArea } from '../../../shared/logic/viewportLayout';
 import type { PlayState } from '../logic/deviceLayout';
 import type { GameSettings } from '../logic/settings';
 import type { WeekOverview } from '../logic/weekActivity';
+import type { MistakeOverview } from '../logic/mistakeActivity';
 import { CLOSED_SETTINGS, openSettings, pageAppearance } from '../logic/settingsSession';
 import { guidePageAppearance } from '../logic/setupGuide';
 import { applyPageAppearance } from '../ui/pageAppearance';
@@ -18,6 +19,8 @@ export interface ParentPanelsHost {
   readonly gameArea: () => GameArea;
   /** Kolik dítě vyřešilo za posledních 7 dní, pro přehled v nastavení (#183). */
   readonly weekOverview: () => WeekOverview;
+  /** Kde se dítě za posledních 7 dní plete, pro stránku Chyby v přehledu (#184). */
+  readonly mistakeOverview: () => MistakeOverview;
   /** Rodič v nastavení ťukl na ✓ s volbami `chosen`. */
   readonly onSettingsConfirmed: (chosen: GameSettings) => void;
   /** Rodič v průvodci ťukl na „Začít hrát“ s volbami `chosen`. */
@@ -90,6 +93,7 @@ export class ParentPanels {
       session,
       this.host.gameArea(),
       this.host.weekOverview,
+      this.host.mistakeOverview,
       (chosen) => {
         this.settingsPanel = undefined;
         applyPageAppearance(pageAppearance(CLOSED_SETTINGS), settingsButton);

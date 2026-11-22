@@ -3,11 +3,20 @@ import Phaser from 'phaser';
 import { CHECK_BUTTON_COLOR, checkButtonStyle } from '../logic/checkButton';
 import { CONFIRM_BUTTON_STYLE, SETTINGS_PANEL_STYLE } from '../logic/theme';
 import { colorNumber } from '../../../shared/logic/theme';
-import { layoutDeviceOverview, layoutDeviceSettingsPanel } from '../logic/deviceLayout';
 import {
+  layoutDeviceMistakes,
+  layoutDeviceOverview,
+  layoutDeviceSettingsPanel,
+} from '../logic/deviceLayout';
+import { mistakeLines } from '../logic/mistakesLayout';
+import type { MistakeOverview } from '../logic/mistakeActivity';
+import { currentLanguage } from '../../../shared/texts/languages';
+import {
+  backToOverview,
   backToSettings,
   canConfirmSettings,
   openParentPanel,
+  showMistakes,
   showOverview,
 } from '../logic/overviewPanel';
 import type { ParentPanelState } from '../logic/overviewPanel';
@@ -18,6 +27,7 @@ import type { ButtonSlot } from '../logic/screenLayout';
 import { chooseOption, selectedOptions } from '../logic/settingsSession';
 import type { SettingsSession } from '../logic/settingsSession';
 import { PANEL_HEIGHT, PANEL_WIDTH, placePanel } from './panelFit';
+import { MistakesView } from './MistakesView';
 import { OverviewView, addTextButton } from './OverviewView';
 import { SettingsRows } from './SettingsRows';
 
@@ -36,7 +46,8 @@ export const PANEL_DEPTH = 100;
  * Vybrané volby jsou plně modré. Rozměry jsou v `src/games/counting/logic/settingsLayout.ts`
  * a na telefonu v `src/games/counting/logic/phoneSettingsLayout.ts` (#59).
  * Tlačítko Přehled ukáže místo voleb přehled vyřešených příkladů a Zpět
- * vrátí volby, jak je rodič rozehrál (#183 AC3).
+ * vrátí volby, jak je rodič rozehrál (#183 AC3). Z přehledu tlačítko Chyby
+ * ukáže, kde se dítě plete, a Zpět vrátí přehled (#184).
  */
 export class SettingsPanel {
   private readonly container: Phaser.GameObjects.Container;
@@ -56,6 +67,7 @@ export class SettingsPanel {
     session: SettingsSession,
     area: GameArea,
     private readonly weekOverview: () => WeekOverview,
+    private readonly mistakeOverview: () => MistakeOverview,
     private readonly onConfirm: (session: SettingsSession) => void,
   ) {
     this.panel = openParentPanel(session);
@@ -95,6 +107,8 @@ export class SettingsPanel {
     this.content.removeAll(true);
     if (this.panel.view === 'overview') {
       this.drawOverview(area);
+    } else if (this.panel.view === 'mistakes') {
+      this.drawMistakes(area);
     } else {
       this.drawSettings(area);
     }
@@ -132,7 +146,23 @@ export class SettingsPanel {
       layout,
       this.weekOverview(),
       countingTexts().overview,
+      countingTexts().mistakes.button,
       () => this.switchTo(backToSettings(this.panel)),
+      () => this.switchTo(showMistakes(this.panel)),
+    );
+    placePanel(this.container, this.backdrop, area, layout.placement);
+  }
+
+  /** Chyby se počítají při každém otevření stránky (#184). */
+  private drawMistakes(area: GameArea): void {
+    const layout = layoutDeviceMistakes(area);
+    const texts = countingTexts();
+    new MistakesView(
+      this.scene,
+      this.content,
+      layout,
+      mistakeLines(this.mistakeOverview(), texts.mistakes, texts.overview, currentLanguage()),
+      () => this.switchTo(backToOverview(this.panel)),
     );
     placePanel(this.container, this.backdrop, area, layout.placement);
   }

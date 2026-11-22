@@ -27,6 +27,12 @@ import {
   tabletOverviewButton,
 } from './overviewLayout';
 import type { OverviewButtonSlot, OverviewLayout } from './overviewLayout';
+import {
+  layoutPhoneLandscapeMistakes,
+  layoutPhonePortraitMistakes,
+  layoutTabletMistakes,
+} from './mistakesLayout';
+import type { MistakesLayout } from './mistakesLayout';
 import { layoutPhoneLandscapeGuide, layoutPhonePortraitGuide } from './phoneGuideLayout';
 import type { GuideStepParts } from './phoneGuideLayout';
 import { layoutPhoneLandscapeSettings, layoutPhonePortraitSettings } from './phoneSettingsLayout';
@@ -431,6 +437,32 @@ export function layoutDeviceOverview(area: GameArea): DeviceOverviewLayout {
     };
   }
   return { ...layoutTabletOverview(), mode: area.mode, placement: tabletPanelPlacement(area) };
+}
+
+/** Stránka Chyby v přehledu pro rodiče pro danou herní plochu (#184). */
+export interface DeviceMistakesLayout extends MistakesLayout {
+  readonly mode: LayoutMode;
+  /** Kam a jak zmenšené se rozložení na herní plochu dá. */
+  readonly placement: PanelPlacement;
+}
+
+/** Stránka Chyby: na telefonu vlastní rozložení, jinde panel 1024 × 768 jako přehled. */
+export function layoutDeviceMistakes(area: GameArea): DeviceMistakesLayout {
+  if (area.mode === 'phoneLandscape') {
+    return {
+      ...layoutPhoneLandscapeMistakes(area),
+      mode: area.mode,
+      placement: PHONE_SETTINGS_PLACEMENT,
+    };
+  }
+  if (area.mode === 'phonePortrait') {
+    return {
+      ...layoutPhonePortraitMistakes(area),
+      mode: area.mode,
+      placement: PHONE_SETTINGS_PLACEMENT,
+    };
+  }
+  return { ...layoutTabletMistakes(), mode: area.mode, placement: tabletPanelPlacement(area) };
 }
 
 /** Krok průvodce nastavením pro danou herní plochu (#60). */

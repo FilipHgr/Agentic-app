@@ -147,6 +147,14 @@ describe('#183 AC7: graf má 7 sloupečků ve dvou odstínech a pod nimi součet
     }
   });
 
+  it('na iPadu je mezi součty a tlačítky Zpět a Chyby místo aspoň 24 (review #184)', () => {
+    const layout = layoutDeviceOverview(gameAreaFor(viewportOf(WINDOWS[0] ?? fail())));
+    const totalsBottom = Math.max(...layout.totals.map((total) => total.y + total.height / 2));
+    for (const button of [layout.back, layout.mistakesButton]) {
+      expect(button.y - button.height / 2 - totalsBottom).toBeGreaterThanOrEqual(24);
+    }
+  });
+
   it('oba odstíny jsou vidět na pozadí stránky a jdou od sebe rozeznat', () => {
     expect(contrastRatio(OVERVIEW_STYLE.solvedColor, PAGE_BACKGROUND)).toBeGreaterThanOrEqual(3);
     expect(contrastRatio(OVERVIEW_STYLE.firstTryColor, PAGE_BACKGROUND)).toBeGreaterThanOrEqual(3);

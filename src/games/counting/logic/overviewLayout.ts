@@ -1,7 +1,7 @@
 /**
  * Rozložení přehledu pro rodiče (#183): nadpis, graf 7 sloupečků se
- * zkratkami dnů, vysvětlivky obou odstínů, součty za týden a Zpět;
- * k tomu tlačítko Přehled v nastavení. Na iPadu (a ve zmenšených oknech)
+ * zkratkami dnů, vysvětlivky obou odstínů, součty za týden, Zpět a vedle
+ * něj Chyby (#184); k tomu tlačítko Přehled v nastavení. Na iPadu (a ve zmenšených oknech)
  * v jednotkách panelu 1024 × 768 jako nastavení, na telefonu podle
  * rozložení nastavení S: na šířku graf se součty vlevo a vysvětlivky a Zpět
  * vpravo pod rohem kolečka, na výšku vše pod sebou a Zpět dole u palce.
@@ -65,6 +65,8 @@ export interface OverviewLayout {
   /** Nápis bez dat na středu grafu (AC4). */
   readonly empty: OverviewTextSlot;
   readonly back: OverviewButtonSlot;
+  /** Tlačítko vedle Zpět, které otevře stránku Chyby (#184). */
+  readonly mistakesButton: OverviewButtonSlot;
   /** Násobek tloušťky okrajů proti iPadu. */
   readonly borderScale: number;
 }
@@ -101,7 +103,7 @@ const TABLET_OVERVIEW_BUTTON: OverviewButtonSlot = {
 /** Telefon na šířku (CSS px): mezi řadami (končí na 440) a ✓ vpravo, svisle na středu. */
 const LANDSCAPE_ROWS_RIGHT = 440;
 const LANDSCAPE_CONFIRM_LEFT_FROM_RIGHT = 24 + 96;
-const PHONE_BUTTON_RADIUS = 18;
+export const PHONE_BUTTON_RADIUS = 18;
 
 /** Telefon na výšku (CSS px): vlevo od ✓ dole u palce (✓ 104 px, 16 px od spodu). */
 const PORTRAIT_CONFIRM_SIZE = 104;
@@ -114,7 +116,7 @@ export function tabletOverviewButton(): OverviewButtonSlot {
   return TABLET_OVERVIEW_BUTTON;
 }
 
-function buttonInUnits(slot: OverviewButtonSlot): OverviewButtonSlot {
+export function buttonInUnits(slot: OverviewButtonSlot): OverviewButtonSlot {
   return {
     x: units(slot.x),
     y: units(slot.y),
@@ -196,7 +198,7 @@ function chartOf(frame: ChartFrame): Pick<OverviewLayout, 'chart' | 'days'> {
   };
 }
 
-function textSlot(
+export function textSlot(
   x: number,
   y: number,
   width: number,
@@ -234,6 +236,22 @@ function emptyOf(chart: OverviewChart, height: number, fontSize: number): Overvi
   );
 }
 
+/**
+ * Zpět na iPadu (jednotky panelu): vlevo od středu, vpravo vedle něj Chyby
+ * (#184), mezi nimi 20. Na stránce Chyby je Zpět na stejném místě.
+ */
+export const TABLET_BACK: OverviewButtonSlot = {
+  x: 372,
+  y: 694,
+  width: 260,
+  height: 100,
+  fontSize: 34,
+  cornerRadius: 28,
+};
+
+/** Chyby na iPadu vpravo vedle Zpět (#184). */
+export const TABLET_MISTAKES_BUTTON: OverviewButtonSlot = { ...TABLET_BACK, x: 652 };
+
 /** iPad a zmenšená okna: plocha panelu 1024 × 768, vše vodorovně na středu. */
 export function layoutTabletOverview(): OverviewLayout {
   const { chart, days } = chartOf({
@@ -253,12 +271,14 @@ export function layoutTabletOverview(): OverviewLayout {
     days,
     legend: [
       // Delší vysvětlivka „po chybě nebo s nápovědou“ má širší plochu.
-      legendEntry(160, 520, 28, 14, 400, 34, 24),
-      legendEntry(642, 520, 28, 14, 180, 34, 24),
+      legendEntry(160, 512, 28, 14, 400, 34, 24),
+      legendEntry(642, 512, 28, 14, 180, 34, 24),
     ],
-    totals: [textSlot(512, 572, 700, 34, 26), textSlot(512, 612, 700, 34, 26)],
+    // Součty o 16 výš než dřív, aby nebyly nalepené na Zpět a Chyby (review #184).
+    totals: [textSlot(512, 556, 700, 34, 26), textSlot(512, 596, 700, 34, 26)],
     empty: emptyOf(chart, 50, 34),
-    back: { x: 512, y: 694, width: 260, height: 100, fontSize: 34, cornerRadius: 28 },
+    back: TABLET_BACK,
+    mistakesButton: TABLET_MISTAKES_BUTTON,
     borderScale: 1,
   };
 }
@@ -298,17 +318,56 @@ function phoneLayoutInUnits(layout: OverviewLayout): OverviewLayout {
     totals: [text(layout.totals[0]), text(layout.totals[1])],
     empty: text(layout.empty),
     back: buttonInUnits(layout.back),
+    mistakesButton: buttonInUnits(layout.mistakesButton),
     borderScale: units(1),
   };
 }
 
 /** Okraj ťukacích ploch a obsahu na telefonu (CSS px). */
-const PHONE_SIDE = 16;
+export const PHONE_SIDE = 16;
 /** Roh kolečka, do kterého nic nepatří: x > W − 80, y < 80 (#59 AC2). */
-const PHONE_GEAR_CORNER = 80;
+export const PHONE_GEAR_CORNER = 80;
 
-/** Na šířku (CSS px): pravý sloupec s vysvětlivkami, součty a Zpět. */
-const LANDSCAPE_COLUMN_WIDTH = 240;
+/** Na šířku (CSS px): pravý sloupec s vysvětlivkami, Zpět a Chyby. */
+export const LANDSCAPE_COLUMN_WIDTH = 240;
+
+/** Na šířku (CSS px): Zpět a Chyby vedle sebe dole v pravém sloupci. */
+const LANDSCAPE_BUTTON_HEIGHT = 72;
+const LANDSCAPE_BUTTON_WIDTH = (LANDSCAPE_COLUMN_WIDTH - BUTTON_GAP) / 2;
+
+/** Zpět na telefonu na šířku (CSS px) v přehledu, vlevo od Chyby. */
+export function phoneLandscapeBack(free: GameSize): OverviewButtonSlot {
+  const columnLeft = free.width - PHONE_SIDE - LANDSCAPE_COLUMN_WIDTH;
+  return {
+    x: columnLeft + LANDSCAPE_BUTTON_WIDTH / 2,
+    y: free.height - PHONE_SIDE - LANDSCAPE_BUTTON_HEIGHT / 2,
+    width: LANDSCAPE_BUTTON_WIDTH,
+    height: LANDSCAPE_BUTTON_HEIGHT,
+    fontSize: 20,
+    cornerRadius: PHONE_BUTTON_RADIUS,
+  };
+}
+
+/** Na výšku (CSS px): Zpět a Chyby vedle sebe dole na středu u palce. */
+const PORTRAIT_BUTTON_HEIGHT = 80;
+const PORTRAIT_BUTTON_WIDTH = 140;
+
+/** Zpět na telefonu na výšku (CSS px) v přehledu, vlevo od Chyby. */
+export function phonePortraitBack(free: GameSize): OverviewButtonSlot {
+  return {
+    x: free.width / 2 - BUTTON_GAP / 2 - PORTRAIT_BUTTON_WIDTH / 2,
+    y: free.height - PHONE_SIDE - PORTRAIT_BUTTON_HEIGHT / 2,
+    width: PORTRAIT_BUTTON_WIDTH,
+    height: PORTRAIT_BUTTON_HEIGHT,
+    fontSize: 20,
+    cornerRadius: PHONE_BUTTON_RADIUS,
+  };
+}
+
+/** Tlačítko Chyby vpravo vedle Zpět, stejně velké. */
+export function besideBack(back: OverviewButtonSlot): OverviewButtonSlot {
+  return { ...back, x: back.x + back.width + BUTTON_GAP };
+}
 
 /**
  * Telefon na šířku podle S-sirka-nast: graf vlevo a pod ním součty na
@@ -334,7 +393,7 @@ export function layoutPhoneLandscapeOverview(area: GameSize): OverviewLayout {
   });
   const chartWidth = chartRight - PHONE_SIDE;
   const legendTop = PHONE_GEAR_CORNER + 16;
-  const backHeight = 72;
+  const back = phoneLandscapeBack(free);
   return phoneLayoutInUnits({
     title: textSlot(
       (PHONE_SIDE + chartRight) / 2,
@@ -356,14 +415,8 @@ export function layoutPhoneLandscapeOverview(area: GameSize): OverviewLayout {
       textSlot(PHONE_SIDE + (chartWidth * 3) / 4, totalsY, chartWidth / 2, totalHeight, 14),
     ],
     empty: emptyOf(chart, 24, 18),
-    back: {
-      x: columnLeft + 136 / 2,
-      y: free.height - PHONE_SIDE - backHeight / 2,
-      width: 136,
-      height: backHeight,
-      fontSize: 20,
-      cornerRadius: PHONE_BUTTON_RADIUS,
-    },
+    back,
+    mistakesButton: besideBack(back),
     borderScale: 1,
   });
 }
@@ -383,9 +436,8 @@ const PORTRAIT_TITLE_TOP_MIN = PHONE_GEAR_CORNER + 8;
 export function layoutPhonePortraitOverview(area: GameSize): OverviewLayout {
   const free = cssSizeOf(area);
   const centerX = free.width / 2;
-  const backHeight = 80;
-  const backY = free.height - PHONE_SIDE - backHeight / 2;
-  const secondTotalY = backY - backHeight / 2 - 16 - 10;
+  const back = phonePortraitBack(free);
+  const secondTotalY = back.y - back.height / 2 - 16 - 10;
   const firstTotalY = secondTotalY - 24;
   // Vysvětlivky pod sebou, delší text se vedle druhé nevejde.
   const secondLegendY = firstTotalY - 34;
@@ -421,14 +473,8 @@ export function layoutPhonePortraitOverview(area: GameSize): OverviewLayout {
       textSlot(centerX, secondTotalY, contentWidth, 20, 14),
     ],
     empty: emptyOf(chart, 24, 16),
-    back: {
-      x: centerX,
-      y: backY,
-      width: 160,
-      height: backHeight,
-      fontSize: 20,
-      cornerRadius: PHONE_BUTTON_RADIUS,
-    },
+    back,
+    mistakesButton: besideBack(back),
     borderScale: 1,
   });
 }

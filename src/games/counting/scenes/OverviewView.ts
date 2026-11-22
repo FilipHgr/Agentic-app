@@ -80,7 +80,8 @@ export function addTextButton(
  * Přehled pro rodiče (#183): kolik dítě vyřešilo za posledních 7 dní.
  * Sloupečky jsou tvary Phaseru: světlejší vyřešené, uvnitř tmavší
  * napoprvé, nad nimi počet a pod nimi zkratka dne (dnešek tmavší).
- * Bez dat je místo sloupečků nápis. Rozměry jsou v `overviewLayout.ts`.
+ * Bez dat je místo sloupečků nápis. Vedle Zpět je tlačítko Chyby (#184).
+ * Rozměry jsou v `overviewLayout.ts`.
  */
 export class OverviewView {
   constructor(
@@ -89,7 +90,9 @@ export class OverviewView {
     layout: OverviewLayout,
     overview: WeekOverview,
     texts: OverviewTexts,
+    mistakesButton: string,
     onBack: () => void,
+    onMistakes: () => void,
   ) {
     this.addText(layout.title, texts.title, OVERVIEW_STYLE.titleColor, true);
     layout.days.forEach((slot, index) => {
@@ -124,6 +127,14 @@ export class OverviewView {
       false,
     );
     addTextButton(scene, container, layout.back, texts.back, layout.borderScale, onBack);
+    addTextButton(
+      scene,
+      container,
+      layout.mistakesButton,
+      mistakesButton,
+      layout.borderScale,
+      onMistakes,
+    );
   }
 
   private addBars(layout: OverviewLayout, overview: WeekOverview): void {

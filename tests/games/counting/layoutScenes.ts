@@ -24,6 +24,7 @@ import {
   isPortraitLayout,
   layoutDeviceGuideStep,
   layoutDeviceOverview,
+  layoutDeviceMistakes,
   layoutDeviceHint,
   layoutDeviceHintButton,
   layoutDeviceScreen,
@@ -38,6 +39,20 @@ import type { Problem } from '../../../src/games/counting/logic/problems';
 import { slotWidth } from '../../../src/games/counting/logic/screenLayout';
 import type { ButtonSlot } from '../../../src/games/counting/logic/screenLayout';
 import { overviewBars, overviewTotalLine } from '../../../src/games/counting/logic/overviewLayout';
+import type { OverviewTextSlot } from '../../../src/games/counting/logic/overviewLayout';
+import { mistakeLines } from '../../../src/games/counting/logic/mistakesLayout';
+import {
+  EMPTY_MISTAKES,
+  MAX_MISTAKES_PER_PROBLEM,
+  mistakeOverview,
+  recordHintUsed,
+  recordMistake,
+  recordSolvedOperation,
+} from '../../../src/games/counting/logic/mistakeActivity';
+import type {
+  MistakeOverview,
+  MistakeRecord,
+} from '../../../src/games/counting/logic/mistakeActivity';
 import type { MaxNumber, OperationMode } from '../../../src/games/counting/logic/settings';
 import {
   EMPTY_ACTIVITY,
@@ -833,6 +848,12 @@ export function overviewScene(
       texts.back,
       layout.back.fontSize,
     ),
+    // Tlačítko na stránku Chyby (#184).
+    withText(
+      panelItem(MISTAKES_BUTTON_NAME, layout.mistakesButton, placement, phone, true),
+      countingTexts(language).mistakes.button,
+      layout.mistakesButton.fontSize,
+    ),
   );
   if (overview.isEmpty) {
     items.push(
@@ -887,6 +908,144 @@ export function overviewScenes(windows: readonly TestWindow[] = PANEL_WINDOWS): 
   );
 }
 
+// ---------------------------------------------------------------------------
+// Stránka Chyby v přehledu pro rodiče (#184)
+// ---------------------------------------------------------------------------
+
+/** Název tlačítka Chyby v přehledu ve zprávách pravidel (#184). */
+export const MISTAKES_BUTTON_NAME = 'Chyby';
+
+/** Záznam chyb z dnešních událostí v daném pořadí. */
+function mistakesFrom(
+  events: readonly (
+    | { readonly mistake: Problem }
+    | { readonly solved: Problem; readonly firstTry: boolean }
+    | 'hint'
+  )[],
+): MistakeRecord {
+  return events.reduce((record: MistakeRecord, event) => {
+    if (event === 'hint') {
+      return recordHintUsed(record, OVERVIEW_TODAY);
+    }
+    if ('mistake' in event) {
+      return recordMistake(record, OVERVIEW_TODAY, event.mistake);
+    }
+    return recordSolvedOperation(record, OVERVIEW_TODAY, event.solved.operation, event.firstTry);
+  }, EMPTY_MISTAKES);
+}
+
+/** Nejvíc možného: oba druhy, 3 časté chyby s nejdelšími čísly a nejvyššími počty. */
+function fullMistakes(): MistakeRecord {
+  let record = EMPTY_MISTAKES;
+  for (let index = 0; index < MAX_SOLVED_PER_DAY; index += 1) {
+    record = recordSolvedOperation(record, OVERVIEW_TODAY, 'plus', index % 2 === 0);
+    record = recordSolvedOperation(record, OVERVIEW_TODAY, 'minus', index % 3 === 0);
+    record = recordHintUsed(record, OVERVIEW_TODAY);
+  }
+  for (const problem of [minus(20, 10), minus(20, 11), plus(10, 10)]) {
+    for (let mistake = 0; mistake < MAX_MISTAKES_PER_PROBLEM; mistake += 1) {
+      record = recordMistake(record, OVERVIEW_TODAY, problem);
+    }
+  }
+  return record;
+}
+
+/**
+ * Přehledy chyb, na kterých se stránka Chyby zkouší: nejdelší texty,
+ * běžný týden, jen sčítání bez častých chyb (AC4) a prázdný přehled.
+ */
+export const MISTAKE_SAMPLES: Readonly<Record<string, MistakeOverview>> = {
+  'nejdelší texty': mistakeOverview(fullMistakes(), OVERVIEW_TODAY),
+  'běžný týden': mistakeOverview(
+    mistakesFrom([
+      { mistake: plus(8, 5) },
+      { mistake: plus(8, 5) },
+      { solved: plus(8, 5), firstTry: false },
+      { solved: plus(3, 4), firstTry: true },
+      { mistake: minus(9, 3) },
+      { mistake: minus(9, 3) },
+      'hint',
+      { solved: minus(9, 3), firstTry: false },
+      { solved: minus(7, 2), firstTry: true },
+    ]),
+    OVERVIEW_TODAY,
+  ),
+  'bez častých chyb': mistakeOverview(
+    mistakesFrom([
+      { mistake: plus(2, 3) },
+      { solved: plus(2, 3), firstTry: false },
+      { solved: plus(1, 1), firstTry: true },
+    ]),
+    OVERVIEW_TODAY,
+  ),
+  prázdný: mistakeOverview(EMPTY_MISTAKES, OVERVIEW_TODAY),
+};
+
+/**
+ * Stránka Chyby (#184) jako obrazovka pro pravidla: nadpis, nadpisy
+ * oddílů, řádky s texty jazyka `language` (jen ty, které se ukážou),
+ * nápověda za týden a Zpět.
+ */
+export function mistakesScene(
+  window: TestWindow,
+  sampleName: string,
+  language: Language,
+): LayoutScene {
+  const overview = MISTAKE_SAMPLES[sampleName];
+  if (overview === undefined) {
+    throw new Error(`Neznámý přehled chyb ${sampleName}`);
+  }
+  const texts = countingTexts(language);
+  const lines = mistakeLines(overview, texts.mistakes, texts.overview, language);
+  const area = gameAreaFor(viewportOf(window));
+  const layout = layoutDeviceMistakes(area);
+  const placement = panelCssPlacement(area, layout.placement);
+  const phone = area.mode !== 'tablet';
+  const textItem = (
+    name: string,
+    slot: CenteredSlot & { readonly fontSize: number },
+    text: string,
+    tappable = false,
+  ): LayoutItem => ({
+    ...panelItem(name, slot, placement, phone, tappable),
+    texts: [textOf(text, slot.fontSize, placement)],
+  });
+  const rows = (name: string, slots: readonly OverviewTextSlot[], texts: readonly string[]) =>
+    texts.map((text, index) => {
+      const slot = slots[index];
+      if (slot === undefined) {
+        throw new Error(`${name}: chybí řádek ${index + 1}`);
+      }
+      return textItem(`${name} ${index + 1}`, slot, text);
+    });
+  const items: LayoutItem[] = [
+    textItem('nadpis', layout.title, lines.title),
+    textItem('nadpis napoprvé', layout.firstTryHeading, lines.firstTryHeading),
+    ...rows('podíl', layout.operations, lines.operations),
+    textItem('nadpis chyb', layout.frequentHeading, lines.frequentHeading),
+    ...rows('chyba', layout.frequent, lines.frequent),
+    textItem('nápověda', layout.hints, lines.hints),
+    textItem('Zpět', layout.back, lines.back, true),
+  ];
+  if (phone) {
+    items.push(panelGearCorner(window));
+  }
+  return {
+    label: `${windowSize(window)} (${window.name}), chyby, ${sampleName}, ${language}`,
+    free: visibleAreaOf(window, area),
+    items,
+  };
+}
+
+/** Stránka Chyby ve všech oknech panelů, ve všech zkušebních přehledech a jazycích. */
+export function mistakesScenes(windows: readonly TestWindow[] = PANEL_WINDOWS): LayoutScene[] {
+  return windows.flatMap((window) =>
+    Object.keys(MISTAKE_SAMPLES).flatMap((sample) =>
+      LANGUAGES.map((language) => mistakesScene(window, sample, language)),
+    ),
+  );
+}
+
 /**
  * Všechny obrazovky Počítání v zadaných oknech (#78 AC3): hra s číselníkem,
  * psaní, nápověda, nastavení a průvodce, podle názvu obrazovky.
@@ -901,5 +1060,6 @@ export function countingScenesIn(
     'nastavení pro rodiče': () => settingsScenes(windows),
     'průvodce nastavením': () => guideScenes(windows),
     'přehled pro rodiče': () => overviewScenes(windows),
+    'chyby pro rodiče': () => mistakesScenes(windows),
   };
 }

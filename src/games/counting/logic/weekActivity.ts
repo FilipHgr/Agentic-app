@@ -69,7 +69,7 @@ function weekdayOf(date: Date): Weekday {
 }
 
 /** Existuje takový den v kalendáři (ne 30. února ani 13. měsíc)? */
-function isCalendarDay(key: string): boolean {
+export function isCalendarDay(key: string): boolean {
   const match = DAY_KEY_PATTERN.exec(key);
   if (match === null) {
     return false;
@@ -143,7 +143,7 @@ export function serializeActivity(record: ActivityRecord): string {
 }
 
 /** Klíče 7 dní přehledu od nejstaršího po dnešek. */
-function overviewDayKeys(today: Date): DayKey[] {
+export function overviewDayKeys(today: Date): DayKey[] {
   return Array.from({ length: OVERVIEW_DAY_COUNT }, (_, index) =>
     dayKeyOf(shiftedDay(today, index - (OVERVIEW_DAY_COUNT - 1))),
   );

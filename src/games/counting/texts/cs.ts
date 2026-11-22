@@ -50,4 +50,15 @@ export default {
     back: 'Zpět',
     dayNames: ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'],
   },
+  mistakes: {
+    button: 'Chyby',
+    title: 'Kde se dítě plete (7 dní)',
+    firstTryHeading: 'Vyřešeno napoprvé',
+    addition: 'Sčítání',
+    subtraction: 'Odčítání',
+    frequentHeading: 'Nejčastější chyby',
+    frequentItem: '{problem} ({count}×)',
+    noFrequent: 'Bez častých chyb',
+    hintsUsed: 'Nápověda za týden',
+  },
 } satisfies CountingTexts;

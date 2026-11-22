@@ -85,6 +85,7 @@ export class GameScene extends Phaser.Scene {
     settings: () => this.session.settings(),
     gameArea: () => this.gameArea,
     weekOverview: () => this.session.weekOverview(),
+    mistakeOverview: () => this.session.mistakeOverview(),
     onSettingsConfirmed: (chosen) => this.session.confirmSettings(chosen),
     onGuideFinished: (chosen) => this.session.finishGuide(chosen),
   });

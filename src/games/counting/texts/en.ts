@@ -50,4 +50,15 @@ export default {
     back: 'Back',
     dayNames: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   },
+  mistakes: {
+    button: 'Mistakes',
+    title: 'Where mistakes happen (7 days)',
+    firstTryHeading: 'Solved on first try',
+    addition: 'Addition',
+    subtraction: 'Subtraction',
+    frequentHeading: 'Most frequent mistakes',
+    frequentItem: '{problem} ({count}×)',
+    noFrequent: 'No frequent mistakes',
+    hintsUsed: 'Hints used this week',
+  },
 } satisfies CountingTexts;
