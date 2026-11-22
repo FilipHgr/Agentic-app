@@ -23,8 +23,6 @@ import { hintDotGroups } from '../../../src/games/counting/logic/answerRound';
 import {
   isPortraitLayout,
   layoutDeviceGuideStep,
-  layoutDeviceOverview,
-  layoutDeviceMistakes,
   layoutDeviceHint,
   layoutDeviceHintButton,
   layoutDeviceScreen,
@@ -38,32 +36,7 @@ import type {
 import type { Problem } from '../../../src/games/counting/logic/problems';
 import { slotWidth } from '../../../src/games/counting/logic/screenLayout';
 import type { ButtonSlot } from '../../../src/games/counting/logic/screenLayout';
-import { overviewBars, overviewTotalLine } from '../../../src/games/counting/logic/overviewLayout';
-import type { OverviewTextSlot } from '../../../src/games/counting/logic/overviewLayout';
-import { mistakeLines } from '../../../src/games/counting/logic/mistakesLayout';
-import {
-  EMPTY_MISTAKES,
-  MAX_MISTAKES_PER_PROBLEM,
-  mistakeOverview,
-  recordHintUsed,
-  recordMistake,
-  recordSolvedOperation,
-} from '../../../src/games/counting/logic/mistakeActivity';
-import type {
-  MistakeOverview,
-  MistakeRecord,
-} from '../../../src/games/counting/logic/mistakeActivity';
 import type { MaxNumber, OperationMode } from '../../../src/games/counting/logic/settings';
-import {
-  EMPTY_ACTIVITY,
-  MAX_SOLVED_PER_DAY,
-  dayKeyOf,
-  weekOverview,
-} from '../../../src/games/counting/logic/weekActivity';
-import type { ActivityRecord, WeekOverview } from '../../../src/games/counting/logic/weekActivity';
-import { countingTexts } from '../../../src/games/counting/texts/countingTexts';
-import { LANGUAGES } from '../../../src/shared/texts/languages';
-import type { Language } from '../../../src/shared/texts/languages';
 import type { GuideStep } from '../../../src/games/counting/logic/setupGuide';
 import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import { homeButtonFor } from '../../../src/shared/logic/homeButton';
@@ -72,7 +45,7 @@ import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import type { GameArea } from '../../../src/shared/logic/viewportLayout';
 import { cssBoxOf, panelCssPlacement } from './parentPanelCss';
 import { MIN_TAP_SIDE } from '../../shared/layoutRules';
-import type { LayoutItem, LayoutScene, LayoutText } from '../../shared/layoutRules';
+import type { LayoutItem, LayoutScene } from '../../shared/layoutRules';
 import {
   IPAD_WINDOWS,
   JUST_ABOVE_LIMIT,
@@ -649,8 +622,6 @@ export function settingsScene(window: TestWindow): LayoutScene {
       true,
     ),
   );
-  // Tlačítko Přehled pro rodiče (#183 AC3).
-  items.push(panelItem(OVERVIEW_BUTTON_NAME, layout.overviewButton, placement, phone, true));
   if (phone) {
     items.push(panelGearCorner(window));
   }
@@ -718,334 +689,6 @@ export function settingsScenes(windows: readonly TestWindow[] = PANEL_WINDOWS): 
   return windows.map((window) => settingsScene(window));
 }
 
-// ---------------------------------------------------------------------------
-// Přehled pro rodiče (#183)
-// ---------------------------------------------------------------------------
-
-/** Název tlačítka Přehled v nastavení ve zprávách pravidel (#183 AC3). */
-export const OVERVIEW_BUTTON_NAME = 'Přehled';
-
-/** Neděle 22. 11. 2026: přehled jde od pondělí do neděle. */
-export const OVERVIEW_TODAY = new Date(2026, 10, 22, 12, 0, 0);
-
-function activityOf(counts: readonly (readonly [number, number])[]): ActivityRecord {
-  const record: Record<string, { solved: number; firstTry: number }> = {};
-  counts.forEach(([solved, firstTry], index) => {
-    const date = new Date(2026, 10, 16 + index, 12, 0, 0);
-    record[dayKeyOf(date)] = { solved, firstTry };
-  });
-  return record;
-}
-
-/**
- * Týdny, na kterých se přehled zkouší: nejvíc příkladů každý den (nejdelší
- * čísla a nejvyšší sloupečky), běžný týden s dny bez hraní, jediný den
- * s hraním a prázdný přehled (AC4).
- */
-export const OVERVIEW_SAMPLES: Readonly<Record<string, WeekOverview>> = {
-  'plný týden': weekOverview(
-    activityOf(Array.from({ length: 7 }, () => [MAX_SOLVED_PER_DAY, MAX_SOLVED_PER_DAY] as const)),
-    OVERVIEW_TODAY,
-  ),
-  'běžný týden': weekOverview(
-    activityOf([
-      [12, 9],
-      [0, 0],
-      [25, 25],
-      [3, 0],
-      [0, 0],
-      [40, 31],
-      [7, 2],
-    ]),
-    OVERVIEW_TODAY,
-  ),
-  'jen dnes': weekOverview(
-    activityOf([
-      [0, 0],
-      [0, 0],
-      [0, 0],
-      [0, 0],
-      [0, 0],
-      [0, 0],
-      [1, 1],
-    ]),
-    OVERVIEW_TODAY,
-  ),
-  prázdný: weekOverview(EMPTY_ACTIVITY, OVERVIEW_TODAY),
-};
-
-/** Text v prvku přehledu se svým písmem v CSS px. */
-function textOf(text: string, fontSize: number, placement: Placement): LayoutText {
-  return { text, fontSize: fontSize * placement.scale };
-}
-
-/**
- * Přehled pro rodiče (#183) jako obrazovka pro pravidla: nadpis,
- * sloupečky se zkratkami dnů a počty, vysvětlivky obou odstínů, součty
- * za týden a Zpět. Prvky nesou texty jazyka `language`, aby šlo hlídat,
- * že se vejdou (AC7).
- */
-export function overviewScene(
-  window: TestWindow,
-  sampleName: string,
-  language: Language,
-): LayoutScene {
-  const overview = OVERVIEW_SAMPLES[sampleName];
-  if (overview === undefined) {
-    throw new Error(`Neznámý týden ${sampleName}`);
-  }
-  const texts = countingTexts(language).overview;
-  const area = gameAreaFor(viewportOf(window));
-  const layout = layoutDeviceOverview(area);
-  const placement = panelCssPlacement(area, layout.placement);
-  const phone = area.mode !== 'tablet';
-  const withText = (item: LayoutItem, text: string, fontSize: number): LayoutItem => ({
-    ...item,
-    texts: [textOf(text, fontSize, placement)],
-  });
-  const items: LayoutItem[] = [
-    withText(
-      panelItem('nadpis', layout.title, placement, phone, false),
-      texts.title,
-      layout.title.fontSize,
-    ),
-  ];
-  layout.days.forEach((day, index) => {
-    const weekday = overview.days[index]?.weekday ?? 0;
-    items.push(
-      withText(
-        panelItem(`den ${index + 1}`, day, placement, phone, false),
-        texts.dayNames[weekday],
-        day.fontSize,
-      ),
-    );
-  });
-  layout.legend.forEach((entry, index) => {
-    const label = index === 0 ? texts.legendNotFirstTry : texts.legendFirstTry;
-    items.push(panelItem(`odstín ${index + 1}`, entry.swatch, placement, phone, false));
-    items.push(
-      withText(
-        panelItem(`vysvětlivka ${index + 1}`, entry.label, placement, phone, false),
-        label,
-        entry.label.fontSize,
-      ),
-    );
-  });
-  const [solvedTotal, firstTryTotal] = layout.totals;
-  items.push(
-    withText(
-      panelItem('součet za týden', solvedTotal, placement, phone, false),
-      overviewTotalLine(texts.totalSolved, overview.totalSolved),
-      solvedTotal.fontSize,
-    ),
-    withText(
-      panelItem('součet napoprvé', firstTryTotal, placement, phone, false),
-      overviewTotalLine(texts.totalFirstTry, overview.totalFirstTry),
-      firstTryTotal.fontSize,
-    ),
-    withText(
-      panelItem('Zpět', layout.back, placement, phone, true),
-      texts.back,
-      layout.back.fontSize,
-    ),
-    // Tlačítko na stránku Chyby (#184).
-    withText(
-      panelItem(MISTAKES_BUTTON_NAME, layout.mistakesButton, placement, phone, true),
-      countingTexts(language).mistakes.button,
-      layout.mistakesButton.fontSize,
-    ),
-  );
-  if (overview.isEmpty) {
-    items.push(
-      withText(
-        panelItem('bez dat', layout.empty, placement, phone, false),
-        texts.empty,
-        layout.empty.fontSize,
-      ),
-    );
-  } else {
-    overviewBars(layout, overview).forEach((bar, index) => {
-      if (bar.solved.height > 0) {
-        items.push(panelItem(`sloupeček ${index + 1}`, bar.solved, placement, phone, false));
-      }
-      if (bar.firstTry.height > 0) {
-        items.push(panelItem(`napoprvé ${index + 1}`, bar.firstTry, placement, phone, false));
-      }
-      items.push(
-        withText(
-          panelItem(`počet ${index + 1}`, bar.value, placement, phone, false),
-          String(overview.days[index]?.solved ?? 0),
-          bar.value.fontSize,
-        ),
-      );
-    });
-  }
-  if (phone) {
-    items.push(panelGearCorner(window));
-  }
-  const dayOf = (item: LayoutItem): string | null => {
-    const match = /^(sloupeček|napoprvé) (\d)$/.exec(item.name);
-    return match ? (match[2] ?? null) : null;
-  };
-  return {
-    label: `${windowSize(window)} (${window.name}), přehled, ${sampleName}, ${language}`,
-    free: visibleAreaOf(window, area),
-    items,
-    // Tmavší sloupeček „napoprvé“ je částí sloupečku vyřešených téhož dne (AC7).
-    mayOverlap: (first, second) => {
-      const firstDay = dayOf(first);
-      return firstDay !== null && firstDay === dayOf(second) && first.name !== second.name;
-    },
-  };
-}
-
-/** Přehled ve všech oknech panelů, ve všech zkušebních týdnech a jazycích. */
-export function overviewScenes(windows: readonly TestWindow[] = PANEL_WINDOWS): LayoutScene[] {
-  return windows.flatMap((window) =>
-    Object.keys(OVERVIEW_SAMPLES).flatMap((sample) =>
-      LANGUAGES.map((language) => overviewScene(window, sample, language)),
-    ),
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Stránka Chyby v přehledu pro rodiče (#184)
-// ---------------------------------------------------------------------------
-
-/** Název tlačítka Chyby v přehledu ve zprávách pravidel (#184). */
-export const MISTAKES_BUTTON_NAME = 'Chyby';
-
-/** Záznam chyb z dnešních událostí v daném pořadí. */
-function mistakesFrom(
-  events: readonly (
-    | { readonly mistake: Problem }
-    | { readonly solved: Problem; readonly firstTry: boolean }
-    | 'hint'
-  )[],
-): MistakeRecord {
-  return events.reduce((record: MistakeRecord, event) => {
-    if (event === 'hint') {
-      return recordHintUsed(record, OVERVIEW_TODAY);
-    }
-    if ('mistake' in event) {
-      return recordMistake(record, OVERVIEW_TODAY, event.mistake);
-    }
-    return recordSolvedOperation(record, OVERVIEW_TODAY, event.solved.operation, event.firstTry);
-  }, EMPTY_MISTAKES);
-}
-
-/** Nejvíc možného: oba druhy, 3 časté chyby s nejdelšími čísly a nejvyššími počty. */
-function fullMistakes(): MistakeRecord {
-  let record = EMPTY_MISTAKES;
-  for (let index = 0; index < MAX_SOLVED_PER_DAY; index += 1) {
-    record = recordSolvedOperation(record, OVERVIEW_TODAY, 'plus', index % 2 === 0);
-    record = recordSolvedOperation(record, OVERVIEW_TODAY, 'minus', index % 3 === 0);
-    record = recordHintUsed(record, OVERVIEW_TODAY);
-  }
-  for (const problem of [minus(20, 10), minus(20, 11), plus(10, 10)]) {
-    for (let mistake = 0; mistake < MAX_MISTAKES_PER_PROBLEM; mistake += 1) {
-      record = recordMistake(record, OVERVIEW_TODAY, problem);
-    }
-  }
-  return record;
-}
-
-/**
- * Přehledy chyb, na kterých se stránka Chyby zkouší: nejdelší texty,
- * běžný týden, jen sčítání bez častých chyb (AC4) a prázdný přehled.
- */
-export const MISTAKE_SAMPLES: Readonly<Record<string, MistakeOverview>> = {
-  'nejdelší texty': mistakeOverview(fullMistakes(), OVERVIEW_TODAY),
-  'běžný týden': mistakeOverview(
-    mistakesFrom([
-      { mistake: plus(8, 5) },
-      { mistake: plus(8, 5) },
-      { solved: plus(8, 5), firstTry: false },
-      { solved: plus(3, 4), firstTry: true },
-      { mistake: minus(9, 3) },
-      { mistake: minus(9, 3) },
-      'hint',
-      { solved: minus(9, 3), firstTry: false },
-      { solved: minus(7, 2), firstTry: true },
-    ]),
-    OVERVIEW_TODAY,
-  ),
-  'bez častých chyb': mistakeOverview(
-    mistakesFrom([
-      { mistake: plus(2, 3) },
-      { solved: plus(2, 3), firstTry: false },
-      { solved: plus(1, 1), firstTry: true },
-    ]),
-    OVERVIEW_TODAY,
-  ),
-  prázdný: mistakeOverview(EMPTY_MISTAKES, OVERVIEW_TODAY),
-};
-
-/**
- * Stránka Chyby (#184) jako obrazovka pro pravidla: nadpis, nadpisy
- * oddílů, řádky s texty jazyka `language` (jen ty, které se ukážou),
- * nápověda za týden a Zpět.
- */
-export function mistakesScene(
-  window: TestWindow,
-  sampleName: string,
-  language: Language,
-): LayoutScene {
-  const overview = MISTAKE_SAMPLES[sampleName];
-  if (overview === undefined) {
-    throw new Error(`Neznámý přehled chyb ${sampleName}`);
-  }
-  const texts = countingTexts(language);
-  const lines = mistakeLines(overview, texts.mistakes, texts.overview, language);
-  const area = gameAreaFor(viewportOf(window));
-  const layout = layoutDeviceMistakes(area);
-  const placement = panelCssPlacement(area, layout.placement);
-  const phone = area.mode !== 'tablet';
-  const textItem = (
-    name: string,
-    slot: CenteredSlot & { readonly fontSize: number },
-    text: string,
-    tappable = false,
-  ): LayoutItem => ({
-    ...panelItem(name, slot, placement, phone, tappable),
-    texts: [textOf(text, slot.fontSize, placement)],
-  });
-  const rows = (name: string, slots: readonly OverviewTextSlot[], texts: readonly string[]) =>
-    texts.map((text, index) => {
-      const slot = slots[index];
-      if (slot === undefined) {
-        throw new Error(`${name}: chybí řádek ${index + 1}`);
-      }
-      return textItem(`${name} ${index + 1}`, slot, text);
-    });
-  const items: LayoutItem[] = [
-    textItem('nadpis', layout.title, lines.title),
-    textItem('nadpis napoprvé', layout.firstTryHeading, lines.firstTryHeading),
-    ...rows('podíl', layout.operations, lines.operations),
-    textItem('nadpis chyb', layout.frequentHeading, lines.frequentHeading),
-    ...rows('chyba', layout.frequent, lines.frequent),
-    textItem('nápověda', layout.hints, lines.hints),
-    textItem('Zpět', layout.back, lines.back, true),
-  ];
-  if (phone) {
-    items.push(panelGearCorner(window));
-  }
-  return {
-    label: `${windowSize(window)} (${window.name}), chyby, ${sampleName}, ${language}`,
-    free: visibleAreaOf(window, area),
-    items,
-  };
-}
-
-/** Stránka Chyby ve všech oknech panelů, ve všech zkušebních přehledech a jazycích. */
-export function mistakesScenes(windows: readonly TestWindow[] = PANEL_WINDOWS): LayoutScene[] {
-  return windows.flatMap((window) =>
-    Object.keys(MISTAKE_SAMPLES).flatMap((sample) =>
-      LANGUAGES.map((language) => mistakesScene(window, sample, language)),
-    ),
-  );
-}
-
 /**
  * Všechny obrazovky Počítání v zadaných oknech (#78 AC3): hra s číselníkem,
  * psaní, nápověda, nastavení a průvodce, podle názvu obrazovky.
@@ -1059,7 +702,5 @@ export function countingScenesIn(
     'nápověda po 2. chybě': () => playCasesWithHint(windows).map(playScene),
     'nastavení pro rodiče': () => settingsScenes(windows),
     'průvodce nastavením': () => guideScenes(windows),
-    'přehled pro rodiče': () => overviewScenes(windows),
-    'chyby pro rodiče': () => mistakesScenes(windows),
   };
 }

@@ -129,7 +129,8 @@ const isAll = (item: FewCase): boolean => item.selectedCount === item.gameCount;
 // #157: místo schovaných zástupných tlačítek „…“ zůstává v liště vyhrazené
 // (`reservedSlots`), nic se tam nekreslí, ale obsah do něj nesmí.
 function barBoxes(layout: MenuLayout): MenuBox[] {
-  return [layout.profileSlot, layout.languageSlot, ...layout.reservedSlots];
+  // #192: tlačítko přehledu na vyhrazeném místě patří k liště.
+  return [layout.profileSlot, layout.languageSlot, layout.overviewButton, ...layout.reservedSlots];
 }
 
 /** Lišta, ťukací plochy kategorií a tlačítko výběru kategorie. */

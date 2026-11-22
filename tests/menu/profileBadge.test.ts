@@ -282,7 +282,8 @@ describe('#71 AC5: kolečko profilu v rozložení menu podle obrázku B', () => 
           expect(overlaps(label, layout.languageSlot)).toBe(false);
           expect(gapBetween(label, layout.languageSlot)).toBeGreaterThanOrEqual(MIN_GAP - ROUNDING);
           for (const other of [
-            // #157: vyhrazené místo po schovaných „…“.
+            // #157: vyhrazené místo po schovaných „…“, #192: tlačítko přehledu.
+            layout.overviewButton,
             ...layout.reservedSlots,
             ...layout.categories.map((category) => category.hit),
             ...layout.tiles,
@@ -301,6 +302,7 @@ describe('#71 AC5: kolečko profilu v rozložení menu podle obrázku B', () => 
         expect(withNickname.languageSlot).toEqual(without.languageSlot);
         // #157: vyhrazené místo po schovaných „…“.
         expect(withNickname.reservedSlots).toEqual(without.reservedSlots);
+        expect(withNickname.overviewButton).toEqual(without.overviewButton);
         expect(withNickname.categories).toEqual(without.categories);
         expect(withNickname.tiles).toEqual(without.tiles);
       });

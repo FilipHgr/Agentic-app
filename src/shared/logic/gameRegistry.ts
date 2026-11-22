@@ -7,6 +7,7 @@
 
 import type { Language } from '../texts/languages';
 import type { GameAccess } from './gameAccess';
+import type { GameOverviewSpec } from './overviewProblems';
 
 /**
  * Kategorie her v menu. Id je stálé, název se bere z textů menu podle klíče.
@@ -49,6 +50,12 @@ export interface GameMeta {
    * `data:` adresa, nebo soubor na stejné stránce (rozhodne Vite).
    */
   readonly tile: string;
+  /**
+   * Přehled pro rodiče v menu (#192): jaké příklady hra zapisuje a co
+   * ukáže stránka Chyby. Menu podle toho čte záznamy hry bez jejího kódu.
+   * Hra bez přehledu (Omalovánky) ho nemá.
+   */
+  readonly overview?: GameOverviewSpec;
 }
 
 /** Záznam hry v registru. */
@@ -65,6 +72,8 @@ export interface GameEntry {
    * dlaždice symbol.
    */
   readonly tile?: string;
+  /** Přehled pro rodiče v menu (#192) z `meta.ts`; hra bez něj v přehledu není. */
+  readonly overview?: GameOverviewSpec;
   /** Stáhne hru (vstup `src/games/<hra>/index.ts`). */
   readonly load: () => Promise<unknown>;
 }
@@ -83,6 +92,7 @@ export function gameEntry(meta: GameMeta, load: () => Promise<unknown>): GameEnt
     symbol: meta.symbol,
     access: meta.access,
     tile: meta.tile,
+    ...(meta.overview === undefined ? {} : { overview: meta.overview }),
     load,
   };
 }

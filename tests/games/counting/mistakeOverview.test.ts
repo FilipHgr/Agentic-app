@@ -3,40 +3,25 @@ import { describe, expect, it } from 'vitest';
 import { recognizeDigit } from '../../../src/games/counting/logic/digitRecognition';
 import type { Stroke } from '../../../src/games/counting/logic/digitRecognition';
 import { createCountingSession } from '../../../src/games/counting/logic/countingSession';
-import type { CountingSession } from '../../../src/games/counting/logic/countingSession';
 import {
-  EMPTY_MISTAKES,
-  MAX_MISTAKEN_PROBLEMS_PER_DAY,
   MAX_MISTAKES_PER_PROBLEM,
   MAX_MISTAKE_RECORD_BYTES,
-  mistakeOverview,
-  parseMistakes,
-  recordHintUsed,
-  recordMistake,
-  recordSolvedOperation,
-  serializeMistakes,
-} from '../../../src/games/counting/logic/mistakeActivity';
+  mistakeOverview as sharedMistakeOverview,
+  parseMistakes as sharedParseMistakes,
+} from '../../../src/shared/logic/mistakeActivity';
 import type {
+  MistakeOverview,
   MistakeRecord,
   MistakenProblem,
-} from '../../../src/games/counting/logic/mistakeActivity';
-import {
-  frequentMistakeLine,
-  operationShareLine,
-} from '../../../src/games/counting/logic/mistakesLayout';
-import {
-  backToOverview,
-  backToSettings,
-  canConfirmSettings,
-  openParentPanel,
-  showMistakes,
-  showOverview,
-} from '../../../src/games/counting/logic/overviewPanel';
+} from '../../../src/shared/logic/mistakeActivity';
+import { equationKey } from '../../../src/shared/logic/overviewProblems';
+import type { OverviewOperation } from '../../../src/shared/logic/overviewProblems';
+import { frequentMistakeLine } from '../../../src/menu/logic/overviewLines';
+import { overviewTexts } from '../../../src/menu/logic/menuTexts';
 import type { Problem } from '../../../src/games/counting/logic/problems';
 import { serializeSettings } from '../../../src/games/counting/logic/settings';
 import type { GameSettings } from '../../../src/games/counting/logic/settings';
-import { openSettings } from '../../../src/games/counting/logic/settingsSession';
-import { dayKeyOf } from '../../../src/games/counting/logic/weekActivity';
+import { dayKeyOf } from '../../../src/shared/logic/weekActivity';
 import {
   RECOGNITION_DELAY_MS,
   clearWriting,
@@ -48,9 +33,8 @@ import {
   updateWriting,
 } from '../../../src/games/counting/logic/writingRound';
 import type { DigitRecognizer, WritingRound } from '../../../src/games/counting/logic/writingRound';
-import { MISTAKES_KEY } from '../../../src/games/counting/storage/mistakeStorage';
-import { COUNTING_META } from '../../../src/games/counting/meta';
-import { countingTexts } from '../../../src/games/counting/texts/countingTexts';
+import { MISTAKES_KEY, readGameOverview } from '../../../src/shared/storage/activityStorage';
+import { COUNTING_META, COUNTING_OVERVIEW } from '../../../src/games/counting/meta';
 import { PROFILE_COLORS } from '../../../src/shared/logic/profiles';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 import { openProfiles } from '../../../src/shared/storage/profileStorage';
@@ -75,8 +59,14 @@ import { ASYMMETRIC_DIGITS, FORM_AREA, inForm } from './writtenForms';
  * Testy k #184: přehled pro rodiče ukáže, kde se dítě v Počítání plete.
  * Podíl příkladů napoprvé zvlášť pro sčítání a odčítání, nejvýš 3 příklady
  * s nejvíc chybami za 7 dní a kolikrát dítě ťuklo na nápovědu. Datum
- * „dnes“ dostane hra zvenku (`today`). Rozložení stránky Chyby je
- * v `mistakesLayout.test.ts`.
+ * „dnes“ dostane hra zvenku (`today`).
+ *
+ * Od #192 je přehled v hlavním menu: co rodič uvidí, čte menu z úložiště
+ * hry přes sdílenou logiku (`readGameOverview`), stejně to čtou i tyto
+ * testy. Záznam chyb je ve sdílené části společný pro hry, příklad je
+ * v něm krátký text („8+5“); testy volají sdílenou logiku s popisem
+ * přehledu Počítání z `meta.ts`. Obrazovka přehledu v menu je
+ * v `tests/menu/parentOverview*.test.ts`.
  *
  * Rozhodnutí k úkolu: nápověda se počítá jen ťuknutím na tlačítko (#84),
  * jednou za příklad; nápověda, která se ukáže sama po 2. chybě, se
@@ -91,23 +81,40 @@ function daysAfter(date: Date, days: number): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days, 12, 0, 0);
 }
 
-function plus(first: number, second: number): Problem {
-  return { first, second, operation: 'plus', result: first + second };
-}
-
-function minus(first: number, second: number): Problem {
-  return { first, second, operation: 'minus', result: first - second };
-}
-
 const MIXED_KEYPAD: GameSettings = { maxNumber: 10, operations: 'mixed', answerInput: 'keypad' };
 const WRITING_10: GameSettings = { maxNumber: 10, operations: 'plus', answerInput: 'writing' };
+
+// Sdílená logika s popisem přehledu Počítání, jak ji používá menu (#192).
+function mistakeOverview(record: MistakeRecord, date: Date): MistakeOverview {
+  return sharedMistakeOverview(record, date, COUNTING_OVERVIEW);
+}
+
+function parseMistakes(saved: string | null | undefined): MistakeRecord {
+  return sharedParseMistakes(saved, COUNTING_OVERVIEW);
+}
+
+/** Příklad s `mistakes` chybami, jak ho přehled vrátí. */
+function mistaken(
+  first: number,
+  second: number,
+  operation: OverviewOperation,
+  mistakes: number,
+): MistakenProblem {
+  return { problem: equationKey(first, operation, second), mistakes };
+}
+
+/** Vstup do hry, ve kterém se dá podívat, co rodič v přehledu v menu uvidí. */
+type OverviewTest = TestSession & {
+  /** Přehled chyb, jak ho menu přečte z úložiště hry (#192). */
+  mistakes(): MistakeOverview;
+};
 
 /** Jeden vstup do Počítání nad úložištěm `storage` s dnešním dnem podle `clock`. */
 function enterOn(
   storage: KeyValueStorage | undefined,
   clock: { today: Date },
   seed?: number,
-): TestSession {
+): OverviewTest {
   const timers = new FakeTimers();
   const recognizer = new FakeRecognizerLoader();
   const session = createCountingSession({
@@ -124,7 +131,13 @@ function enterOn(
   if (session.guideOpen()) {
     session.finishGuide(KEYPAD_SETTINGS);
   }
-  return { session, timers, recognizer, changes: () => 0 };
+  return {
+    session,
+    timers,
+    recognizer,
+    changes: () => 0,
+    mistakes: () => readGameOverview(storage, COUNTING_OVERVIEW, clock.today).mistakes,
+  };
 }
 
 /** Úložiště s uloženým nastavením rodiče. */
@@ -133,7 +146,7 @@ function storageWith(settings: GameSettings): ReturnType<typeof memoryStorage> {
 }
 
 /** Dítě odpoví `times`krát špatně a pak správně. */
-function solveAfterMistakes(test: TestSession, times: number): Problem {
+function solveAfterMistakes(test: OverviewTest, times: number): Problem {
   const problem = test.session.problem();
   for (let mistake = 0; mistake < times; mistake += 1) {
     test.session.tapAnswer(wrongAnswerOf(test.session));
@@ -144,7 +157,7 @@ function solveAfterMistakes(test: TestSession, times: number): Problem {
 }
 
 /** Dítě řeší příklady napoprvé, dokud nedostane příklad, který splní `wanted`. */
-function untilProblem(test: TestSession, wanted: (problem: Problem) => boolean): void {
+function untilProblem(test: OverviewTest, wanted: (problem: Problem) => boolean): void {
   for (let attempt = 0; attempt < 60 && !wanted(test.session.problem()); attempt += 1) {
     solveProblems(test, 1);
   }
@@ -160,21 +173,12 @@ function byteLength(text: string): number {
 
 /** Řádek časté chyby, jak ho rodič uvidí česky. */
 function csLine(mistake: MistakenProblem): string {
-  return frequentMistakeLine(countingTexts('cs').mistakes.frequentItem, mistake);
+  return frequentMistakeLine(overviewTexts('cs').frequentItem, mistake.problem, mistake.mistakes);
 }
 
 /** Text řádku s častou chybou, jak ho rodič uvidí. */
-function frequentLines(session: CountingSession): string[] {
-  return session.mistakeOverview().frequent.map(csLine);
-}
-
-/** Záznam, kde dítě v den `date` udělalo u příkladů chyby v daném pořadí. */
-function mistakesOn(
-  date: Date,
-  problems: readonly Problem[],
-  start = EMPTY_MISTAKES,
-): MistakeRecord {
-  return problems.reduce((record, problem) => recordMistake(record, date, problem), start);
+function frequentLines(test: OverviewTest): string[] {
+  return test.mistakes().frequent.map(csLine);
 }
 
 // ---------------------------------------------------------------------------
@@ -205,8 +209,8 @@ describe('#184 AC1: chyba je každá potvrzená špatná odpověď', () => {
     const test = enterOn(storageWith(KEYPAD_SETTINGS), { today: SUNDAY });
     untilProblem(test, (problem) => problem.result > 1);
     const problem = solveAfterMistakes(test, 2);
-    expect(test.session.mistakeOverview().frequent).toEqual([
-      { first: problem.first, second: problem.second, operation: problem.operation, mistakes: 2 },
+    expect(test.mistakes().frequent).toEqual([
+      mistaken(problem.first, problem.second, problem.operation, 2),
     ]);
   });
 
@@ -218,11 +222,11 @@ describe('#184 AC1: chyba je každá potvrzená špatná odpověď', () => {
     test.session.tapAnswer(correctAnswerOf(test.session));
     test.timers.runAll();
     solveProblems(test, 3);
-    expect(test.session.mistakeOverview().frequent).toEqual([]);
+    expect(test.mistakes().frequent).toEqual([]);
     // Ani jediná chyba se neuložila, jen vyřešené příklady a nápověda.
     const saved = parseMistakes(storage.data.get(MISTAKES_KEY))[dayKeyOf(SUNDAY)];
     expect(saved?.problems).toEqual([]);
-    expect(test.session.mistakeOverview().hintsUsed).toBe(1);
+    expect(test.mistakes().hintsUsed).toBe(1);
   });
 
   it('číslo napsané prstem a před ✓ přepsané na správné se jako chyba nepočítá', () => {
@@ -243,7 +247,7 @@ describe('#184 AC1: chyba je každá potvrzená špatná odpověď', () => {
     const confirmed = confirmWriting(rewritten);
     expect(test.session.answerWritten(confirmed.round.answer, confirmed.outcome)).toBe('correct');
 
-    const overview = test.session.mistakeOverview();
+    const overview = test.mistakes();
     expect(overview.frequent).toEqual([]);
     expect(overview.operations).toEqual([
       { operation: 'plus', solved: 1, firstTry: 1, percent: 100 },
@@ -261,9 +265,7 @@ describe('#184 AC1: chyba je každá potvrzená špatná odpověď', () => {
       expect(test.session.answerWritten(confirmed.round.answer, confirmed.outcome)).toBe('wrong');
       round = confirmed.round;
     }
-    expect(test.session.mistakeOverview().frequent).toEqual([
-      { first: problem.first, second: problem.second, operation: 'plus', mistakes: 2 },
-    ]);
+    expect(test.mistakes().frequent).toEqual([mistaken(problem.first, problem.second, 'plus', 2)]);
   });
 
   it('zrcadlově napsané správné číslo hra přijme jako správné, chyba nepřibude (#85)', () => {
@@ -278,7 +280,7 @@ describe('#184 AC1: chyba je každá potvrzená špatná odpověď', () => {
 
     const confirmed = confirmWriting(mirrored);
     expect(test.session.answerWritten(confirmed.round.answer, confirmed.outcome)).toBe('correct');
-    const overview = test.session.mistakeOverview();
+    const overview = test.mistakes();
     expect(overview.frequent).toEqual([]);
     expect(overview.operations[0]?.firstTry).toBe(overview.operations[0]?.solved);
   });
@@ -293,7 +295,7 @@ describe('#184 AC2: podíl příkladů napoprvé zvlášť pro sčítání a od�
     const test = enterOn(storageWith(KEYPAD_SETTINGS), { today: SUNDAY });
     solveProblems(test, 3);
     solveAfterMistakes(test, 1);
-    expect(test.session.mistakeOverview().operations).toEqual([
+    expect(test.mistakes().operations).toEqual([
       { operation: 'plus', solved: 4, firstTry: 3, percent: 75 },
     ]);
   });
@@ -310,7 +312,7 @@ describe('#184 AC2: podíl příkladů napoprvé zvlášť pro sčítání a od�
     }
     expect(counted.plus.solved).toBeGreaterThan(0);
     expect(counted.minus.solved).toBeGreaterThan(0);
-    const operations = test.session.mistakeOverview().operations;
+    const operations = test.mistakes().operations;
     expect(operations.map((share) => share.operation)).toEqual(['plus', 'minus']);
     expect(operations.map(({ solved, firstTry }) => ({ solved, firstTry }))).toEqual([
       counted.plus,
@@ -321,41 +323,13 @@ describe('#184 AC2: podíl příkladů napoprvé zvlášť pro sčítání a od�
   it('příklad s nápovědou z tlačítka se nepočítá jako napoprvé, stejně jako v přehledu', () => {
     const test = enterOn(storageWith(KEYPAD_SETTINGS), { today: SUNDAY });
     untilProblem(test, (problem) => problem.first > 0 || problem.second > 0);
-    const before = test.session.mistakeOverview().operations[0] ?? { solved: 0, firstTry: 0 };
+    const before = test.mistakes().operations[0] ?? { solved: 0, firstTry: 0 };
     expect(test.session.tapHintButton()).toBe(true);
     test.session.tapAnswer(correctAnswerOf(test.session));
     test.timers.runAll();
-    const after = test.session.mistakeOverview().operations[0];
+    const after = test.mistakes().operations[0];
     expect(after?.solved).toBe(before.solved + 1);
     expect(after?.firstTry).toBe(before.firstTry);
-  });
-
-  it('podíl je zaokrouhlený dolů, 199 z 200 není 100 %', () => {
-    let record = EMPTY_MISTAKES;
-    for (let index = 0; index < 200; index += 1) {
-      record = recordSolvedOperation(record, SUNDAY, 'minus', index !== 0);
-    }
-    expect(mistakeOverview(record, SUNDAY).operations).toEqual([
-      { operation: 'minus', solved: 200, firstTry: 199, percent: 99 },
-    ]);
-  });
-
-  it('řádek podílu česky „Sčítání: 75 % (3/4)“, anglicky „Addition: 75% (3/4)“', () => {
-    const share = { operation: 'plus', solved: 4, firstTry: 3, percent: 75 } as const;
-    const cs = countingTexts('cs').mistakes;
-    const en = countingTexts('en').mistakes;
-    expect(operationShareLine(cs.addition, share, 'cs')).toBe('Sčítání: 75 % (3/4)');
-    expect(operationShareLine(en.addition, share, 'en')).toBe('Addition: 75% (3/4)');
-    expect(cs.subtraction).toBe('Odčítání');
-    expect(en.subtraction).toBe('Subtraction');
-  });
-
-  it('druh hraný naposledy před víc než 7 dny se neukáže', () => {
-    const old = recordSolvedOperation(EMPTY_MISTAKES, daysAfter(SUNDAY, -7), 'minus', true);
-    const record = recordSolvedOperation(old, daysAfter(SUNDAY, -6), 'plus', false);
-    expect(mistakeOverview(record, SUNDAY).operations).toEqual([
-      { operation: 'plus', solved: 1, firstTry: 0, percent: 0 },
-    ]);
   });
 });
 
@@ -364,94 +338,6 @@ describe('#184 AC2: podíl příkladů napoprvé zvlášť pro sčítání a od�
 // ---------------------------------------------------------------------------
 
 describe('#184 AC3: nejvýš 3 příklady s nejvíc chybami za 7 dní', () => {
-  it('rodič vidí příklady seřazené od nejvíc chyb, nejvýš 3', () => {
-    const record = mistakesOn(SUNDAY, [
-      plus(8, 5),
-      minus(9, 3),
-      plus(8, 5),
-      plus(2, 2),
-      minus(9, 3),
-      plus(8, 5),
-      plus(6, 7),
-      plus(6, 7),
-      plus(2, 2),
-      plus(8, 5),
-    ]);
-    const lines = mistakeOverview(record, SUNDAY).frequent.map(csLine);
-    expect(lines).toEqual(['8 + 5 (4×)', '2 + 2 (2×)', '6 + 7 (2×)']);
-  });
-
-  it('příklad s jedinou chybou mezi častými není', () => {
-    const record = mistakesOn(SUNDAY, [plus(3, 4), minus(7, 2), minus(7, 2)]);
-    expect(mistakeOverview(record, SUNDAY).frequent).toEqual([
-      { first: 7, second: 2, operation: 'minus', mistakes: 2 },
-    ]);
-    expect(csLine({ first: 7, second: 2, operation: 'minus', mistakes: 2 })).toBe('7 − 2 (2×)');
-  });
-
-  it('chyby u stejného příkladu z různých dnů se sečtou', () => {
-    const monday = mistakesOn(daysAfter(SUNDAY, -6), [plus(4, 4)]);
-    const record = mistakesOn(daysAfter(SUNDAY, -2), [plus(4, 4)], monday);
-    expect(mistakeOverview(record, SUNDAY).frequent).toEqual([
-      { first: 4, second: 4, operation: 'plus', mistakes: 2 },
-    ]);
-  });
-
-  it('chyby starší než 7 dní se nepočítají', () => {
-    const old = mistakesOn(daysAfter(SUNDAY, -7), [plus(4, 4), plus(4, 4)]);
-    const record = mistakesOn(SUNDAY, [plus(4, 4)], old);
-    expect(mistakeOverview(record, SUNDAY).frequent).toEqual([]);
-  });
-
-  it('při stejném počtu chyb je výš příklad, ve kterém se dítě spletlo naposledy', () => {
-    const record = mistakesOn(SUNDAY, [plus(1, 2), plus(3, 3), plus(1, 2), plus(3, 3)]);
-    expect(mistakeOverview(record, SUNDAY).frequent.map(csLine)).toEqual([
-      '3 + 3 (2×)',
-      '1 + 2 (2×)',
-    ]);
-    const later = recordMistake(record, SUNDAY, plus(3, 3));
-    const evened = recordMistake(later, SUNDAY, plus(1, 2));
-    expect(mistakeOverview(evened, SUNDAY).frequent.map(csLine)).toEqual([
-      '1 + 2 (3×)',
-      '3 + 3 (3×)',
-    ]);
-  });
-
-  it('při shodě rozhodne poslední chyba i přes víc dní: dnešní chyba je novější než včerejší', () => {
-    const saturday = mistakesOn(daysAfter(SUNDAY, -1), [plus(5, 5), plus(5, 5), plus(2, 3)]);
-    const record = mistakesOn(SUNDAY, [plus(2, 3)], saturday);
-    expect(mistakeOverview(record, SUNDAY).frequent.map(csLine)).toEqual([
-      '2 + 3 (2×)',
-      '5 + 5 (2×)',
-    ]);
-  });
-
-  it('při shodě o 4. místo zůstane mezi třemi ten s novější chybou', () => {
-    const record = mistakesOn(SUNDAY, [
-      plus(1, 1),
-      plus(1, 1),
-      plus(2, 2),
-      plus(2, 2),
-      plus(3, 3),
-      plus(3, 3),
-      plus(4, 4),
-      plus(4, 4),
-    ]);
-    expect(mistakeOverview(record, SUNDAY).frequent.map(csLine)).toEqual([
-      '4 + 4 (2×)',
-      '3 + 3 (2×)',
-      '2 + 2 (2×)',
-    ]);
-  });
-
-  it('sčítání a odčítání se stejnými čísly jsou různé příklady', () => {
-    const record = mistakesOn(SUNDAY, [plus(6, 3), minus(6, 3), plus(6, 3), minus(6, 3)]);
-    expect(mistakeOverview(record, SUNDAY).frequent.map(csLine)).toEqual([
-      '6 − 3 (2×)',
-      '6 + 3 (2×)',
-    ]);
-  });
-
   it('chyby ze hry se uloží a po zavření a novém otevření hry zůstanou', () => {
     const storage = storageWith(KEYPAD_SETTINGS);
     const first = enterOn(storage, { today: SUNDAY });
@@ -459,43 +345,9 @@ describe('#184 AC3: nejvýš 3 příklady s nejvíc chybami za 7 dní', () => {
     const problem = solveAfterMistakes(first, 3);
     first.session.leave();
     const again = enterOn(storage, { today: SUNDAY });
-    expect(frequentLines(again.session)).toEqual([csLine({ ...problem, mistakes: 3 })]);
-  });
-});
-
-describe('#184 AC3: řádek časté chyby nevypadá jako výpočet', () => {
-  it('česky i anglicky je to příklad a počet chyb v závorce: „8 + 5 (4×)“', () => {
-    const mistake = { first: 8, second: 5, operation: 'plus', mistakes: 4 } as const;
-    const subtraction = { first: 9, second: 3, operation: 'minus', mistakes: 2 } as const;
-    for (const language of ['cs', 'en'] as const) {
-      const template = countingTexts(language).mistakes.frequentItem;
-      expect(frequentMistakeLine(template, mistake), language).toBe('8 + 5 (4×)');
-      expect(frequentMistakeLine(template, subtraction), language).toBe('9 − 3 (2×)');
-    }
-  });
-
-  it('v řádku není pomlčka ani rovnítko, které by se četly jako počítání', () => {
-    const line = csLine({ first: 9, second: 3, operation: 'minus', mistakes: 2 });
-    expect(line).not.toMatch(/[–=]/);
-    expect(line.match(/−/g)).toHaveLength(1);
-  });
-});
-
-describe('#184 AC4: bez častých chyb rodič vidí „Bez častých chyb“', () => {
-  it('bez chyb nebo jen s jednou chybou na příklad nejsou žádné časté chyby', () => {
-    expect(mistakeOverview(EMPTY_MISTAKES, SUNDAY).frequent).toEqual([]);
-    const record = mistakesOn(SUNDAY, [plus(1, 1), plus(2, 1), minus(3, 1)]);
-    expect(mistakeOverview(record, SUNDAY).frequent).toEqual([]);
-    // Chyby se zapsaly: druhá chyba u stejného příkladu z něj udělá častou.
-    const again = recordMistake(record, SUNDAY, minus(3, 1));
-    expect(mistakeOverview(again, SUNDAY).frequent).toEqual([
-      { first: 3, second: 1, operation: 'minus', mistakes: 2 },
+    expect(frequentLines(again)).toEqual([
+      csLine(mistaken(problem.first, problem.second, problem.operation, 3)),
     ]);
-  });
-
-  it('nápis je česky „Bez častých chyb“ a anglicky „No frequent mistakes“', () => {
-    expect(countingTexts('cs').mistakes.noFrequent).toBe('Bez častých chyb');
-    expect(countingTexts('en').mistakes.noFrequent).toBe('No frequent mistakes');
   });
 });
 
@@ -512,7 +364,7 @@ describe('#184 AC5: kolikrát dítě za týden použilo nápovědu', () => {
       test.session.tapAnswer(correctAnswerOf(test.session));
       test.timers.runAll();
     }
-    expect(test.session.mistakeOverview().hintsUsed).toBe(3);
+    expect(test.mistakes().hintsUsed).toBe(3);
   });
 
   it('druhé ťuknutí u stejného příkladu ani nápověda po 2. chybě se nepřičte', () => {
@@ -524,15 +376,7 @@ describe('#184 AC5: kolikrát dítě za týden použilo nápovědu', () => {
     test.timers.runAll();
     untilProblem(test, (problem) => problem.result > 1);
     solveAfterMistakes(test, 2);
-    expect(test.session.mistakeOverview().hintsUsed).toBe(1);
-  });
-
-  it('nápověda se sečte za 7 dní, starší se nepočítá', () => {
-    let record = EMPTY_MISTAKES;
-    for (const offset of [-8, -7, -6, -3, -3, 0]) {
-      record = recordHintUsed(record, daysAfter(SUNDAY, offset));
-    }
-    expect(mistakeOverview(record, SUNDAY).hintsUsed).toBe(4);
+    expect(test.mistakes().hintsUsed).toBe(1);
   });
 });
 
@@ -540,75 +384,7 @@ describe('#184 AC5: kolikrát dítě za týden použilo nápovědu', () => {
 // AC6: velikost záznamu, poškozený záznam, den z budoucnosti
 // ---------------------------------------------------------------------------
 
-/**
- * Příklady s nejdelším zápisem („20 − 10“ má v záznamu 5 znaků), kolik
- * se jich za den do záznamu vejde.
- */
-function longestProblems(): Problem[] {
-  const problems: Problem[] = [];
-  for (let first = 20; first >= 10; first -= 1) {
-    for (let second = 10; second <= first; second += 1) {
-      problems.push(minus(first, second));
-    }
-  }
-  return problems.slice(0, MAX_MISTAKEN_PROBLEMS_PER_DAY);
-}
-
-describe('#184 AC6: u každého dne nejvýš 30 příkladů s chybou', () => {
-  it('31. příklad s chybou za den vytlačí ten s nejméně chybami, při shodě nejstarší', () => {
-    let record = EMPTY_MISTAKES;
-    // 30 různých příkladů po jedné chybě, 1 + 0 (nejstarší) nakonec ještě jednou.
-    record = mistakesOn(SUNDAY, [plus(1, 0)], record);
-    for (let index = 0; index < MAX_MISTAKEN_PROBLEMS_PER_DAY - 1; index += 1) {
-      record = recordMistake(record, SUNDAY, plus(2 + Math.floor(index / 5), index % 5));
-    }
-    record = recordMistake(record, SUNDAY, plus(1, 0));
-    const day = record[dayKeyOf(SUNDAY)];
-    expect(day?.problems).toHaveLength(MAX_MISTAKEN_PROBLEMS_PER_DAY);
-
-    record = recordMistake(record, SUNDAY, minus(9, 9));
-    const after = record[dayKeyOf(SUNDAY)]?.problems ?? [];
-    expect(after).toHaveLength(MAX_MISTAKEN_PROBLEMS_PER_DAY);
-    const kept = after.map((problem) => `${problem.first}${problem.operation}${problem.second}`);
-    // Vypadl 2 + 0 (jedna chyba, nejstarší), 1 + 0 se dvěma chybami zůstal.
-    expect(kept).not.toContain('2plus0');
-    expect(kept).toContain('1plus0');
-    expect(kept).toContain('9minus9');
-    expect(kept).toContain('2plus1');
-  });
-
-  it('počet chyb u jednoho příkladu za den se zastaví na nejvyšší hodnotě', () => {
-    let record = EMPTY_MISTAKES;
-    for (let mistake = 0; mistake < MAX_MISTAKES_PER_PROBLEM + 5; mistake += 1) {
-      record = recordMistake(record, SUNDAY, plus(8, 5));
-    }
-    expect(mistakeOverview(record, SUNDAY).frequent[0]?.mistakes).toBe(MAX_MISTAKES_PER_PROBLEM);
-  });
-});
-
 describe('#184 AC6: záznam má nejvýš 4 kB', () => {
-  it('7 dní po 30 příkladech s nejvíc chybami, nejdelšími čísly a nejvyššími počty se vejde do 4 kB', () => {
-    let record = EMPTY_MISTAKES;
-    for (let offset = -6; offset <= 0; offset += 1) {
-      const date = daysAfter(SUNDAY, offset);
-      for (const problem of longestProblems()) {
-        for (let mistake = 0; mistake < MAX_MISTAKES_PER_PROBLEM; mistake += 1) {
-          record = recordMistake(record, date, problem);
-        }
-      }
-      for (let solved = 0; solved < 9999; solved += 1) {
-        record = recordSolvedOperation(record, date, 'plus', true);
-        record = recordSolvedOperation(record, date, 'minus', true);
-        record = recordHintUsed(record, date);
-      }
-    }
-    const saved = serializeMistakes(record);
-    expect(byteLength(saved)).toBeLessThanOrEqual(MAX_MISTAKE_RECORD_BYTES);
-    expect(Object.keys(record)).toHaveLength(7);
-    // Uložený záznam jde přečíst zpátky beze ztráty.
-    expect(parseMistakes(saved)).toEqual(record);
-  });
-
   it('uložený záznam ze hry má nejvýš 4 kB i po týdnech hraní s chybami', () => {
     const storage = storageWith({ maxNumber: 20, operations: 'mixed', answerInput: 'keypad' });
     const clock = { today: SUNDAY };
@@ -624,12 +400,6 @@ describe('#184 AC6: záznam má nejvýš 4 kB', () => {
     expect(saved).not.toBe('');
     expect(byteLength(saved)).toBeLessThanOrEqual(MAX_MISTAKE_RECORD_BYTES);
     expect(Object.keys(parseMistakes(saved)).length).toBeLessThanOrEqual(7);
-  });
-
-  it('starší dny se při zápisu zahodí', () => {
-    const old = mistakesOn(daysAfter(SUNDAY, -9), [plus(2, 2)]);
-    const record = recordMistake(old, SUNDAY, plus(3, 3));
-    expect(Object.keys(record)).toEqual([dayKeyOf(SUNDAY)]);
   });
 });
 
@@ -693,7 +463,7 @@ describe('#184 AC6: poškozený záznam dá prázdný přehled chyb', () => {
       const storage = storageWith(KEYPAD_SETTINGS);
       storage.data.set(MISTAKES_KEY, corrupt);
       const test = enterOn(storage, { today: SUNDAY });
-      expect(test.session.mistakeOverview(), corrupt).toEqual(NOTHING);
+      expect(test.mistakes(), corrupt).toEqual(NOTHING);
       untilProblem(test, (problem) => problem.result > 1);
       solveAfterMistakes(test, 2);
       const saved = mistakeOverview(parseMistakes(storage.data.get(MISTAKES_KEY)), SUNDAY);
@@ -718,31 +488,6 @@ describe('#184 AC6: poškozený záznam dá prázdný přehled chyb', () => {
     expect(byteLength(padded)).toBeGreaterThan(MAX_MISTAKE_RECORD_BYTES);
     expect(mistakeOverview(parseMistakes(padded), SUNDAY)).toEqual(NOTHING);
   });
-
-  it('chybějící nebo prázdný záznam je prázdný přehled', () => {
-    for (const missing of [null, undefined, '']) {
-      expect(mistakeOverview(parseMistakes(missing), SUNDAY)).toEqual(NOTHING);
-    }
-  });
-});
-
-describe('#184 AC6: den z budoucnosti se nezapočítá', () => {
-  it('chyby uložené se zítřejším datem (hodiny se vrátily) přehled nepočítá', () => {
-    const tomorrow = mistakesOn(daysAfter(SUNDAY, 1), [plus(8, 5), plus(8, 5)]);
-    const withHint = recordHintUsed(tomorrow, daysAfter(SUNDAY, 1));
-    expect(mistakeOverview(withHint, SUNDAY)).toEqual(NOTHING);
-  });
-
-  it('den z budoucnosti nepokazí dnešek a při zápisu se zahodí', () => {
-    const future = daysAfter(SUNDAY, 3);
-    const saved = serializeMistakes(mistakesOn(future, [plus(8, 5), plus(8, 5)]));
-    const record = recordMistake(parseMistakes(saved), SUNDAY, plus(2, 2));
-    expect(Object.keys(record)).toEqual([dayKeyOf(SUNDAY)]);
-    expect(record[dayKeyOf(SUNDAY)]?.problems).toEqual([
-      { first: 2, second: 2, operation: 'plus', mistakes: 1 },
-    ]);
-    expect(mistakeOverview(record, SUNDAY).frequent).toEqual([]);
-  });
 });
 
 describe('#184 AC6: plné nebo zakázané úložiště hru nezastaví', () => {
@@ -751,13 +496,23 @@ describe('#184 AC6: plné nebo zakázané úložiště hru nezastaví', () => {
       const test = enterOn(storage, { today: SUNDAY });
       untilProblem(test, (problem) => problem.result > 1);
       expect(() => solveAfterMistakes(test, 2)).not.toThrow();
-      expect(test.session.mistakeOverview().frequent[0]?.mistakes).toBe(2);
+    }
+    // Menu čte úložiště profilu, které neuložené hodnoty drží do zavření stránky (#192).
+    for (const fail of ['plné', 'zakázané'] as const) {
+      const device = new DeviceStorage();
+      const store = openProfiles(device);
+      device.failWrite = () => true;
+      device.failReads = fail === 'zakázané';
+      const test = enterOn(store.gameStorage(COUNTING_META.id), { today: SUNDAY });
+      untilProblem(test, (problem) => problem.result > 1);
+      expect(() => solveAfterMistakes(test, 2)).not.toThrow();
+      expect(test.mistakes().frequent[0]?.mistakes, fail).toBe(2);
     }
   });
 });
 
 // ---------------------------------------------------------------------------
-// Profily a panel pro rodiče
+// Profily
 // ---------------------------------------------------------------------------
 
 describe('#184: každý profil má vlastní přehled chyb', () => {
@@ -783,36 +538,21 @@ describe('#184: každý profil má vlastní přehled chyb', () => {
 
     store.selectProfile(keeper.id);
     const other = enterOn(store.gameStorage(COUNTING_META.id), { today: SUNDAY });
-    expect(other.session.mistakeOverview()).toEqual(NOTHING);
+    expect(other.mistakes()).toEqual(NOTHING);
     expect(store.deleteProfile(child.id)).toBe(true);
     expect([...storage.data.keys()].some((key) => key.endsWith(MISTAKES_KEY))).toBe(false);
   });
 });
 
-describe('#184: stránka Chyby je v přehledu pro rodiče', () => {
-  const panel = openParentPanel(openSettings({ open: false }, KEYPAD_SETTINGS));
-
-  it('z přehledu tlačítkem Chyby rodič otevře chyby a Zpět ho vrátí do přehledu', () => {
-    const overview = showOverview(panel);
-    const mistakes = showMistakes(overview);
-    expect(mistakes.view).toBe('mistakes');
-    expect(backToOverview(mistakes).view).toBe('overview');
-    expect(backToSettings(backToOverview(mistakes)).session).toEqual(panel.session);
-  });
-
-  it('chyby jdou otevřít jen z přehledu a nastavení se z nich nepotvrdí', () => {
-    expect(showMistakes(panel).view).toBe('settings');
-    expect(canConfirmSettings(showMistakes(showOverview(panel)))).toBe(false);
-  });
-
+describe('#184, #192: podívat se na chyby nic nemění', () => {
   it('podívat se na chyby nic nepřičte ani neuloží', () => {
     const storage = storageWith(KEYPAD_SETTINGS);
     const test = enterOn(storage, { today: SUNDAY });
     untilProblem(test, (problem) => problem.result > 1);
     solveAfterMistakes(test, 2);
     const before = storage.data.get(MISTAKES_KEY);
-    const overview = test.session.mistakeOverview();
-    expect(test.session.mistakeOverview()).toEqual(overview);
+    const overview = test.mistakes();
+    expect(test.mistakes()).toEqual(overview);
     expect(storage.data.get(MISTAKES_KEY)).toBe(before);
   });
 });

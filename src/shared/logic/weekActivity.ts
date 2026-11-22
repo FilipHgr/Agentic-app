@@ -1,9 +1,10 @@
 /**
- * Přehled pro rodiče (#183): kolik příkladů dítě vyřešilo za posledních
- * 7 dní a kolik z toho napoprvé (bez chyby a bez nápovědy). Dny se berou
- * podle kalendáře zařízení, „dnes“ dostane každá funkce zvenku, aby šly
- * přechody dnů vyzkoušet bez skutečných hodin. Čistý TypeScript; uložení
- * řeší `src/games/counting/storage/activityStorage.ts`.
+ * Přehled pro rodiče (#183, od #192 v menu pro všechny hry s přehledem):
+ * kolik příkladů dítě ve hře vyřešilo za posledních 7 dní a kolik z toho
+ * napoprvé (bez chyby a bez nápovědy). Dny se berou podle kalendáře
+ * zařízení, „dnes“ dostane každá funkce zvenku, aby šly přechody dnů
+ * vyzkoušet bez skutečných hodin. Čistý TypeScript; uložení v úložišti
+ * hry řeší `src/shared/storage/activityStorage.ts`.
  */
 
 /** Den podle kalendáře zařízení ve tvaru `RRRR-MM-DD` (řadí se jako text). */

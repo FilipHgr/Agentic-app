@@ -1,15 +1,17 @@
 /**
- * Kde se dítě plete (#184): podíl příkladů napoprvé zvlášť pro sčítání
- * a odčítání, příklady s nejvíc chybami a kolikrát dítě ťuklo na nápovědu,
- * vše za posledních 7 dní. Je to samostatný záznam vedle přehledu
- * vyřešených příkladů (#183), aby každý hlídal svou velikost. „Dnes“
- * dostane každá funkce zvenku. Čistý TypeScript; uložení řeší
- * `src/games/counting/storage/mistakeStorage.ts`.
+ * Kde se dítě plete (#184, od #192 v menu pro všechny hry s přehledem):
+ * podíl příkladů napoprvé zvlášť pro druhy příkladů hry (Počítání:
+ * sčítání a odčítání), příklady s nejvíc chybami a kolikrát dítě ťuklo na
+ * nápovědu, vše za posledních 7 dní. Je to samostatný záznam vedle
+ * přehledu vyřešených příkladů (#183), aby každý hlídal svou velikost.
+ * Příklady jsou krátké texty ze `overviewProblems.ts`; které smí v záznamu
+ * být, říká popis přehledu hry (`GameOverviewSpec`). „Dnes“ dostane každá
+ * funkce zvenku. Čistý TypeScript; uložení řeší
+ * `src/shared/storage/activityStorage.ts`.
  */
 
-import type { Problem } from './problems';
-import { MAX_NUMBER_OPTIONS } from './settings';
-import type { Operation } from './settings';
+import { isProblemOf } from './overviewProblems';
+import type { GameOverviewSpec, OverviewOperation } from './overviewProblems';
 import {
   MAX_SOLVED_PER_DAY,
   OVERVIEW_DAY_COUNT,
@@ -34,11 +36,8 @@ export const MIN_FREQUENT_MISTAKES = 2;
 /** Přehled ukáže nejvýš tolik častých chyb (AC3). */
 export const MAX_FREQUENT_MISTAKES = 3;
 
-/** Největší číslo, které se v příkladu může objevit (nejvyšší rozsah nastavení). */
-const MAX_PROBLEM_NUMBER = Math.max(...MAX_NUMBER_OPTIONS);
-
-/** Druhy příkladů v pořadí, v jakém je přehled ukazuje. */
-const OPERATIONS: readonly Operation[] = ['plus', 'minus'];
+/** Klíč počtů druhu příkladu v uloženém dni. */
+const TALLY_KEYS: Readonly<Record<OverviewOperation, string>> = { plus: 'p', minus: 'm' };
 
 /** Kolik příkladů jednoho druhu dítě vyřešilo a kolik z nich napoprvé. */
 export interface OperationTally {
@@ -47,17 +46,15 @@ export interface OperationTally {
   readonly firstTry: number;
 }
 
-/** Příklad bez výsledku (výsledek z čísel vyplývá) a kolik v něm bylo chyb. */
+/** Příklad (text z `overviewProblems.ts`, třeba „8+5“) a kolik v něm bylo chyb. */
 export interface MistakenProblem {
-  readonly first: number;
-  readonly second: number;
-  readonly operation: Operation;
+  readonly problem: string;
   readonly mistakes: number;
 }
 
 export interface DayMistakes {
-  readonly plus: OperationTally;
-  readonly minus: OperationTally;
+  /** Počty podle druhů příkladů hry (`GameOverviewSpec.operations`), každý druh hry má svůj. */
+  readonly operations: Readonly<Partial<Record<OverviewOperation, OperationTally>>>;
   /** Kolikrát dítě ťuklo na tlačítko nápovědy. */
   readonly hints: number;
   /**
@@ -74,16 +71,23 @@ export const EMPTY_MISTAKES: MistakeRecord = {};
 
 const EMPTY_TALLY: OperationTally = { solved: 0, firstTry: 0 };
 
-const EMPTY_DAY: DayMistakes = { plus: EMPTY_TALLY, minus: EMPTY_TALLY, hints: 0, problems: [] };
+/** Den bez hraní: nuly u každého druhu příkladů hry. */
+function emptyDay(spec: GameOverviewSpec): DayMistakes {
+  const operations: Partial<Record<OverviewOperation, OperationTally>> = {};
+  for (const operation of spec.operations) {
+    operations[operation] = EMPTY_TALLY;
+  }
+  return { operations, hints: 0, problems: [] };
+}
 
 /** Podíl napoprvé jednoho druhu za 7 dní; `percent` je zaokrouhlený dolů. */
 export interface OperationShare extends OperationTally {
-  readonly operation: Operation;
+  readonly operation: OverviewOperation;
   readonly percent: number;
 }
 
 export interface MistakeOverview {
-  /** Jen druhy, které dítě za 7 dní hrálo, sčítání první (AC2). */
+  /** Jen druhy, které dítě za 7 dní hrálo, v pořadí popisu hry (AC2). */
   readonly operations: readonly OperationShare[];
   /** Nejvýš 3 příklady s aspoň 2 chybami, od nejvíc chyb (AC3). */
   readonly frequent: readonly MistakenProblem[];
@@ -94,22 +98,6 @@ export interface MistakeOverview {
 // ---------------------------------------------------------------------------
 // Čtení a zápis záznamu
 // ---------------------------------------------------------------------------
-
-/** Příklad v záznamu: „8+5“ nebo „9-3“, čísla bez úvodních nul. */
-const PROBLEM_KEY_PATTERN = /^(0|[1-9]\d?)([+-])(0|[1-9]\d?)$/;
-
-function problemKey(problem: Pick<Problem, 'first' | 'second' | 'operation'>): string {
-  const sign = problem.operation === 'plus' ? '+' : '-';
-  return `${problem.first}${sign}${problem.second}`;
-}
-
-/** Jde takový příklad v Počítání dostat (čísla i výsledek nejvýš do nejvyššího rozsahu)? */
-function isPossibleProblem(first: number, second: number, operation: Operation): boolean {
-  if (first > MAX_PROBLEM_NUMBER || second > MAX_PROBLEM_NUMBER) {
-    return false;
-  }
-  return operation === 'plus' ? first + second <= MAX_PROBLEM_NUMBER : second <= first;
-}
 
 function isCountUpTo(value: unknown, max: number): value is number {
   return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= max;
@@ -130,36 +118,34 @@ function parseTally(value: unknown): OperationTally | null {
   return { solved, firstTry };
 }
 
-function parseMistakenProblem(value: unknown): MistakenProblem | null {
+function parseMistakenProblem(value: unknown, spec: GameOverviewSpec): MistakenProblem | null {
   if (!Array.isArray(value) || value.length !== 2) {
     return null;
   }
-  const [key, mistakes] = value as unknown[];
-  const match = typeof key === 'string' ? PROBLEM_KEY_PATTERN.exec(key) : null;
-  if (match === null || !isCountUpTo(mistakes, MAX_MISTAKES_PER_PROBLEM) || mistakes === 0) {
+  const [problem, mistakes] = value as unknown[];
+  if (
+    typeof problem !== 'string' ||
+    !isProblemOf(problem, spec) ||
+    !isCountUpTo(mistakes, MAX_MISTAKES_PER_PROBLEM) ||
+    mistakes === 0
+  ) {
     return null;
   }
-  const first = Number(match[1]);
-  const second = Number(match[3]);
-  const operation: Operation = match[2] === '+' ? 'plus' : 'minus';
-  if (!isPossibleProblem(first, second, operation)) {
-    return null;
-  }
-  return { first, second, operation, mistakes };
+  return { problem, mistakes };
 }
 
-function parseProblems(value: unknown): MistakenProblem[] | null {
+function parseProblems(value: unknown, spec: GameOverviewSpec): MistakenProblem[] | null {
   if (!Array.isArray(value) || value.length > MAX_MISTAKEN_PROBLEMS_PER_DAY) {
     return null;
   }
   const problems: MistakenProblem[] = [];
   const seen = new Set<string>();
   for (const item of value as unknown[]) {
-    const problem = parseMistakenProblem(item);
-    if (problem === null || seen.has(problemKey(problem))) {
+    const problem = parseMistakenProblem(item, spec);
+    if (problem === null || seen.has(problem.problem)) {
       return null;
     }
-    seen.add(problemKey(problem));
+    seen.add(problem.problem);
     problems.push(problem);
   }
   return problems;
@@ -169,30 +155,39 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Jeden den `{"p":[…],"m":[…],"h":…,"w":[…]}`, nebo `null`, když je poškozený. */
-function parseDay(value: unknown): DayMistakes | null {
+/**
+ * Jeden den `{"p":[…],"m":[…],"h":…,"w":[…]}` (počty `p` a `m` jen u her,
+ * které ty druhy příkladů mají), nebo `null`, když je poškozený.
+ */
+function parseDay(value: unknown, spec: GameOverviewSpec): DayMistakes | null {
   if (!isObject(value)) {
     return null;
   }
-  const plus = parseTally(value.p);
-  const minus = parseTally(value.m);
-  const problems = parseProblems(value.w);
-  if (plus === null || minus === null || problems === null) {
+  const operations: Partial<Record<OverviewOperation, OperationTally>> = {};
+  for (const operation of spec.operations) {
+    const tally = parseTally(value[TALLY_KEYS[operation]]);
+    if (tally === null) {
+      return null;
+    }
+    operations[operation] = tally;
+  }
+  const problems = parseProblems(value.w, spec);
+  if (problems === null || !isCountUpTo(value.h, MAX_SOLVED_PER_DAY)) {
     return null;
   }
-  if (!isCountUpTo(value.h, MAX_SOLVED_PER_DAY)) {
-    return null;
-  }
-  return { plus, minus, hints: value.h, problems };
+  return { operations, hints: value.h, problems };
 }
 
 /**
- * Uložený záznam. Chybějící nebo poškozený záznam (i jediný špatný den)
- * je prázdný přehled (AC6), stejně jako záznam delší než 4 kB nebo s víc
- * než 7 dny: hra takový nikdy nezapíše. Dny se tu ještě neořezávají podle
- * dneška.
+ * Uložený záznam hry s popisem `spec`. Chybějící nebo poškozený záznam (i
+ * jediný špatný den nebo příklad, který hra nemůže dát) je prázdný přehled
+ * (AC6), stejně jako záznam delší než 4 kB nebo s víc než 7 dny: hra
+ * takový nikdy nezapíše. Dny se tu ještě neořezávají podle dneška.
  */
-export function parseMistakes(saved: string | null | undefined): MistakeRecord {
+export function parseMistakes(
+  saved: string | null | undefined,
+  spec: GameOverviewSpec,
+): MistakeRecord {
   if (typeof saved !== 'string' || saved === '') {
     return EMPTY_MISTAKES;
   }
@@ -214,7 +209,7 @@ export function parseMistakes(saved: string | null | undefined): MistakeRecord {
   }
   const record: Record<DayKey, DayMistakes> = {};
   for (const [key, value] of Object.entries(data.days)) {
-    const day = parseDay(value);
+    const day = parseDay(value, spec);
     if (!isCalendarDay(key) || day === null) {
       return EMPTY_MISTAKES;
     }
@@ -231,14 +226,19 @@ export function serializeMistakes(record: MistakeRecord): string {
   const days: Record<DayKey, unknown> = {};
   for (const key of Object.keys(record).sort()) {
     const day = record[key];
-    if (day !== undefined) {
-      days[key] = {
-        p: [day.plus.solved, day.plus.firstTry],
-        m: [day.minus.solved, day.minus.firstTry],
-        h: day.hints,
-        w: day.problems.map((problem) => [problemKey(problem), problem.mistakes]),
-      };
+    if (day === undefined) {
+      continue;
     }
+    const saved: Record<string, unknown> = {};
+    for (const operation of ['plus', 'minus'] as const) {
+      const tally = day.operations[operation];
+      if (tally !== undefined) {
+        saved[TALLY_KEYS[operation]] = [tally.solved, tally.firstTry];
+      }
+    }
+    saved.h = day.hints;
+    saved.w = day.problems.map((problem) => [problem.problem, problem.mistakes]);
+    days[key] = saved;
   }
   return JSON.stringify({ days });
 }
@@ -254,6 +254,7 @@ export function serializeMistakes(record: MistakeRecord): string {
 function withToday(
   record: MistakeRecord,
   today: Date,
+  spec: GameOverviewSpec,
   change: (day: DayMistakes) => DayMistakes,
 ): MistakeRecord {
   const kept = new Set(overviewDayKeys(today));
@@ -264,7 +265,7 @@ function withToday(
     }
   }
   const todayKey = dayKeyOf(today);
-  result[todayKey] = change(result[todayKey] ?? EMPTY_DAY);
+  result[todayKey] = change(result[todayKey] ?? emptyDay(spec));
   return result;
 }
 
@@ -283,50 +284,63 @@ function indexToEvict(problems: readonly MistakenProblem[]): number {
 }
 
 /**
- * Potvrzená špatná odpověď u příkladu `problem` (AC1). Příklad se posune
- * na konec dne (poslední chyba rozhoduje při shodě, AC3). Když má den už
- * 30 jiných příkladů, jeden se zahodí (AC6).
+ * Potvrzená špatná odpověď u příkladu `problem` (AC1, text
+ * z `overviewProblems.ts`). Příklad se posune na konec dne (poslední chyba
+ * rozhoduje při shodě, AC3). Když má den už 30 jiných příkladů, jeden se
+ * zahodí (AC6). Příklad, který do záznamu hry nepatří, nic nezmění.
  */
-export function recordMistake(record: MistakeRecord, today: Date, problem: Problem): MistakeRecord {
-  return withToday(record, today, (day) => {
-    const key = problemKey(problem);
-    const previous = day.problems.find((item) => problemKey(item) === key);
-    let others = day.problems.filter((item) => problemKey(item) !== key);
+export function recordMistake(
+  record: MistakeRecord,
+  today: Date,
+  problem: string,
+  spec: GameOverviewSpec,
+): MistakeRecord {
+  if (!isProblemOf(problem, spec)) {
+    return record;
+  }
+  return withToday(record, today, spec, (day) => {
+    const previous = day.problems.find((item) => item.problem === problem);
+    let others = day.problems.filter((item) => item.problem !== problem);
     if (previous === undefined && others.length >= MAX_MISTAKEN_PROBLEMS_PER_DAY) {
       const evict = indexToEvict(others);
       others = others.filter((_, index) => index !== evict);
     }
     const mistakes = Math.min((previous?.mistakes ?? 0) + 1, MAX_MISTAKES_PER_PROBLEM);
-    const updated: MistakenProblem = {
-      first: problem.first,
-      second: problem.second,
-      operation: problem.operation,
-      mistakes,
-    };
-    return { ...day, problems: [...others, updated] };
+    return { ...day, problems: [...others, { problem, mistakes }] };
   });
 }
 
-/** Vyřešený příklad druhu `operation`; napoprvé je bez chyby a bez nápovědy (AC2). */
+/**
+ * Vyřešený příklad druhu `operation`; napoprvé je bez chyby a bez nápovědy
+ * (AC2). Druh, který hra v popisu nemá, nic nezmění.
+ */
 export function recordSolvedOperation(
   record: MistakeRecord,
   today: Date,
-  operation: Operation,
+  operation: OverviewOperation,
   firstTry: boolean,
+  spec: GameOverviewSpec,
 ): MistakeRecord {
-  return withToday(record, today, (day) => {
-    const tally = day[operation];
+  if (!spec.operations.includes(operation)) {
+    return record;
+  }
+  return withToday(record, today, spec, (day) => {
+    const tally = day.operations[operation] ?? EMPTY_TALLY;
     if (tally.solved >= MAX_SOLVED_PER_DAY) {
       return day;
     }
     const counted = { solved: tally.solved + 1, firstTry: tally.firstTry + (firstTry ? 1 : 0) };
-    return { ...day, [operation]: counted };
+    return { ...day, operations: { ...day.operations, [operation]: counted } };
   });
 }
 
 /** Ťuknutí na tlačítko nápovědy (AC5). */
-export function recordHintUsed(record: MistakeRecord, today: Date): MistakeRecord {
-  return withToday(record, today, (day) => ({
+export function recordHintUsed(
+  record: MistakeRecord,
+  today: Date,
+  spec: GameOverviewSpec,
+): MistakeRecord {
+  return withToday(record, today, spec, (day) => ({
     ...day,
     hints: Math.min(day.hints + 1, MAX_SOLVED_PER_DAY),
   }));
@@ -348,9 +362,8 @@ function problemTotals(days: readonly DayMistakes[]): ProblemTotal[] {
   let order = 0;
   for (const day of days) {
     for (const problem of day.problems) {
-      const key = problemKey(problem);
-      const mistakes = (totals.get(key)?.problem.mistakes ?? 0) + problem.mistakes;
-      totals.set(key, { problem: { ...problem, mistakes }, lastMistake: order });
+      const mistakes = (totals.get(problem.problem)?.problem.mistakes ?? 0) + problem.mistakes;
+      totals.set(problem.problem, { problem: { ...problem, mistakes }, lastMistake: order });
       order += 1;
     }
   }
@@ -366,29 +379,33 @@ function frequentMistakes(totals: readonly ProblemTotal[]): MistakenProblem[] {
     .map((total) => total.problem);
 }
 
-function operationShares(days: readonly DayMistakes[]): OperationShare[] {
-  return OPERATIONS.map((operation): OperationShare => {
-    const solved = days.reduce((sum, day) => sum + day[operation].solved, 0);
-    const firstTry = days.reduce((sum, day) => sum + day[operation].firstTry, 0);
-    const percent = solved === 0 ? 0 : Math.floor((100 * firstTry) / solved);
-    return { operation, solved, firstTry, percent };
-  }).filter((share) => share.solved > 0);
+function operationShares(days: readonly DayMistakes[], spec: GameOverviewSpec): OperationShare[] {
+  return spec.operations
+    .map((operation): OperationShare => {
+      const tallies = days.map((day) => day.operations[operation] ?? EMPTY_TALLY);
+      const solved = tallies.reduce((sum, tally) => sum + tally.solved, 0);
+      const firstTry = tallies.reduce((sum, tally) => sum + tally.firstTry, 0);
+      const percent = solved === 0 ? 0 : Math.floor((100 * firstTry) / solved);
+      return { operation, solved, firstTry, percent };
+    })
+    .filter((share) => share.solved > 0);
 }
 
 /**
  * Přehled chyb za 7 dní včetně dneška; starší dny a dny z budoucnosti se
  * nezapočítají (AC6).
  */
-export function mistakeOverview(record: MistakeRecord, today: Date): MistakeOverview {
+export function mistakeOverview(
+  record: MistakeRecord,
+  today: Date,
+  spec: GameOverviewSpec,
+): MistakeOverview {
   const days = overviewDayKeys(today)
     .map((key) => record[key])
     .filter((day): day is DayMistakes => day !== undefined);
-  const totals = problemTotals(days);
-  const operations = operationShares(days);
-  const hintsUsed = days.reduce((sum, day) => sum + day.hints, 0);
   return {
-    operations,
-    frequent: frequentMistakes(totals),
-    hintsUsed,
+    operations: operationShares(days, spec),
+    frequent: frequentMistakes(problemTotals(days)),
+    hintsUsed: days.reduce((sum, day) => sum + day.hints, 0),
   };
 }

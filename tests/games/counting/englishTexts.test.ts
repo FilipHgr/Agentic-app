@@ -60,30 +60,6 @@ const ENGLISH_COUNTING = {
     celebrationStars: 'Awesome! You got all ten stars!',
     celebrationStar: "Yippee! You're a counting star!",
   },
-  // Přehled pro rodiče (#183).
-  overview: {
-    button: 'Overview',
-    title: 'Problems solved in the last 7 days',
-    legendNotFirstTry: 'After a mistake or hint',
-    legendFirstTry: 'First try',
-    totalSolved: 'Solved this week',
-    totalFirstTry: 'On first try',
-    empty: 'No problems yet',
-    back: 'Back',
-    dayNames: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-  },
-  // Stránka Chyby v přehledu pro rodiče (#184).
-  mistakes: {
-    button: 'Mistakes',
-    title: 'Where mistakes happen (7 days)',
-    firstTryHeading: 'Solved on first try',
-    addition: 'Addition',
-    subtraction: 'Subtraction',
-    frequentHeading: 'Most frequent mistakes',
-    frequentItem: '{problem} ({count}×)',
-    noFrequent: 'No frequent mistakes',
-    hintsUsed: 'Hints used this week',
-  },
 };
 
 function englishFile(): Record<string, unknown> {

@@ -213,28 +213,6 @@ describe('#65 AC4: kontrola textů Počítání opravdu najde chybu (umělé jaz
         celebrationStars: 'Ten stars!',
         celebrationStar: 'Star!',
       },
-      overview: {
-        button: 'Report',
-        title: 'Last 7 days',
-        legendNotFirstTry: 'Retried',
-        legendFirstTry: 'First',
-        totalSolved: 'Week',
-        totalFirstTry: 'First',
-        empty: 'Nothing yet',
-        back: 'Back',
-        dayNames: ['M', 'T', 'W', 'R', 'F', 'S', 'U'],
-      },
-      mistakes: {
-        button: 'Errors',
-        title: 'Where errors happen',
-        firstTryHeading: 'First try',
-        addition: 'Plus',
-        subtraction: 'Minus',
-        frequentHeading: 'Frequent',
-        frequentItem: '{problem} x{count}',
-        noFrequent: 'None',
-        hintsUsed: 'Hints',
-      },
     };
   }
 

@@ -10,7 +10,7 @@ import type { Language } from '../../shared/texts/languages';
 import { sharedTexts } from '../../shared/texts/sharedTexts';
 import cs from '../texts/cs';
 import en from '../texts/en';
-import type { MenuTexts } from '../texts/menuTextsTypes';
+import type { MenuTexts, OverviewTexts } from '../texts/menuTextsTypes';
 import { PAGE_TITLE_KEY } from './menuTextKeys';
 
 const MENU_TEXTS: Record<Language, MenuTexts> = { cs, en };
@@ -25,6 +25,11 @@ export function menuText(key: string, language: Language): string | undefined {
     return game.titles[language];
   }
   return textAtPath(MENU_TEXTS[language], key);
+}
+
+/** Texty přehledu pro rodiče (#192) v jednom jazyce. */
+export function overviewTexts(language: Language): OverviewTexts {
+  return MENU_TEXTS[language].overview;
 }
 
 function textAtPath(texts: MenuTexts, key: string): string | undefined {

@@ -258,8 +258,11 @@ describe('#161 AC3: kolečko nepřidá žádný nový text', () => {
   it('texty menu mají v každém jazyce stejné klíče jako před #161', () => {
     expect(Object.keys(MENU_FILES).length).toBeGreaterThan(0);
     for (const [language, texts] of Object.entries(MENU_FILES)) {
-      // Kategorii Čísla (`categories.numbers`) přidal až #178, s kolečkem nesouvisí.
-      const keys = [...leavesOf(texts).keys()].filter((key) => key !== 'categories.numbers.title');
+      // Kategorii Čísla (`categories.numbers`) přidal až #178 a přehled pro
+      // rodiče (`overview`) až #192, s kolečkem nesouvisí.
+      const keys = [...leavesOf(texts).keys()].filter(
+        (key) => key !== 'categories.numbers.title' && !key.startsWith('overview.'),
+      );
       expect(keys.sort(), language).toEqual(TEXT_KEYS_BEFORE_161);
     }
   });

@@ -154,6 +154,8 @@ export interface TestMenu {
   sounds(): MenuSoundName[];
   /** Kolikrát menu požádalo o výběr profilu (#72). */
   profileOpened(): number;
+  /** Kolikrát menu požádalo o přehled pro rodiče (#192). */
+  overviewOpened(): number;
 }
 
 /** Tóny k odezvě menu v pořadí, jak by je scéna zahrála (#95). */
@@ -219,6 +221,7 @@ export function testMenu(options: TestMenuOptions = {}): TestMenu {
   const game = new FakeGame();
   const feedback: MenuFeedback[] = [];
   let profileOpened = 0;
+  let overviewOpened = 0;
   const games = (options.games ?? TEST_GAMES).map((entry) => ({ ...entry, load: download.load }));
   const menu = createMenu({
     games,
@@ -231,6 +234,9 @@ export function testMenu(options: TestMenuOptions = {}): TestMenu {
     onOpenProfilePicker: () => {
       profileOpened += 1;
     },
+    onOpenOverview: () => {
+      overviewOpened += 1;
+    },
   });
   return {
     menu,
@@ -240,6 +246,7 @@ export function testMenu(options: TestMenuOptions = {}): TestMenu {
     kinds: () => feedback.map((event) => event.kind),
     sounds: () => soundsOf(feedback),
     profileOpened: () => profileOpened,
+    overviewOpened: () => overviewOpened,
   };
 }
 

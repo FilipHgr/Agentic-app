@@ -113,17 +113,10 @@ export function isCorrectAnswer(problem: Problem, answer: unknown): boolean {
   return answer === problem.result;
 }
 
-/** Příklad bez rovnítka, například „3 + 4“ nebo „7 − 3“ (přehled chyb, #184). */
-export function formatProblemTerms(
-  problem: Pick<Problem, 'first' | 'second' | 'operation'>,
-): string {
-  const sign = problem.operation === 'plus' ? '+' : '−';
-  return `${problem.first} ${sign} ${problem.second}`;
-}
-
 /** Levá strana příkladu i s rovnítkem, například „3 + 4 =“ nebo „7 − 3 =“. */
 export function formatEquation(problem: Problem): string {
-  return `${formatProblemTerms(problem)} =`;
+  const sign = problem.operation === 'plus' ? '+' : '−';
+  return `${problem.first} ${sign} ${problem.second} =`;
 }
 
 /** Text příkladu pro vykreslení, například „3 + 4 = ?“ nebo „7 − 3 = ?“. */

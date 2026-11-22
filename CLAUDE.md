@@ -44,7 +44,8 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
   - `src/games/<hra>/` jednotlivé hry (dnes `counting` = Počítání) se
     vstupem `index.ts` (scény hry, stahuje se až po ťuknutí v menu)
     a `meta.ts` (id, kategorie, symbol dlaždice, název z textů hry
-    a obrázek dlaždice z importu `./tile.webp`, nic dalšího, žádný Phaser),
+    a obrázek dlaždice z importu `./tile.webp`, u her s přehledem pro rodiče
+    popis záznamů `overview` jen jako data, nic dalšího, žádný Phaser),
   - `src/menu/` úvodní menu s výběrem her (logika, scéna, texty).
   `src/main.ts` je vstup stránky a startuje menu. Seznam her je
   `src/gameList.ts`, registr (tvar záznamu, kategorie) je

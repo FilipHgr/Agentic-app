@@ -226,11 +226,13 @@ export interface TestCompare {
 /**
  * Dítě otevře Porovnávání nad úložištěm `storage` (bez něj jen paměť).
  * S `rudy` hra ukazuje Rudyho po 10. hvězdičce (#181, #186), bez něj hraje bez něj.
+ * `today` je dnešní den pro přehled pro rodiče (#192).
  */
 export function openCompare(
   storage?: KeyValueStorage,
   seed?: number,
   rudy?: CompareRudy,
+  today?: () => Date,
 ): TestCompare {
   const timers = new FakeTimers();
   const sounds = new FakeSounds();
@@ -244,6 +246,8 @@ export function openCompare(
     attachSettingsGear: gear.attach,
     rudy,
     onChange: (change) => changes.push(change),
+    // Dnešní den pro přehled pro rodiče (#192); bez něj hodiny zařízení.
+    today,
   });
   return { session, timers, sounds, changes, gear };
 }

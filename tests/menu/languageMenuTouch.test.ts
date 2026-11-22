@@ -177,12 +177,11 @@ describe('#70 AC1: ťuknutí pod nabídku nic nespustí', () => {
       });
 
       // #157: „…“ jsou schovaná, ťuká se na jejich vyhrazené místo v liště.
-      it('ťuknutí na prázdné vyhrazené místo v liště s otevřenou nabídkou ji zavře a nic se nezhoupne', () => {
+      it('ťuknutí na tlačítko přehledu v liště s otevřenou nabídkou ji zavře a nic se nezhoupne', () => {
         const finger = fingerMenu(window);
         openLanguages(finger);
-        const reserved = finger.layout().reservedSlots[0];
-        expect(reserved).toBeDefined();
-        finger.tap(centerOf(reserved ?? finger.layout().languageSlot));
+        // #192: na místě vedle jazyka je tlačítko přehledu; s otevřeným oknem ho ťuknutí jen zavře.
+        finger.tap(centerOf(finger.layout().overviewButton));
         expect(finger.menu.isLanguageMenuOpen()).toBe(false);
         expect(finger.feedback.filter((event) => event.kind === 'wobble')).toEqual([]);
       });

@@ -48,6 +48,13 @@ const SHAKE = { distance: 10, durationMs: 50, repeat: 3 };
  * nesahala k sousední.
  */
 const CATEGORY_WOBBLE = { angle: 2.5, durationMs: 90 };
+/** Kulaté tlačítko přehledu (#192) se zhoupne víc, jinak by zhoupnutí nebylo vidět. */
+const OVERVIEW_WOBBLE_ANGLE = 12;
+/** Kroužek podržení přehledu (#192): 4 px čára 3 px uvnitř okraje kolečka (CSS px). */
+const OVERVIEW_RING_WIDTH = 4;
+const OVERVIEW_RING_INSET = 3;
+/** Výšky tří sloupečků symbolu přehledu v CSS px. */
+const OVERVIEW_BAR_HEIGHTS: readonly number[] = [12, 20, 15];
 
 export interface MenuSceneHost {
   readonly menu: Menu;
@@ -89,6 +96,10 @@ interface Tappable {
  * (karta a posouvané řádky). Otevření a zavření seznamu překreslí jen
  * tlačítko a seznam, výběr jiné kategorie celé menu.
  *
+ * Tlačítko přehledu pro rodiče (#192) je v liště vlevo od jazyka: bílé
+ * kolečko se třemi sloupečky. Dokud ho prst drží, plní se kolem něj modrý
+ * kroužek jako u kolečka nastavení ve hře; podržení hlídá logika dotyků.
+ *
  * Obrázky dlaždic (#122) načte scéna loaderem Phaseru a výsledek každého
  * hlásí do `TileImages`. Menu se nakreslí, až jsou obrázky vyřízené, nebo
  * nejdéle po limitu čekání; do té doby je vidět jen pozadí stránky.
@@ -102,6 +113,9 @@ export class MenuScene extends Phaser.Scene {
   private languageRows = new Map<string, Tappable>();
   private categoryRows = new Map<string, Tappable>();
   private categoryButton: Tappable | undefined;
+  /** Tlačítko přehledu pro rodiče (#192) a jeho kroužek podržení. */
+  private overviewButton: Tappable | undefined;
+  private overviewRing: Phaser.GameObjects.Graphics | undefined;
   private drawn: Phaser.GameObjects.GameObject[] = [];
   /** Nakreslená nabídka jazyků; překresluje se zvlášť od zbytku menu. */
   private drawnPanel: Phaser.GameObjects.GameObject[] = [];
@@ -210,6 +224,31 @@ export class MenuScene extends Phaser.Scene {
     }
     this.scrollCameras();
     this.showHeld();
+    this.drawOverviewRing();
+  }
+
+  /** Kroužek podržení tlačítka přehledu podle logiky dotyků (#192). */
+  private drawOverviewRing(): void {
+    const ring = this.overviewRing;
+    const box = this.layout?.overviewButton;
+    if (ring === undefined || !ring.active || box === undefined) {
+      return;
+    }
+    ring.clear();
+    const progress = this.host.touch.overviewHoldProgress(performance.now());
+    if (progress === null || progress <= 0) {
+      return;
+    }
+    const unit = MENU_UNITS_PER_CSS_PX;
+    const radius = ((box.right - box.left) / 2 - OVERVIEW_RING_INSET) * unit;
+    // Kroužek začíná nahoře a plní se po směru hodinových ručiček.
+    const start = -Math.PI / 2;
+    ring
+      .lineStyle(OVERVIEW_RING_WIDTH * unit, colorNumber(MENU_STYLE.overviewHoldRing), 1)
+      .beginPath()
+      .moveTo(0, -radius)
+      .arc(0, 0, radius, start, start + progress * 2 * Math.PI, false)
+      .strokePath();
   }
 
   /**
@@ -414,6 +453,8 @@ export class MenuScene extends Phaser.Scene {
     this.tiles = new Map();
     this.categories = new Map();
     this.profileBadge = undefined;
+    this.overviewButton = undefined;
+    this.overviewRing = undefined;
     this.drawnSelection = this.selectedCategoryId();
 
     const layout = this.host.layout();
@@ -429,7 +470,8 @@ export class MenuScene extends Phaser.Scene {
     }
     this.drawProfileBadge(layout);
     this.drawLanguageButton(layout, layout.languageSlot);
-    // Místo vyhrazené v liště (#157) zůstává prázdné, nic se tam nekreslí.
+    this.drawOverviewButton(layout.overviewButton);
+    // Zbylé místo vyhrazené v liště (#157) zůstává prázdné, nic se tam nekreslí.
     const categories = this.host.menu.categories();
     categories.forEach((category, index) => {
       const slot = layout.categories[index];
@@ -480,6 +522,9 @@ export class MenuScene extends Phaser.Scene {
       case 'profilePress':
         this.press(this.profileBadge);
         break;
+      case 'overviewOpen':
+        // Menu se hned uspí, přehled zakryje celé plátno.
+        break;
       case 'language':
         // Texty menu jsou teď v novém jazyce.
         this.requestRedraw();
@@ -487,6 +532,8 @@ export class MenuScene extends Phaser.Scene {
       case 'wobble':
         if (event.target.kind === 'category') {
           this.wobble(this.categories.get(event.target.categoryId));
+        } else if (event.target.kind === 'overviewButton') {
+          this.wobble(this.overviewButton, OVERVIEW_WOBBLE_ANGLE);
         }
         // Už vybraná kategorie v seznamu (#95) jen zazní, nic se nehoupe.
         break;
@@ -622,6 +669,37 @@ export class MenuScene extends Phaser.Scene {
       ),
     );
     this.languageButton = item;
+  }
+
+  /**
+   * Tlačítko přehledu pro rodiče (#192): bílé kolečko se stínem jako jazyk,
+   * uvnitř tři sloupečky grafu (symbol bez textu) a nad nimi prázdný
+   * kroužek podržení, který plní `drawOverviewRing`.
+   */
+  private drawOverviewButton(box: MenuBox): void {
+    const item = this.tappable(box, this.barLayer);
+    const unit = MENU_UNITS_PER_CSS_PX;
+    const radius = ((box.right - box.left) / 2) * unit;
+    const art = this.add.graphics();
+    for (const spread of [3, 1]) {
+      art
+        .fillStyle(0x000000, MENU_STYLE.languageButtonShadowAlpha)
+        .fillCircle(0, 1.5 * unit, radius + spread * unit);
+    }
+    art.fillStyle(colorNumber(MENU_STYLE.overviewButtonBackground), 1).fillCircle(0, 0, radius);
+    // Tři sloupečky na společné základně, prostřední nejvyšší.
+    art.fillStyle(colorNumber(MENU_STYLE.overviewButtonSymbol), 1);
+    const bar = 6 * unit;
+    const gap = 4 * unit;
+    const base = 10 * unit;
+    OVERVIEW_BAR_HEIGHTS.forEach((height, index) => {
+      const left = (index - 1) * (bar + gap) - bar / 2;
+      art.fillRoundedRect(left, base - height * unit, bar, height * unit, 1.5 * unit);
+    });
+    const ring = this.add.graphics();
+    item.container.add([art, ring]);
+    this.overviewButton = item;
+    this.overviewRing = ring;
   }
 
   /** Nabídka jazyků podle logiky menu: otevřená se nakreslí, zavřená nic. */
@@ -911,11 +989,11 @@ export class MenuScene extends Phaser.Scene {
   }
 
   /** Zhoupnutí kategorie: krátce na jednu stranu, na druhou a zpět. */
-  private wobble(item: Tappable | undefined): void {
+  private wobble(item: Tappable | undefined, angle = CATEGORY_WOBBLE.angle): void {
     if (item === undefined) {
       return;
     }
-    const { angle, durationMs } = CATEGORY_WOBBLE;
+    const { durationMs } = CATEGORY_WOBBLE;
     this.settle(item);
     this.tweens.chain({
       targets: item.container,

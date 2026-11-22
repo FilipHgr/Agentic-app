@@ -16,7 +16,8 @@ import type {
  * `showOnlyScene` po vytvoření každé scény a po otevření a zavření výběru.
  */
 
-const SCENES: readonly MenuSceneName[] = ['menu', 'profiles'];
+// #192: třetí scéna je přehled pro rodiče, načítá se spolu s ostatními.
+const SCENES: readonly MenuSceneName[] = ['menu', 'profiles', 'overview'];
 
 interface FakeScenes extends MenuSceneSwitch {
   /** Scéna dokončila načítání a vytvořila se (běží). */
@@ -25,7 +26,11 @@ interface FakeScenes extends MenuSceneSwitch {
 }
 
 function fakeScenes(): FakeScenes {
-  const states: Record<MenuSceneName, MenuSceneState> = { menu: 'loading', profiles: 'loading' };
+  const states: Record<MenuSceneName, MenuSceneState> = {
+    menu: 'loading',
+    profiles: 'loading',
+    overview: 'loading',
+  };
   return {
     state: (scene) => states[scene],
     sleep: (scene) => {
@@ -56,8 +61,12 @@ function startPage(order: readonly MenuSceneName[], profilesOpen: () => boolean)
 }
 
 const ORDERS: readonly (readonly MenuSceneName[])[] = [
-  ['menu', 'profiles'],
-  ['profiles', 'menu'],
+  ['menu', 'profiles', 'overview'],
+  ['menu', 'overview', 'profiles'],
+  ['profiles', 'menu', 'overview'],
+  ['profiles', 'overview', 'menu'],
+  ['overview', 'menu', 'profiles'],
+  ['overview', 'profiles', 'menu'],
 ];
 
 describe('viditelnost menu a výběru profilu', () => {

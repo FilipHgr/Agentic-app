@@ -47,6 +47,11 @@ import {
  *
  * Ruční kontrola (AC4): lišta ve WebKitu nemá prázdnou díru, která by
  * vypadala rozbitě.
+ *
+ * #192: na vyhrazeném místě vedle jazyka je tlačítko přehledu pro rodiče
+ * (`overviewButton`), v `reservedSlots` zůstávají jen ostatní místa (iPad
+ * 1, telefon žádné). Testy prázdného místa se proto ťukají jen na ně;
+ * tlačítko přehledu testuje `tests/menu/parentOverviewButton.test.ts`.
  */
 
 type Edges = readonly [number, number, number, number];
@@ -414,10 +419,25 @@ function reservedAfter157(row: BarBefore157): readonly Edges[] {
   return [row.language, ...row.reserved.slice(0, -1)];
 }
 
-/** Každé vyhrazené místo v liště v každém okně testů menu. */
+/** #192: tlačítko přehledu je na vyhrazeném místě vedle jazyka (poslední zleva). */
+function overviewPlaceAfter192(row: BarBefore157): Edges {
+  const places = reservedAfter157(row);
+  const last = places[places.length - 1];
+  if (last === undefined) {
+    throw new Error(`${row.window}: v liště chybí vyhrazené místo`);
+  }
+  return last;
+}
+
+/** #192: vyhrazená místa, která zůstala prázdná (bez místa přehledu). */
+function reservedAfter192(row: BarBefore157): readonly Edges[] {
+  return reservedAfter157(row).slice(0, -1);
+}
+
+/** Každé prázdné vyhrazené místo v liště v každém okně testů menu. */
 function reservedPlaces(): Array<{ label: string; window: TestWindow; place: Edges }> {
   return BAR_BEFORE_157.flatMap((row) =>
-    reservedAfter157(row).map((place, index) => ({
+    reservedAfter192(row).map((place, index) => ({
       label: `${row.window}, místo ${index + 1}`,
       window: windowOf(row),
       place,
@@ -572,16 +592,29 @@ describe('#157 AC2: místo v liště zůstává, profil se neposune, jazyk je ú
   });
 
   // #157 po UX kontrole: vyhrazená místa jsou mezi profilem a jazykem.
-  it('místo pro budoucí volby zůstává v liště vyhrazené mezi profilem a jazykem (iPad 2, telefon 1)', () => {
+  // #192: na místě vedle jazyka je tlačítko přehledu, ostatní místa zůstávají prázdná.
+  it('místo pro budoucí volby zůstává v liště mezi profilem a jazykem (iPad 2, telefon 1), na tom vedle jazyka je přehled', () => {
     const problems = BAR_BEFORE_157.flatMap((row) => {
-      const reserved = todayLayout(windowOf(row)).reservedSlots ?? [];
-      const expected = reservedAfter157(row);
-      if (reserved.length !== row.reserved.length) {
-        return [`${row.window}: ${reserved.length} vyhrazených míst místo ${row.reserved.length}`];
-      }
-      return reserved.flatMap((box, index) =>
-        moved(`${row.window}, místo ${index + 1}`, edgesOf(box), expected[index] ?? [0, 0, 0, 0]),
+      const layout = todayLayout(windowOf(row));
+      const reserved = layout.reservedSlots;
+      const expected = reservedAfter192(row);
+      const overview = moved(
+        `${row.window}, tlačítko přehledu`,
+        edgesOf(layout.overviewButton),
+        overviewPlaceAfter192(row),
       );
+      if (reserved.length !== expected.length) {
+        return [
+          ...overview,
+          `${row.window}: ${reserved.length} prázdných vyhrazených míst místo ${expected.length}`,
+        ];
+      }
+      return [
+        ...overview,
+        ...reserved.flatMap((box, index) =>
+          moved(`${row.window}, místo ${index + 1}`, edgesOf(box), expected[index] ?? [0, 0, 0, 0]),
+        ),
+      ];
     });
     expect(problems).toEqual([]);
   });

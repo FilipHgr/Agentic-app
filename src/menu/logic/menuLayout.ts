@@ -1,7 +1,8 @@
 /**
  * Rozložení menu podle obrázku B (#67 AC1) v CSS px okna, i s výřezem
  * a lištou domů. Nahoře lišta (místo pro profil vlevo, místo pro jazyk
- * úplně vpravo, mezi nimi místo vyhrazené pro budoucí volby, #157), pod ní kategorie (sloupec vlevo, na
+ * úplně vpravo, mezi nimi místa vyhrazená pro budoucí volby, #157; na
+ * prvním vedle jazyka je tlačítko přehledu pro rodiče, #192), pod ní kategorie (sloupec vlevo, na
  * telefonu na výšku výběr kategorie, #95) a vedle nebo pod nimi mřížka
  * dlaždic.
  * Čistý TypeScript bez Phaseru.
@@ -176,6 +177,11 @@ export interface MenuLayout {
    * menu do nich nesmí.
    */
   readonly reservedSlots: readonly MenuBox[];
+  /**
+   * Tlačítko přehledu pro rodiče (#192): kulaté 64 px na vyhrazeném místě
+   * vlevo vedle jazyka (#157). Zbylá vyhrazená místa jsou v `reservedSlots`.
+   */
+  readonly overviewButton: MenuBox;
   readonly categoryDirection: 'row' | 'column';
   readonly categories: readonly MenuCategorySlot[];
   readonly categoryFontSize: number;
@@ -261,7 +267,7 @@ interface MenuMetrics {
   /** Mezera mezi tlačítky v liště. */
   readonly barGap: number;
   readonly profileWidth: number;
-  /** Počet míst v liště vyhrazených pro budoucí volby (#157). */
+  /** Počet míst v liště vyhrazených pro budoucí volby (#157), i s místem přehledu (#192). */
   readonly reservedSlotCount: number;
   /** Kde začínají kategorie (od horního okraje volné plochy). */
   readonly contentTop: number;
@@ -1225,8 +1231,11 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
   let right = free.right - metrics.sideMargin;
   const languageSlot = boxAt(right - BUTTON_SIZE, barTop, BUTTON_SIZE, BUTTON_SIZE);
   right -= BUTTON_SIZE + metrics.barGap;
+  // Přehled pro rodiče (#192) na prvním vyhrazeném místě vedle jazyka.
+  const overviewButton = boxAt(right - BUTTON_SIZE, barTop, BUTTON_SIZE, BUTTON_SIZE);
+  right -= BUTTON_SIZE + metrics.barGap;
   const reservedSlots: MenuBox[] = [];
-  for (let index = 0; index < metrics.reservedSlotCount; index += 1) {
+  for (let index = 1; index < metrics.reservedSlotCount; index += 1) {
     reservedSlots.unshift(boxAt(right - BUTTON_SIZE, barTop, BUTTON_SIZE, BUTTON_SIZE));
     right -= BUTTON_SIZE + metrics.barGap;
   }
@@ -1245,7 +1254,11 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     ? {
         left: profileSlot.right + metrics.barGap,
         right:
-          Math.min(languageSlot.left, ...reservedSlots.map((box) => box.left)) - metrics.barGap,
+          Math.min(
+            languageSlot.left,
+            overviewButton.left,
+            ...reservedSlots.map((box) => box.left),
+          ) - metrics.barGap,
         top: barTop,
         bottom: barTop + BUTTON_SIZE,
       }
@@ -1303,6 +1316,7 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
   const barBottom = Math.max(
     profileSlot.bottom,
     languageSlot.bottom,
+    overviewButton.bottom,
     ...reservedSlots.map((box) => box.bottom),
   );
   const tileGrid = tileGridFor({
@@ -1347,6 +1361,7 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     languageButtonFontSize: LANGUAGE_BUTTON_FONT_SIZE,
     languagePanel: languagePanelFor(free, languageSlot, content.languageNames ?? []),
     reservedSlots,
+    overviewButton,
     categoryDirection: direction,
     categories,
     categoryFontSize: metrics.categoryFontSize,

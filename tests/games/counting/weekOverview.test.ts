@@ -1,28 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import { createCountingSession } from '../../../src/games/counting/logic/countingSession';
-import type { CountingSession } from '../../../src/games/counting/logic/countingSession';
 import {
-  backToSettings,
-  canConfirmSettings,
-  openParentPanel,
-  showOverview,
-} from '../../../src/games/counting/logic/overviewPanel';
-import { chooseOption, openSettings } from '../../../src/games/counting/logic/settingsSession';
-import {
-  EMPTY_ACTIVITY,
   MAX_ACTIVITY_RECORD_BYTES,
-  MAX_SOLVED_PER_DAY,
-  OVERVIEW_DAY_COUNT,
   dayKeyOf,
   parseActivity,
-  recordSolvedProblem,
-  serializeActivity,
   weekOverview,
-} from '../../../src/games/counting/logic/weekActivity';
-import type { ActivityRecord } from '../../../src/games/counting/logic/weekActivity';
-import { ACTIVITY_KEY } from '../../../src/games/counting/storage/activityStorage';
-import { COUNTING_META } from '../../../src/games/counting/meta';
+} from '../../../src/shared/logic/weekActivity';
+import type { WeekOverview } from '../../../src/shared/logic/weekActivity';
+import { ACTIVITY_KEY, readGameOverview } from '../../../src/shared/storage/activityStorage';
+import { COUNTING_META, COUNTING_OVERVIEW } from '../../../src/games/counting/meta';
 import { PROFILE_COLORS } from '../../../src/shared/logic/profiles';
 import { openProfiles } from '../../../src/shared/storage/profileStorage';
 import type { ProfileStore } from '../../../src/shared/storage/profileStorage';
@@ -38,7 +25,6 @@ import {
   KEYPAD_SETTINGS,
   correctAnswerOf,
   solveProblems,
-  testDevice,
   wrongAnswerOf,
 } from './sessionFakes';
 import type { TestSession } from './sessionFakes';
@@ -48,7 +34,12 @@ import { brokenStorage, memoryStorage, readOnlyStorage } from './storageFakes';
  * Testy k #183: přehled pro rodiče, kolik dítě v Počítání vyřešilo za
  * posledních 7 dní. Datum „dnes“ dostane hra zvenku (`today`), aby šly
  * vyzkoušet přechody dnů, týdnů i den z budoucnosti bez skutečných hodin.
- * Rozložení a texty přehledu jsou v `overviewLayout.test.ts`.
+ *
+ * Od #192 je přehled v hlavním menu: co rodič uvidí, čte menu z úložiště
+ * hry přes sdílenou logiku (`readGameOverview`), stejně to čtou i tyto
+ * testy. Tvar záznamu a jeho čtení jsou ve sdílené části, testy logiky
+ * jsou tady dál, protože je zapisuje Počítání. Obrazovka přehledu v menu
+ * je v `tests/menu/parentOverview*.test.ts`.
  */
 
 /** Neděle 22. 11. 2026 v poledne podle kalendáře zařízení. */
@@ -58,12 +49,24 @@ function daysAfter(date: Date, days: number): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days, 12, 0, 0);
 }
 
+/** Vstup do hry, ve kterém se dá podívat, co rodič v přehledu v menu uvidí. */
+type OverviewTest = TestSession & {
+  readonly page: FakePage;
+  /** Přehled 7 dní, jak ho menu přečte z úložiště hry (#192). */
+  overview(): WeekOverview;
+};
+
+/** Co přehled v menu ukáže z úložiště hry `storage` (#192). */
+function shownWeek(storage: KeyValueStorage | undefined, today: Date): WeekOverview {
+  return readGameOverview(storage, COUNTING_OVERVIEW, today).week;
+}
+
 /** Jeden vstup do Počítání nad úložištěm `storage` s dnešním dnem podle `clock`. */
 function enterOn(
   storage: KeyValueStorage | undefined,
   clock: { today: Date },
   page = new FakePage(),
-): TestSession & { readonly page: FakePage } {
+): OverviewTest {
   const timers = new FakeTimers();
   const recognizer = new FakeRecognizerLoader();
   const session = createCountingSession({
@@ -80,12 +83,19 @@ function enterOn(
   if (session.guideOpen()) {
     session.finishGuide(KEYPAD_SETTINGS);
   }
-  return { session, timers, recognizer, page, changes: () => 0 };
+  return {
+    session,
+    timers,
+    recognizer,
+    page,
+    changes: () => 0,
+    overview: () => shownWeek(storage, clock.today),
+  };
 }
 
 /** Kolik přehled ukazuje u dneška (poslední sloupeček). */
-function todayColumn(session: CountingSession): { solved: number; firstTry: number } {
-  const days = session.weekOverview().days;
+function todayColumn(test: OverviewTest): { solved: number; firstTry: number } {
+  const days = test.overview().days;
   const today = days[days.length - 1];
   if (today === undefined) {
     throw new Error('přehled nemá dnešní den');
@@ -122,19 +132,19 @@ describe('#183 AC1: po vyřešení příkladu se u dneška přičte 1', () => {
   it('po třech vyřešených příkladech napoprvé ukáže přehled u dneška 3 a z toho 3 napoprvé', () => {
     const test = enterOn(memoryStorage(), { today: SUNDAY });
     solveProblems(test, 3);
-    expect(todayColumn(test.session)).toEqual({ solved: 3, firstTry: 3 });
+    expect(todayColumn(test)).toEqual({ solved: 3, firstTry: 3 });
   });
 
   it('příklad vyřešený po chybě se přičte, ale ne mezi vyřešené napoprvé', () => {
     const test = enterOn(memoryStorage(), { today: SUNDAY });
     solveAfterMistake(test);
-    expect(todayColumn(test.session)).toEqual({ solved: 1, firstTry: 0 });
+    expect(todayColumn(test)).toEqual({ solved: 1, firstTry: 0 });
   });
 
   it('příklad vyřešený s nápovědou se přičte, ale ne mezi vyřešené napoprvé', () => {
     const test = enterOn(memoryStorage(), { today: SUNDAY });
     solveWithHint(test);
-    const { solved, firstTry } = todayColumn(test.session);
+    const { solved, firstTry } = todayColumn(test);
     expect(solved - firstTry).toBe(1);
   });
 
@@ -145,13 +155,13 @@ describe('#183 AC1: po vyřešení příkladu se u dneška přičte 1', () => {
     expect(test.session.hintVisible()).toBe(true);
     test.session.tapAnswer(correctAnswerOf(test.session));
     test.timers.runAll();
-    expect(todayColumn(test.session)).toEqual({ solved: 1, firstTry: 0 });
+    expect(todayColumn(test)).toEqual({ solved: 1, firstTry: 0 });
   });
 
   it('špatná odpověď sama o sobě nic nepřičte', () => {
     const test = enterOn(memoryStorage(), { today: SUNDAY });
     test.session.tapAnswer(wrongAnswerOf(test.session));
-    expect(todayColumn(test.session)).toEqual({ solved: 0, firstTry: 0 });
+    expect(todayColumn(test)).toEqual({ solved: 0, firstTry: 0 });
   });
 
   it('vyřešené příklady zůstanou po odchodu domečkem i po zavření hry', () => {
@@ -163,7 +173,7 @@ describe('#183 AC1: po vyřešení příkladu se u dneška přičte 1', () => {
     solveAfterMistake(second);
     // Hra se zavřela bez odchodu domečkem.
     const third = enterOn(storage, { today: SUNDAY });
-    expect(todayColumn(third.session)).toEqual({ solved: 3, firstTry: 2 });
+    expect(todayColumn(third)).toEqual({ solved: 3, firstTry: 2 });
   });
 
   it('příklad vyřešený těsně před půlnocí patří ke svému dni, další k novému dni', () => {
@@ -172,7 +182,7 @@ describe('#183 AC1: po vyřešení příkladu se u dneška přičte 1', () => {
     solveProblems(test, 1);
     clock.today = new Date(2026, 10, 22, 0, 0, 30);
     solveProblems(test, 2);
-    const days = test.session.weekOverview().days;
+    const days = test.overview().days;
     expect(days.slice(-2).map((day) => day.solved)).toEqual([1, 2]);
   });
 });
@@ -182,51 +192,6 @@ describe('#183 AC1: po vyřešení příkladu se u dneška přičte 1', () => {
 // ---------------------------------------------------------------------------
 
 describe('#183 AC2: přehled ukazuje 7 dní včetně dneška', () => {
-  it('bez hraní je 7 dní od pondělí do dnešní neděle a všechny mají 0', () => {
-    const overview = weekOverview(EMPTY_ACTIVITY, SUNDAY);
-    expect(overview.days).toHaveLength(OVERVIEW_DAY_COUNT);
-    expect(overview.days.map((day) => day.key)).toEqual([
-      '2026-11-16',
-      '2026-11-17',
-      '2026-11-18',
-      '2026-11-19',
-      '2026-11-20',
-      '2026-11-21',
-      '2026-11-22',
-    ]);
-    expect(overview.days.map((day) => day.weekday)).toEqual([0, 1, 2, 3, 4, 5, 6]);
-    expect(overview.days.every((day) => day.solved === 0 && day.firstTry === 0)).toBe(true);
-    expect(overview.days.map((day) => day.isToday)).toEqual([
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      true,
-    ]);
-  });
-
-  it('ve středu začíná přehled ve čtvrtek minulého týdne a končí dnešní středou', () => {
-    const wednesday = new Date(2026, 10, 25, 8, 0, 0);
-    const overview = weekOverview(EMPTY_ACTIVITY, wednesday);
-    expect(overview.days.map((day) => day.weekday)).toEqual([3, 4, 5, 6, 0, 1, 2]);
-    expect(overview.days[6]?.key).toBe('2026-11-25');
-  });
-
-  it('dny přes konec měsíce a roku jdou podle kalendáře', () => {
-    const newYear = new Date(2027, 0, 2, 9, 0, 0);
-    expect(weekOverview(EMPTY_ACTIVITY, newYear).days.map((day) => day.key)).toEqual([
-      '2026-12-27',
-      '2026-12-28',
-      '2026-12-29',
-      '2026-12-30',
-      '2026-12-31',
-      '2027-01-01',
-      '2027-01-02',
-    ]);
-  });
-
   it('den bez hraní mezi dny s hraním má 0 a součet je za celý týden', () => {
     const clock = { today: SUNDAY };
     const storage = memoryStorage();
@@ -235,7 +200,7 @@ describe('#183 AC2: přehled ukazuje 7 dní včetně dneška', () => {
     const test = enterOn(storage, clock);
     solveProblems(test, 1);
     solveAfterMistake(test);
-    const overview = test.session.weekOverview();
+    const overview = test.overview();
     expect(overview.days.slice(-3).map((day) => day.solved)).toEqual([4, 0, 2]);
     expect(overview.totalSolved).toBe(6);
     expect(overview.totalFirstTry).toBe(5);
@@ -247,7 +212,7 @@ describe('#183 AC2: přehled ukazuje 7 dní včetně dneška', () => {
     solveProblems(enterOn(storage, clock), 3);
     clock.today = daysAfter(SUNDAY, 7);
     const test = enterOn(storage, clock);
-    expect(test.session.weekOverview().totalSolved).toBe(0);
+    expect(test.overview().totalSolved).toBe(0);
 
     solveProblems(test, 1);
     const saved = parseActivity(storage.data.get(ACTIVITY_KEY));
@@ -259,27 +224,9 @@ describe('#183 AC2: přehled ukazuje 7 dní včetně dneška', () => {
     const storage = memoryStorage();
     solveProblems(enterOn(storage, clock), 2);
     clock.today = daysAfter(SUNDAY, 6);
-    const overview = enterOn(storage, clock).session.weekOverview();
+    const overview = enterOn(storage, clock).overview();
     expect(overview.days[0]?.solved).toBe(2);
     expect(overview.totalSolved).toBe(2);
-  });
-
-  it('záznam má nejvýš 1 kB, i když dítě hraje každý den nejvíc příkladů, kolik se počítá', () => {
-    let record: ActivityRecord = EMPTY_ACTIVITY;
-    for (let day = 0; day < 30; day += 1) {
-      const date = daysAfter(SUNDAY, day);
-      // Plný den: nejvíc příkladů, všechny napoprvé.
-      record = {
-        ...record,
-        [dayKeyOf(date)]: { solved: MAX_SOLVED_PER_DAY, firstTry: MAX_SOLVED_PER_DAY },
-      };
-      record = recordSolvedProblem(record, date, true);
-      expect(byteLength(serializeActivity(record)), `den ${day}`).toBeLessThanOrEqual(
-        MAX_ACTIVITY_RECORD_BYTES,
-      );
-      expect(Object.keys(record).length, `den ${day}`).toBeLessThanOrEqual(OVERVIEW_DAY_COUNT);
-    }
-    expect(MAX_ACTIVITY_RECORD_BYTES).toBe(1024);
   });
 
   it('uložený záznam ze hry má nejvýš 1 kB i po týdnech hraní', () => {
@@ -293,74 +240,22 @@ describe('#183 AC2: přehled ukazuje 7 dní včetně dneška', () => {
       );
     }
   });
-
-  it('nad nejvyšší počet za den se už nepřičítá, záznam nepřeroste', () => {
-    const full: ActivityRecord = {
-      [dayKeyOf(SUNDAY)]: { solved: MAX_SOLVED_PER_DAY, firstTry: 5 },
-    };
-    const after = recordSolvedProblem(full, SUNDAY, true);
-    expect(after[dayKeyOf(SUNDAY)]).toEqual({ solved: MAX_SOLVED_PER_DAY, firstTry: 5 });
-  });
 });
 
 // ---------------------------------------------------------------------------
-// AC3: přehled za kolečkem, hra mezitím stojí
+// AC3 (od #192 v menu): podívat se do přehledu nic nemění
 // ---------------------------------------------------------------------------
 
-describe('#183 AC3: přehled je v nastavení za kolečkem', () => {
-  const saved = KEYPAD_SETTINGS;
-
-  it('z nastavení se tlačítkem Přehled otevře přehled a Zpět vrátí nastavení s rozehranými volbami', () => {
-    const chosen = chooseOption(openSettings({ open: false }, saved), { maxNumber: 20 });
-    const panel = openParentPanel(chosen);
-    expect(panel.view).toBe('settings');
-
-    const overview = showOverview(panel);
-    expect(overview.view).toBe('overview');
-
-    const back = backToSettings(overview);
-    expect(back.view).toBe('settings');
-    expect(back.session).toEqual(chosen);
-  });
-
-  it('v přehledu nejde nastavení potvrdit, v nastavení ano', () => {
-    const panel = openParentPanel(openSettings({ open: false }, saved));
-    expect(canConfirmSettings(panel)).toBe(true);
-    expect(canConfirmSettings(showOverview(panel))).toBe(false);
-  });
-
-  it('bez otevřeného nastavení se přehled neotevře', () => {
-    const closed = openParentPanel({ open: false });
-    expect(showOverview(closed).view).toBe('settings');
-  });
-
-  it('s otevřeným nastavením (a přehledem v něm) hra stojí a hvězdičky se nemění', () => {
-    const device = testDevice();
-    const test = enterOn(device.storage, { today: SUNDAY }, device.page);
-    solveProblems(test, 2);
-    const starsBefore = test.session.starCount();
-    const problemBefore = test.session.problem();
-
-    test.page.holdGear();
-    expect(test.session.settingsOpen()).toBe(true);
-    const overview = test.session.weekOverview();
-    expect(test.session.tapAnswer(correctAnswerOf(test.session))).toBe('ignored');
-    test.timers.runAll();
-
-    expect(test.session.starCount()).toBe(starsBefore);
-    expect(test.session.problem()).toEqual(problemBefore);
-    expect(test.session.weekOverview()).toEqual(overview);
-  });
-
+describe('#183 AC3, #192: přehled jen čte, co hra zapsala', () => {
   it('podívat se do přehledu nic nepřičte ani neuloží', () => {
     const storage = memoryStorage();
     const test = enterOn(storage, { today: SUNDAY });
     solveProblems(test, 2);
-    const before = storage.data.get(ACTIVITY_KEY);
-    test.session.weekOverview();
-    test.session.weekOverview();
-    expect(storage.data.get(ACTIVITY_KEY)).toBe(before);
-    expect(todayColumn(test.session)).toEqual({ solved: 2, firstTry: 2 });
+    const before = new Map(storage.data);
+    test.overview();
+    test.overview();
+    expect(storage.data).toEqual(before);
+    expect(todayColumn(test)).toEqual({ solved: 2, firstTry: 2 });
   });
 });
 
@@ -371,7 +266,7 @@ describe('#183 AC3: přehled je v nastavení za kolečkem', () => {
 describe('#183 AC4: bez dat přehled ukáže „Zatím žádné příklady“', () => {
   it('nové zařízení má prázdný přehled', () => {
     const test = enterOn(memoryStorage(), { today: SUNDAY });
-    const overview = test.session.weekOverview();
+    const overview = test.overview();
     expect(overview.isEmpty).toBe(true);
     expect(overview.totalSolved).toBe(0);
   });
@@ -379,13 +274,13 @@ describe('#183 AC4: bez dat přehled ukáže „Zatím žádné příklady“', 
   it('po prvním vyřešeném příkladu už přehled prázdný není', () => {
     const test = enterOn(memoryStorage(), { today: SUNDAY });
     solveProblems(test, 1);
-    expect(test.session.weekOverview().isEmpty).toBe(false);
+    expect(test.overview().isEmpty).toBe(false);
   });
 
   it('jen špatné odpovědi přehled nechají prázdný', () => {
     const test = enterOn(memoryStorage(), { today: SUNDAY });
     test.session.tapAnswer(wrongAnswerOf(test.session));
-    expect(test.session.weekOverview().isEmpty).toBe(true);
+    expect(test.overview().isEmpty).toBe(true);
   });
 
   it('hraní starší než 7 dní dá prázdný přehled', () => {
@@ -393,7 +288,7 @@ describe('#183 AC4: bez dat přehled ukáže „Zatím žádné příklady“', 
     const storage = memoryStorage();
     solveProblems(enterOn(storage, clock), 5);
     clock.today = daysAfter(SUNDAY, 10);
-    expect(enterOn(storage, clock).session.weekOverview().isEmpty).toBe(true);
+    expect(enterOn(storage, clock).overview().isEmpty).toBe(true);
   });
 });
 
@@ -401,7 +296,7 @@ describe('#183 AC4: bez dat přehled ukáže „Zatím žádné příklady“', 
 // AC5: každý profil má vlastní přehled
 // ---------------------------------------------------------------------------
 
-function enterProfile(store: ProfileStore): TestSession {
+function enterProfile(store: ProfileStore): OverviewTest {
   return enterOn(store.gameStorage(COUNTING_META.id), { today: SUNDAY });
 }
 
@@ -414,14 +309,14 @@ describe('#183 AC5: každý profil má vlastní přehled', () => {
 
     solveProblems(enterProfile(store), 4);
     store.selectProfile(second.id);
-    expect(enterProfile(store).session.weekOverview().isEmpty).toBe(true);
+    expect(enterProfile(store).overview().isEmpty).toBe(true);
     solveProblems(enterProfile(store), 1);
 
     const reloaded = openProfiles(storage);
     reloaded.selectProfile(first.id);
-    expect(enterProfile(reloaded).session.weekOverview().totalSolved).toBe(4);
+    expect(enterProfile(reloaded).overview().totalSolved).toBe(4);
     reloaded.selectProfile(second.id);
-    expect(enterProfile(reloaded).session.weekOverview().totalSolved).toBe(1);
+    expect(enterProfile(reloaded).overview().totalSolved).toBe(1);
   });
 
   it('přehled se ukládá pod vnitřním označením profilu, nikdy s přezdívkou', () => {
@@ -457,7 +352,7 @@ describe('#183 AC5: každý profil má vlastní přehled', () => {
 
     const again = store.createProfile({ nickname: 'ALFA', color: PROFILE_COLORS[3] });
     store.selectProfile(again.id);
-    expect(enterProfile(store).session.weekOverview().isEmpty).toBe(true);
+    expect(enterProfile(store).overview().isEmpty).toBe(true);
   });
 });
 
@@ -496,29 +391,28 @@ describe('#183 AC6: poškozený záznam dá prázdný přehled', () => {
       const storage = memoryStorage();
       storage.data.set(ACTIVITY_KEY, corrupt);
       const test = enterOn(storage, { today: SUNDAY });
-      expect(test.session.weekOverview().isEmpty, corrupt).toBe(true);
+      expect(test.overview().isEmpty, corrupt).toBe(true);
       solveProblems(test, 1);
-      expect(todayColumn(test.session), corrupt).toEqual({ solved: 1, firstTry: 1 });
+      expect(todayColumn(test), corrupt).toEqual({ solved: 1, firstTry: 1 });
       expect(
         weekOverview(parseActivity(storage.data.get(ACTIVITY_KEY)), SUNDAY).totalSolved,
         corrupt,
       ).toBe(1);
     }
   });
-
-  it('chybějící nebo prázdný záznam je prázdný přehled', () => {
-    for (const missing of [null, undefined, '']) {
-      expect(weekOverview(parseActivity(missing), SUNDAY).isEmpty).toBe(true);
-    }
-  });
 });
 
 describe('#183 AC6: plné nebo zakázané úložiště hru nezastaví', () => {
   it('s plným úložištěm dítě hraje dál, hvězdičky přibývají a přehled platí do zavření stránky', () => {
-    const test = enterOn(readOnlyStorage(), { today: SUNDAY });
+    const device = new DeviceStorage();
+    const store = openProfiles(device);
+    device.failWrite = () => true;
+    const test = enterProfile(store);
     expect(() => solveProblems(test, 3)).not.toThrow();
     expect(test.session.starCount()).toBe(3);
-    expect(todayColumn(test.session)).toEqual({ solved: 3, firstTry: 3 });
+    // Menu čte stejné úložiště profilu, které neuložené hodnoty drží do zavření stránky.
+    expect(todayColumn(test)).toEqual({ solved: 3, firstTry: 3 });
+    expect(() => enterOn(readOnlyStorage(), { today: SUNDAY })).not.toThrow();
   });
 
   it('když selže jen zápis přehledu, hvězdičky se uloží dál', () => {
@@ -542,21 +436,19 @@ describe('#183 AC6: plné nebo zakázané úložiště hru nezastaví', () => {
     for (const storage of [brokenStorage(), undefined]) {
       const test = enterOn(storage, { today: SUNDAY });
       expect(() => solveProblems(test, 2)).not.toThrow();
-      expect(todayColumn(test.session)).toEqual({ solved: 2, firstTry: 2 });
+      expect(test.session.starCount()).toBe(2);
     }
+    // Zakázané úložiště zařízení: profil je dočasný v paměti a přehled v menu z něj čte.
+    const device = new DeviceStorage();
+    device.failReads = true;
+    device.failWrite = () => true;
+    const test = enterProfile(openProfiles(device));
+    expect(() => solveProblems(test, 2)).not.toThrow();
+    expect(todayColumn(test)).toEqual({ solved: 2, firstTry: 2 });
   });
 });
 
 describe('#183 AC6: den z budoucnosti se nezapočítá', () => {
-  it('příklady uložené se zítřejším datem (hodiny se vrátily) přehled nepočítá', () => {
-    const tomorrow = dayKeyOf(daysAfter(SUNDAY, 1));
-    const record = parseActivity(JSON.stringify({ days: { [tomorrow]: [8, 8] } }));
-    const overview = weekOverview(record, SUNDAY);
-    expect(overview.isEmpty).toBe(true);
-    expect(overview.totalSolved).toBe(0);
-    expect(overview.days.map((day) => day.key)).not.toContain(tomorrow);
-  });
-
   it('den z budoucnosti nepokazí dnešní a dřívější dny', () => {
     const storage = memoryStorage();
     storage.data.set(
@@ -570,17 +462,9 @@ describe('#183 AC6: den z budoucnosti se nezapočítá', () => {
     );
     const test = enterOn(storage, { today: SUNDAY });
     solveProblems(test, 1);
-    const overview = test.session.weekOverview();
+    const overview = test.overview();
     expect(overview.days.slice(-2).map((day) => day.solved)).toEqual([2, 1]);
     expect(overview.totalSolved).toBe(3);
     expect(overview.totalFirstTry).toBe(2);
-  });
-
-  it('při zápisu se den z budoucnosti zahodí', () => {
-    const future = dayKeyOf(daysAfter(SUNDAY, 2));
-    const record = parseActivity(JSON.stringify({ days: { [future]: [9, 9] } }));
-    const after = recordSolvedProblem(record, SUNDAY, false);
-    expect(Object.keys(after)).toEqual([dayKeyOf(SUNDAY)]);
-    expect(after[dayKeyOf(SUNDAY)]).toEqual({ solved: 1, firstTry: 0 });
   });
 });

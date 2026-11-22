@@ -136,7 +136,8 @@ function pickerCasesInAllWindows(): PickerCase[] {
 // #157: místo schovaných zástupných tlačítek „…“ zůstává v liště vyhrazené
 // (`reservedSlots`), nic se tam nekreslí, ale obsah do něj nesmí.
 function barBoxes(layout: MenuLayout): MenuBox[] {
-  return [layout.profileSlot, layout.languageSlot, ...layout.reservedSlots];
+  // #192: tlačítko přehledu na vyhrazeném místě patří k liště.
+  return [layout.profileSlot, layout.languageSlot, layout.overviewButton, ...layout.reservedSlots];
 }
 
 function barBottom(layout: MenuLayout): number {

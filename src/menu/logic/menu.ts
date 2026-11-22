@@ -36,6 +36,11 @@
  * Ťuknutí na kategorii v seznamu ji vybere a seznam zavře, ťuknutí mimo
  * seznam ho jen zavře a nic jiného neudělá. Seznam kategorií a nabídka jazyků nejsou nikdy otevřené
  * současně: tlačítko jednoho s otevřeným druhým jen zavře to druhé.
+ *
+ * Přehled pro rodiče (#192): tlačítko v liště se otevře podržením 1 s
+ * (rodičovská brána jako kolečko ve hře, podržení hlídá `menuTouch.ts`).
+ * Ťuknutí ho jen zhoupne a nic nezruší. Podržení zruší stahování hry
+ * a otevře přehled; s otevřenou nabídkou nebo seznamem je jen zavře.
  */
 
 import { languageFlagOf } from './languageFlags';
@@ -70,7 +75,10 @@ const FALLBACK_PROFILE: Profile = { id: DEFAULT_PROFILE_ID, color: DEFAULT_PROFI
  * v seznamu (#95) jen zazní, nic se nehoupe.
  */
 export type WobbleTarget =
-  { readonly kind: 'category'; readonly categoryId: string } | { readonly kind: 'categoryMenu' };
+  | { readonly kind: 'category'; readonly categoryId: string }
+  | { readonly kind: 'categoryMenu' }
+  /** Tlačítko přehledu pro rodiče po ťuknutí bez podržení (#192). */
+  | { readonly kind: 'overviewButton' };
 
 /**
  * Odezva menu:
@@ -83,7 +91,8 @@ export type WobbleTarget =
  * - `languageMenu` nabídka jazyků se otevřela nebo zavřela (#70),
  * - `language` vybral se jiný jazyk (#70),
  * - `categoryMenu` seznam kategorií se otevřel nebo zavřel (#95); `quiet`
- *   je zavření bez vlastního tónu (po výběru v seznamu nebo po otočení).
+ *   je zavření bez vlastního tónu (po výběru v seznamu nebo po otočení),
+ * - `overviewOpen` podržené tlačítko přehledu otevře přehled pro rodiče (#192).
  */
 export type MenuFeedback =
   | { readonly kind: 'press'; readonly gameId: string }
@@ -95,7 +104,8 @@ export type MenuFeedback =
   | { readonly kind: 'profilePress' }
   | { readonly kind: 'languageMenu'; readonly open: boolean }
   | { readonly kind: 'language'; readonly language: string }
-  | { readonly kind: 'categoryMenu'; readonly open: boolean; readonly quiet: boolean };
+  | { readonly kind: 'categoryMenu'; readonly open: boolean; readonly quiet: boolean }
+  | { readonly kind: 'overviewOpen' };
 
 /** Jazyky v nabídce (#70): seznam, aktuální jazyk, výběr a vlastní názvy. */
 export interface MenuLanguageSource {
@@ -178,6 +188,8 @@ export interface MenuOptions {
   readonly profile?: (() => Profile) | undefined;
   /** Ťuknutí na profil (#72): stránka ukáže výběr profilu. */
   readonly onOpenProfilePicker?: (() => void) | undefined;
+  /** Podržení tlačítka přehledu (#192): stránka ukáže přehled pro rodiče. */
+  readonly onOpenOverview?: (() => void) | undefined;
   /** Obnovení stránky po nasazení nové verze (#76); bez něj se dlaždice jen zatřese. */
   readonly pageUpdate?: PageUpdate | undefined;
 }
@@ -223,6 +235,10 @@ export interface Menu {
   closeCategoryMenu(): void;
   /** Seznam se zavře potichu, protože výběr zmizel (otočení na šířku). */
   hideCategoryMenu(): void;
+  /** Ťuknutí na tlačítko přehledu bez podržení (#192): jen se zhoupne. */
+  tapOverviewButton(): void;
+  /** Tlačítko přehledu se drželo 1 s (#192): otevře přehled pro rodiče. */
+  openOverview(): void;
 }
 
 /** Rozběhnuté stahování a spuštění jedné hry. */
@@ -553,6 +569,22 @@ export function createMenu(options: MenuOptions): Menu {
         symbol: firstLetter ?? PROFILE_WITHOUT_NICKNAME_SYMBOL,
         nickname: firstLetter === undefined ? null : nickname,
       };
+    },
+
+    tapOverviewButton(): void {
+      if (running !== null || closeOpenMenuInstead()) {
+        return;
+      }
+      emit({ kind: 'wobble', target: { kind: 'overviewButton' } });
+    },
+
+    openOverview(): void {
+      if (running !== null || closeOpenMenuInstead()) {
+        return;
+      }
+      cancelDownload();
+      emit({ kind: 'overviewOpen' });
+      options.onOpenOverview?.();
     },
 
     tapProfile(): void {

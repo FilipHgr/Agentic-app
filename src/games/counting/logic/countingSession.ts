@@ -14,8 +14,9 @@
 import type { Tone } from '../../../shared/audio/tonePlayer';
 import type { KeyReward, KeyRewards } from '../../../shared/logic/keyRewards';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
-import { loadActivity, saveActivity } from '../storage/activityStorage';
-import { loadMistakes, saveMistakes } from '../storage/mistakeStorage';
+import { equationKey } from '../../../shared/logic/overviewProblems';
+import { createActivityLog } from '../../../shared/storage/activityStorage';
+import { COUNTING_OVERVIEW } from '../meta';
 import { loadMapProgress, saveMapProgress } from '../storage/mapStorage';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { loadSettingsState, saveSettings } from '../storage/settingsStorage';
@@ -51,15 +52,6 @@ import { confirmSettings as confirmSettingsChoice } from './settingsSession';
 import { STARS_PER_SET, startNewStarSet, starsAfterTap } from '../../../shared/logic/stars';
 import type { StarProgress } from '../../../shared/logic/stars';
 import type { DigitRecognizer } from './writingRound';
-import { recordSolvedProblem, weekOverview } from './weekActivity';
-import type { ActivityRecord, WeekOverview } from './weekActivity';
-import {
-  mistakeOverview,
-  recordHintUsed,
-  recordMistake,
-  recordSolvedOperation,
-} from './mistakeActivity';
-import type { MistakeOverview, MistakeRecord } from './mistakeActivity';
 
 /** Jak dlouho se po správné odpovědi čeká na nový příklad. */
 export const NEXT_PROBLEM_DELAY_MS = 800;
@@ -194,7 +186,7 @@ export interface CountingSessionOptions {
    */
   readonly rudy?: SessionRudy | undefined;
   /**
-   * Dnešní datum podle kalendáře zařízení pro přehled pro rodiče (#183);
+   * Dnešní datum podle kalendáře zařízení pro přehled pro rodiče (#183, #192);
    * bez něj hodiny zařízení. Testy ho dávají samy.
    */
   readonly today?: (() => Date) | undefined;
@@ -233,10 +225,6 @@ export interface CountingSession {
   goalKeyReward(): KeyReward | null;
   /** Uložené nastavení rodiče. */
   settings(): GameSettings;
-  /** Kolik dítě vyřešilo za posledních 7 dní (#183); nic nemění ani neukládá. */
-  weekOverview(): WeekOverview;
-  /** Kde se dítě za posledních 7 dní plete (#184); nic nemění ani neukládá. */
-  mistakeOverview(): MistakeOverview;
   /** Čím dítě odpovídá v rozehraném příkladu (psaní jen s rozpoznáváním, #58). */
   answerInput(): AnswerInput;
   /** Stažené rozpoznávání psaní, nebo `null`, dokud není. */
@@ -293,11 +281,13 @@ export function createCountingSession(options: CountingSessionOptions): Counting
   let isCelebrating = false;
   // Mapa postupu přežije odchod i zavření hry (#87 AC3).
   let map: MapProgress = loadMapProgress(storage);
-  // Vyřešené příklady pro přehled pro rodiče (#183); v paměti platí i bez úložiště.
-  const today = options.today ?? (() => new Date());
-  let activity: ActivityRecord = loadActivity(storage);
-  // Chyby, podíl napoprvé a nápověda pro přehled chyb (#184); v paměti platí i bez úložiště.
-  let mistakes: MistakeRecord = loadMistakes(storage);
+  // Vyřešené příklady, chyby a nápověda pro přehled pro rodiče v menu (#183,
+  // #184, #192); zápis je společný se Znaménky ve sdílené části.
+  const activityLog = createActivityLog({
+    storage,
+    spec: COUNTING_OVERVIEW,
+    today: options.today ?? (() => new Date()),
+  });
   /** Krok za právě zaplněnou řadu, který mapa ukáže po oslavě. */
   let moveToShow: MapMove | null = null;
   let shownMove: MapMove | null = null;
@@ -552,10 +542,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
    */
   function countSolvedProblem(): void {
     const firstTry = round.wrongAnswers === 0 && round.hintRequested !== true;
-    activity = recordSolvedProblem(activity, today(), firstTry);
-    saveActivity(storage, activity);
-    mistakes = recordSolvedOperation(mistakes, today(), round.problem.operation, firstTry);
-    saveMistakes(storage, mistakes);
+    activityLog.solved(firstTry, round.problem.operation);
   }
 
   /**
@@ -564,14 +551,13 @@ export function createCountingSession(options: CountingSessionOptions): Counting
    * číslo je správná odpověď (#85).
    */
   function countMistake(): void {
-    mistakes = recordMistake(mistakes, today(), round.problem);
-    saveMistakes(storage, mistakes);
+    const { first, operation, second } = round.problem;
+    activityLog.mistake(equationKey(first, operation, second));
   }
 
   /** Ťuknutí na tlačítko nápovědy do přehledu chyb (#184 AC5). */
   function countHintUsed(): void {
-    mistakes = recordHintUsed(mistakes, today());
-    saveMistakes(storage, mistakes);
+    activityLog.hintUsed();
   }
 
   /** Společné vyhodnocení číselníku i psaní: zvuk, hvězdička a další příklad. */
@@ -688,8 +674,6 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     shownMap: () => shownMove,
     goalKeyReward: () => shownKeyReward,
     settings: () => settings,
-    weekOverview: () => weekOverview(activity, today()),
-    mistakeOverview: () => mistakeOverview(mistakes, today()),
     answerInput: () => roundInput,
     recognizer: () => recognizerLoading.recognizer(),
     guideOpen: () => guideIsOpen,

@@ -16,6 +16,10 @@
  * spí; po výběru profilu se menu probudí a nakreslí s novým kolečkem
  * a hra pak dostane úložiště vybraného profilu.
  *
+ * Přehled pro rodiče (#192) je třetí scéna na stejném plátně. Otevře ho
+ * podržení tlačítka v liště menu; dokud je otevřený, menu spí. Záznamy
+ * her čte z úložiště her aktivního profilu, Zpět vrátí menu.
+ *
  * Nová verze webu (#76): když se hra nestáhne a server stránky odpovídá,
  * stránka se sama jednou obnoví (`pageUpdate`). Dotaz jde jen na stejný
  * původ, nikdy na cizí server.
@@ -34,7 +38,10 @@ import { readViewport, watchViewport } from '../../shared/ui/viewport';
 import type { Menu } from '../logic/menu';
 import { menuLayoutFor } from '../logic/menuLayout';
 import type { MenuLayout } from '../logic/menuLayout';
-import { menuText } from '../logic/menuTexts';
+import { menuText, overviewTexts } from '../logic/menuTexts';
+import { afterMistakeLegend, mistakeSectionSizes } from '../logic/overviewLines';
+import { overviewLayoutFor } from '../logic/overviewLayout';
+import { createParentOverview } from '../logic/parentOverview';
 import { createMenuTouch } from '../logic/menuTouch';
 import { createPageUpdate } from '../logic/pageUpdate';
 import type { PageUpdate } from '../logic/pageUpdate';
@@ -43,6 +50,7 @@ import { shownSceneFor, showOnlyScene } from '../logic/menuSceneVisibility';
 import type { MenuSceneName, MenuSceneState } from '../logic/menuSceneVisibility';
 import { createTileImages } from '../logic/tileImages';
 import { MENU_SCENE_KEY, MENU_UNITS_PER_CSS_PX, MenuScene } from '../scenes/MenuScene';
+import { OVERVIEW_SCENE_KEY, OverviewScene } from '../scenes/OverviewScene';
 import { PROFILE_SCENE_KEY, ProfileScene } from '../scenes/ProfileScene';
 import { showPageLanguage } from './pageLanguage';
 import { createPageMenu } from './pageMenu';
@@ -145,6 +153,9 @@ function pageUpdateFor(profiles: ProfileStore): PageUpdate {
 interface MenuView {
   scene?: MenuScene;
   profileScene?: ProfileScene;
+  overviewScene?: OverviewScene;
+  openOverview?: () => void;
+  closeOverview?: () => void;
   close?: () => void;
   reopen?: () => void;
   openProfiles?: () => void;
@@ -157,6 +168,13 @@ export function startMenuPage(options: MenuPageOptions): void {
     profiles: options.profiles,
     feedback: (event) => view.profileScene?.play(event),
     onProfileChosen: () => view.closeProfiles?.(),
+  });
+  const overview = createParentOverview({
+    games: options.games,
+    translate,
+    gameStorage: (gameId) => options.profiles.gameStorage(gameId),
+    feedback: (event) => view.overviewScene?.play(event),
+    onClosed: () => view.closeOverview?.(),
   });
   const pageUpdate = pageUpdateFor(options.profiles);
   if (pageUpdate.startScreen(options.profiles.profiles()) === 'profilePicker') {
@@ -181,6 +199,7 @@ export function startMenuPage(options: MenuPageOptions): void {
     feedback: (event) => view.scene?.play(event),
     profile: () => options.profiles.activeProfile(),
     onOpenProfilePicker: () => view.openProfiles?.(),
+    onOpenOverview: () => view.openOverview?.(),
     pageUpdate,
     onLanguageChanged: () => showPageLanguage(document, currentLanguage()),
   });
@@ -219,12 +238,27 @@ export function startMenuPage(options: MenuPageOptions): void {
     onCreated: () => showOnlyCurrentScene(),
   });
   view.profileScene = profileScene;
+  const overviewScene = new OverviewScene({
+    overview,
+    layout: () =>
+      overviewLayoutFor(readViewport(), {
+        gameCount: overview.games().length,
+        sectionSizes: mistakeSectionSizes(overview.spec()),
+        firstLegendLabel: afterMistakeLegend(overview.spec(), overviewTexts(currentLanguage())),
+      }),
+    profileBadge: () => menu.profileBadge(),
+    texts: () => overviewTexts(currentLanguage()),
+    language: () => currentLanguage(),
+    onCreated: () => showOnlyCurrentScene(),
+  });
+  view.overviewScene = overviewScene;
 
-  const menuGame = createMenuGame([scene, profileScene]);
+  const menuGame = createMenuGame([scene, profileScene, overviewScene]);
 
   const sceneKeys: Record<MenuSceneName, string> = {
     menu: MENU_SCENE_KEY,
     profiles: PROFILE_SCENE_KEY,
+    overview: OVERVIEW_SCENE_KEY,
   };
   const sceneState = (name: MenuSceneName): MenuSceneState => {
     const key = sceneKeys[name];
@@ -238,7 +272,7 @@ export function startMenuPage(options: MenuPageOptions): void {
    * scény (vlajky se načítají různě dlouho) a po otevření a zavření výběru.
    */
   function showOnlyCurrentScene(): void {
-    showOnlyScene(shownSceneFor(screens.screen() !== 'closed'), {
+    showOnlyScene(shownSceneFor(screens.screen() !== 'closed', overview.isOpen()), {
       state: sceneState,
       sleep: (name) => menuGame.scene.sleep(sceneKeys[name]),
       wake: (name) => menuGame.scene.wake(sceneKeys[name]),
@@ -265,8 +299,20 @@ export function startMenuPage(options: MenuPageOptions): void {
     if (menuShown) {
       fitToWindow();
       profileScene.requestRedraw();
+      overviewScene.requestRedraw();
     }
   });
+
+  view.openOverview = () => {
+    overview.open();
+    showOnlyCurrentScene();
+    overviewScene.requestRedraw();
+  };
+
+  view.closeOverview = () => {
+    showOnlyCurrentScene();
+    scene.requestRedraw();
+  };
 
   view.openProfiles = () => {
     screens.open();

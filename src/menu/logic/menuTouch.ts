@@ -28,8 +28,17 @@
  *   panel seznam jen zavře a nic jiného neposune ani nespustí. Po otevření
  *   je vybraná kategorie v seznamu celá vidět. Rozložení bez výběru
  *   (otočení na šířku) seznam potichu zavře.
+ * - Přehled pro rodiče (#192): tlačítko v liště se otevře, až když prst
+ *   drží 1 s (`HOLD_TO_OPEN_SETTINGS_MS` jako kolečko ve hře), mezitím se
+ *   kolem tlačítka plní kroužek (`overviewHoldProgress`). Kratší ťuknutí
+ *   tlačítko jen zhoupne. Sjetí prstu z tlačítka podržení zruší a tlačítko
+ *   se zhoupne; pohyb prstu po tlačítku nic neposouvá. Dojíždění posouvání
+ *   dotyk na tlačítku zastaví a podržení platí hned. Druhý prst podržení
+ *   nepřeruší ani neprodlouží. Prst
+ *   zvednutý až po celé době (zpožděný snímek) se počítá jako podržení.
  */
 
+import { HOLD_TO_OPEN_SETTINGS_MS } from '../../shared/logic/settingsGear';
 import type { Menu } from './menu';
 import type { MenuBox, MenuCategoryPicker, MenuLayout } from './menuLayout';
 import { DRAG_THRESHOLD_PX, createScroller } from './menuScroll';
@@ -65,6 +74,11 @@ export interface MenuTouch {
   categoryListOffset(): number;
   /** Dlaždice nebo kategorie, která je právě zmáčknutá prstem, jinak `undefined`. */
   pressed(): PressedTarget | undefined;
+  /**
+   * Jak daleko je podržení tlačítka přehledu (#192): 0 až 1 (kroužek se
+   * plní), `null`, když ho prst nedrží.
+   */
+  overviewHoldProgress(nowMs: number): number | null;
 }
 
 /** Co může být zmáčknuté prstem. */
@@ -92,7 +106,9 @@ type TapTarget =
   /** Kategorie v otevřeném seznamu (#95). */
   | { readonly kind: 'categoryRow'; readonly categoryId: string }
   /** Ťuknutí nebo tah mimo otevřený seznam kategorií (#95). */
-  | { readonly kind: 'outsideCategoryMenu' };
+  | { readonly kind: 'outsideCategoryMenu' }
+  /** Tlačítko přehledu pro rodiče (#192), otevře se podržením. */
+  | { readonly kind: 'overviewButton' };
 
 interface Sample {
   readonly timeMs: number;
@@ -111,6 +127,10 @@ interface Gesture {
   dragging: boolean;
   canTap: boolean;
   samples: Sample[];
+  /** Kdy prst začal tlačítko přehledu držet (#192). */
+  readonly startMs: number;
+  /** Podržení tlačítka přehledu se zrušilo (sjetí z tlačítka, tah). */
+  holdCancelled: boolean;
 }
 
 function contains(box: MenuBox, point: TouchPoint): boolean {
@@ -281,6 +301,11 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
     if (picker !== null && contains(picker.button, point)) {
       return { target: { kind: 'categoryButton' } };
     }
+    // Tlačítko přehledu (#192) dřív než posouvané plochy: s výběrem kategorie
+    // v liště (#178) sahá plocha kategorií přes celou lištu.
+    if (contains(layout.overviewButton, point)) {
+      return { target: { kind: 'overviewButton' } };
+    }
     for (const part of [grid, categories]) {
       if (part.viewport === undefined || !contains(part.viewport, point)) {
         continue;
@@ -353,7 +378,26 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
       case 'outsideCategoryMenu':
         menu.closeCategoryMenu();
         break;
+      case 'overviewButton':
+        menu.tapOverviewButton();
+        break;
     }
+  }
+
+  /** Drží prst teď tlačítko přehledu tak, že se podržení počítá? */
+  function isHoldingOverview(current: Gesture | null): current is Gesture {
+    return (
+      current !== null &&
+      current.target?.kind === 'overviewButton' &&
+      current.canTap &&
+      !current.holdCancelled
+    );
+  }
+
+  /** Podržení doběhlo: přehled se otevře a dotyk skončí, zvednutí prstu už nic neudělá. */
+  function completeOverviewHold(): void {
+    gesture = null;
+    menu.openOverview();
   }
 
   /**
@@ -385,6 +429,15 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
 
   /** Prst se zvedl: tah dojede, ťuknutí se provede. */
   function finishGesture(current: Gesture, nowMs: number): void {
+    if (current.target?.kind === 'overviewButton') {
+      if (isHoldingOverview(current) && nowMs - current.startMs >= HOLD_TO_OPEN_SETTINGS_MS) {
+        // Snímek se zpozdil (vytížená stránka), prst se ale držel celou dobu.
+        menu.openOverview();
+      } else if (isHoldingOverview(current)) {
+        tap(current.target);
+      }
+      return;
+    }
     if (current.target?.kind === 'outsideCategoryMenu') {
       // Ťuknutí i tah mimo seznam ho jen zavře, nic se neposune (#95 AC3).
       tap(current.target);
@@ -400,6 +453,10 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
   }
 
   function follow(current: Gesture, point: TouchPoint, nowMs: number): void {
+    if (current.target?.kind === 'overviewButton') {
+      followOverviewHold(current, point);
+      return;
+    }
     const dx = point.x - current.start.x;
     const dy = point.y - current.start.y;
     if (!current.dragging && Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
@@ -413,6 +470,21 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
     const origin = current.dragOrigin;
     if (current.dragging && origin !== undefined) {
       current.scroller?.dragTo(current.axis === 'x' ? point.x - origin.x : point.y - origin.y);
+    }
+  }
+
+  /**
+   * Prst na tlačítku přehledu nic neposouvá (#192). Podržení zruší, až když
+   * prst z tlačítka sjede; tlačítko se pak zhoupne, aby rodič viděl, že
+   * podržení skončilo.
+   */
+  function followOverviewHold(current: Gesture, point: TouchPoint): void {
+    if (!isHoldingOverview(current) || layout === undefined) {
+      return;
+    }
+    if (!contains(layout.overviewButton, point)) {
+      current.holdCancelled = true;
+      menu.tapOverviewButton();
     }
   }
 
@@ -488,8 +560,12 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
         axis: part?.axis ?? 'y',
         dragOrigin: undefined,
         dragging: false,
-        canTap: !wasMoving || closesCategoryMenu(target),
+        // Tlačítko přehledu (#192) se podrží i během dojíždění posouvání,
+        // které dotyk výš zastavil.
+        canTap: !wasMoving || closesCategoryMenu(target) || target?.kind === 'overviewButton',
         samples: [{ timeMs: nowMs, position: part?.axis === 'x' ? point.x : point.y }],
+        startMs: nowMs,
+        holdCancelled: false,
       };
     },
 
@@ -521,6 +597,9 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
       categories.scroller.step(nowMs);
       languages.scroller.step(nowMs);
       categoryList.scroller.step(nowMs);
+      if (isHoldingOverview(gesture) && nowMs - gesture.startMs >= HOLD_TO_OPEN_SETTINGS_MS) {
+        completeOverviewHold();
+      }
     },
 
     gridOffset: () => grid.scroller.offset(),
@@ -544,8 +623,16 @@ export function createMenuTouch(options: MenuTouchOptions): MenuTouch {
         case 'outsideLanguageMenu':
         case 'categoryButton':
         case 'outsideCategoryMenu':
+        case 'overviewButton':
           return undefined;
       }
+    },
+
+    overviewHoldProgress(nowMs: number): number | null {
+      if (!isHoldingOverview(gesture)) {
+        return null;
+      }
+      return Math.min(1, Math.max(0, (nowMs - gesture.startMs) / HOLD_TO_OPEN_SETTINGS_MS));
     },
   };
 }

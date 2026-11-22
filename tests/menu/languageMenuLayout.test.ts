@@ -89,7 +89,8 @@ describe('#70 AC1: tlačítko jazyka v liště vpravo nahoře', () => {
     for (const window of MENU_WINDOWS) {
       const layout = languageLayout(window, TODAY_LANGUAGE_NAMES);
       const button = layout.languageSlot;
-      const lastReserved = layout.reservedSlots[layout.reservedSlots.length - 1];
+      // #192: místo vedle jazyka má tlačítko přehledu.
+      const lastReserved = layout.overviewButton;
       expect(heightOf(button), window.name).toBeCloseTo(widthOf(button), 5);
       expect(lastReserved, window.name).toBeDefined();
       expect(button.left, window.name).toBeGreaterThanOrEqual(
@@ -98,6 +99,7 @@ describe('#70 AC1: tlačítko jazyka v liště vpravo nahoře', () => {
       expect(button.top, window.name).toBeCloseTo(lastReserved?.top ?? 0, 5);
       const barRight = Math.max(
         layout.profileSlot.right,
+        layout.overviewButton.right,
         ...layout.reservedSlots.map((box) => box.right),
       );
       expect(button.right, window.name).toBeGreaterThan(barRight);
@@ -114,6 +116,7 @@ describe('#70 AC1: tlačítko jazyka v liště vpravo nahoře', () => {
         expect(withLanguages.categories, label).toEqual(without.categories);
         // #157: vyhrazené místo po schovaných „…“.
         expect(withLanguages.reservedSlots, label).toEqual(without.reservedSlots);
+        expect(withLanguages.overviewButton, label).toEqual(without.overviewButton);
         expect(withLanguages.languageSlot, label).toEqual(without.languageSlot);
         expect(withLanguages.gridScroll, label).toEqual(without.gridScroll);
       }

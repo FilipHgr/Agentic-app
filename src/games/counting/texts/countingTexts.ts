@@ -35,58 +35,6 @@ export interface CountingTexts {
    * `public/voice/<jazyk>/counting/rudy-<id>.mp3`.
    */
   readonly rudyLines: Readonly<Record<CountingRudyLine, string>>;
-  /** Přehled pro rodiče za kolečkem (#183). */
-  readonly overview: OverviewTexts;
-  /** Stránka Chyby v přehledu pro rodiče (#184). */
-  readonly mistakes: MistakeTexts;
-}
-
-/**
- * Texty stránky Chyby (#184). Nápis bez dat a Zpět jsou stejné jako
- * v přehledu (`overview.empty`, `overview.back`).
- */
-export interface MistakeTexts {
-  /** Tlačítko v přehledu, které stránku otevře. */
-  readonly button: string;
-  readonly title: string;
-  /** Nadpis podílu příkladů napoprvé. */
-  readonly firstTryHeading: string;
-  /** Názvy druhů příkladů; za ně přijde dvojtečka a podíl. */
-  readonly addition: string;
-  readonly subtraction: string;
-  /** Nadpis nejčastějších chyb. */
-  readonly frequentHeading: string;
-  /**
-   * Řádek časté chyby: `{problem}` se nahradí příkladem („8 + 5“),
-   * `{count}` počtem chyb, například „8 + 5 (4×)“.
-   */
-  readonly frequentItem: string;
-  /** Nápis, když žádný příklad nemá aspoň 2 chyby (AC4). */
-  readonly noFrequent: string;
-  /** Popisek počtu nápověd za týden; za něj přijde dvojtečka a číslo (AC5). */
-  readonly hintsUsed: string;
-}
-
-/** Texty přehledu pro rodiče (#183). */
-export interface OverviewTexts {
-  /** Tlačítko v nastavení, které přehled otevře. */
-  readonly button: string;
-  readonly title: string;
-  /**
-   * Vysvětlivky obou odstínů sloupečků: světlejší část jsou příklady
-   * vyřešené po chybě nebo s nápovědou, tmavší napoprvé.
-   */
-  readonly legendNotFirstTry: string;
-  readonly legendFirstTry: string;
-  /** Popisky součtů pod grafem; za ně přijde dvojtečka a číslo. */
-  readonly totalSolved: string;
-  readonly totalFirstTry: string;
-  /** Nápis bez dat (AC4). */
-  readonly empty: string;
-  /** Návrat z přehledu do nastavení. */
-  readonly back: string;
-  /** Zkratky dnů od pondělí do neděle. */
-  readonly dayNames: readonly [string, string, string, string, string, string, string];
 }
 
 const COUNTING_TEXTS: Record<Language, CountingTexts> = { cs, en };

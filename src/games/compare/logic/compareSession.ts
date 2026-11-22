@@ -33,11 +33,19 @@
  * který se nestáhne, hra nečeká (jde dál hned). Nastavení Rudyho pošle
  * pryč; po ✓ s plnou řadou přijde Rudy znovu, jen když ho dítě za tuto
  * řadu ještě nevidělo, jinak rovnou konfety.
+ *
+ * Přehled pro rodiče v menu (#192): vyřešený příklad se zapíše k dnešku,
+ * napoprvé, když dítě u příkladu ještě neťuklo na špatné znaménko; každé
+ * špatné znaménko je chyba u příkladu. Ťuknutí na prázdné okénko
+ * a nerozpoznaný zápis chyba nejsou.
  */
 
 import { STARS_PER_SET, createStarProgress, starsAfterTap } from '../../../shared/logic/stars';
 import type { AnswerOutcome, StarProgress } from '../../../shared/logic/stars';
+import { comparisonKey, missingSignKey } from '../../../shared/logic/overviewProblems';
+import { createActivityLog } from '../../../shared/storage/activityStorage';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
+import { COMPARE_OVERVIEW } from '../meta';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { loadCompareSettings, saveCompareSettings } from '../storage/settingsStorage';
 import { correctSign, nextProblem, signsFor } from './compareProblems';
@@ -116,6 +124,11 @@ export interface CompareSessionOptions {
   /** Panda Rudy (#181, #186); bez ní oslava začne hned po 10. hvězdičce. */
   readonly rudy?: CompareRudy | undefined;
   readonly onChange?: ((change: CompareChange) => void) | undefined;
+  /**
+   * Dnešní datum podle kalendáře zařízení pro přehled pro rodiče (#192);
+   * bez něj hodiny zařízení. Testy ho dávají samy.
+   */
+  readonly today?: (() => Date) | undefined;
 }
 
 export interface CompareSession {
@@ -158,6 +171,13 @@ export interface CompareSession {
 /** Co hra právě dělá: čeká na odpověď, ukazuje vyřešený příklad, slaví, nebo skončila. */
 type Phase = 'waiting' | 'solved' | 'celebrating' | 'left';
 
+/** Příklad v záznamu chyb přehledu pro rodiče (#192): „7?5=2“ nebo „7?5“. */
+function overviewKeyOf(problem: CompareProblem): string {
+  return problem.kind === 'relation'
+    ? comparisonKey(problem.a, problem.b)
+    : missingSignKey(problem.a, problem.b, problem.result);
+}
+
 export function createCompareSession(options: CompareSessionOptions): CompareSession {
   const { storage, random, sounds, timers } = options;
   let progress: StarProgress = loadProgress(storage);
@@ -167,6 +187,13 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   let problem: CompareProblem = nextProblem(null, random, settings.maxNumber, settings.signKind);
   let phase: Phase = 'waiting';
   let filledSign: CompareSign | null = null;
+  /** Ťuklo dítě u rozehraného příkladu na špatné znaménko? Pak není napoprvé (#192). */
+  let mistakeInProblem = false;
+  const activityLog = createActivityLog({
+    storage,
+    spec: COMPARE_OVERVIEW,
+    today: options.today ?? (() => new Date()),
+  });
   let cancelPending: (() => void) | null = null;
   /** Rudy, o kterého hra požádala a který ještě neodešel (#181). */
   let rudyMoment: { readonly id: number } | null = null;
@@ -187,6 +214,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   const startNextProblem = (): void => {
     problem = nextProblem(problem, random, settings.maxNumber, settings.signKind);
     filledSign = null;
+    mistakeInProblem = false;
     phase = 'waiting';
     notify({ kind: 'problemStarted' });
   };
@@ -330,10 +358,13 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
       return 'ignored';
     }
     if (sign !== correctSign(problem)) {
+      mistakeInProblem = true;
+      activityLog.mistake(overviewKeyOf(problem));
       sounds.play('wrong');
       notify({ kind: 'wrong', sign });
       return 'wrong';
     }
+    activityLog.solved(!mistakeInProblem);
     answerCorrectly(sign);
     return 'correct';
   };

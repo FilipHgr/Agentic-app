@@ -34,6 +34,7 @@ export function menuSoundFor(event: MenuFeedback): MenuSoundName | undefined {
   switch (event.kind) {
     case 'press':
     case 'profilePress':
+    case 'overviewOpen':
       return 'press';
     case 'shake':
       return 'shake';

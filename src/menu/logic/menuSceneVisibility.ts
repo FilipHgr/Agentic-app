@@ -1,5 +1,6 @@
 /**
- * Která ze dvou scén menu je vidět: menu, nebo výběr profilu (#72).
+ * Která ze scén menu je vidět: menu, výběr profilu (#72), nebo přehled pro
+ * rodiče (#192).
  * Čistý TypeScript bez Phaseru; stránka předá, v jakém stavu scény jsou,
  * a jak je uspat a probudit.
  *
@@ -12,7 +13,7 @@
  */
 
 /** Scéna na plátně menu. */
-export type MenuSceneName = 'menu' | 'profiles';
+export type MenuSceneName = 'menu' | 'profiles' | 'overview';
 
 /** Stav scény: načítá se, běží (je vidět), nebo spí (není vidět). */
 export type MenuSceneState = 'loading' | 'running' | 'sleeping';
@@ -24,15 +25,18 @@ export interface MenuSceneSwitch {
   wake(scene: MenuSceneName): void;
 }
 
-const MENU_SCENES: readonly MenuSceneName[] = ['menu', 'profiles'];
+const MENU_SCENES: readonly MenuSceneName[] = ['menu', 'profiles', 'overview'];
 
-/** Dokud je výběr profilu nebo formulář otevřený, je vidět jen on. */
-export function shownSceneFor(profilesOpen: boolean): MenuSceneName {
-  return profilesOpen ? 'profiles' : 'menu';
+/** Dokud je výběr profilu nebo formulář otevřený, je vidět jen on; jinak přehled, je-li otevřený. */
+export function shownSceneFor(profilesOpen: boolean, overviewOpen = false): MenuSceneName {
+  if (profilesOpen) {
+    return 'profiles';
+  }
+  return overviewOpen ? 'overview' : 'menu';
 }
 
 /**
- * Probudí scénu `shown` a uspí tu druhou. Scény, které se ještě načítají,
+ * Probudí scénu `shown` a uspí ostatní. Scény, které se ještě načítají,
  * nechá být; až se vytvoří, stránka zavolá tuhle funkci znovu.
  */
 export function showOnlyScene(shown: MenuSceneName, scenes: MenuSceneSwitch): void {

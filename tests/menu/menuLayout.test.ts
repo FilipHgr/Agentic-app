@@ -72,6 +72,8 @@ function allBoxes(layout: MenuLayout): MenuBox[] {
   return [
     layout.profileSlot,
     layout.languageSlot,
+    // #192: tlačítko přehledu pro rodiče na vyhrazeném místě.
+    layout.overviewButton,
     ...layout.reservedSlots,
     ...pickerBoxes(layout),
     ...layout.categories.map((category) => category.hit),
@@ -92,7 +94,8 @@ function wholeVisibleBoxes(layout: MenuLayout): MenuBox[] {
   return [
     layout.profileSlot,
     layout.languageSlot,
-    // #157: vyhrazené místo po schovaných „…“.
+    // #157: vyhrazené místo po schovaných „…“, #192: na jednom z nich přehled.
+    layout.overviewButton,
     ...layout.reservedSlots,
     ...pickerBoxes(layout),
     ...categories,
@@ -136,13 +139,17 @@ describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', 
   // kontrole #157 je jazyk úplně vpravo a vyhrazená místa mezi profilem
   // a jazykem, aby vpravo od jazyka nebyla díra. Že nejsou vidět a lišta
   // se neposunula, hlídá hiddenPlaceholders.test.ts.
-  it('vpravo nahoře je jazyk úplně vpravo a vlevo od něj na telefonu jedno a na iPadu dvě vyhrazená místa', () => {
+  // #192: první vyhrazené místo vedle jazyka má tlačítko přehledu pro rodiče.
+  it('vpravo nahoře je jazyk úplně vpravo a vlevo od něj na telefonu jedno a na iPadu dvě vyhrazená místa, na prvním přehled', () => {
     for (const window of MENU_WINDOWS) {
       const layout = todayLayout(window);
-      expect(layout.reservedSlots, window.name).toHaveLength(isPhone(window) ? 1 : 2);
+      expect(layout.reservedSlots, window.name).toHaveLength(isPhone(window) ? 0 : 1);
       const rightmost = Math.max(...wholeVisibleBoxes(layout).map((box) => box.right));
       expect(layout.languageSlot.right, window.name).toBeCloseTo(rightmost, 5);
-      for (const reserved of layout.reservedSlots) {
+      expect(layout.overviewButton.right, window.name).toBeLessThanOrEqual(
+        layout.languageSlot.left,
+      );
+      for (const reserved of [layout.overviewButton, ...layout.reservedSlots]) {
         expect(reserved.right, window.name).toBeLessThanOrEqual(layout.languageSlot.left);
         expect(reserved.left, window.name).toBeGreaterThanOrEqual(layout.profileSlot.right);
       }
@@ -171,7 +178,8 @@ describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', 
       const barBottom = Math.max(
         layout.profileSlot.bottom,
         layout.languageSlot.bottom,
-        // #157: vyhrazené místo po schovaných „…“ patří k liště.
+        // #157: vyhrazené místo po schovaných „…“ patří k liště, #192 i přehled.
+        layout.overviewButton.bottom,
         ...layout.reservedSlots.map((box) => box.bottom),
       );
       // #178: když se sloupec nevejde, je tlačítko výběru na telefonu na
@@ -188,6 +196,7 @@ describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', 
       if (pickerInBar && button !== undefined) {
         const firstReserved = Math.min(
           layout.languageSlot.left,
+          layout.overviewButton.left,
           ...layout.reservedSlots.map((box) => box.left),
         );
         expect(button.top, window.name).toBeGreaterThanOrEqual(layout.profileSlot.top);

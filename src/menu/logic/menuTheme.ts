@@ -3,7 +3,7 @@
  * stránky jsou v `src/shared/logic/theme.ts`.
  */
 
-import { BLUE, TEXT, WHITE } from '../../shared/logic/theme';
+import { BLUE, SETTINGS_GEAR_STYLE, TEXT, WHITE } from '../../shared/logic/theme';
 
 export const MENU_STYLE = {
   tileBackground: WHITE,
@@ -49,6 +49,36 @@ export const MENU_STYLE = {
   selectedPickerRowBackground: '#E5F0FF',
   selectedPickerRowText: BLUE,
   selectedPickerSymbolBackground: WHITE,
+  /**
+   * Tlačítko přehledu pro rodiče (#192): bílé kolečko se stínem jako jazyk,
+   * uvnitř tři šedé sloupečky grafu; kroužek podržení modrý jako u kolečka
+   * nastavení ve hře.
+   */
+  overviewButtonBackground: WHITE,
+  overviewButtonSymbol: '#6E6E73',
+  overviewHoldRing: SETTINGS_GEAR_STYLE.holdRingColor,
+} as const;
+
+/**
+ * Obrazovka přehledu pro rodiče (#192): záložky jako kategorie (vybraná
+ * modrá), Zpět jako tlačítko A3, sloupečky jako dřív v nastavení Počítání
+ * (#183): světlejší vyřešené, uvnitř tmavší napoprvé. Oba odstíny mají
+ * proti pozadí kontrast aspoň 3 : 1 a liší se od sebe.
+ */
+export const OVERVIEW_STYLE = {
+  tabBackground: WHITE,
+  tabText: TEXT,
+  selectedTabBackground: BLUE,
+  selectedTabText: WHITE,
+  backBackground: '#E5F0FF',
+  backBorder: '#B8D6FF',
+  backText: BLUE,
+  title: TEXT,
+  text: TEXT,
+  secondary: '#6E6E73',
+  solved: '#4C8FDB',
+  firstTry: BLUE,
+  profileSymbol: WHITE,
 } as const;
 
 /**
