@@ -14,6 +14,12 @@ import type { Stroke, WritingAreaSize } from './strokes';
 /** Za jak dlouho po zvednutí prstu se zápis rozpozná (stejně jako v Počítání). */
 export const RECOGNITION_DELAY_MS = 1000;
 
+/**
+ * Jak dlouho od zvednutí prstu čeká nedopsaný zápis (třeba první čára „=“,
+ * #191) na další tah. Pak vybledne jako každý nerozpoznaný zápis.
+ */
+export const INCOMPLETE_WAIT_MS = 3000;
+
 /** Jak dlouho bledne nerozpoznaný zápis, než zmizí. */
 export const REJECTED_FADE_MS = 400;
 
@@ -28,6 +34,12 @@ export const WRITING_AREA_CORNER_RADIUS = 28;
 
 /** Rozpoznání zápisu: hodnota, nebo `null`, když zápis nic nepřipomíná. */
 export type StrokeRecognizer<T> = (strokes: readonly Stroke[], area: WritingAreaSize) => T | null;
+
+/**
+ * Je nerozpoznaný zápis jen nedopsaný (třeba první čára „=“)? Takový zápis
+ * nevybledne a čeká na další tah (#191).
+ */
+export type IncompleteStrokes = (strokes: readonly Stroke[], area: WritingAreaSize) => boolean;
 
 export interface WritingBoxState<T> {
   readonly area: WritingAreaSize;
@@ -80,18 +92,26 @@ export function finishWritingStroke<T>(
 
 /**
  * Posune okénko v čase: rozpozná čekající zápis a nechá zmizet vybledlý.
- * Nerozpoznaný zápis začne blednout a okénko je zase prázdné.
+ * Nerozpoznaný zápis začne blednout a okénko je zase prázdné. Když hra
+ * předá `isIncomplete` a zápis je jen nedopsaný, zůstane v okénku a čeká
+ * na další tah nejvýš `INCOMPLETE_WAIT_MS` od zvednutí prstu, pak vybledne
+ * (bez předání se chová jako dřív, třeba v Počítání).
  */
 export function updateWritingBox<T>(
   box: WritingBoxState<T>,
   nowMs: number,
   recognize: StrokeRecognizer<T>,
+  isIncomplete?: IncompleteStrokes,
 ): WritingBoxState<T> {
   const current = dropFinishedFade(box, nowMs);
   if (!isRecognitionDue(current, nowMs)) {
     return current;
   }
   const value = recognize(current.strokes, current.area);
+  if (value === null && isStillWaiting(current, nowMs, isIncomplete)) {
+    // Nedopsaný zápis zůstane a čeká; ✓ jde až s rozpoznanou hodnotou.
+    return current;
+  }
   if (value === null) {
     return {
       ...current,
@@ -137,6 +157,18 @@ export function resizeWritingBox<T>(
  */
 export function isNewRejection(before: readonly Stroke[], after: readonly Stroke[]): boolean {
   return after.length > 0 && after !== before;
+}
+
+/** Čeká nedopsaný zápis ještě na další tah? */
+function isStillWaiting<T>(
+  box: WritingBoxState<T>,
+  nowMs: number,
+  isIncomplete: IncompleteStrokes | undefined,
+): boolean {
+  if (isIncomplete === undefined || box.waitingSinceMs === null) {
+    return false;
+  }
+  return nowMs - box.waitingSinceMs < INCOMPLETE_WAIT_MS && isIncomplete(box.strokes, box.area);
 }
 
 function isRecognitionDue<T>(box: WritingBoxState<T>, nowMs: number): boolean {

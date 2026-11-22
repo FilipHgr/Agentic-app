@@ -348,7 +348,7 @@ describe('#190 AC4: tlačítka podle druhu příkladu', () => {
     }
   });
 
-  it('při psaní dostane „a ☐ b“ tlačítka < = > (psaní < > = přijde v #191), „a ☐ b = c“ plochu na psaní', () => {
+  it('při ťukání dostane „a ☐ b“ tlačítka < = >, při psaní oba druhy plochu na psaní (#191)', () => {
     for (const window of ALL_WINDOWS) {
       const area = gameAreaFor(viewportOf(window), 'fullWindow');
       for (const maxNumber of MAX_NUMBER_OPTIONS) {
@@ -356,14 +356,20 @@ describe('#190 AC4: tlačítka podle druhu příkladu', () => {
           const name = `${window.name}, do ${maxNumber}, ${answerInput}`;
           const relation = layoutProblemScreen(area, { maxNumber, answerInput }, 'relation');
           expect(relation.problemKind, name).toBe('relation');
-          expect(relation.writing, name).toBeNull();
+          expect(relation.writing === null, name).toBe(answerInput === 'tap');
           const tapped = layoutRelationScreen(area, maxNumber);
-          const buttons = relation.problemKind === 'relation' ? relation.relationButtons : null;
-          expect(buttons, name).toEqual(tapped.relationButtons);
-          expect(relation.equationFontSize, name).toBe(tapped.equationFontSize);
+          expect(relation.relationButtons, name).toEqual(
+            answerInput === 'tap' ? tapped.relationButtons : null,
+          );
           const arithmetic = layoutProblemScreen(area, { maxNumber, answerInput }, 'arithmetic');
           expect(arithmetic.problemKind, name).toBe('arithmetic');
           expect(arithmetic.writing === null, name).toBe(answerInput === 'tap');
+          if (answerInput === 'tap') {
+            expect(relation.equationFontSize, name).toBe(tapped.equationFontSize);
+          } else {
+            // Při psaní má „a ☐ b“ stejné písmo jako „a ☐ b = c“, aby se při „vše“ nic neměnilo.
+            expect(relation.equationFontSize, name).toBe(arithmetic.equationFontSize);
+          }
         }
       }
     }

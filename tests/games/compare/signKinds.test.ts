@@ -39,7 +39,7 @@ import type { TestCompare } from './compareFakes';
 /**
  * Testy k #190: hra se jmenuje Znaménka a v nastavení má řadu „Znaménka“
  * (+ −, < = >, vše). Při < = > dítě doplní do „a ☐ b“ znaménko <, = nebo >
- * ťuknutím (i když rodič zvolil psaní, to přijde v #191) a hvězdičky,
+ * ťuknutím (psaní < = > je od #191 v `relationWriting.test.ts`) a hvězdičky,
  * oslava s Rudym i chyby fungují stejně jako u + −. Rozložení je
  * v `signKindsLayout.test.ts`.
  */
@@ -307,7 +307,7 @@ describe('#190 AC4: dítě odpovídá ťuknutím na tlačítka podle druhu pří
     expect([...seen].sort()).toEqual(['arithmetic', 'relation']);
   });
 
-  it('při psaní a < = > dítě u „a ☐ b“ odpoví ťuknutím na <, = nebo >', () => {
+  it('při psaní a < = > hra vyhodnotí potvrzené znaménko <, = nebo > u „a ☐ b“', () => {
     const test = openWithSigns('comparison', { answerInput: 'writing' });
     expect(test.session.problem().kind).toBe('relation');
     expect(test.session.tap(rightSign(test))).toBe('correct');

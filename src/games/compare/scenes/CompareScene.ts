@@ -16,8 +16,8 @@ import {
   layoutCompareScreen,
   layoutProblemScreen,
 } from '../logic/compareLayout';
-import type { ProblemScreenLayout, Rect, WritingButtonsLayout } from '../logic/compareLayout';
-import type { CompareProblem, CompareSign } from '../logic/compareProblems';
+import type { ProblemScreenLayout, Rect } from '../logic/compareLayout';
+import type { CompareProblem, CompareSign, ProblemKind } from '../logic/compareProblems';
 import { createCompareSession } from '../logic/compareSession';
 import type { CompareSettings } from '../logic/compareSettings';
 import type {
@@ -34,6 +34,7 @@ import { EquationView, SignButtonView } from './EquationView';
 import type { ProblemRowLayout, ProblemRowText } from './EquationView';
 import { SettingsPanel } from './SettingsPanel';
 import { SignPad } from './SignPad';
+import type { SignPadButtons } from './SignPad';
 import type { SignWriting } from '../logic/signWriting';
 
 /** Jak dlouho letí hvězdička od okénka do řady. */
@@ -52,8 +53,9 @@ const STAR_FLIGHT_MS = 600;
  * po 10. hvězdičce, od #186 přímo na obrazovce) je sdílené `RudyMoments`;
  * kdy se ukáže, řídí sezení. Při odpovědi psaním (#188) je okénko příkladu
  * plocha na psaní (`SignPad`) se smazáním a ✓ místo tlačítek + a −.
- * Příklad „a ☐ b“ (#190) má vždy tlačítka <, = a >, i při psaní (psaní
- * < > = přijde v #191); rozložení se proto bere podle druhu příkladu.
+ * Příklad „a ☐ b“ (#190) má při ťukání tlačítka <, = a >, při psaní
+ * (#191) stejnou plochu na psaní jako „a ☐ b = c“, která rozpozná jen
+ * < = >; rozložení se bere podle druhu příkladu.
  */
 export class CompareScene extends Phaser.Scene {
   private session!: CompareSession;
@@ -279,8 +281,8 @@ export class CompareScene extends Phaser.Scene {
       boxIsPad ? null : () => this.session.tapBox(),
       boxIsPad,
     );
-    if (writing !== null && problem.kind === 'arithmetic') {
-      this.signPad = this.createSignPad(writing.pad(problem), writing, previousWriting);
+    if (writing !== null && screen.pad !== null) {
+      this.signPad = this.createSignPad(screen.pad, writing, problem.kind, previousWriting);
     }
     const filled = this.session.filledSign();
     if (filled !== null) {
@@ -296,13 +298,15 @@ export class CompareScene extends Phaser.Scene {
 
   private createSignPad(
     box: Rect,
-    buttons: WritingButtonsLayout,
+    buttons: SignPadButtons,
+    kind: ProblemKind,
     previous: SignWriting | undefined,
   ): SignPad {
     return new SignPad(
       this,
       box,
       buttons,
+      kind,
       {
         answer: (sign) => this.session.tap(sign),
         onRejected: () => this.session.writingRejected(),
@@ -347,6 +351,8 @@ interface ProblemScreen {
   readonly layout: ProblemScreenLayout;
   readonly row: ProblemRowLayout;
   readonly texts: readonly ProblemRowText[];
+  /** Plocha na psaní pro tento příklad; při ťukání `null`. */
+  readonly pad: Rect | null;
 }
 
 /**
@@ -368,6 +374,7 @@ function screenFor(
         { rect: row.first, text: String(problem.a) },
         { rect: row.second, text: String(problem.b) },
       ],
+      pad: layout.writing?.pad(problem) ?? null,
     };
   }
   const layout = layoutProblemScreen(area, settings, problem.kind);
@@ -382,14 +389,18 @@ function screenFor(
       { rect: row.equals, text: '=' },
       { rect: row.result, text: String(problem.result) },
     ],
+    pad: layout.writing?.pad(problem) ?? null,
   };
 }
 
-/** Tlačítka zleva doprava se znaménkem; při psaní „a ☐ b = c“ žádná. */
+/** Tlačítka zleva doprava se znaménkem; při psaní žádná. */
 function buttonRectsOf(
   layout: ProblemScreenLayout,
 ): Array<{ readonly sign: CompareSign; readonly rect: Rect }> {
   if (layout.problemKind === 'relation') {
+    if (layout.relationButtons === null) {
+      return [];
+    }
     const { less, equal, greater } = layout.relationButtons;
     return [
       { sign: '<', rect: less },

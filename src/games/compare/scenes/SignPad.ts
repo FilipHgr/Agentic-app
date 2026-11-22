@@ -10,7 +10,7 @@ import {
   startWritingStroke,
 } from '../../../shared/logic/writingBox';
 import type { Rect, WritingButtonsLayout } from '../logic/compareLayout';
-import type { CompareSign } from '../logic/compareProblems';
+import type { CompareSign, ProblemKind } from '../logic/compareProblems';
 import {
   canConfirmSign,
   confirmSign,
@@ -20,6 +20,12 @@ import {
 } from '../logic/signWriting';
 import type { SignConfirmResult, SignWriting } from '../logic/signWriting';
 import { WRITING_PAD_LOOK } from '../logic/theme';
+
+/** Smazání a ✓ u plochy na psaní; stejné u obou druhů příkladů (#191). */
+export type SignPadButtons = Pick<
+  WritingButtonsLayout,
+  'padInProblem' | 'clear' | 'confirm' | 'detailScale'
+>;
 
 /** Co okénko na psaní potřebuje od hry. */
 export interface SignPadEvents {
@@ -32,9 +38,9 @@ export interface SignPadEvents {
 }
 
 /**
- * Okénko příkladu jako plocha na psaní (#188 AC2): sdílená plocha
- * na psaní (`src/shared/ui/WritingPad.ts`) se smazáním a ✓ jako
- * v Počítání a k ní logika znaménka (`signWriting.ts`). Rozpoznané
+ * Okénko příkladu jako plocha na psaní (#188 AC2, od #191 i < = >):
+ * sdílená plocha na psaní (`src/shared/ui/WritingPad.ts`) se smazáním
+ * a ✓ jako v Počítání a k ní logika znaménka (`signWriting.ts`). Rozpoznané
  * znaménko se ukáže modře v okénku, dokud ho dítě nepotvrdí nebo
  * nepřepíše.
  */
@@ -42,11 +48,15 @@ export class SignPad {
   private readonly pad: WritingPad<SignWriting, SignConfirmResult>;
   private lastSign: CompareSign | null = null;
 
-  /** @param previous Rozepsaný zápis před otočením zařízení; jinak prázdné okénko. */
+  /**
+   * @param kind Druh příkladu: rozpozná se jen znaménko, které k němu patří (#191).
+   * @param previous Rozepsaný zápis před otočením zařízení; jinak prázdné okénko.
+   */
   constructor(
     scene: Phaser.Scene,
     box: Rect,
-    buttons: WritingButtonsLayout,
+    buttons: SignPadButtons,
+    kind: ProblemKind,
     private readonly events: SignPadEvents,
     previous?: SignWriting,
   ) {
@@ -55,7 +65,7 @@ export class SignPad {
     const model: WritingPadModel<SignWriting, SignConfirmResult> = {
       startStroke: (writing, _area, nowMs) => startWritingStroke(writing, nowMs),
       finishStroke: (writing, stroke, nowMs) => finishWritingStroke(writing, stroke, nowMs),
-      update: (writing, nowMs) => updateSignWriting(writing, nowMs),
+      update: (writing, nowMs) => updateSignWriting(writing, nowMs, kind),
       clear: (writing) => clearWritingBox(writing),
       canConfirm: (writing) => canConfirmSign(writing),
       confirm: (writing) => {

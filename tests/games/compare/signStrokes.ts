@@ -485,3 +485,250 @@ export function straightVertical(area = SIGN_AREA): Stroke {
     { x: area.width * 0.5, y: area.height * 0.75 },
   ];
 }
+
+/* ---------- #191: znaménka <, > a = ---------- */
+
+/** Znaménko zobáčku: < má špičku vlevo, > vpravo. */
+export type BeakSign = '<' | '>';
+
+interface Beak {
+  readonly corner: StrokePoint;
+  readonly tips: readonly [StrokePoint, StrokePoint];
+}
+
+/**
+ * Zobáček v okénku: ramena různě dlouhá (i nestejně, poměr až 1,3), úhel
+ * 40–95°, celý znak nakloněný až o 15°, špička vlevo (<) nebo vpravo (>)
+ * a celý znak různě velký a různě posunutý.
+ */
+function randomBeak(random: Random, area: WritingAreaSize, sign: BeakSign): Beak {
+  const side = Math.min(area.width, area.height);
+  const opening = between(random, 40, 95);
+  const tilt = between(random, -15, 15);
+  const firstLength = between(random, 0.22, 0.42) * side;
+  const secondLength = Math.min(0.5 * side, firstLength * between(random, 0.75, 1.3));
+  const axis = (sign === '<' ? 0 : 180) + tilt;
+  const center = nearCenter(random, area, 0.08);
+  const reach = ((firstLength + secondLength) / 2) * Math.cos((opening * Math.PI) / 360);
+  const towardsOpening = sign === '<' ? 1 : -1;
+  const corner = { x: center.x - (towardsOpening * reach) / 2, y: center.y };
+  const tipAt = (degrees: number, length: number): StrokePoint => ({
+    x: corner.x + Math.cos((degrees * Math.PI) / 180) * length,
+    y: corner.y + Math.sin((degrees * Math.PI) / 180) * length,
+  });
+  return {
+    corner,
+    tips: [tipAt(axis - opening / 2, firstLength), tipAt(axis + opening / 2, secondLength)],
+  };
+}
+
+/** Nerovná čára od `from` do `to` (chvění, vlnka, nestejně rychlý tah, někdy háček). */
+function sloppyStroke(
+  random: Random,
+  area: WritingAreaSize,
+  from: StrokePoint,
+  to: StrokePoint,
+  hook: boolean,
+): StrokePoint[] {
+  const side = Math.min(area.width, area.height);
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  return wobblyLine(random, {
+    center: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 },
+    length,
+    degrees: (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI,
+    wave: between(random, 0, 0.04),
+    jitter: between(random, 0, 0.01 * side),
+    hook: hook && random() < 0.3 ? between(random, 0.04, 0.1) : 0,
+  });
+}
+
+/** Zobáček jedním tahem, od horního nebo od dolního ramena. */
+function oneStrokeBeak(random: Random, area: WritingAreaSize, beak: Beak, reversed: boolean) {
+  const [first, second] = reversed ? [beak.tips[1], beak.tips[0]] : beak.tips;
+  const toCorner = sloppyStroke(random, area, first, beak.corner, false);
+  const fromCorner = sloppyStroke(random, area, beak.corner, second, true);
+  return clampToArea([...toCorner, ...fromCorner.slice(1)], area);
+}
+
+/**
+ * Zobáček dvěma tahy: každé rameno zvlášť, od špičky nebo ke špičce,
+ * a ve špičce se čáry potkají nepřesně (mezera nebo přetažení).
+ */
+function twoStrokeBeak(random: Random, area: WritingAreaSize, beak: Beak): StrokePoint[][] {
+  const side = Math.min(area.width, area.height);
+  const near = (): StrokePoint => ({
+    x: beak.corner.x + between(random, -0.04, 0.04) * side,
+    y: beak.corner.y + between(random, -0.04, 0.04) * side,
+  });
+  return beak.tips.map((tip) => {
+    const corner = near();
+    const outwards = random() < 0.5;
+    return clampToArea(
+      outwards
+        ? sloppyStroke(random, area, corner, tip, true)
+        : sloppyStroke(random, area, tip, corner, true),
+      area,
+    );
+  });
+}
+
+/**
+ * < nebo >: nakloněné, nerovné, různě velké; 3/4 jedním tahem (napůl
+ * shora, napůl zdola), 1/4 dvěma tahy.
+ */
+export function beakSamples(
+  sign: BeakSign,
+  count: number,
+  area = SIGN_AREA,
+  seed = sign === '<' ? 191001 : 191002,
+): StrokeSample[] {
+  const random = seededRandom(seed);
+  return Array.from({ length: count }, (_, index) => {
+    const beak = randomBeak(random, area, sign);
+    if (index % 4 === 3) {
+      return {
+        name: `${sign} č. ${index + 1} (dvěma tahy)`,
+        strokes: twoStrokeBeak(random, area, beak),
+        area,
+      };
+    }
+    const fromBottom = index % 2 === 1;
+    return {
+      name: `${sign} č. ${index + 1} (jedním tahem ${fromBottom ? 'zdola' : 'shora'})`,
+      strokes: [oneStrokeBeak(random, area, beak, fromBottom)],
+      area,
+    };
+  });
+}
+
+/**
+ * =: dvě nerovné vodorovné čáry nad sebou, nestejně dlouhé, posunuté,
+ * nakloněné (až 12° a každá ještě trochu jinak), napsané zleva i zprava,
+ * napůl nejdřív horní, napůl nejdřív dolní.
+ */
+export function equalsSamples(count: number, area = SIGN_AREA, seed = 191003): StrokeSample[] {
+  const random = seededRandom(seed);
+  const side = Math.min(area.width, area.height);
+  return Array.from({ length: count }, (_, index) => {
+    const center = nearCenter(random, area, 0.08);
+    const lean = between(random, -12, 12);
+    const gap = between(random, 0.12, 0.3) * side;
+    const topLength = between(random, 0.3, 0.75);
+    const bottomLength = Math.min(0.85, topLength * between(random, 0.75, 1.3));
+    const line = (y: number, length: number, shift: number) => {
+      const degrees = lean + between(random, -5, 5) + (random() < 0.8 ? 0 : 180);
+      return sloppyLine(random, area, { x: center.x + shift * side, y }, degrees, length);
+    };
+    const top = line(center.y - gap / 2, topLength, between(random, -0.06, 0.06));
+    const bottom = line(center.y + gap / 2, bottomLength, between(random, -0.06, 0.06));
+    const bottomFirst = index % 2 === 1;
+    return {
+      name: `= č. ${index + 1} (${bottomFirst ? 'nejdřív dolní' : 'nejdřív horní'})`,
+      strokes: bottomFirst ? [bottom, top] : [top, bottom],
+      area,
+    };
+  });
+}
+
+/** Tvary navíc, které < = > připomínají, ale nejsou jimi. */
+const RELATION_LOOKALIKE_SHAPES: Readonly<Record<string, Shape>> = {
+  V: [
+    [
+      [0.25, 0.25],
+      [0.5, 0.8],
+      [0.75, 0.25],
+    ],
+  ],
+  'V dvěma tahy': [
+    [
+      [0.25, 0.25],
+      [0.5, 0.8],
+    ],
+    [
+      [0.75, 0.25],
+      [0.5, 0.8],
+    ],
+  ],
+  'obrácené V': [
+    [
+      [0.25, 0.8],
+      [0.5, 0.25],
+      [0.75, 0.8],
+    ],
+  ],
+  'L jedním tahem': [
+    [
+      [0.3, 0.15],
+      [0.3, 0.8],
+      [0.75, 0.8],
+    ],
+  ],
+  'obrácené L': [
+    [
+      [0.25, 0.25],
+      [0.7, 0.25],
+      [0.7, 0.8],
+    ],
+  ],
+};
+
+/** Tvary z `HAND_SHAPES`, které jsou záporné i u < = > (všechny kromě =). */
+function relationHandShapes(): Array<[string, Shape]> {
+  return [
+    ...Object.entries(HAND_SHAPES).filter(([name]) => name !== '='),
+    ...Object.entries(RELATION_LOOKALIKE_SHAPES),
+  ];
+}
+
+/**
+ * Záporné vzorky pro „a ☐ b“ (#191 AC3): číslice, kruhy, čmáranice, ×,
+ * svislé čáry, L, V, T a k tomu + a −, které do „a ☐ b“ nepatří.
+ */
+export function relationNegativeSamples(area = SIGN_AREA, seed = 191004): StrokeSample[] {
+  const random = seededRandom(seed);
+  const shapes = relationHandShapes().flatMap(([name, shape]) =>
+    Array.from({ length: 12 }, (_, index) =>
+      handShapeSample(random, `${name} č. ${index + 1}`, shape, area),
+    ),
+  );
+  return [
+    ...verticalLineSamples(random, 60, area),
+    ...circleSamples(random, 60, area),
+    ...scribbleSamples(random, 60, area),
+    ...shapes,
+    ...minusSamples(40, area, seed + 1),
+    ...plusSamples(40, area, seed + 2),
+  ];
+}
+
+/** Ukázkový zápis: rovné < jedním tahem shora. */
+export function straightLess(area = SIGN_AREA): Stroke {
+  return [
+    { x: area.width * 0.7, y: area.height * 0.25 },
+    { x: area.width * 0.3, y: area.height * 0.5 },
+    { x: area.width * 0.7, y: area.height * 0.75 },
+  ];
+}
+
+/** Ukázkový zápis: rovné > jedním tahem shora. */
+export function straightGreater(area = SIGN_AREA): Stroke {
+  return [
+    { x: area.width * 0.3, y: area.height * 0.25 },
+    { x: area.width * 0.7, y: area.height * 0.5 },
+    { x: area.width * 0.3, y: area.height * 0.75 },
+  ];
+}
+
+/** Ukázkový zápis: rovné = (horní čára, pak dolní). */
+export function straightEquals(area = SIGN_AREA): Stroke[] {
+  return [
+    [
+      { x: area.width * 0.25, y: area.height * 0.4 },
+      { x: area.width * 0.75, y: area.height * 0.4 },
+    ],
+    [
+      { x: area.width * 0.25, y: area.height * 0.6 },
+      { x: area.width * 0.75, y: area.height * 0.6 },
+    ],
+  ];
+}

@@ -8,7 +8,9 @@ import {
   canConfirmWritingBox,
   clearWritingBox,
   createWritingBox,
+  INCOMPLETE_WAIT_MS,
   finishWritingStroke,
+  isNewRejection,
   resizeWritingBox,
   startWritingStroke,
   updateWritingBox,
@@ -94,5 +96,73 @@ describe('#188 AC4: okénko na psaní je pro všechny hry stejné jako v Počít
       ],
     ]);
     expect(scaleStrokes([LINE], { width: 0, height: 0 }, AREA)).toEqual([LINE]);
+  });
+});
+
+describe('#191: hra může nechat nedopsaný zápis čekat na další tah', () => {
+  /** Rozpoznávání do testu: jen dva tahy jsou „=“. */
+  const recognizeTwoStrokes: StrokeRecognizer<string> = (strokes) =>
+    strokes.length === 2 ? '=' : null;
+  const oneStrokeIsIncomplete = (strokes: readonly Stroke[]) => strokes.length === 1;
+
+  it('nedopsaný zápis do 3 s od zvednutí prstu nevybledne a s dalším tahem se rozpozná', () => {
+    const waiting = updateWritingBox(
+      writtenLine(),
+      200 + INCOMPLETE_WAIT_MS - 1,
+      recognizeTwoStrokes,
+      oneStrokeIsIncomplete,
+    );
+    expect(waiting.strokes).toEqual([LINE]);
+    expect(waiting.fading).toEqual([]);
+    expect(canConfirmWritingBox(waiting)).toBe(false);
+    const second = finishWritingStroke(startWritingStroke(waiting, 4000), LINE, 4200);
+    const recognized = updateWritingBox(
+      second,
+      4200 + RECOGNITION_DELAY_MS,
+      recognizeTwoStrokes,
+      oneStrokeIsIncomplete,
+    );
+    expect(recognized.value).toBe('=');
+  });
+
+  it('nedopsaný zápis po 3 s od zvednutí prstu vybledne jako každý nerozpoznaný', () => {
+    const faded = updateWritingBox(
+      writtenLine(),
+      200 + INCOMPLETE_WAIT_MS,
+      recognizeTwoStrokes,
+      oneStrokeIsIncomplete,
+    );
+    expect(faded.strokes).toEqual([]);
+    expect(faded.fading).toEqual([LINE]);
+    expect(isNewRejection([], faded.fading), 'okénko vyzve psát znovu').toBe(true);
+  });
+
+  it('další tah před uplynutím 3 s čekání znovu odpočítá od nového zvednutí prstu', () => {
+    const waiting = updateWritingBox(
+      writtenLine(),
+      2500,
+      recognizeTwoStrokes,
+      oneStrokeIsIncomplete,
+    );
+    const second = finishWritingStroke(startWritingStroke(waiting, 2800), LINE, 3000);
+    const threeStrokesIncomplete = () => true;
+    const later = updateWritingBox(
+      second,
+      3000 + INCOMPLETE_WAIT_MS - 1,
+      () => null,
+      threeStrokesIncomplete,
+    );
+    expect(later.strokes.length, 'zápis pořád čeká').toBe(2);
+    expect(later.fading).toEqual([]);
+  });
+
+  it('bez předaného pravidla (jako v Počítání) nerozpoznaný zápis vybledne jako dřív', () => {
+    const rejected = updateWritingBox(
+      writtenLine(),
+      200 + RECOGNITION_DELAY_MS,
+      recognizeTwoStrokes,
+    );
+    expect(rejected.strokes).toEqual([]);
+    expect(rejected.fading).toEqual([LINE]);
   });
 });

@@ -71,15 +71,18 @@ export interface SignButtonsLayout {
   readonly cornerRadius: number;
 }
 
-/** Smazání a ✓ u okénka na psaní (#188). */
-export interface WritingButtonsLayout {
+/**
+ * Smazání a ✓ u okénka na psaní (#188) pro příklady `P` („a ☐ b = c“,
+ * od #191 i „a ☐ b“).
+ */
+export interface WritingButtonsLayout<P = ArithmeticProblem> {
   /**
    * Píše se přímo do okénka příkladu (`true`), nebo do samostatné plochy
    * pod příkladem, a rozpoznané znaménko se ukáže i v okénku příkladu.
    */
   readonly padInProblem: boolean;
   /** Plocha na psaní pro příklad (při psaní do okénka je to okénko příkladu). */
-  pad(problem: ArithmeticProblem): Rect;
+  pad(problem: P): Rect;
   readonly clear: Rect;
   readonly confirm: Rect;
   /** Herní jednotky na 1 CSS px pro tloušťku tahů a okrajů okénka. */
@@ -382,7 +385,7 @@ export function layoutCompareScreen(
   const corner = cornerSizeCss(area) * unit;
   const play = playArea(area, sizes, unit, corner);
   if (answerInput === 'writing') {
-    return layoutWritingScreen(area, maxNumber, play, corner);
+    return layoutWritingScreen(area, maxNumber, play, corner).arithmetic;
   }
   const { em } = sizes;
   const button = buttonSize(sizes, play, unit);
@@ -443,6 +446,12 @@ function squareAt(center: Point, size: number): Rect {
   return { left: center.x - size / 2, top: center.y - size / 2, width: size, height: size };
 }
 
+/** Mezera mezi čísly a okénkem na psaní v řadě příkladu aspoň takhle velká (CSS px). */
+export const MIN_NUMBER_GAP_CSS = 8;
+
+/** Mezer v nejdelší řadě „a ☐ b = c“ (mezi pěti částmi). */
+const ROW_GAP_COUNT = 4;
+
 /** Čísla příkladu při psaní na zařízení aspoň takhle velká (CSS px), jinak přijde plocha pod příkladem. */
 export const MIN_WRITING_NUMBER_FONT_CSS = 64;
 
@@ -469,7 +478,7 @@ function layoutWritingScreen(
   maxNumber: MaxNumber,
   play: Rect,
   corner: number,
-): CompareWritingLayout {
+): WritingScreens {
   const unit = 1 / area.scale;
   const metrics: WritingMetrics = {
     area,
@@ -486,7 +495,7 @@ function layoutWritingScreen(
     return below;
   }
   const inline = layoutWritingInBox(metrics);
-  if (inline.equationFontSize >= MIN_WRITING_NUMBER_FONT_CSS * unit) {
+  if (inline.arithmetic.equationFontSize >= MIN_WRITING_NUMBER_FONT_CSS * unit) {
     return inline;
   }
   return layoutWritingBelow(metrics) ?? inline;
@@ -497,10 +506,10 @@ function layoutWritingScreen(
  * šířky, smazání vlevo a ✓ vpravo pod příkladem, nebo vedle něj, když se
  * pod něj nevejdou.
  */
-function layoutWritingInBox(metrics: WritingMetrics): CompareWritingLayout {
+function layoutWritingInBox(metrics: WritingMetrics): WritingScreens {
   const { area, maxNumber, play, corner, unit, portrait, sizes } = metrics;
   // Na telefonu těsnější mezery, aby čísla vedle velkého okénka zůstala velká.
-  const em = isPhoneMode(area.mode) ? TIGHT_EM : sizes.em;
+  const baseEm = isPhoneMode(area.mode) ? TIGHT_EM : sizes.em;
   const minBox = MIN_WRITING_BOX_CSS * unit;
   const wanted = writingSizesFor(area);
   const fitsBelow =
@@ -513,11 +522,24 @@ function layoutWritingInBox(metrics: WritingMetrics): CompareWritingLayout {
   const equationGap = writing.equationGap * unit;
   const boxRoom = beside ? play.height : play.height - equationGap - button;
   const rowRoom = beside ? play.width - 2 * (button + equationGap) : play.width;
-  const numbersEm = numbersWidthEm(WIDEST_PROBLEM[maxNumber], em);
+  const widest = WIDEST_PROBLEM[maxNumber];
+  const numbersEm = numbersWidthEm(widest, baseEm);
+  // Čísla bez mezer; mezery mají aspoň 8 px, aby se čísla nelepila na okénko.
+  const slotsEm = numbersWidthEm(widest, { ...baseEm, gap: 0 });
+  // Na telefonu jsou mezery těsné (TIGHT_EM): aspoň 8 px; jinde jsou volné podle písma.
+  const minGap = isPhoneMode(area.mode) ? MIN_NUMBER_GAP_CSS * unit : 0;
+  const gapsWidth = (fontSize: number) => ROW_GAP_COUNT * Math.max(baseEm.gap * fontSize, minGap);
+  const minFont = MIN_WRITING_NUMBER_FONT_CSS * unit;
   // Okénko se zmenší (nejvýš na 200 px), aby čísla vedle něj zůstala čitelná.
-  const roomForBox = rowRoom - numbersEm * MIN_WRITING_NUMBER_FONT_CSS * unit;
+  const roomForBox = rowRoom - slotsEm * minFont - gapsWidth(minFont);
   const box = Math.ceil(Math.max(minBox, Math.min(writing.box * unit, boxRoom, roomForBox)));
-  const fontSize = Math.min(sizes.maxFont * unit, box / em.box, (rowRoom - box) / numbersEm);
+  const fontSize = Math.min(
+    sizes.maxFont * unit,
+    box / baseEm.box,
+    (rowRoom - box) / numbersEm,
+    (rowRoom - box - ROW_GAP_COUNT * minGap) / slotsEm,
+  );
+  const em: EquationEm = { ...baseEm, gap: Math.max(baseEm.gap, minGap / fontSize) };
   const centerX = play.left + play.width / 2;
   let rowCenterY: number;
   let buttonsCenterY: number;
@@ -549,22 +571,46 @@ function layoutWritingInBox(metrics: WritingMetrics): CompareWritingLayout {
     clearCenter = { x: centerX - buttonGap / 2 - button / 2, y: buttonsCenterY };
     confirmCenter = { x: centerX + buttonGap / 2 + button / 2, y: buttonsCenterY };
   }
+  const clear = squareAt(clearCenter, button);
+  const confirm = squareAt(confirmCenter, button);
+  const stars = starRow(area, unit, corner, portrait);
+  // „a ☐ b“ (#191): stejné okénko, písmo i tlačítka, jen bez „= c“.
+  const relationFor = (problem: RelationProblem): RelationEquationLayout =>
+    relationRow(problem, em, fontSize, unit, rowCenter, box);
   return {
-    problemKind: 'arithmetic',
-    maxNumber,
-    writing: {
-      padInProblem: true,
-      // Okénko příkladu je stejné pro všechny příklady rozsahu, jen se posouvá s čísly.
-      pad: (problem) => equationFor(problem).box,
-      clear: squareAt(clearCenter, button),
-      confirm: squareAt(confirmCenter, button),
-      detailScale: unit,
+    arithmetic: {
+      problemKind: 'arithmetic',
+      maxNumber,
+      writing: {
+        padInProblem: true,
+        // Okénko příkladu je stejné pro všechny příklady rozsahu, jen se posouvá s čísly.
+        pad: (problem) => equationFor(problem).box,
+        clear,
+        confirm,
+        detailScale: unit,
+      },
+      equationFontSize: fontSize,
+      equationFor,
+      signButtons: null,
+      stars,
+      unitsPerCssPx: unit,
     },
-    equationFontSize: fontSize,
-    equationFor,
-    signButtons: null,
-    stars: starRow(area, unit, corner, portrait),
-    unitsPerCssPx: unit,
+    relation: {
+      problemKind: 'relation',
+      maxNumber,
+      writing: {
+        padInProblem: true,
+        pad: (problem) => relationFor(problem).box,
+        clear,
+        confirm,
+        detailScale: unit,
+      },
+      equationFontSize: fontSize,
+      equationFor: relationFor,
+      relationButtons: null,
+      stars,
+      unitsPerCssPx: unit,
+    },
   };
 }
 
@@ -572,7 +618,7 @@ function layoutWritingInBox(metrics: WritingMetrics): CompareWritingLayout {
  * Příklad velký jako při ťukání, pod ním plocha na psaní a pod ní smazání
  * a ✓ u palce. `null`, když se pod sebe nevejdou s čísly aspoň 64 px.
  */
-function layoutWritingBelow(metrics: WritingMetrics): CompareWritingLayout | null {
+function layoutWritingBelow(metrics: WritingMetrics): WritingScreens | null {
   const { area, maxNumber, play, corner, unit, portrait, sizes } = metrics;
   const { em } = sizes;
   const writing = PHONE_PORTRAIT_WRITING;
@@ -602,21 +648,31 @@ function layoutWritingBelow(metrics: WritingMetrics): CompareWritingLayout | nul
   const rowCenter = { x: centerX, y: padTop - gap - equationHeight / 2 };
   const equationFor = (problem: ArithmeticProblem): EquationLayout =>
     equationRow(problem, em, fontSize, unit, rowCenter);
+  const clear = squareAt({ x: centerX - buttonGap / 2 - button / 2, y: buttonsCenterY }, button);
+  const confirm = squareAt({ x: centerX + buttonGap / 2 + button / 2, y: buttonsCenterY }, button);
+  const stars = starRow(area, unit, corner, portrait);
   return {
-    problemKind: 'arithmetic',
-    maxNumber,
-    writing: {
-      padInProblem: false,
-      pad: () => padRect,
-      clear: squareAt({ x: centerX - buttonGap / 2 - button / 2, y: buttonsCenterY }, button),
-      confirm: squareAt({ x: centerX + buttonGap / 2 + button / 2, y: buttonsCenterY }, button),
-      detailScale: unit,
+    arithmetic: {
+      problemKind: 'arithmetic',
+      maxNumber,
+      writing: { padInProblem: false, pad: () => padRect, clear, confirm, detailScale: unit },
+      equationFontSize: fontSize,
+      equationFor,
+      signButtons: null,
+      stars,
+      unitsPerCssPx: unit,
     },
-    equationFontSize: fontSize,
-    equationFor,
-    signButtons: null,
-    stars: starRow(area, unit, corner, portrait),
-    unitsPerCssPx: unit,
+    // „a ☐ b“ (#191): stejná plocha, písmo i tlačítka, jen kratší řada příkladu.
+    relation: {
+      problemKind: 'relation',
+      maxNumber,
+      writing: { padInProblem: false, pad: () => padRect, clear, confirm, detailScale: unit },
+      equationFontSize: fontSize,
+      equationFor: (problem) => relationRow(problem, em, fontSize, unit, rowCenter),
+      relationButtons: null,
+      stars,
+      unitsPerCssPx: unit,
+    },
   };
 }
 
@@ -644,21 +700,42 @@ export interface RelationButtonsLayout {
   readonly cornerRadius: number;
 }
 
-/** Rozložení „a ☐ b“ (#190): pod příkladem tlačítka <, = a >, vždy ťuknutím. */
-export interface RelationLayout {
+/** Co mají obě rozložení „a ☐ b“ společné (ťukání i psaní). */
+interface RelationLayoutBase {
   readonly problemKind: 'relation';
   readonly maxNumber: MaxNumber;
   readonly equationFontSize: number;
   equationFor(problem: RelationProblem): RelationEquationLayout;
-  readonly relationButtons: RelationButtonsLayout;
-  /** Plochu na psaní „a ☐ b“ nemá: psaní < > = přijde v navazujícím úkolu (#191). */
-  readonly writing: null;
   readonly stars: CompareLayoutBase['stars'];
   readonly unitsPerCssPx: number;
 }
 
+/** Rozložení „a ☐ b“ při ťukání (#190): pod příkladem tlačítka <, = a >. */
+export interface RelationLayout extends RelationLayoutBase {
+  readonly relationButtons: RelationButtonsLayout;
+  readonly writing: null;
+}
+
+/**
+ * Rozložení „a ☐ b“ při psaní (#191): plocha na psaní, smazání a ✓ na
+ * stejném místě a stejně velké jako u „a ☐ b = c“, žádná tlačítka < = >.
+ */
+export interface RelationWritingLayout extends RelationLayoutBase {
+  readonly relationButtons: null;
+  readonly writing: WritingButtonsLayout<RelationProblem>;
+}
+
+/** Rozložení „a ☐ b“ podle způsobu odpovědi. */
+export type RelationScreenLayout = RelationLayout | RelationWritingLayout;
+
 /** Rozložení obrazovky pro jeden příklad: „a ☐ b = c“, nebo „a ☐ b“. */
-export type ProblemScreenLayout = CompareScreenLayout | RelationLayout;
+export type ProblemScreenLayout = CompareScreenLayout | RelationScreenLayout;
+
+/** Rozložení při psaní pro oba druhy příkladů v jednom okně a rozsahu. */
+interface WritingScreens {
+  readonly arithmetic: CompareWritingLayout;
+  readonly relation: RelationWritingLayout;
+}
 
 /** Nejširší „a ☐ b“ rozsahu (obě čísla dvoumístná při rozsahu 20). */
 const WIDEST_RELATION: Readonly<Record<MaxNumber, RelationProblem>> = {
@@ -694,15 +771,19 @@ function relationButtonSize(sizes: Sizes, play: Rect, unit: number): { size: num
   return { size, gap: Math.max(minGap, Math.min(wantedGap, roomForGaps)) };
 }
 
-/** Řada „a ☐ b“ s písmem `fontSize` na středu `center`. */
+/**
+ * Řada „a ☐ b“ s písmem `fontSize` na středu `center`. Okénko je čtverec
+ * podle písma, při psaní do okénka (#191) okénko na psaní o straně `writingBox`.
+ */
 function relationRow(
   problem: RelationProblem,
   em: EquationEm,
   fontSize: number,
   unit: number,
   center: Point,
+  writingBox: number | null = null,
 ): RelationEquationLayout {
-  const boxSize = em.box * fontSize;
+  const boxSize = writingBox ?? em.box * fontSize;
   const top = center.y - boxSize / 2;
   let left = center.x - (relationNumbersWidthEm(problem, em) * fontSize + boxSize) / 2;
   const slot = (width: number): Rect => {
@@ -725,8 +806,10 @@ function relationRow(
     },
     second,
     fontSize,
-    signSize: box.height * SIGN_IN_BOX_SHARE,
-    boxCornerRadius: box.height * BOX_CORNER_SHARE,
+    // Při psaní jako u „a ☐ b = c“: znaménko velké jako rozpoznané, rohy jako plocha na psaní.
+    signSize: box.height * (writingBox === null ? SIGN_IN_BOX_SHARE : WRITTEN_LABEL_HEIGHT_SHARE),
+    boxCornerRadius:
+      writingBox === null ? box.height * BOX_CORNER_SHARE : WRITING_AREA_CORNER_RADIUS * unit,
   };
 }
 
@@ -798,15 +881,33 @@ export function layoutRelationScreen(
 }
 
 /**
- * Rozložení pro druh rozehraného příkladu (#190): „a ☐ b“ má vždy
- * tlačítka < = > (i při volbě psaní, psaní < > = přijde v #191),
- * „a ☐ b = c“ tlačítka + − nebo plochu na psaní podle nastavení.
+ * Rozložení „a ☐ b“ při psaní (#191) pro herní plochu `area` a rozsah
+ * `maxNumber`: plocha na psaní, smazání a ✓ přesně jako u „a ☐ b = c“
+ * (na iPadu a telefonu na šířku okénko příkladu, na výšku samostatná
+ * plocha pod příkladem), písmo čísel stejné, jen řada bez „= c“. Při
+ * „vše“ se tak mezi druhy příkladů nic neposune.
+ */
+export function layoutRelationWritingScreen(
+  area: GameArea,
+  maxNumber: MaxNumber = DEFAULT_COMPARE_SETTINGS.maxNumber,
+): RelationWritingLayout {
+  const unit = 1 / area.scale;
+  const sizes = sizesFor(area);
+  const corner = cornerSizeCss(area) * unit;
+  const play = playArea(area, sizes, unit, corner);
+  return layoutWritingScreen(area, maxNumber, play, corner).relation;
+}
+
+/**
+ * Rozložení pro druh rozehraného příkladu (#190, #191): „a ☐ b“ tlačítka
+ * < = >, „a ☐ b = c“ tlačítka + −, nebo u obou plochu na psaní podle
+ * nastavení.
  */
 export function layoutProblemScreen(
   area: GameArea,
   settings: Pick<CompareSettings, 'maxNumber' | 'answerInput'>,
   kind: 'relation',
-): RelationLayout;
+): RelationScreenLayout;
 export function layoutProblemScreen(
   area: GameArea,
   settings: Pick<CompareSettings, 'maxNumber' | 'answerInput'>,
@@ -823,7 +924,9 @@ export function layoutProblemScreen(
   kind: ProblemKind,
 ): ProblemScreenLayout {
   if (kind === 'relation') {
-    return layoutRelationScreen(area, settings.maxNumber);
+    return settings.answerInput === 'writing'
+      ? layoutRelationWritingScreen(area, settings.maxNumber)
+      : layoutRelationScreen(area, settings.maxNumber);
   }
   return layoutCompareScreen(area, settings.maxNumber, settings.answerInput);
 }
