@@ -1,20 +1,17 @@
 import { createCompareSession } from '../../../src/games/compare/logic/compareSession';
 import type {
   CompareChange,
-  CompareQuestionVoice,
   CompareRudy,
-  CompareRudyContext,
   CompareRudyEvents,
   CompareSession,
   CompareSoundName,
 } from '../../../src/games/compare/logic/compareSession';
-import { correctChoice } from '../../../src/games/compare/logic/compareProblems';
-import type { CompareChoice } from '../../../src/games/compare/logic/compareProblems';
-import type { CompareQuestion } from '../../../src/games/compare/logic/compareQuestion';
+import { correctSign, otherSign } from '../../../src/games/compare/logic/compareProblems';
+import type { CompareSign } from '../../../src/games/compare/logic/compareProblems';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 
 /**
- * Pomůcky pro testy Porovnávání (#178): falešné hodiny, zvuky, úložiště
+ * Pomůcky pro testy Porovnávání (#178, od #187 doplň znaménko): falešné hodiny, zvuky, úložiště
  * a náhoda s pevným seedem, aby testy dopadly pokaždé stejně.
  */
 
@@ -157,21 +154,13 @@ export class FakeRudy implements CompareRudy {
   private shown: CompareRudyEvents | null = null;
   stopped = 0;
 
-  /** Co hra ke každé oslavě řekla (#182: smí Rudy mluvit o víc). */
-  readonly contexts: CompareRudyContext[] = [];
-
-  readonly celebrate = (events: CompareRudyEvents, context: CompareRudyContext): void => {
+  readonly celebrate = (events: CompareRudyEvents): void => {
     this.requested += 1;
-    this.contexts.push(context);
     this.waiting = events;
   };
 
-  /** Co hra ke stahování dopředu řekla (#182). */
-  readonly preparedContexts: CompareRudyContext[] = [];
-
-  readonly prepare = (context: CompareRudyContext): void => {
+  readonly prepare = (): void => {
     this.prepared += 1;
-    this.preparedContexts.push(context);
   };
 
   readonly stop = (): void => {
@@ -222,23 +211,6 @@ export class FakeRudy implements CompareRudy {
   }
 }
 
-/** Hlas průvodce, který říká otázku (#182): co a kolikrát hra chtěla říct. */
-export class FakeQuestionVoice implements CompareQuestionVoice {
-  readonly said: CompareQuestion[] = [];
-  stopped = 0;
-  /** Hraje nahrávka opravdu? `false` jako zamčený zvuk nebo chybějící nahrávka. */
-  plays = true;
-
-  readonly say = (question: CompareQuestion): Promise<boolean> => {
-    this.said.push(question);
-    return Promise.resolve(this.plays);
-  };
-
-  readonly stop = (): void => {
-    this.stopped += 1;
-  };
-}
-
 export interface TestCompare {
   readonly session: CompareSession;
   readonly timers: FakeTimers;
@@ -250,13 +222,11 @@ export interface TestCompare {
 /**
  * Dítě otevře Porovnávání nad úložištěm `storage` (bez něj jen paměť).
  * S `rudy` hra ukazuje Rudyho po 10. hvězdičce (#181, #186), bez něj hraje bez něj.
- * S `voice` hlas průvodce říká otázku (#182), bez něj je hra bez hlasu.
  */
 export function openCompare(
   storage?: KeyValueStorage,
   seed?: number,
   rudy?: CompareRudy,
-  voice?: CompareQuestionVoice,
 ): TestCompare {
   const timers = new FakeTimers();
   const sounds = new FakeSounds();
@@ -269,26 +239,24 @@ export function openCompare(
     timers,
     attachSettingsGear: gear.attach,
     rudy,
-    voice,
     onChange: (change) => changes.push(change),
   });
   return { session, timers, sounds, changes, gear };
 }
 
-/** Kam má dítě v rozehraném příkladu ťuknout, podle otázky příkladu (#182). */
-export function rightChoice(test: TestCompare): CompareChoice {
-  return correctChoice(test.session.problem(), test.session.question());
+/** Znaménko, které do okénka rozehraného příkladu patří (#187). */
+export function rightSign(test: TestCompare): CompareSign {
+  return correctSign(test.session.problem());
 }
 
-/** Špatná volba v příkladu: druhá karta, nebo „=“ při různém počtu. */
-export function wrongChoice(test: TestCompare): CompareChoice {
-  const right = rightChoice(test);
-  return right === 'equal' ? 'left' : 'equal';
+/** Znaménko, které do okénka nepatří. */
+export function wrongSign(test: TestCompare): CompareSign {
+  return otherSign(rightSign(test));
 }
 
-/** Dítě ťukne správně a počká, až přijde další příklad (i po oslavě). */
+/** Dítě ťukne na správné znaménko a počká, až přijde další příklad (i po oslavě). */
 export function solveProblem(test: TestCompare): void {
-  test.session.tap(rightChoice(test));
+  test.session.tap(rightSign(test));
   test.timers.runAll();
 }
 

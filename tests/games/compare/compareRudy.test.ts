@@ -4,9 +4,9 @@ import {
   NEXT_PROBLEM_MS,
   PREPARE_CELEBRATION_FROM_STARS,
 } from '../../../src/games/compare/logic/compareSession';
-import { correctChoice } from '../../../src/games/compare/logic/compareProblems';
+import { correctSign } from '../../../src/games/compare/logic/compareProblems';
 import { STARS_PER_SET } from '../../../src/shared/logic/stars';
-import { FakeRudy, MemoryStorage, openCompare, wrongChoice } from './compareFakes';
+import { FakeRudy, MemoryStorage, openCompare, wrongSign } from './compareFakes';
 import type { TestCompare } from './compareFakes';
 
 /**
@@ -27,9 +27,9 @@ function openWithRudy(storage?: MemoryStorage): RudyCompare {
   return { ...openCompare(storage, undefined, rudy), rudy };
 }
 
-/** Dítě ťukne správně na kartu (nebo „=“). */
+/** Dítě ťukne na správné znaménko. */
 function tapCorrect(game: TestCompare) {
-  return game.session.tap(correctChoice(game.session.problem()));
+  return game.session.tap(correctSign(game.session.problem()));
 }
 
 /** Dítě vyřeší 9 příkladů a ťukne správně na 10.; řada se zaplní. */
@@ -48,7 +48,7 @@ function storageWithStars(earned: number): MemoryStorage {
   const storage = new MemoryStorage();
   const game = openCompare(storage);
   for (let star = 0; star < earned; star += 1) {
-    game.session.tap(correctChoice(game.session.problem()));
+    game.session.tap(correctSign(game.session.problem()));
     game.timers.advance(NEXT_PROBLEM_MS);
   }
   game.session.leave();
@@ -70,7 +70,7 @@ describe('#186 AC1: Rudy se v Porovnávání ukazuje jen po 10. hvězdičce', ()
 
   it('během řady (1. až 9. hvězdička) ani po chybách se Rudy neukáže', () => {
     const game = openWithRudy();
-    expect(game.session.tap(wrongChoice(game))).toBe('wrong');
+    expect(game.session.tap(wrongSign(game))).toBe('wrong');
     for (let star = 1; star < STARS_PER_SET; star += 1) {
       tapCorrect(game);
       game.timers.advance(NEXT_PROBLEM_MS);
@@ -88,7 +88,7 @@ describe('#186 AC1: Rudy se v Porovnávání ukazuje jen po 10. hvězdičce', ()
   });
 });
 
-describe('#181 AC2, #186 AC3: po 10. hvězdičce Rudy, konfety až po jeho odchodu', () => {
+describe('#181 AC2, #186 AC3, #187 AC4: po 10. hvězdičce Rudy, konfety až po jeho odchodu', () => {
   it('po 10. hvězdičce přiskočí Rudy s oslavou, ještě bez konfet a melodie', () => {
     const game = openWithRudy();
     fillRow(game);
@@ -118,7 +118,7 @@ describe('#181 AC2, #186 AC3: po 10. hvězdičce Rudy, konfety až po jeho odcho
     game.rudy.openPending();
     const played = game.sounds.played.length;
     expect(tapCorrect(game)).toBe('ignored');
-    expect(game.session.tap(wrongChoice(game))).toBe('ignored');
+    expect(game.session.tap(wrongSign(game))).toBe('ignored');
     expect(game.session.starCount()).toBe(STARS_PER_SET);
     expect(game.sounds.played).toHaveLength(played);
   });

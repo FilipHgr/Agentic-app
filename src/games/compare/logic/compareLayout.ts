@@ -1,20 +1,23 @@
 /**
- * Rozložení obrazovky Porovnávání (#178 AC7) podle herní plochy: nahoře
- * řada hvězdiček mezi domečkem a kolečkem, pod ní symbol otázky (#182)
- * a pod ním dvě karty s tečkami vedle sebe a „=“ mezi nimi. Na výšku jsou
- * karty vysoké, „=“ pod nimi, tečky po pěti ve sloupcích a hvězdičky ve
- * 2 řadách po 5. Míry se počítají z CSS px okna, aby karty, „=“ i ťukací
- * plocha symbolu měly aspoň 64 px na každém zařízení. Čistý TypeScript
- * bez Phaseru.
+ * Rozložení obrazovky Porovnávání (#187) podle herní plochy: nahoře řada
+ * hvězdiček mezi domečkem a kolečkem, pod ní velký příklad „a ☐ b = c“
+ * v jedné řadě a pod příkladem dvě velká tlačítka + a − vedle sebe. Na
+ * šířku jsou příklad i tlačítka spolu uprostřed volné plochy, na telefonu
+ * na výšku jsou velká tlačítka dole u palce, příklad hned nad nimi
+ * a hvězdičky ve 2 řadách po 5. Místo čísla odpovídá počtu jeho číslic,
+ * písmo je v celém rozsahu stejné (podle nejširšího příkladu). Míry se
+ * počítají z CSS px okna, aby tlačítka měla aspoň 64 px na každém
+ * zařízení. Čistý TypeScript bez Phaseru.
  */
 
 import { gearSizingFor } from '../../../shared/logic/settingsGear';
 import { isPhoneMode } from '../../../shared/logic/viewportLayout';
-import { DEFAULT_COMPARE_SETTINGS } from './compareSettings';
-import type { CompareSettings } from './compareSettings';
 import type { GameArea, GameAreaFit } from '../../../shared/logic/viewportLayout';
+import type { CompareProblem } from './compareProblems';
+import { DEFAULT_COMPARE_SETTINGS } from './compareSettings';
+import type { MaxNumber } from './compareSettings';
 
-/** Karty přes celou volnou plochu okna, i na iPadu. */
+/** Příklad přes celou volnou plochu okna, i na iPadu. */
 export const COMPARE_GAME_AREA_FIT: GameAreaFit = 'fullWindow';
 
 /** Obdélník v herních jednotkách: levý horní roh a velikost. */
@@ -30,38 +33,46 @@ export interface Point {
   readonly y: number;
 }
 
-/** Tečka na kartě: střed a poloměr. */
-export interface Dot extends Point {
-  readonly radius: number;
+/** Příklad „a ☐ b = c“: místa pro čísla a „=“ (text na středu) a okénko. */
+export interface EquationLayout {
+  readonly first: Rect;
+  readonly box: Rect;
+  /**
+   * Ťukací plocha okénka (#187: ťuknutí okénko zhoupne a ukáže tlačítka):
+   * okénko, nejméně ale 64 × 64 px kolem jeho středu.
+   */
+  readonly boxHit: Rect;
+  readonly second: Rect;
+  readonly equals: Rect;
+  readonly result: Rect;
+  /** Písmo čísel a „=“, v jednom rozsahu pro všechny příklady stejné. */
+  readonly fontSize: number;
+  /** Písmo znaménka v okénku. */
+  readonly signSize: number;
+  readonly boxCornerRadius: number;
 }
 
-/** Kde je „=“: mezi kartami (na šířku), nebo pod nimi (na výšku). */
-export type EqualPlacement = 'between' | 'below';
-
-/** Tečky po pěti v řadách (na šířku), nebo po pěti ve sloupcích (na výšku). */
-export type DotGroups = 'rows' | 'columns';
+export interface SignButtonsLayout {
+  readonly plus: Rect;
+  readonly minus: Rect;
+  /** Písmo znaménka v tlačítku. */
+  readonly symbolSize: number;
+  readonly cornerRadius: number;
+}
 
 export interface CompareLayout {
-  readonly equalPlacement: EqualPlacement;
-  readonly dotGroups: DotGroups;
-  /** Levá a pravá karta, vždy vedle sebe. */
-  readonly cards: readonly [Rect, Rect];
-  readonly equalButton: Rect;
-  /** Symbol otázky nad kartami (#182): velká, nebo malá hromádka. */
-  readonly question: Rect;
-  /**
-   * Ťukací plocha symbolu (ťuknutí otázku zopakuje): aspoň 64 × 64 px,
-   * i když je symbol menší; roste nahoru a do stran, ke kartám ne.
-   */
-  readonly questionHit: Rect;
-  /** Znak po správné odpovědi: střed v místě „=“ a velikost písma. */
-  readonly sign: Point & { readonly size: number };
+  /** Rozsah, pro který je písmo příkladu spočítané (podle nejširšího příkladu). */
+  readonly maxNumber: MaxNumber;
+  /** Písmo čísel příkladu, v celém rozsahu stejné, aby mezi příklady neskákalo. */
+  readonly equationFontSize: number;
+  /** Rozložení příkladu: čísla mají místo podle počtu svých číslic. */
+  equationFor(problem: CompareProblem): EquationLayout;
+  readonly signButtons: SignButtonsLayout;
   readonly stars: {
     readonly stars: readonly Point[];
     readonly starSize: number;
     readonly detailScale: number;
   };
-  readonly cardCornerRadius: number;
   /** Herní jednotky na 1 CSS px: tloušťka čar, konfety, zatřesení. */
   readonly unitsPerCssPx: number;
 }
@@ -73,43 +84,96 @@ const STARS_PER_ROW_PORTRAIT = 5;
 const STAR_SLOT_FILL = 0.8;
 const MAX_STAR_CSS = 48;
 
-/** Odstup od okrajů a mezi kartami v CSS px: telefon, nebo větší okno. */
-const PHONE_SPACING = { margin: 8, gap: 16 };
-const TABLET_SPACING = { margin: 24, gap: 32 };
-
-/** „=“: díl kratší strany volné plochy, nejméně 64 px (dětský prst) a nejvýš 120 px. */
-const EQUAL_SHARE = 0.22;
-const MIN_TOUCH_CSS = 64;
-const MAX_EQUAL_CSS = 120;
-/** Karta je nejvýš takhle vysoká proti své šířce, aby tečky nebyly ztracené. */
-const CARD_MAX_ASPECT = 0.85;
-
-/** Teček v jedné řadě nebo sloupci a kolik řad nebo sloupců je nejvýš. */
-const DOTS_PER_GROUP = 5;
-const DOT_GROUPS = 2;
-const CARD_PADDING_SHARE = 0.08;
-/** Zaoblení rohů karty jako díl její kratší strany. */
-const CARD_CORNER_RADIUS_SHARE = 0.08;
-const DOT_RADIUS_SHARE = 0.4;
-const SIGN_FONT_SHARE = 0.9;
+/**
+ * Míry v CSS px: okraj plochy, strana tlačítka + a −, mezera mezi nimi,
+ * mezera mezi příkladem a tlačítky, největší písmo čísel a šířky v řadě
+ * příkladu.
+ */
+interface Sizes {
+  readonly margin: number;
+  readonly button: number;
+  readonly buttonGap: number;
+  readonly equationGap: number;
+  readonly maxFont: number;
+  readonly em: EquationEm;
+}
 
 /**
- * Symbol otázky (#182): výška v CSS px (telefon na šířku, na výšku, nebo
- * větší okno), šířka jako násobek výšky a mezera pod ním ke kartám (aspoň
- * 8 px mezi ťukacími plochami). V okně menším než jakékoli zařízení se
- * zmenší s kratší stranou plochy.
+ * Šířky v řadě příkladu jako násobek písma: místo jednomístného
+ * a dvoumístného čísla, okénko (čtverec), „=“ a mezera mezi nimi. Výška
+ * řady je výška okénka.
  */
-const PHONE_LANDSCAPE_QUESTION = { height: 52, gap: 8 };
-const PHONE_PORTRAIT_QUESTION = { height: 72, gap: 8 };
-const TABLET_QUESTION = { height: 120, gap: 12 };
-const QUESTION_WIDTH_SHARE = 1.25;
-const QUESTION_MAX_SHORT_SIDE_SHARE = 0.12;
+interface EquationEm {
+  readonly oneDigit: number;
+  readonly twoDigits: number;
+  readonly box: number;
+  readonly equals: number;
+  readonly gap: number;
+}
+
+/** Na šířku je místa dost: okénko větší a mezery volnější. */
+const ROOMY_EM: EquationEm = { oneDigit: 0.8, twoDigits: 1.35, box: 1.2, equals: 0.8, gap: 0.25 };
+/** Na výšku je úzko: místa čísel jen o kousek širší než číslice, mezery těsné. */
+const TIGHT_EM: EquationEm = { oneDigit: 0.68, twoDigits: 1.28, box: 1.0, equals: 0.66, gap: 0.1 };
+
+const PHONE_LANDSCAPE: Sizes = {
+  margin: 8,
+  button: 88,
+  buttonGap: 32,
+  equationGap: 16,
+  maxFont: 120,
+  em: ROOMY_EM,
+};
+const PHONE_PORTRAIT: Sizes = {
+  margin: 8,
+  button: 156,
+  buttonGap: 24,
+  equationGap: 48,
+  maxFont: 120,
+  em: TIGHT_EM,
+};
+const TABLET: Sizes = {
+  margin: 24,
+  button: 170,
+  buttonGap: 64,
+  equationGap: 48,
+  maxFont: 200,
+  em: ROOMY_EM,
+};
 
 /** Nejmenší ťukací plocha pro dětský prst (CSS px). */
-const MIN_QUESTION_HIT_CSS = 64;
+const MIN_TOUCH_CSS = 64;
 
-function clamp(value: number, low: number, high: number): number {
-  return Math.min(high, Math.max(low, value));
+/**
+ * Nejširší příklad rozsahu: podle něj se počítá písmo, aby se vešel každý
+ * příklad a písmo mezi příklady neskákalo („10 − 10 = 0“, „20 − 10 = 10“).
+ */
+const WIDEST_PROBLEM: Readonly<Record<MaxNumber, CompareProblem>> = {
+  10: { a: 10, b: 10, result: 0 },
+  20: { a: 20, b: 10, result: 10 },
+};
+
+const BOX_CORNER_SHARE = 0.18;
+const SIGN_IN_BOX_SHARE = 0.85;
+const SYMBOL_IN_BUTTON_SHARE = 0.62;
+const BUTTON_CORNER_SHARE = 0.22;
+
+/** Šířka místa pro číslo podle počtu číslic. */
+function numberSlotEm(value: number, em: EquationEm): number {
+  return String(value).length > 1 ? em.twoDigits : em.oneDigit;
+}
+
+/** Šířka celé řady příkladu jako násobek písma. */
+function equationWidthEm(problem: CompareProblem, em: EquationEm): number {
+  const numbers = [problem.a, problem.b, problem.result].map((value) => numberSlotEm(value, em));
+  return numbers.reduce((sum, width) => sum + width, 0) + em.box + em.equals + 4 * em.gap;
+}
+
+function sizesFor(area: GameArea): Sizes {
+  if (area.mode === 'phonePortrait') {
+    return PHONE_PORTRAIT;
+  }
+  return isPhoneMode(area.mode) ? PHONE_LANDSCAPE : TABLET;
 }
 
 /** Strana čtverce v horních rozích, kde je domeček a kolečko (i s mezerou), v CSS px. */
@@ -136,128 +200,88 @@ function starRow(area: GameArea, unit: number, corner: number, portrait: boolean
 }
 
 /**
- * Strana „=“ v herních jednotkách. Zaokrouhlí se nahoru na celé jednotky,
- * aby po přepočtu na CSS px nevyšlo kvůli zaokrouhlení méně než 64 px.
+ * Strana tlačítka v herních jednotkách: podle zařízení, v malé ploše
+ * menší, ale nikdy pod 64 px. Zaokrouhlí se nahoru na celé jednotky, aby
+ * po přepočtu na CSS px nevyšlo kvůli zaokrouhlení méně než 64 px.
  */
-function equalSize(shortSide: number, unit: number): number {
-  return Math.ceil(clamp(shortSide * EQUAL_SHARE, MIN_TOUCH_CSS * unit, MAX_EQUAL_CSS * unit));
-}
-
-interface CardsPlacement {
-  readonly first: Rect;
-  readonly second: Rect;
-  readonly equal: number;
-  /** Střed „=“ (a znaku po správné odpovědi). */
-  readonly center: Point;
-  readonly equalPlacement: EqualPlacement;
-}
-
-/** Karty vedle sebe a „=“ mezi nimi. */
-function equalBetween(play: Rect, equal: number, gap: number): CardsPlacement {
-  const width = (play.width - equal - 2 * gap) / 2;
-  const height = Math.min(play.height, width * CARD_MAX_ASPECT);
-  const top = play.top + (play.height - height) / 2;
-  return {
-    first: { left: play.left, top, width, height },
-    second: { left: play.left + play.width - width, top, width, height },
-    equal,
-    center: { x: play.left + play.width / 2, y: top + height / 2 },
-    equalPlacement: 'between',
-  };
+function buttonSize(sizes: Sizes, play: Rect, unit: number): number {
+  const fitsHeight = (play.height - sizes.equationGap * unit) / 2;
+  const fitsWidth = (play.width - sizes.buttonGap * unit) / 2;
+  const wanted = Math.min(sizes.button * unit, fitsHeight, fitsWidth);
+  return Math.ceil(Math.max(MIN_TOUCH_CSS * unit, wanted));
 }
 
 /**
- * Na výšku: vysoké karty vedle sebe přes celou šířku i celou volnou výšku
- * až k „=“ uprostřed pod nimi; tečky v nich jsou po pěti ve sloupcích.
+ * Řada příkladu `problem` s písmem `fontSize`, na středu `center.x` a se
+ * svislým středem `center.y`.
  */
-function equalBelow(play: Rect, equal: number, gap: number): CardsPlacement {
-  const width = (play.width - gap) / 2;
-  const height = play.height - equal - gap;
-  const top = play.top;
-  return {
-    first: { left: play.left, top, width, height },
-    second: { left: play.left + play.width - width, top, width, height },
-    equal,
-    center: { x: play.left + play.width / 2, y: top + height + gap + equal / 2 },
-    equalPlacement: 'below',
-  };
-}
-
-/**
- * Karty jsou vždy vedle sebe (#178), aby znak mezi nimi šel číst zleva
- * doprava. Na šířku je „=“ mezi kartami, na výšku pod nimi.
- */
-function placeCards(play: Rect, unit: number, gap: number, portrait: boolean): CardsPlacement {
-  const equal = equalSize(Math.min(play.width, play.height), unit);
-  return portrait ? equalBelow(play, equal, gap) : equalBetween(play, equal, gap);
-}
-
-/** Posune karty a „=“ o `dy` nahoru (záporné `dy` dolů). */
-function liftCards(cards: CardsPlacement, dy: number): CardsPlacement {
-  return {
-    ...cards,
-    first: { ...cards.first, top: cards.first.top - dy },
-    second: { ...cards.second, top: cards.second.top - dy },
-    center: { x: cards.center.x, y: cards.center.y - dy },
-  };
-}
-
-/**
- * Symbol otázky uprostřed nad kartami (#182) a karty pod ním. Karty se
- * nejdřív rozloží do plochy pod symbolem; když jim zbude místo nad sebou
- * (iPad), celá skupina symbolu a karet se posune na střed a symbol je
- * hned nad kartami.
- */
-function placeQuestionAndCards(
-  play: Rect,
-  area: GameArea,
+function equationRow(
+  problem: CompareProblem,
+  em: EquationEm,
+  fontSize: number,
   unit: number,
-  gap: number,
-  portrait: boolean,
-): { readonly question: Rect; readonly questionHit: Rect; readonly cards: CardsPlacement } {
-  const sizes =
-    area.mode === 'phonePortrait'
-      ? PHONE_PORTRAIT_QUESTION
-      : area.mode === 'phoneLandscape'
-        ? PHONE_LANDSCAPE_QUESTION
-        : TABLET_QUESTION;
-  // Zmenšené zobrazení (menší než jakékoli zařízení) zmenší i symbol.
-  const shortSide = Math.min(area.width, area.height);
-  const height =
-    area.mode === 'scaled'
-      ? Math.min(sizes.height * unit, shortSide * QUESTION_MAX_SHORT_SIDE_SHARE)
-      : sizes.height * unit;
-  const width = height * QUESTION_WIDTH_SHARE;
-  const questionGap = sizes.gap * unit;
-  const below = height + questionGap;
-  const cardsArea: Rect = { ...play, top: play.top + below, height: play.height - below };
-  const placed = placeCards(cardsArea, unit, gap, portrait);
-  const cards = liftCards(placed, (placed.first.top - cardsArea.top) / 2);
-  const question: Rect = {
-    left: play.left + (play.width - width) / 2,
-    top: cards.first.top - below,
-    width,
-    height,
+  center: Point,
+): EquationLayout {
+  const height = em.box * fontSize;
+  const top = center.y - height / 2;
+  let left = center.x - (equationWidthEm(problem, em) * fontSize) / 2;
+  const slot = (widthEm: number): Rect => {
+    const rect = { left, top, width: widthEm * fontSize, height };
+    left += (widthEm + em.gap) * fontSize;
+    return rect;
   };
-  // Ťukací plocha má spodní okraj se symbolem, aby mezera ke kartám zůstala.
-  const hitSize = MIN_QUESTION_HIT_CSS * unit;
-  const hitWidth = Math.max(width, hitSize);
-  const hitHeight = Math.max(height, hitSize);
-  const questionHit: Rect = {
-    left: question.left + (width - hitWidth) / 2,
-    top: question.top + height - hitHeight,
-    width: hitWidth,
-    height: hitHeight,
+  const first = slot(numberSlotEm(problem.a, em));
+  const box = slot(em.box);
+  const second = slot(numberSlotEm(problem.b, em));
+  const equals = slot(em.equals);
+  const result = slot(numberSlotEm(problem.result, em));
+  const hitSize = Math.max(box.width, MIN_TOUCH_CSS * unit);
+  return {
+    first,
+    box,
+    boxHit: {
+      left: box.left + (box.width - hitSize) / 2,
+      top: box.top + (box.height - hitSize) / 2,
+      width: hitSize,
+      height: hitSize,
+    },
+    second,
+    equals,
+    result,
+    fontSize,
+    signSize: box.height * SIGN_IN_BOX_SHARE,
+    boxCornerRadius: box.height * BOX_CORNER_SHARE,
   };
-  return { question, questionHit, cards };
 }
 
-export function layoutCompareScreen(area: GameArea): CompareLayout {
+/** Tlačítka + a − vedle sebe na středu `centerX`, horní hranou v `top`. */
+function signButtonsRow(
+  size: number,
+  gap: number,
+  centerX: number,
+  top: number,
+): SignButtonsLayout {
+  return {
+    plus: { left: centerX - gap / 2 - size, top, width: size, height: size },
+    minus: { left: centerX + gap / 2, top, width: size, height: size },
+    symbolSize: size * SYMBOL_IN_BUTTON_SHARE,
+    cornerRadius: size * BUTTON_CORNER_SHARE,
+  };
+}
+
+/**
+ * Rozložení obrazovky pro herní plochu `area` a rozsah `maxNumber`. Písmo
+ * příkladu se počítá podle nejširšího příkladu rozsahu.
+ */
+export function layoutCompareScreen(
+  area: GameArea,
+  maxNumber: MaxNumber = DEFAULT_COMPARE_SETTINGS.maxNumber,
+): CompareLayout {
   const unit = 1 / area.scale;
   const portrait = area.height > area.width;
-  const spacing = isPhoneMode(area.mode) ? PHONE_SPACING : TABLET_SPACING;
-  const margin = spacing.margin * unit;
-  const gap = spacing.gap * unit;
+  const sizes = sizesFor(area);
+  const { em } = sizes;
+  const margin = sizes.margin * unit;
   const corner = cornerSizeCss(area) * unit;
   const play: Rect = {
     left: margin,
@@ -265,214 +289,35 @@ export function layoutCompareScreen(area: GameArea): CompareLayout {
     width: area.width - 2 * margin,
     height: area.height - corner - CORNER_GAP_CSS * unit - margin,
   };
-  const { question, questionHit, cards } = placeQuestionAndCards(play, area, unit, gap, portrait);
-  const equalButton: Rect = {
-    left: cards.center.x - cards.equal / 2,
-    top: cards.center.y - cards.equal / 2,
-    width: cards.equal,
-    height: cards.equal,
-  };
+  const button = buttonSize(sizes, play, unit);
+  const buttonGap = sizes.buttonGap * unit;
+  const equationGap = sizes.equationGap * unit;
+  const fontSize = Math.min(
+    sizes.maxFont * unit,
+    play.width / equationWidthEm(WIDEST_PROBLEM[maxNumber], em),
+    (play.height - button - equationGap) / em.box,
+  );
+  const equationHeight = em.box * fontSize;
+  const centerX = play.left + play.width / 2;
+  let buttonsTop: number;
+  let equationTop: number;
+  if (portrait) {
+    // Tlačítka dole u palce a příklad hned nad nimi.
+    buttonsTop = play.top + play.height - button;
+    equationTop = buttonsTop - equationGap - equationHeight;
+  } else {
+    // Příklad a tlačítka spolu na středu volné plochy.
+    const groupHeight = equationHeight + equationGap + button;
+    equationTop = play.top + (play.height - groupHeight) / 2;
+    buttonsTop = equationTop + equationHeight + equationGap;
+  }
+  const equationCenter = { x: centerX, y: equationTop + equationHeight / 2 };
   return {
-    equalPlacement: cards.equalPlacement,
-    dotGroups: portrait ? 'columns' : 'rows',
-    cards: [cards.first, cards.second],
-    equalButton,
-    question,
-    questionHit,
-    sign: { ...cards.center, size: cards.equal * SIGN_FONT_SHARE },
+    maxNumber,
+    equationFontSize: fontSize,
+    equationFor: (problem) => equationRow(problem, em, fontSize, unit, equationCenter),
+    signButtons: signButtonsRow(button, buttonGap, centerX, buttonsTop),
     stars: starRow(area, unit, corner, portrait),
-    cardCornerRadius: Math.min(cards.first.width, cards.first.height) * CARD_CORNER_RADIUS_SHARE,
     unitsPerCssPx: unit,
   };
-}
-
-/** Jak velká skupina teček je (po pěti v řadách nebo sloupcích, 2 × 5). */
-const DOTS_PER_BLOCK = DOTS_PER_GROUP * DOT_GROUPS;
-/** Mezera mezi dvěma skupinami po 10 při rozsahu 20 jako díl tečky s okolím (#179 AC4). */
-const BLOCK_GAP_CELLS = 0.6;
-
-/** Pruh pro číslo pod tečkami (#179 AC3): díl výšky karty, nejvýš díl její šířky. */
-const NUMERAL_BAND_HEIGHT_SHARE = 0.28;
-const NUMERAL_BAND_WIDTH_SHARE = 0.45;
-/** Písmo čísla jako díl výšky pruhu. */
-const NUMERAL_BAND_FONT_SHARE = 0.8;
-/** Samotné číslo: díl výšky karty, nejvýš díl šířky (číslo má až 2 číslice). */
-const NUMERAL_ALONE_HEIGHT_SHARE = 0.6;
-const NUMERAL_ALONE_WIDTH_SHARE = 0.55;
-
-/** Co a do kolika karta ukazuje (#179): nastavení rozehraného příkladu. */
-export type CardLook = Pick<CompareSettings, 'maxNumber' | 'show'>;
-
-/** Bez nastavení jako dřív (#178): tečky do 10. */
-const DOTS_UP_TO_TEN: CardLook = DEFAULT_COMPARE_SETTINGS;
-
-/** Číslo na kartě: střed a velikost písma. */
-export interface Numeral extends Point {
-  readonly fontSize: number;
-}
-
-/** Jak jdou dvě skupiny po 10 za sebou: pod sebou, nebo vedle sebe. */
-type BlockArrangement = 'stacked' | 'sideBySide';
-
-/** Výška pruhu pro číslo pod tečkami na kartě. */
-function numeralBandHeight(card: Rect): number {
-  return Math.min(card.height * NUMERAL_BAND_HEIGHT_SHARE, card.width * NUMERAL_BAND_WIDTH_SHARE);
-}
-
-/** Část karty pro tečky: celá karta, nebo nad pruhem s číslem. */
-function dotsArea(card: Rect, look: CardLook): Rect {
-  if (look.show !== 'both') {
-    return card;
-  }
-  return { ...card, height: card.height - numeralBandHeight(card) };
-}
-
-/** Mřížka jedné skupiny po 10: kolik teček vedle sebe a pod sebou. */
-function blockGrid(groups: DotGroups): { readonly across: number; readonly down: number } {
-  return groups === 'rows'
-    ? { across: DOTS_PER_GROUP, down: DOT_GROUPS }
-    : { across: DOT_GROUPS, down: DOTS_PER_GROUP };
-}
-
-/** Celá mřížka pro rozsah: jedna skupina, nebo dvě pod sebou či vedle sebe s mezerou. */
-function gridCells(
-  groups: DotGroups,
-  blocks: number,
-  arrangement: BlockArrangement,
-): { readonly across: number; readonly down: number } {
-  const block = blockGrid(groups);
-  if (blocks === 1) {
-    return block;
-  }
-  return arrangement === 'stacked'
-    ? { across: block.across, down: 2 * block.down + BLOCK_GAP_CELLS }
-    : { across: 2 * block.across + BLOCK_GAP_CELLS, down: block.down };
-}
-
-/** Velikost políčka tečky, aby se do plochy vešla celá mřížka. */
-function cellSize(area: Rect, cells: { across: number; down: number }): number {
-  const padding = Math.min(area.width, area.height) * CARD_PADDING_SHARE;
-  return Math.min(
-    (area.width - 2 * padding) / cells.across,
-    (area.height - 2 * padding) / cells.down,
-  );
-}
-
-/** Rozmístění skupin pro rozsah 20: to, ve kterém jsou tečky větší. */
-function bestArrangement(area: Rect, groups: DotGroups): BlockArrangement {
-  const stacked = cellSize(area, gridCells(groups, 2, 'stacked'));
-  const sideBySide = cellSize(area, gridCells(groups, 2, 'sideBySide'));
-  return stacked >= sideBySide ? 'stacked' : 'sideBySide';
-}
-
-/** Místo tečky v mřížce v políčkách (sloupec a řada), i s mezerou mezi skupinami. */
-function dotCell(
-  index: number,
-  groups: DotGroups,
-  arrangement: BlockArrangement,
-): { readonly column: number; readonly row: number } {
-  const block = Math.floor(index / DOTS_PER_BLOCK);
-  const within = index % DOTS_PER_BLOCK;
-  const group = Math.floor(within / DOTS_PER_GROUP);
-  const place = within % DOTS_PER_GROUP;
-  const grid = blockGrid(groups);
-  const column = groups === 'rows' ? place : group;
-  const row = groups === 'rows' ? group : place;
-  const blockShift = block === 0 ? 0 : grid.down + BLOCK_GAP_CELLS;
-  const blockShiftAcross = block === 0 ? 0 : grid.across + BLOCK_GAP_CELLS;
-  return arrangement === 'stacked'
-    ? { column, row: row + blockShift }
-    : { column: column + blockShiftAcross, row };
-}
-
-/**
- * Rozměr použité mřížky v políčkách: po směru skupin (řada nebo sloupec
- * po pěti) vždy celá skupina, napříč jen tolik, kolik je potřeba.
- */
-function usedExtent(
-  cells: readonly { column: number; row: number }[],
-  groups: DotGroups,
-  arrangement: BlockArrangement,
-  blocksUsed: number,
-): { readonly across: number; readonly down: number } {
-  const grid = blockGrid(groups);
-  const lastColumn = Math.max(...cells.map((cell) => cell.column));
-  const lastRow = Math.max(...cells.map((cell) => cell.row));
-  if (groups === 'rows') {
-    const blocksAcross = arrangement === 'sideBySide' ? blocksUsed : 1;
-    return {
-      across: blocksAcross * grid.across + (blocksAcross - 1) * BLOCK_GAP_CELLS,
-      down: lastRow + 1,
-    };
-  }
-  const blocksDown = arrangement === 'stacked' ? blocksUsed : 1;
-  return {
-    across: lastColumn + 1,
-    down: blocksDown * grid.down + (blocksDown - 1) * BLOCK_GAP_CELLS,
-  };
-}
-
-/**
- * Tečky na kartě po pěti (#178 AC1): na šířku v řadách (mřížka 5 × 2,
- * druhá řada pokračuje zleva), na výšku ve sloupcích (mřížka 2 × 5, druhý
- * sloupec pokračuje shora). S nejvýš pěti tečkami je jediná řada nebo
- * jediný sloupec na středu karty. Velikost teček nezávisí na počtu, aby
- * šly počty porovnat, a je co největší, jaká se do karty vejde.
- *
- * Podle nastavení (#179): při rozsahu 20 jsou dvě skupiny po 10 s mezerou
- * (pod sebou, nebo vedle sebe, kde jsou tečky větší) a tečky jsou menší,
- * aby se vešlo 20. S číslem pod tečkami jsou tečky nad pruhem s číslem,
- * se samotným číslem žádné tečky nejsou.
- */
-export function cardDots(
-  card: Rect,
-  count: number,
-  groups: DotGroups = 'rows',
-  look: CardLook = DOTS_UP_TO_TEN,
-): Dot[] {
-  if (look.show === 'numbers' || count <= 0) {
-    return [];
-  }
-  const area = dotsArea(card, look);
-  const blocks = look.maxNumber > DOTS_PER_BLOCK ? 2 : 1;
-  const arrangement = blocks === 2 ? bestArrangement(area, groups) : 'stacked';
-  const cell = cellSize(area, gridCells(groups, blocks, arrangement));
-  const cells = Array.from({ length: count }, (_, index) => dotCell(index, groups, arrangement));
-  const blocksUsed = Math.ceil(count / DOTS_PER_BLOCK);
-  const extent = usedExtent(cells, groups, arrangement, blocksUsed);
-  const gridLeft = area.left + (area.width - extent.across * cell) / 2;
-  const gridTop = area.top + (area.height - extent.down * cell) / 2;
-  return cells.map((place) => ({
-    x: gridLeft + (place.column + 0.5) * cell,
-    y: gridTop + (place.row + 0.5) * cell,
-    radius: cell * DOT_RADIUS_SHARE,
-  }));
-}
-
-/**
- * Číslo na kartě (#179 AC3): se samotným číslem velké na středu karty,
- * s tečkami v pruhu pod nimi, jen s tečkami žádné (`null`).
- */
-export function cardNumeral(card: Rect, look: CardLook): Numeral | null {
-  const centerX = card.left + card.width / 2;
-  if (look.show === 'numbers') {
-    return {
-      x: centerX,
-      y: card.top + card.height / 2,
-      fontSize: Math.min(
-        card.height * NUMERAL_ALONE_HEIGHT_SHARE,
-        card.width * NUMERAL_ALONE_WIDTH_SHARE,
-      ),
-    };
-  }
-  if (look.show === 'both') {
-    const band = numeralBandHeight(card);
-    return {
-      x: centerX,
-      // Pruh je dole v kartě; číslo trochu výš, ať nesedí na okraji.
-      y: card.top + card.height - band / 2 - band * 0.05,
-      fontSize: band * NUMERAL_BAND_FONT_SHARE,
-    };
-  }
-  return null;
 }

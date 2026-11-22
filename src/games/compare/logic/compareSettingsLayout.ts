@@ -1,9 +1,11 @@
 /**
- * Rozložení nastavení Porovnávání pro rodiče (#179, řada „Otázka“ #182)
- * podle obrázků S (2026-11-04) jako v Počítání: na iPadu řady na středu
- * s popisky nad nimi a ✓ pod nimi, na telefonu na šířku řady vlevo
- * s popisky před nimi a ✓ vpravo, na výšku řady pod sebou a ✓ dole u palce. Míry jsou v CSS px
- * a na konci se převedou na herní jednotky plochy. Čistý TypeScript.
+ * Rozložení nastavení Porovnávání pro rodiče (#179, od #187 jen řada
+ * „Do kolika“ 10 a 20) podle obrázků S (2026-11-04) jako v Počítání: na
+ * iPadu řady na středu s popisky nad nimi a ✓ pod nimi, na telefonu na
+ * šířku řady vlevo s popisky před nimi a ✓ vpravo, na výšku řady pod
+ * sebou a ✓ dole u palce. Řady jsou seznam, aby šla přidat další (#188).
+ * Míry jsou v CSS px a na konci se převedou na herní jednotky plochy.
+ * Čistý TypeScript.
  */
 
 import { gearSizingFor } from '../../../shared/logic/settingsGear';
@@ -11,16 +13,13 @@ import { isPhoneMode } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { compareTexts } from '../texts/compareTexts';
 import type { CompareTexts } from '../texts/compareTexts';
-import type { Dot, Numeral, Rect } from './compareLayout';
-import { questionPicture } from './compareQuestion';
-import type { QuestionPicture } from './compareQuestion';
-import { MAX_NUMBER_OPTIONS, QUESTION_OPTIONS, SHOW_OPTIONS } from './compareSettings';
-import type { MaxNumber, QuestionSetting, ShowMode } from './compareSettings';
+import { MAX_NUMBER_OPTIONS } from './compareSettings';
+import type { MaxNumber } from './compareSettings';
 
-export type SettingsRowKind = 'maxNumber' | 'show' | 'question';
+export type SettingsRowKind = 'maxNumber';
 
-/** Hodnota volby: rozsah, způsob ukázání, nebo otázka. */
-export type SettingsOptionValue = MaxNumber | ShowMode | QuestionSetting;
+/** Hodnota volby: rozsah. */
+export type SettingsOptionValue = MaxNumber;
 
 export type SettingsRowLabels = CompareTexts['rowLabels'];
 
@@ -56,8 +55,8 @@ export interface SettingsRow {
 }
 
 export interface CompareSettingsLayout {
-  /** Do kolika, Ukázat a Otázka, v tomto pořadí. */
-  readonly rows: readonly [SettingsRow, SettingsRow, SettingsRow];
+  /** Řady shora dolů (od #187 jen „Do kolika“). */
+  readonly rows: readonly SettingsRow[];
   readonly confirm: { readonly x: number; readonly y: number; readonly size: number };
   /** Zaoblení a okraj voleb v herních jednotkách. */
   readonly optionLook: { readonly cornerRadius: number; readonly borderWidth: number };
@@ -100,7 +99,7 @@ const PHONE_LANDSCAPE: Sizes & {
   readonly rowStep: number;
   readonly confirmRightMargin: number;
 } = {
-  // Tři řady (#182) se vejdou pod rohy i na nejnižší telefon: volby 64 px, mezi řadami 8 px.
+  // I víc řad (#188) se vejde pod rohy i na nejnižší telefon: volby 64 px, mezi řadami 8 px.
   optionWidth: 96,
   optionHeight: 64,
   optionGap: 8,
@@ -143,10 +142,8 @@ const CORNER_GAP_CSS = 4;
 
 const ROW_VALUES: Readonly<Record<SettingsRowKind, readonly SettingsOptionValue[]>> = {
   maxNumber: MAX_NUMBER_OPTIONS,
-  show: SHOW_OPTIONS,
-  question: QUESTION_OPTIONS,
 };
-const ROW_ORDER = ['maxNumber', 'show', 'question'] as const;
+const ROW_ORDER: readonly SettingsRowKind[] = ['maxNumber'];
 
 /** Plocha v CSS px. */
 interface CssArea {
@@ -334,76 +331,9 @@ export function layoutCompareSettings(
     layout = tabletLayout(css, labels);
   }
   const inUnits = scaled(layout, unit, 0, 0);
-  const [first, second, third] = inUnits.rows;
   return {
-    rows: [first as SettingsRow, second as SettingsRow, third as SettingsRow],
+    rows: inUnits.rows,
     confirm: inUnits.confirm,
     optionLook: { cornerRadius: inUnits.cornerRadius, borderWidth: OPTION_BORDER_CSS * unit },
   };
-}
-
-/** Obrázek ve volbě „Ukázat“: tečky, číslo, nebo obojí (číslo pod tečkami). */
-export interface ShowOptionIcon {
-  readonly dots: readonly Dot[];
-  readonly numeral: Numeral | null;
-}
-
-/** Tři tečky v obrázku volby (počet je symbol, ne text). */
-const ICON_DOTS = 3;
-const ICON_DOT_GAP_SHARE = 0.6;
-
-/** Tři tečky vedle sebe se středem `centerY` a poloměrem `radius`. */
-function iconDots(centerX: number, centerY: number, radius: number): Dot[] {
-  const step = 2 * radius * (1 + ICON_DOT_GAP_SHARE);
-  const firstX = centerX - ((ICON_DOTS - 1) * step) / 2;
-  return Array.from({ length: ICON_DOTS }, (_, index) => ({
-    x: firstX + index * step,
-    y: centerY,
-    radius,
-  }));
-}
-
-/**
- * Obrázek volby „Ukázat“ uvnitř volby `slot`: tečky jsou tři tečky
- * v řadě, čísla velká trojka, obojí menší tečky a trojka pod nimi.
- */
-export function showOptionIcon(slot: SettingsOptionSlot, value: ShowMode): ShowOptionIcon {
-  const { x, y, width, height } = slot;
-  switch (value) {
-    case 'dots':
-      return { dots: iconDots(x, y, Math.min(width * 0.09, height * 0.13)), numeral: null };
-    case 'numbers':
-      return { dots: [], numeral: { x, y, fontSize: slot.fontSize } };
-    case 'both':
-      return {
-        dots: iconDots(x, y - height * 0.2, Math.min(width * 0.065, height * 0.09)),
-        numeral: { x, y: y + height * 0.17, fontSize: height * 0.38 },
-      };
-  }
-}
-
-/** Okraj kolem hromádek ve volbě „Otázka“ jako díl strany volby. */
-const QUESTION_ICON_INSET_SHARE = 0.08;
-
-/**
- * Obrázek volby „Otázka“ (#182) uvnitř volby `slot`: stejné hromádky jako
- * symbol nad kartami. „Víc“ velká hromádka, „míň“ malá a „střídat“ malá
- * a velká vedle sebe.
- */
-export function questionOptionIcon(
-  slot: SettingsOptionSlot,
-  value: QuestionSetting,
-): QuestionPicture {
-  // Hromádky nesahají k okraji volby.
-  const width = slot.width * (1 - 2 * QUESTION_ICON_INSET_SHARE);
-  const height = slot.height * (1 - 2 * QUESTION_ICON_INSET_SHARE);
-  const box: Rect = { left: slot.x - width / 2, top: slot.y - height / 2, width, height };
-  if (value !== 'alternate') {
-    return questionPicture(value, box);
-  }
-  // Mezi malou a velkou hromádkou zůstane mezera.
-  const half = { ...box, width: box.width * 0.46 };
-  const small = questionPicture('less', half);
-  const big = questionPicture('more', { ...half, left: box.left + box.width * 0.54 });
-  return { dots: [...small.dots, ...big.dots], grounds: [...small.grounds, ...big.grounds] };
 }

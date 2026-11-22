@@ -22,8 +22,7 @@
     "deploy:preview": "npm run build && wrangler preview",
     "deploy:preview:delete": "wrangler preview delete",
     "voice": "node tools/voice/make_voice.mjs",
-    "voice:character": "node tools/voice/import_character_voice.mjs",
-    "voice:guide": "node tools/voice/import_guide_voice.mjs"
+    "voice:character": "node tools/voice/import_character_voice.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

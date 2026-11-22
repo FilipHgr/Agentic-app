@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CELEBRATION_MS, NEXT_PROBLEM_MS } from '../../../src/games/compare/logic/compareSession';
-import { correctChoice } from '../../../src/games/compare/logic/compareProblems';
+import { correctSign } from '../../../src/games/compare/logic/compareProblems';
 import { COMPARE_META } from '../../../src/games/compare/meta';
 import { COMPARE_PROGRESS_KEY } from '../../../src/games/compare/storage/progressStorage';
 import { PROFILE_COLORS } from '../../../src/shared/logic/profiles';
@@ -11,7 +11,7 @@ import { MemoryStorage, openCompare, solveProblems } from './compareFakes';
 import type { TestCompare } from './compareFakes';
 
 /**
- * Testy k #178 AC6: po 10. hvězdičce oslava s konfetami a nová prázdná
+ * Testy k #178 AC6, #187 AC4: po 10. hvězdičce oslava s konfetami a nová prázdná
  * řada; hvězdičky se pamatují podle profilu, po zavření uprostřed oslavy
  * začíná prázdná řada a profily se neovlivňují.
  */
@@ -19,10 +19,10 @@ import type { TestCompare } from './compareFakes';
 /** Vyřeší 9 příkladů a 10. jen ťukne (oslava ještě nezačala). */
 function tapTenthStar(test: TestCompare): void {
   solveProblems(test, 9);
-  test.session.tap(correctChoice(test.session.problem()));
+  test.session.tap(correctSign(test.session.problem()));
 }
 
-describe('#178 AC6: po 10. hvězdičce oslava a nová prázdná řada', () => {
+describe('#178 AC6, #187 AC4: po 10. hvězdičce oslava a nová prázdná řada', () => {
   it('10. hvězdička spustí oslavu s konfetami a slavnostní melodií', () => {
     const test = openCompare();
     tapTenthStar(test);
@@ -58,7 +58,7 @@ describe('#178 AC6: po 10. hvězdičce oslava a nová prázdná řada', () => {
   });
 });
 
-describe('#178 AC6: hvězdičky se pamatují', () => {
+describe('#178 AC6, #187 AC4: hvězdičky se pamatují', () => {
   it('po zavření a novém otevření hry svítí stejně hvězdiček', () => {
     const storage = new MemoryStorage();
     solveProblems(openCompare(storage), 4);
@@ -85,7 +85,7 @@ describe('#178 AC6: hvězdičky se pamatují', () => {
       storage.data.set(COMPARE_PROGRESS_KEY, saved);
       const test = openCompare(storage);
       expect(test.session.starCount(), saved).toBe(0);
-      expect(test.session.tap(correctChoice(test.session.problem())), saved).toBe('correct');
+      expect(test.session.tap(correctSign(test.session.problem())), saved).toBe('correct');
     }
   });
 
@@ -99,7 +99,7 @@ describe('#178 AC6: hvězdičky se pamatují', () => {
   });
 });
 
-describe('#178 AC6: profily se neovlivňují', () => {
+describe('#178 AC6, #187 AC4: profily se neovlivňují', () => {
   it('hvězdičky jednoho profilu nejsou vidět v druhém a po návratu jsou zpátky', () => {
     const device = new DeviceStorage();
     const store = openProfiles(device);

@@ -26,21 +26,23 @@ import { dictionariesByLanguage } from '../../shared/textChecks';
  * v každém jazyce ze seznamu nahrávku mono 64 kb/s nejvýš 4 s s otiskem
  * hlasu postavičky a hra stahuje nahrávku jazyka zvoleného v menu.
  * #186 AC5: součet všech replik Rudyho se po odebrání pozdravů a pochval
- * snížil na skutečný součet zaokrouhlený nahoru na 50 KB.
+ * snížil na skutečný součet zaokrouhlený nahoru na 50 KB; #187 AC5 ho tak
+ * snížil znovu po odebrání oslavy „kde je víc“ v Porovnávání.
  */
 
 const MAX_LINE_MS = 4000;
 /** Limit jedné nahrávky jako u nahrávek průvodce (#50) a všech replik Rudyho dohromady. */
 const MAX_RECORDING_BYTES = 150 * 1024;
 /**
- * #186 AC5: Rudy jen slaví po 10 hvězdičkách (Počítání a Porovnávání), po
- * odebrání pozdravů a pochval mají repliky dohromady asi 265 KB, limit je
- * součet zaokrouhlený nahoru na 50 KB (dřív 750 KB z #181).
+ * #186 AC5: Rudy jen slaví po 10 hvězdičkách (Počítání a Porovnávání), limit
+ * je skutečný součet zaokrouhlený nahoru na 50 KB (dřív 750 KB z #181,
+ * po #186 300 KB). Po odebrání oslavy „kde je víc“ (#187 AC5) mají repliky
+ * dohromady asi 210 KB, limit je 250 KB.
  */
-const MAX_ALL_RUDY_BYTES = 300 * 1024;
+const MAX_ALL_RUDY_BYTES = 250 * 1024;
 
-/** Kolik replik Rudyho je v každém jazyce: 3 oslavy Počítání a 2 Porovnávání (#186). */
-const RUDY_LINES_PER_LANGUAGE = 5;
+/** Kolik replik Rudyho je v každém jazyce: 3 oslavy Počítání a 1 Porovnávání (#186, #187). */
+const RUDY_LINES_PER_LANGUAGE = 4;
 
 /** Velikosti všech replik Rudyho (všechny části a jazyky) podle cesty. */
 const ALL_RUDY_SIZES: Record<string, number> = Object.fromEntries(
@@ -130,7 +132,7 @@ describe('#171 AC1: repliky Rudyho v Počítání mají nahrávky', () => {
 });
 
 describe('#171, #176, #181, #186: velikost replik Rudyho', () => {
-  it('všechny repliky Rudyho (oslavy Počítání a Porovnávání, všechny jazyky) mají dohromady nejvýš 300 KB', () => {
+  it('všechny repliky Rudyho (oslavy Počítání a Porovnávání, všechny jazyky) mají dohromady nejvýš 250 KB', () => {
     const sizes = Object.values(ALL_RUDY_SIZES);
     expect(sizes.length).toBe(LANGUAGES.length * RUDY_LINES_PER_LANGUAGE);
     for (const language of LANGUAGES) {
@@ -152,16 +154,12 @@ describe('#171, #176, #181, #186: velikost replik Rudyho', () => {
     expect(elsewhere).toEqual([]);
   });
 
-  it('#186 AC1: v otiscích hlasu Rudyho nejsou pozdravy ani pochvaly', () => {
+  it('#186 AC1, #187 AC5: v otiscích hlasu Rudyho nejsou pozdravy, pochvaly ani oslava „kde je víc“', () => {
     const section = (FINGERPRINTS['character:rudy'] ?? {}) as Record<string, unknown>;
     for (const language of Object.keys(section)) {
       const keys = Object.keys((section[language] ?? {}) as Record<string, unknown>);
       expect(keys.sort(), language).toEqual(
-        [
-          ...COUNTING_RUDY_LINES.map((line) => `counting/${line}`),
-          'compare/celebration',
-          'compare/celebrationMore',
-        ].sort(),
+        [...COUNTING_RUDY_LINES.map((line) => `counting/${line}`), 'compare/celebration'].sort(),
       );
     }
   });

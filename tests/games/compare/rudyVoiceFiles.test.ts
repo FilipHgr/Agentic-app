@@ -19,8 +19,8 @@ import licenceText from '../../../public/licence.txt?raw';
 import { dictionariesByLanguage } from '../../shared/textChecks';
 
 /**
- * Testy k #181 AC3 a AC5: repliky pandy Rudyho v Porovnávání (2 oslavy,
- * pozdravy zrušil #186) jsou v textech hry pod `rudyLines`, každá má
+ * Testy k #181 AC3 a AC5: repliky pandy Rudyho v Porovnávání (jedna
+ * oslava: pozdravy zrušil #186, oslavu „kde je víc“ #187 AC5) jsou v textech hry pod `rudyLines`, každá má
  * v každém jazyce ze seznamu nahrávku mono 64 kb/s nejvýš 4 s a 150 KB
  * s otiskem hlasu postavičky `character:rudy` a hra stahuje nahrávku
  * jazyka zvoleného v menu. Součet všech replik Rudyho hlídá
@@ -73,12 +73,18 @@ describe('#181 AC3: repliky Rudyho v Porovnávání jsou česky i anglicky', () 
   it('repliky zní přesně podle zadání', () => {
     expect(COMPARE_FILES['cs']?.['rudyLines']).toEqual({
       celebration: 'Hurá! Máš deset hvězdiček!',
-      celebrationMore: 'Výborně! Vždycky poznáš, kde je víc!',
     });
     expect(COMPARE_FILES['en']?.['rudyLines']).toEqual({
       celebration: 'Hooray! You got ten stars!',
-      celebrationMore: 'Great job! You always know where there are more!',
     });
+  });
+
+  it('#187 AC5: žádná replika Rudyho v Porovnávání nemluví o tom, kde je víc', () => {
+    for (const [language, texts] of Object.entries(COMPARE_FILES)) {
+      for (const line of characterLinesOf('compare', texts)) {
+        expect(line.text, `${language}: ${line.id}`).not.toMatch(/víc|more/i);
+      }
+    }
   });
 });
 
@@ -126,11 +132,9 @@ describe('#181 AC5: nahrávky Rudyho v Porovnávání', () => {
       'rF7IE0q4TRjzwTgJPWOw',
       'GrhiDApR1rXIhuT0pMTL',
       'fDAy3gXDLEVibHOzDat6',
-      '44t26lD1T6WbDQDLJehe',
       'LiV77eRiu4dN8uc2l3PE',
       'ohA4iuLYYNBcVSfhZZfM',
       'WU96Oe4M4SURJ0nVgAk0',
-      '8xznZNviI33ToRKUdPG2',
     ]) {
       expect(licenceText.replace(/\s+/g, ' ')).toContain(generation);
     }
@@ -140,9 +144,7 @@ describe('#181 AC5: nahrávky Rudyho v Porovnávání', () => {
 describe('#181: Rudy v Porovnávání mluví jazykem zvoleným v menu', () => {
   it('česky hra stahuje českou nahrávku oslavy', () => {
     expect(currentLanguage()).toBe('cs');
-    expect(compareRudyVoiceUrl('celebrationMore')).toBe(
-      'voice/cs/compare/rudy-celebrationMore.mp3',
-    );
+    expect(compareRudyVoiceUrl('celebration')).toBe('voice/cs/compare/rudy-celebration.mp3');
   });
 
   it('po změně jazyka na angličtinu další Rudy stahuje anglickou oslavu', () => {

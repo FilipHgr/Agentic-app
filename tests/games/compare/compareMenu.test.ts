@@ -128,33 +128,22 @@ describe('#178 AC8: texty hry jsou v češtině i angličtině', () => {
   });
 
   // #179 přidal popisky řad nastavení pro rodiče, #181 repliky Rudyho, které
-  // jen zazní nahrávkou (hlídá je rudyVoiceFiles.test.ts), #182 řadu „Otázka“
-  // a otázky, které jen řekne hlas průvodce (hlídá je questionVoiceFiles.test.ts);
-  // jiné texty hra nemá.
-  it('texty hry mají název hry, popisky řad nastavení, repliky Rudyho a otázky průvodce a nic z nich není v žádném jazyce prázdné', () => {
+  // jen zazní nahrávkou (hlídá je rudyVoiceFiles.test.ts). Od #187 má
+  // nastavení jen řadu „Do kolika“ a otázky průvodce (#182) jsou pryč; jiné
+  // texty hra nemá, symboly + − = ☐ nejsou texty jazyka.
+  it('texty hry mají název hry, popisek řady nastavení a repliky Rudyho a nic z nich není v žádném jazyce prázdné', () => {
     for (const [language, texts] of Object.entries(COMPARE_FILES)) {
-      const shown = [...leavesOf(texts).keys()].filter(
-        (key) => !key.startsWith('rudyLines.') && !key.startsWith('guideLines.'),
-      );
-      expect(shown.sort(), language).toEqual(
-        ['rowLabels.maxNumber', 'rowLabels.question', 'rowLabels.show', 'title'].sort(),
-      );
+      const shown = [...leavesOf(texts).keys()].filter((key) => !key.startsWith('rudyLines.'));
+      expect(shown.sort(), language).toEqual(['rowLabels.maxNumber', 'title'].sort());
+      expect(Object.keys(texts), language).not.toContain('guideLines');
       for (const [key, value] of leavesOf(texts)) {
         expect(String(value ?? '').trim().length, `${language}: ${key}`).toBeGreaterThan(0);
       }
     }
   });
 
-  it('popisky řad nastavení jsou česky „Do kolika“, „Ukázat“ a „Otázka“, anglicky „Up to“, „Show“ a „Question“ (#179, #182)', () => {
-    expect(compareTexts('cs').rowLabels).toEqual({
-      maxNumber: 'Do kolika',
-      show: 'Ukázat',
-      question: 'Otázka',
-    });
-    expect(compareTexts('en').rowLabels).toEqual({
-      maxNumber: 'Up to',
-      show: 'Show',
-      question: 'Question',
-    });
+  it('popisek řady nastavení je česky „Do kolika“ a anglicky „Up to“ (#179, #187)', () => {
+    expect(compareTexts('cs').rowLabels).toEqual({ maxNumber: 'Do kolika' });
+    expect(compareTexts('en').rowLabels).toEqual({ maxNumber: 'Up to' });
   });
 });

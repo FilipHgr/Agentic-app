@@ -1,4 +1,4 @@
-/** Anglické texty hry Porovnávání (#178, #179, #181, #182). */
+/** Anglické texty hry Porovnávání (#178, #179, #181, #187). */
 
 import type { CompareTexts } from './compareTexts';
 
@@ -6,15 +6,8 @@ export default {
   title: 'Compare',
   rowLabels: {
     maxNumber: 'Up to',
-    show: 'Show',
-    question: 'Question',
   },
   rudyLines: {
     celebration: 'Hooray! You got ten stars!',
-    celebrationMore: 'Great job! You always know where there are more!',
-  },
-  guideLines: {
-    questionMore: 'Where are there more?',
-    questionLess: 'Where are there fewer?',
   },
 } satisfies CompareTexts;

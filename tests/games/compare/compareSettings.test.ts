@@ -5,12 +5,11 @@ import {
   NEXT_PROBLEM_MS,
   createCompareSession,
 } from '../../../src/games/compare/logic/compareSession';
-import { correctChoice, nextProblem } from '../../../src/games/compare/logic/compareProblems';
+import { correctSign } from '../../../src/games/compare/logic/compareProblems';
 import type { CompareProblem } from '../../../src/games/compare/logic/compareProblems';
 import {
   DEFAULT_COMPARE_SETTINGS,
   MAX_NUMBER_OPTIONS,
-  SHOW_OPTIONS,
 } from '../../../src/games/compare/logic/compareSettings';
 import type { CompareSettings } from '../../../src/games/compare/logic/compareSettings';
 import { COMPARE_META } from '../../../src/games/compare/meta';
@@ -27,15 +26,16 @@ import {
   openCompare,
   seededRandom,
   solveProblems,
-  wrongChoice,
+  wrongSign,
 } from './compareFakes';
 import type { TestCompare } from './compareFakes';
 
 /**
- * Testy k #179: nastavení Porovnávání pro rodiče za kolečkem. Rozsah
- * („Do kolika“ 5, 10, 20), co dítě vidí („Ukázat“ tečky, čísla, nebo tečky
- * s číslem), uložení podle profilu a zavření bez ✓. Rozložení panelu
- * a karet je v `compareSettingsLayout.test.ts`.
+ * Testy k #179 a #187 AC3: nastavení Porovnávání pro rodiče za kolečkem
+ * (podržení 1 s). Rozsah („Do kolika“ 10 nebo 20, výchozí 10), uložení
+ * podle profilu, starší uložené volby (5, „Ukázat“, „Otázka“) bez chyby,
+ * ✓ beze změny nechá rozehraný příklad a zavření bez ✓ nic nezmění.
+ * Rozložení panelu je v `compareSettingsLayout.test.ts`.
  */
 
 /** Rodič podrží kolečko, zvolí `change` a ťukne na ✓. */
@@ -45,12 +45,12 @@ function confirmChoice(test: TestCompare, change: Partial<CompareSettings>): voi
   test.session.confirmSettings();
 }
 
-/** Počty teček nebo čísla v příkladu. */
-function countsOf(problem: CompareProblem): number[] {
-  return [problem.left, problem.right];
+/** Všechna čísla v příkladu. */
+function numbersOf(problem: CompareProblem): number[] {
+  return [problem.a, problem.b, problem.result];
 }
 
-describe('#179 AC1: nastavení se otevře až po podržení kolečka 1 s', () => {
+describe('#179 AC1, #187 AC3: nastavení se otevře až po podržení kolečka 1 s', () => {
   it('krátké ťuknutí na kolečko nastavení neotevře, podržení 1 s ano', () => {
     expect(isHoldLongEnough(150), 'ťuknutí').toBe(false);
     expect(isHoldLongEnough(999), 'skoro 1 s').toBe(false);
@@ -87,26 +87,22 @@ describe('#179 AC1: nastavení se otevře až po podržení kolečka 1 s', () =>
     expect(test.session.homeAvailable()).toBe(true);
   });
 
-  it('při otevřeném nastavení ťuknutí na karty nic nedělá a domeček nejde použít', () => {
+  it('při otevřeném nastavení ťuknutí na + a − nic nedělá a domeček nejde použít', () => {
     const test = openCompare();
     test.gear.hold();
     expect(test.session.settingsOpen()).toBe(true);
-    expect(test.session.tap(correctChoice(test.session.problem()))).toBe('ignored');
-    expect(test.session.tap(wrongChoice(test))).toBe('ignored');
+    expect(test.session.tap(correctSign(test.session.problem()))).toBe('ignored');
+    expect(test.session.tap(wrongSign(test))).toBe('ignored');
     expect(test.session.starCount()).toBe(0);
     expect(test.session.homeAvailable()).toBe(false);
   });
 
   it('nastavení otevřené kolečkem ukazuje uložené volby', () => {
     const storage = new MemoryStorage();
-    confirmChoice(openCompare(storage), { maxNumber: 20, show: 'both' });
+    confirmChoice(openCompare(storage), { maxNumber: 20 });
     const again = openCompare(storage);
     again.gear.hold();
-    expect(again.session.settingsChoice()).toEqual({
-      maxNumber: 20,
-      show: 'both',
-      question: 'more',
-    });
+    expect(again.session.settingsChoice()).toEqual({ maxNumber: 20 });
   });
 
   it('po odchodu z hry se hra od kolečka odpojí', () => {
@@ -117,89 +113,56 @@ describe('#179 AC1: nastavení se otevře až po podržení kolečka 1 s', () =>
   });
 });
 
-describe('#179 AC2: „Do kolika“ 5, 10, 20 a žádný příklad rozsah nepřekročí', () => {
-  it('rodič vybírá z rozsahů 5, 10 a 20, výchozí je 10', () => {
-    expect([...MAX_NUMBER_OPTIONS]).toEqual([5, 10, 20]);
-    expect(DEFAULT_COMPARE_SETTINGS.maxNumber).toBe(10);
+describe('#187 AC3: „Do kolika“ 10 nebo 20, výchozí 10', () => {
+  it('rodič vybírá z rozsahů 10 a 20, výchozí je 10', () => {
+    expect([...MAX_NUMBER_OPTIONS]).toEqual([10, 20]);
+    expect(DEFAULT_COMPARE_SETTINGS).toEqual({ maxNumber: 10 });
+    expect(openCompare().session.settings()).toEqual({ maxNumber: 10 });
   });
 
-  it('v každém rozsahu přijdou všechny dvojice od 1 do rozsahu a žádná ho nepřekročí', () => {
-    for (const maxNumber of MAX_NUMBER_OPTIONS) {
-      const random = seededRandom(maxNumber);
-      const seen = new Set<string>();
-      let previous: CompareProblem | null = null;
-      for (let index = 0; index < 20000; index += 1) {
-        const problem = nextProblem(previous, random, maxNumber);
-        for (const count of countsOf(problem)) {
-          expect(Number.isInteger(count), `do ${maxNumber}`).toBe(true);
-          expect(count, `do ${maxNumber}`).toBeGreaterThanOrEqual(1);
-          expect(count, `do ${maxNumber}`).toBeLessThanOrEqual(maxNumber);
-        }
-        seen.add(`${Math.min(...countsOf(problem))}:${Math.max(...countsOf(problem))}`);
-        previous = problem;
-      }
-      for (let low = 1; low <= maxNumber; low += 1) {
-        for (let high = low; high <= maxNumber; high += 1) {
-          expect(seen.has(`${low}:${high}`), `do ${maxNumber}: ${low} : ${high}`).toBe(true);
-        }
-      }
+  it('po zvolení rozsahu 20 dává hra příklady do 20 a objeví se i čísla nad 10', () => {
+    const test = openCompare(undefined, 20);
+    confirmChoice(test, { maxNumber: 20 });
+    let overTen = false;
+    for (let index = 0; index < 300; index += 1) {
+      const numbers = numbersOf(test.session.problem());
+      expect(Math.max(...numbers)).toBeLessThanOrEqual(20);
+      overTen ||= Math.max(...numbers) > 10;
+      solveProblems(test, 1);
     }
+    expect(overTen).toBe(true);
   });
 
-  it('po zvolení rozsahu 5 i 20 dává hra jen příklady v tomto rozsahu', () => {
-    for (const maxNumber of [5, 20] as const) {
-      const test = openCompare(undefined, maxNumber);
-      confirmChoice(test, { maxNumber });
-      let reachesTop = false;
-      for (let index = 0; index < 300; index += 1) {
-        const counts = countsOf(test.session.problem());
-        expect(Math.max(...counts), `do ${maxNumber}`).toBeLessThanOrEqual(maxNumber);
-        reachesTop ||= counts.includes(maxNumber);
-        solveProblems(test, 1);
-      }
-      expect(reachesTop, `do ${maxNumber}: objeví se i ${maxNumber}`).toBe(true);
+  it('po návratu na rozsah 10 už žádné číslo nepřekročí 10', () => {
+    const test = openCompare(undefined, 10);
+    confirmChoice(test, { maxNumber: 20 });
+    confirmChoice(test, { maxNumber: 10 });
+    for (let index = 0; index < 300; index += 1) {
+      expect(Math.max(...numbersOf(test.session.problem()))).toBeLessThanOrEqual(10);
+      solveProblems(test, 1);
     }
-  });
-});
-
-describe('#179 AC3: „Ukázat“ tečky, čísla, nebo tečky s číslem, od dalšího příkladu', () => {
-  it('rodič vybírá tečky, čísla, nebo tečky s číslem pod nimi, výchozí jsou tečky', () => {
-    expect([...SHOW_OPTIONS]).toEqual(['dots', 'numbers', 'both']);
-    expect(DEFAULT_COMPARE_SETTINGS.show).toBe('dots');
-    expect(openCompare().session.problemLook().show).toBe('dots');
   });
 
   it('dokud je nastavení otevřené, rozehraný příklad se nemění', () => {
     const test = openCompare();
     const problem = test.session.problem();
     test.gear.hold();
-    test.session.chooseSetting({ show: 'numbers', maxNumber: 20 });
+    test.session.chooseSetting({ maxNumber: 20 });
     expect(test.session.problem()).toEqual(problem);
-    expect(test.session.problemLook()).toEqual(DEFAULT_COMPARE_SETTINGS);
     expect(test.session.settings()).toEqual(DEFAULT_COMPARE_SETTINGS);
   });
 
-  it('po ✓ se změnou přijde další příklad a ten už je ukázaný zvoleným způsobem', () => {
-    const changes: Partial<CompareSettings>[] = [
-      { show: 'numbers' },
-      { show: 'both' },
-      { maxNumber: 5 },
-      { maxNumber: 20 },
-    ];
-    for (const change of changes) {
-      const name = JSON.stringify(change);
-      const test = openCompare();
-      const problem = test.session.problem();
-      confirmChoice(test, change);
-      expect(test.session.settingsOpen(), name).toBe(false);
-      expect(test.session.problem(), name).not.toEqual(problem);
-      expect(test.session.problemLook(), name).toEqual({ ...DEFAULT_COMPARE_SETTINGS, ...change });
-      expect(test.changes.at(-1), name).toEqual({ kind: 'problemStarted' });
-    }
+  it('po ✓ se změnou rozsahu přijde hned další příklad', () => {
+    const test = openCompare();
+    const problem = test.session.problem();
+    confirmChoice(test, { maxNumber: 20 });
+    expect(test.session.settingsOpen()).toBe(false);
+    expect(test.session.problem()).not.toEqual(problem);
+    expect(test.changes.at(-1)).toEqual({ kind: 'problemStarted' });
   });
 
   it('po ✓ beze změny zůstane rozehraný příklad a dítě ho dořeší', () => {
-    for (const change of [{}, { show: 'numbers' as const, maxNumber: 10 as const }]) {
+    for (const change of [{}, { maxNumber: 20 as const }]) {
       const test = openCompare();
       const problem = test.session.problem();
       test.gear.hold();
@@ -210,33 +173,29 @@ describe('#179 AC3: „Ukázat“ tečky, čísla, nebo tečky s číslem, od da
       expect(test.session.settingsOpen()).toBe(false);
       expect(test.session.problem()).toBe(problem);
       expect(test.changes).not.toContainEqual({ kind: 'problemStarted' });
-      expect(test.session.tap(correctChoice(problem))).toBe('correct');
+      expect(test.session.tap(correctSign(problem))).toBe('correct');
     }
   });
 
-  it('zvolený způsob platí i pro všechny další příklady', () => {
+  it('po ✓ beze změny zůstane i okénko, které dítě po chybě vyprázdnilo, a příklad jde dořešit', () => {
     const test = openCompare();
-    confirmChoice(test, { show: 'both' });
-    solveProblems(test, 12);
-    expect(test.session.problemLook().show).toBe('both');
+    const problem = test.session.problem();
+    test.session.tap(wrongSign(test));
+    confirmChoice(test, {});
+    expect(test.session.problem()).toBe(problem);
+    expect(test.session.filledSign()).toBeNull();
+    expect(test.session.tap(correctSign(problem))).toBe('correct');
   });
 });
 
-describe('#179 AC5: nastavení podle profilu, poškozené hodnoty dají výchozí', () => {
-  it('po zavření a novém otevření hry platí zvolené nastavení', () => {
+describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené hodnoty bez chyby', () => {
+  it('po zavření a novém otevření hry platí zvolený rozsah', () => {
     const storage = new MemoryStorage();
-    confirmChoice(openCompare(storage), { maxNumber: 5, show: 'numbers' });
-    const again = openCompare(storage);
-    expect(again.session.settings()).toEqual({ maxNumber: 5, show: 'numbers', question: 'more' });
-    expect(again.session.problemLook()).toEqual({
-      maxNumber: 5,
-      show: 'numbers',
-      question: 'more',
-    });
-    expect(Math.max(...countsOf(again.session.problem()))).toBeLessThanOrEqual(5);
+    confirmChoice(openCompare(storage), { maxNumber: 20 });
+    expect(openCompare(storage).session.settings()).toEqual({ maxNumber: 20 });
   });
 
-  it('každý profil má vlastní nastavení', () => {
+  it('každý profil má vlastní rozsah', () => {
     const device = new DeviceStorage();
     const store = openProfiles(device);
     const first = store.activeProfile();
@@ -244,62 +203,64 @@ describe('#179 AC5: nastavení podle profilu, poškozené hodnoty dají výchoz�
 
     confirmChoice(openCompare(store.gameStorage(COMPARE_META.id)), { maxNumber: 20 });
     store.selectProfile(second.id);
-    const other = openCompare(store.gameStorage(COMPARE_META.id));
-    expect(other.session.settings()).toEqual(DEFAULT_COMPARE_SETTINGS);
-    confirmChoice(other, { show: 'numbers' });
+    expect(openCompare(store.gameStorage(COMPARE_META.id)).session.settings()).toEqual(
+      DEFAULT_COMPARE_SETTINGS,
+    );
 
     const reloaded = openProfiles(device);
     reloaded.selectProfile(first.id);
     expect(openCompare(reloaded.gameStorage(COMPARE_META.id)).session.settings()).toEqual({
       maxNumber: 20,
-      show: 'dots',
-      question: 'more',
     });
     reloaded.selectProfile(second.id);
     expect(openCompare(reloaded.gameStorage(COMPARE_META.id)).session.settings()).toEqual({
       maxNumber: 10,
-      show: 'numbers',
-      question: 'more',
     });
   });
 
-  it('poškozený nebo neznámý záznam dá výchozí do 10 s tečkami a hra jde dál', () => {
+  it('nastavení uložené starší hrou s tečkami (rozsah 5, „Ukázat“, „Otázka“) dá rozsah do 10 a hra jde dál', () => {
+    const older = [
+      '{"maxNumber":5,"show":"dots","question":"more"}',
+      '{"maxNumber":5,"show":"numbers","question":"less"}',
+      '{"maxNumber":10,"show":"both","question":"alternate"}',
+    ];
+    for (const saved of older) {
+      const storage = new MemoryStorage();
+      storage.data.set(COMPARE_SETTINGS_KEY, saved);
+      const test = openCompare(storage);
+      expect(test.session.settings(), saved).toEqual({ maxNumber: 10 });
+      expect(Math.max(...numbersOf(test.session.problem())), saved).toBeLessThanOrEqual(10);
+      expect(test.session.tap(correctSign(test.session.problem())), saved).toBe('correct');
+    }
+  });
+
+  it('rozsah 20 uložený starší hrou zůstane 20, ostatní staré volby se zahodí', () => {
+    const storage = new MemoryStorage();
+    storage.data.set(COMPARE_SETTINGS_KEY, '{"maxNumber":20,"show":"both","question":"less"}');
+    const test = openCompare(storage);
+    expect(test.session.settings()).toEqual({ maxNumber: 20 });
+    confirmChoice(test, {});
+    expect(JSON.parse(storage.data.get(COMPARE_SETTINGS_KEY) ?? '')).toEqual({ maxNumber: 20 });
+  });
+
+  it('poškozený nebo neznámý záznam dá výchozí rozsah do 10 a hra jde dál', () => {
     const broken = [
       '{',
       'null',
       '[]',
       '"20"',
-      '{"maxNumber":7,"show":"stars"}',
-      '{"maxNumber":"20","show":1}',
+      '{"maxNumber":7}',
+      '{"maxNumber":"20"}',
       '{"maxNumber":20.5}',
+      '{"show":"stars"}',
     ];
     for (const saved of broken) {
       const storage = new MemoryStorage();
       storage.data.set(COMPARE_SETTINGS_KEY, saved);
       const test = openCompare(storage);
-      expect(test.session.settings(), saved).toEqual({
-        maxNumber: 10,
-        show: 'dots',
-        question: 'more',
-      });
-      expect(test.session.tap(correctChoice(test.session.problem())), saved).toBe('correct');
+      expect(test.session.settings(), saved).toEqual({ maxNumber: 10 });
+      expect(test.session.tap(correctSign(test.session.problem())), saved).toBe('correct');
     }
-  });
-
-  it('platná hodnota zůstane, i když je druhá neznámá', () => {
-    const storage = new MemoryStorage();
-    storage.data.set(COMPARE_SETTINGS_KEY, '{"maxNumber":20,"show":"stars"}');
-    expect(openCompare(storage).session.settings()).toEqual({
-      maxNumber: 20,
-      show: 'dots',
-      question: 'more',
-    });
-    storage.data.set(COMPARE_SETTINGS_KEY, '{"maxNumber":3,"show":"both"}');
-    expect(openCompare(storage).session.settings()).toEqual({
-      maxNumber: 10,
-      show: 'both',
-      question: 'more',
-    });
   });
 
   it('když úložiště nejde číst ani zapsat, platí výchozí a zvolené nastavení aspoň do zavření hry', () => {
@@ -308,19 +269,18 @@ describe('#179 AC5: nastavení podle profilu, poškozené hodnoty dají výchoz�
     storage.failWrites = true;
     const test = openCompare(storage);
     expect(test.session.settings()).toEqual(DEFAULT_COMPARE_SETTINGS);
-    confirmChoice(test, { maxNumber: 20, show: 'both' });
-    expect(test.session.settings()).toEqual({ maxNumber: 20, show: 'both', question: 'more' });
-    expect(test.session.problemLook()).toEqual({ maxNumber: 20, show: 'both', question: 'more' });
+    confirmChoice(test, { maxNumber: 20 });
+    expect(test.session.settings()).toEqual({ maxNumber: 20 });
   });
 });
 
-describe('#179 AC6: zavření bez ✓ nic nezmění, hvězdičky zůstanou', () => {
+describe('#179 AC6, #187 AC3: zavření bez ✓ nic nezmění, hvězdičky zůstanou', () => {
   it('odchod z hry s otevřeným nastavením bez ✓ nic neuloží a hvězdičky zůstanou', () => {
     const storage = new MemoryStorage();
     const first = openCompare(storage);
     solveProblems(first, 3);
     first.gear.hold();
-    first.session.chooseSetting({ maxNumber: 20, show: 'numbers' });
+    first.session.chooseSetting({ maxNumber: 20 });
     first.session.leave();
 
     const again = openCompare(storage);
@@ -331,18 +291,18 @@ describe('#179 AC6: zavření bez ✓ nic nezmění, hvězdičky zůstanou', () 
   it('volby bez ✓ neplatí ani ve hře, která běží dál', () => {
     const test = openCompare();
     test.gear.hold();
-    test.session.chooseSetting({ maxNumber: 5 });
+    test.session.chooseSetting({ maxNumber: 20 });
     expect(test.session.settings().maxNumber).toBe(10);
-    expect(test.session.settingsChoice()?.maxNumber).toBe(5);
+    expect(test.session.settingsChoice()?.maxNumber).toBe(20);
   });
 
-  it('změna rozsahu i způsobu ukázání hvězdičky nenuluje', () => {
+  it('změna rozsahu hvězdičky nenuluje', () => {
     const storage = new MemoryStorage();
     const test = openCompare(storage);
     solveProblems(test, 4);
     confirmChoice(test, { maxNumber: 20 });
     expect(test.session.starCount()).toBe(4);
-    confirmChoice(test, { maxNumber: 5, show: 'both' });
+    confirmChoice(test, { maxNumber: 10 });
     expect(test.session.starCount()).toBe(4);
     solveProblems(test, 1);
     expect(test.session.starCount()).toBe(5);
@@ -351,15 +311,15 @@ describe('#179 AC6: zavření bez ✓ nic nezmění, hvězdičky zůstanou', () 
 
   it('nastavení otevřené hned po správné odpovědi hvězdičku nechá a po ✓ jde dítě dál', () => {
     const test = openCompare();
-    test.session.tap(correctChoice(test.session.problem()));
+    test.session.tap(correctSign(test.session.problem()));
     test.gear.hold();
     test.timers.runAll();
     expect(test.session.settingsOpen()).toBe(true);
     expect(test.session.starCount()).toBe(1);
     test.session.confirmSettings();
     expect(test.session.starCount()).toBe(1);
-    expect(test.session.shownSign()).toBeNull();
-    expect(test.session.tap(correctChoice(test.session.problem()))).toBe('correct');
+    expect(test.session.filledSign()).toBeNull();
+    expect(test.session.tap(correctSign(test.session.problem()))).toBe('correct');
   });
 
   it('oslava za 10 hvězdiček přijde vždy, i když rodič otevře nastavení při 10. hvězdičce', () => {
@@ -367,7 +327,7 @@ describe('#179 AC6: zavření bez ✓ nic nezmění, hvězdičky zůstanou', () 
       const name = JSON.stringify(change);
       const test = openCompare();
       solveProblems(test, 9);
-      test.session.tap(correctChoice(test.session.problem()));
+      test.session.tap(correctSign(test.session.problem()));
       test.gear.hold();
       test.timers.runAll();
       expect(test.changes, name).not.toContainEqual({ kind: 'celebrationStarted' });
@@ -378,15 +338,15 @@ describe('#179 AC6: zavření bez ✓ nic nezmění, hvězdičky zůstanou', () 
       expect(test.changes, name).toContainEqual({ kind: 'celebrationStarted' });
       test.timers.advance(CELEBRATION_MS);
       expect(test.session.starCount(), name).toBe(0);
-      expect(test.session.problemLook(), name).toEqual({ ...DEFAULT_COMPARE_SETTINGS, ...change });
-      expect(test.session.tap(correctChoice(test.session.problem())), name).toBe('correct');
+      expect(test.session.settings(), name).toEqual({ ...DEFAULT_COMPARE_SETTINGS, ...change });
+      expect(test.session.tap(correctSign(test.session.problem())), name).toBe('correct');
     }
   });
 
   it('oslava přerušená nastavením se po ✓ přehraje znovu od začátku a pak je řada prázdná', () => {
     const test = openCompare();
     solveProblems(test, 9);
-    test.session.tap(correctChoice(test.session.problem()));
+    test.session.tap(correctSign(test.session.problem()));
     test.timers.advance(NEXT_PROBLEM_MS + 500);
     expect(test.session.isCelebrating()).toBe(true);
     test.gear.hold();
@@ -406,14 +366,14 @@ describe('#179 AC6: zavření bez ✓ nic nezmění, hvězdičky zůstanou', () 
     test.timers.advance(1);
     expect(test.session.starCount()).toBe(0);
     expect(test.session.isCelebrating()).toBe(false);
-    expect(test.session.tap(correctChoice(test.session.problem()))).toBe('correct');
+    expect(test.session.tap(correctSign(test.session.problem()))).toBe('correct');
   });
 
   it('druhé podržení kolečka při otevřeném nastavení volby nezahodí', () => {
     const test = openCompare();
     test.gear.hold();
-    test.session.chooseSetting({ show: 'numbers' });
+    test.session.chooseSetting({ maxNumber: 20 });
     test.gear.hold();
-    expect(test.session.settingsChoice()?.show).toBe('numbers');
+    expect(test.session.settingsChoice()?.maxNumber).toBe(20);
   });
 });

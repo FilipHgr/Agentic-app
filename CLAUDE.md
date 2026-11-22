@@ -96,10 +96,7 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
      téhož configu, jeden pro všechny jazyky, a nemění se. Její nahrávky
      nejsou nahrávky průvodce: repliky jsou v textech pod `rudyLines`,
      nahrávky `rudy-<id>.mp3` v `public/voice/<jazyk>/<hra nebo menu>/`
-     (nejvýš 4 s), otisky zapíše `npm run voice:character -- <jazyk> <složka>`.
-     Věty průvodce Porovnávání (`guideLines`) se nahrají hlasem jazyka do
-     `public/voice/<jazyk>/compare/guide/`, otisky zapíše
-     `npm run voice:guide -- <jazyk> compare <složka>`,
+     (nejvýš 4 s), otisky zapíše `npm run voice:character -- <jazyk> <složka>`,
   4. jazyk se přidá do seznamu v `languages.ts` až s nahrávkami a vlajkou
      v `src/menu/flags/` (původ v `public/licence.txt`), v jednom commitu.
 - `npm run dev` vývojový server

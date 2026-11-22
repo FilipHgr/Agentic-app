@@ -1,11 +1,9 @@
 import Phaser from 'phaser';
 
-import { createSharedRudyVoicePlayer } from '../../../shared/audio/rudyVoicePlayer';
-import { isSharedAudioUnlocked, sharedToneContext } from '../../../shared/audio/sharedAudio';
+import { sharedToneContext } from '../../../shared/audio/sharedAudio';
 import { createTonePlayer } from '../../../shared/audio/tonePlayer';
 import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
 import type { GameHost } from '../../../shared/logic/gameHost';
-import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { Confetti } from '../../../shared/ui/Confetti';
@@ -13,71 +11,45 @@ import { RudyMoments } from '../../../shared/ui/rudyMoments';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { StarRow } from '../../../shared/ui/StarRow';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
-import { clipSegment, hintPicture, playHintPairing } from '../logic/compareHint';
-import type { HintLink, HintPairing } from '../logic/compareHint';
 import { COMPARE_GAME_AREA_FIT, layoutCompareScreen } from '../logic/compareLayout';
 import type { CompareLayout } from '../logic/compareLayout';
-import { correctChoice } from '../logic/compareProblems';
-import type { CompareChoice } from '../logic/compareProblems';
-import { createQuestionVoice, questionPicture } from '../logic/compareQuestion';
-import type { CompareQuestion } from '../logic/compareQuestion';
+import { COMPARE_SIGNS } from '../logic/compareProblems';
+import type { CompareSign } from '../logic/compareProblems';
 import { createCompareSession } from '../logic/compareSession';
 import type {
   CompareChange,
   CompareRudy,
-  CompareRudyContext,
   CompareRudyEvents,
   CompareSession,
 } from '../logic/compareSession';
 import { COMPARE_SOUNDS } from '../logic/compareSounds';
 import { compareRudyLines, compareRudyVoiceUrl } from '../logic/rudyLines';
 import type { CompareRudyLines } from '../logic/rudyLines';
-import { HINT_STYLE, QUESTION_STYLE, SIGN_STYLE } from '../logic/theme';
 import { dimSettingsGear } from '../ui/gearOpacity';
-import { CardView, EqualButtonView } from './CardView';
+import { EquationView, SignButtonView } from './EquationView';
 import { SettingsPanel } from './SettingsPanel';
 
-/** Jak dlouho letí hvězdička od karty do řady. */
+/** Jak dlouho letí hvězdička od okénka do řady. */
 const STAR_FLIGHT_MS = 600;
-/** Znak naskočí ze zmenšení. */
-const SIGN_POP_MS = 220;
-/** Nové karty naskočí ze zmenšení. */
-const CARDS_POP_MS = 180;
-const CARDS_POP_FROM = 0.92;
 
 /**
- * Jediná scéna Porovnávání (#178). Scéna jen kreslí a animuje; co se ve
- * hře děje (příklad, odpovědi, hvězdičky, oslava, uložení), řídí sezení
- * `compareSession.ts`. Rozložení se bere podle herní plochy (iPad,
- * telefon na šířku i na výšku) a po otočení se překreslí bez nového
- * příkladu. Hvězdičky a konfety jsou sdílené (`StarRow`, `Confetti`).
- * Nastavení pro rodiče (#179) se otevře podržením kolečka stránky a kreslí
- * ho `SettingsPanel` nad hrou. Po 2. chybě scéna nakreslí nápovědu
- * párováním teček (#180) podle `compareHint.ts`. Panda Rudy (#181: oslava
+ * Jediná scéna Porovnávání (#178, od #187 doplň znaménko). Scéna jen
+ * kreslí a animuje; co se ve hře děje (příklad, odpovědi, hvězdičky,
+ * oslava, uložení), řídí sezení `compareSession.ts`. Rozložení se bere
+ * podle herní plochy (iPad, telefon na šířku i na výšku) a po otočení se
+ * překreslí bez nového příkladu. Příklad „a ☐ b = c“ a tlačítka + a −
+ * kreslí `EquationView.ts`, hvězdičky a konfety jsou sdílené (`StarRow`,
+ * `Confetti`). Nastavení pro rodiče (#179) se otevře podržením kolečka
+ * stránky a kreslí ho `SettingsPanel` nad hrou. Panda Rudy (#181: oslava
  * po 10. hvězdičce, od #186 přímo na obrazovce) je sdílené `RudyMoments`;
- * kdy se ukáže, řídí sezení. Nad kartami je symbol otázky
- * (#182: velká hromádka = kde je víc, malá = kde je míň) a otázku řekne
- * hlas průvodce, když se změní (kdy, řídí sezení).
+ * kdy se ukáže, řídí sezení.
  */
 export class CompareScene extends Phaser.Scene {
   private session!: CompareSession;
   private gameArea: GameArea = gameAreaFor(undefined, COMPARE_GAME_AREA_FIT);
   private layout: CompareLayout = layoutCompareScreen(this.gameArea);
-  private cards: CardView[] = [];
-  private equalButton: EqualButtonView | null = null;
-  /**
-   * Vrstva čar spojení dvojic (#180) pod kartami: z čáry je vidět jen kus
-   * mezi kartami, kus na kartě kreslí karta sama pod tečkami.
-   */
-  private hintLayer: Phaser.GameObjects.Container | null = null;
-  /** Rozehrané spojování dvojic; zastaví se s příkladem. */
-  private hintPairing: HintPairing | null = null;
-  private sign: Phaser.GameObjects.Text | null = null;
-  /** Symbol otázky nad kartami (#182) a otázka, kterou ukazuje. */
-  private questionSymbol: Phaser.GameObjects.Graphics | null = null;
-  /** Ťukací plocha symbolu: ťuknutí otázku zopakuje. */
-  private questionHit: Phaser.GameObjects.Zone | null = null;
-  private drawnQuestion: CompareQuestion | null = null;
+  private equation: EquationView | null = null;
+  private signButtons: SignButtonView[] = [];
   private settingsPanel: SettingsPanel | null = null;
   private host: GameHost | undefined;
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu.
@@ -130,12 +102,6 @@ export class CompareScene extends Phaser.Scene {
       // Podržení kolečka stránky otevře nastavení (#179 AC1); bez stránky kolečko není.
       attachSettingsGear: host ? (open) => host.attachSettingsGear(open) : undefined,
       rudy: this.sessionRudy(compareRudyLines(host?.storage)),
-      // Dospělý hlas průvodce (#182): přehrávač nahrávek ve společném zvuku stránky.
-      // Bez odemčeného zvuku mlčí a otázku ukáže jen symbol.
-      voice: createQuestionVoice({
-        player: createSharedRudyVoicePlayer(),
-        isUnlocked: isSharedAudioUnlocked,
-      }),
       onChange: (change) => this.onSessionChange(change),
     });
     this.session = session;
@@ -153,8 +119,8 @@ export class CompareScene extends Phaser.Scene {
     return {
       // Replika zazní v jazyce zvoleném v menu; varianty se v profilu střídají
       // a zapamatuje se až ta, se kterou se Rudy ukázal (#176).
-      celebrate: (events: CompareRudyEvents, context: CompareRudyContext) => {
-        const line = lines.upcoming(context);
+      celebrate: (events: CompareRudyEvents) => {
+        const line = lines.upcoming();
         rudy.celebrate({
           onOpened: () => {
             lines.said(line);
@@ -164,8 +130,7 @@ export class CompareScene extends Phaser.Scene {
           voiceUrl: compareRudyVoiceUrl(line),
         });
       },
-      prepare: (context: CompareRudyContext) =>
-        rudy.prepare(compareRudyVoiceUrl(lines.upcoming(context))),
+      prepare: () => rudy.prepare(compareRudyVoiceUrl(lines.upcoming())),
       stop: () => rudy.stop(),
     };
   }
@@ -187,13 +152,17 @@ export class CompareScene extends Phaser.Scene {
         this.drawProblem(true);
         break;
       case 'solved':
-        this.showSolved(change.choice);
+        this.showSolved(change.sign);
         break;
       case 'wrong':
-        this.targetOf(change.choice)?.shake();
+        this.equation?.reject(change.sign);
         break;
-      case 'hintShown':
-        this.showHint(true);
+      case 'boxTapped':
+        // Ťuknutí na okénko není odpověď: okénko se zhoupne a tlačítka ukážou, čím ho vyplnit.
+        this.equation?.sway();
+        for (const button of this.signButtons) {
+          button.highlight();
+        }
         break;
       case 'celebrationStarted':
         this.confetti.throw(this.gameArea, this.layout.unitsPerCssPx);
@@ -234,315 +203,63 @@ export class CompareScene extends Phaser.Scene {
     this.starRow.paint();
   }
 
-  private targetOf(choice: CompareChoice): CardView | EqualButtonView | null | undefined {
-    switch (choice) {
-      case 'left':
-        return this.cards[0];
-      case 'right':
-        return this.cards[1];
-      case 'equal':
-        return this.equalButton;
-    }
-  }
-
-  /** Správně: karta se rozsvítí, místo „=“ naskočí znak a hvězdička letí do řady. */
-  private showSolved(choice: CompareChoice): void {
-    // Správně během spojování: nápověda se hned dokreslí, bez animace a cinkání.
-    this.hintPairing?.finish();
-    const target = this.targetOf(choice);
-    if (choice !== 'equal') {
-      this.cards[choice === 'left' ? 0 : 1]?.markCorrect();
-    }
-    const origin = target?.center ?? { x: this.layout.sign.x, y: this.layout.sign.y };
-    this.equalButton?.hide();
-    this.drawSign(true);
-    this.starRow.flyToRow(origin, () => undefined);
-  }
-
-  /** Zelený okraj správné karty bez zhoupnutí; u „=“ žádná karta. */
-  private markCorrectCard(choice: CompareChoice): void {
-    if (choice !== 'equal') {
-      this.cards[choice === 'left' ? 0 : 1]?.markCorrect(false);
-    }
-  }
-
-  /**
-   * Nápověda párováním (#180): karty ukážou tečky (u čísel nově pod číslem),
-   * dvojice se po jedné spojí čarou s cinknutím a nakonec se rozsvítí tečky
-   * bez dvojice. Spojení zůstanou vidět jako jemné čáry pod tečkami. Bez
-   * `animate` (po otočení) je nápověda hned celá. Ťuknutí na karty a „=“
-   * fungují po celou dobu; správné ťuknutí nápovědu hned dokreslí.
-   */
-  private showHint(animate: boolean): void {
-    const picture = hintPicture(this.layout, this.session.problem(), this.session.problemLook());
-    const [left, right] = this.cards;
-    if (!left || !right) {
+  /** Správně: znaménko naskočí v zeleném okénku a hvězdička letí z okénka do řady. */
+  private showSolved(sign: CompareSign): void {
+    const equation = this.equation;
+    if (!equation) {
       return;
     }
-    const hadDots = this.session.problemLook().show !== 'numbers';
-    left.showHint(picture.cards[0], picture.numerals[0], animate);
-    right.showHint(picture.cards[1], picture.numerals[1], animate);
-    // Všechny tečky příkladu jsou stejně velké.
-    const dotRadius = picture.cards[0][0]?.radius ?? 0;
-    this.hintPairing?.cancel();
-    this.hintPairing = playHintPairing(
-      picture.links.length,
-      // Tečky pod samotným číslem nejdřív naskočí, pak se párují.
-      animate && !hadDots ? HINT_STYLE.dotsAppearMs : 0,
-      {
-        after: (ms, callback) => {
-          const timer = this.time.delayedCall(ms, callback);
-          return () => timer.remove(false);
-        },
-      },
-      {
-        pairUp: (pair, animatePair) => {
-          const link = picture.links[pair];
-          if (link) {
-            this.pairUp(link, dotRadius, animate && animatePair);
-          }
-        },
-        lightExtras: () => {
-          left.lightExtras();
-          right.lightExtras();
-        },
-      },
-    );
-    if (!animate) {
-      this.hintPairing.finish();
-    }
+    equation.fill(sign, true);
+    this.starRow.flyToRow(equation.boxCenter, () => undefined);
   }
 
-  /**
-   * Jedna dvojice se spojí: čára mezi tečkami pod nimi. S `animate` obě
-   * tečky poskočí, čára se rozsvítí, cinkne tón a čára pak zjemní.
-   */
-  private pairUp(link: HintLink, dotRadius: number, animate: boolean): void {
-    this.cards[0]?.pairDot(link.pair, animate);
-    this.cards[1]?.pairDot(link.pair, animate);
-    if (animate) {
-      this.tones.play(COMPARE_SOUNDS.pair);
-    }
-    // Čára vede od okraje tečky k okraji tečky, aby ji ztlumené tečky nepřekryly.
-    const { from, to } = link;
-    const length = Math.hypot(to.x - from.x, to.y - from.y);
-    const trim = length > 0 ? dotRadius / length : 0;
-    const start = { x: from.x + (to.x - from.x) * trim, y: from.y + (to.y - from.y) * trim };
-    const end = { x: to.x - (to.x - from.x) * trim, y: to.y - (to.y - from.y) * trim };
-    const width = HINT_STYLE.linkWidth * this.layout.unitsPerCssPx;
-    const parts: Phaser.GameObjects.Graphics[] = [];
-    if (this.hintLayer) {
-      const gap = this.add.graphics();
-      gap
-        .lineStyle(width, colorNumber(HINT_STYLE.linkColor))
-        .lineBetween(start.x, start.y, end.x, end.y);
-      this.hintLayer.add(gap);
-      parts.push(gap);
-    }
-    for (const [side, card] of this.cards.entries()) {
-      const part = clipSegment(start, end, this.layout.cards[side === 0 ? 0 : 1]);
-      if (part) {
-        parts.push(card.addLinkPart(part, width, HINT_STYLE.linkColor));
-      }
-    }
-    for (const part of parts) {
-      part.setAlpha(animate ? HINT_STYLE.linkAlpha : HINT_STYLE.linkRestAlpha);
-    }
-    if (animate) {
-      this.tweens.add({
-        targets: parts,
-        alpha: HINT_STYLE.linkRestAlpha,
-        delay: HINT_STYLE.linkHoldMs,
-        duration: HINT_STYLE.linkFadeMs,
-      });
-    }
-  }
-
-  /** Smaže karty, „=“ i znak. */
+  /** Smaže příklad i tlačítka. */
   private clearProblem(): void {
-    this.hintPairing?.cancel();
-    this.hintPairing = null;
-    if (this.hintLayer) {
-      for (const line of this.hintLayer.list) {
-        this.tweens.killTweensOf(line);
-      }
-      this.hintLayer.destroy();
-      this.hintLayer = null;
+    this.equation?.destroy();
+    this.equation = null;
+    for (const button of this.signButtons) {
+      button.destroy();
     }
-    for (const card of this.cards) {
-      card.destroy();
-    }
-    this.cards = [];
-    this.equalButton?.destroy();
-    this.equalButton = null;
-    if (this.sign) {
-      this.tweens.killTweensOf(this.sign);
-      this.sign.destroy();
-      this.sign = null;
-    }
-    if (this.questionSymbol) {
-      this.tweens.killTweensOf(this.questionSymbol);
-      this.questionSymbol.destroy();
-      this.questionSymbol = null;
-    }
-    this.questionHit?.destroy();
-    this.questionHit = null;
+    this.signButtons = [];
   }
 
-  /**
-   * Symbol otázky nad kartami: hromádka teček na podložce. Když se otázka
-   * změnila, symbol naskočí, aby si ho dítě všimlo; po otočení ani se
-   * stejnou otázkou ne.
-   */
-  private drawQuestion(animate: boolean): void {
-    const question = this.session.question();
-    const box = this.layout.question;
-    const picture = questionPicture(question, box);
-    const centerX = box.left + box.width / 2;
-    const centerY = box.top + box.height / 2;
-    const symbol = this.add.graphics({ x: centerX, y: centerY });
-    symbol.fillStyle(colorNumber(QUESTION_STYLE.ground), 1);
-    for (const ground of picture.grounds) {
-      symbol.fillRoundedRect(
-        ground.left - centerX,
-        ground.top - centerY,
-        ground.width,
-        ground.height,
-        ground.height / 2,
-      );
-    }
-    symbol.fillStyle(colorNumber(QUESTION_STYLE.dot), 1);
-    for (const dot of picture.dots) {
-      symbol.fillCircle(dot.x - centerX, dot.y - centerY, dot.radius);
-    }
-    this.questionSymbol = symbol;
-    const hit = this.layout.questionHit;
-    this.questionHit = this.add
-      .zone(hit.left, hit.top, hit.width, hit.height)
-      .setOrigin(0)
-      .setInteractive();
-    this.questionHit.on('pointerdown', () => {
-      if (this.session.tapQuestion()) {
-        this.swayQuestion();
-      }
-    });
-    const changed = this.drawnQuestion !== null && this.drawnQuestion !== question;
-    this.drawnQuestion = question;
-    if (animate && changed) {
-      symbol.setScale(QUESTION_STYLE.popFrom);
-      this.tweens.add({
-        targets: symbol,
-        scale: 1,
-        duration: QUESTION_STYLE.popMs,
-        ease: 'Back.easeOut',
-      });
-    }
-  }
-
-  /** Nakreslí rozehraný příklad podle rozložení; `animate` u nového příkladu. */
+  /** Nakreslí rozehraný příklad a tlačítka + a −; `animate` u nového příkladu. */
   private drawProblem(animate: boolean): void {
     this.clearProblem();
-    // Čáry spojení nápovědy jsou pod kartami: mezi kartami je z nich vidět kus.
-    this.hintLayer = this.add.container(0, 0);
+    // Písmo příkladu je spočítané pro rozsah, ve kterém se hraje.
+    this.layout = layoutCompareScreen(this.gameArea, this.session.settings().maxNumber);
     const { layout } = this;
     const unit = layout.unitsPerCssPx;
     const problem = this.session.problem();
-    // Karty se kreslí podle nastavení, se kterým příklad začal (#179 AC3).
-    const look = this.session.problemLook();
-    this.drawQuestion(animate);
-    this.cards = [
-      new CardView(
-        this,
-        layout.cards[0],
-        unit,
-        layout.cardCornerRadius,
-        { count: problem.left, groups: layout.dotGroups, side: 0, look },
-        () => this.session.tap('left'),
-      ),
-      new CardView(
-        this,
-        layout.cards[1],
-        unit,
-        layout.cardCornerRadius,
-        { count: problem.right, groups: layout.dotGroups, side: 1, look },
-        () => this.session.tap('right'),
-      ),
-    ];
-    if (this.session.shownSign() === null) {
-      this.equalButton = new EqualButtonView(this, layout.equalButton, unit, () =>
-        this.session.tap('equal'),
-      );
-    } else {
-      // Vyřešený příklad po otočení: správná karta zůstane zeleně orámovaná.
-      this.markCorrectCard(correctChoice(problem, this.session.question()));
-      this.drawSign(false);
+    this.equation = new EquationView(this, layout.equationFor(problem), unit, problem, () =>
+      this.session.tapBox(),
+    );
+    const filled = this.session.filledSign();
+    if (filled !== null) {
+      // Vyřešený příklad po otočení: znaménko zůstane v zeleném okénku.
+      this.equation.fill(filled, false);
     }
-    if (this.session.hintShown()) {
-      // Po otočení zůstane nápověda celá, bez nového spárování.
-      this.showHint(false);
-    }
+    const { signButtons } = layout;
+    this.signButtons = COMPARE_SIGNS.map(
+      (sign) =>
+        new SignButtonView(
+          this,
+          sign === '+' ? signButtons.plus : signButtons.minus,
+          signButtons,
+          unit,
+          sign,
+          () => this.session.tap(sign),
+        ),
+    );
     if (animate) {
-      for (const card of this.cards) {
-        card.container.setScale(CARDS_POP_FROM);
-        this.tweens.add({
-          targets: card.container,
-          scale: 1,
-          duration: CARDS_POP_MS,
-          ease: 'Back.easeOut',
-        });
-      }
+      this.equation.popIn();
     }
-  }
-
-  /** Znak na místě „=“ („>“, „<“, „=“), vždy rovně: karty jsou vedle sebe. */
-  private drawSign(animate: boolean): void {
-    const sign = this.session.shownSign();
-    if (sign === null) {
-      return;
-    }
-    const { layout } = this;
-    this.sign = this.add
-      .text(layout.sign.x, layout.sign.y, sign, {
-        fontFamily: FONT_FAMILY,
-        fontSize: `${Math.round(layout.sign.size)}px`,
-        fontStyle: SIGN_STYLE.fontWeight,
-        color: SIGN_STYLE.color,
-      })
-      .setOrigin(0.5);
-    if (animate) {
-      this.sign.setScale(0.3);
-      this.tweens.add({
-        targets: this.sign,
-        scale: 1,
-        duration: SIGN_POP_MS,
-        ease: 'Back.easeOut',
-      });
-    }
-  }
-
-  /** Symbol se po ťuknutí zhoupne do stran a vrátí se rovně. */
-  private swayQuestion(): void {
-    const symbol = this.questionSymbol;
-    if (!symbol) {
-      return;
-    }
-    this.tweens.killTweensOf(symbol);
-    symbol.setAngle(0).setScale(1);
-    this.tweens.add({
-      targets: symbol,
-      angle: { from: -QUESTION_STYLE.swayDegrees, to: QUESTION_STYLE.swayDegrees },
-      duration: QUESTION_STYLE.swayMs,
-      yoyo: true,
-      repeat: 1,
-      ease: 'Sine.easeInOut',
-      onComplete: () => symbol.setAngle(0),
-    });
   }
 
   /** Otočení zařízení nebo změna lišty: totéž kolo v novém rozložení, bez nového příkladu. */
   private onGameAreaChanged(): void {
     this.gameArea = this.readGameArea();
-    this.layout = layoutCompareScreen(this.gameArea);
+    this.layout = layoutCompareScreen(this.gameArea, this.session.settings().maxNumber);
     this.starRow.redraw();
     this.drawProblem(false);
     this.settingsPanel?.fitTo(this.gameArea);

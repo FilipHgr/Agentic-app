@@ -2,14 +2,12 @@
   "character:rudy": {
     "cs": {
       "compare/celebration": "e8d89ef8e4be24524aeddb737bdd46ffb959ce36d2036028f3389ef80c49e7ba",
-      "compare/celebrationMore": "1a98e5c9cf14572fb2db83b3e8a0c94b0a376de3899599337322a2be774d1788",
       "counting/celebration": "38860bf3524437d37218e462879ba7b8dbec93da20d4ce5b4759ea7f0a2f11d9",
       "counting/celebrationStar": "c2b945079e989096328c6db93f8c9be2c911285d36f4949851e2d0319409284a",
       "counting/celebrationStars": "55659df7839a7ec1d6670a9bb383381f3dc436ff06c86ea8f64e2a0b252709e3"
     },
     "en": {
       "compare/celebration": "6695aff49d9605958c000d48021e23c84a5981744969e08b3c9cb9c6025f9157",
-      "compare/celebrationMore": "0549c4370bbd2e6a50570c1658d5b866f2c3c746b1357b5bd8d4dadc1af65765",
       "counting/celebration": "6209ba9c0df5152931e2f3b1dc80bc8d808bf2ff729e35284c82842cd2cfcebb",
       "counting/celebrationStar": "ad8862bc0d31d56e7195bea0b904e25998f060a16c05545b9bfdc738021a63df",
       "counting/celebrationStars": "ca2663410f7f0928413b8d36ecb243ba7c682dacccfe1fbe65789fda175f41fa"
@@ -26,15 +24,5 @@
     "maxNumber": "97ba918b467d98b9b60665b4f85e0f62634994325fe3f5d1f0b44faeed5432f2",
     "operations": "8658bae16565697c0a4bee5391bb9b6b3514b75b7df4bb4d28e8f4c7da723d1f",
     "summary": "ff15c00085c3bc971a1d5b84d129507b3c8f0b9ae8fed6c323ac1779d088583b"
-  },
-  "guide:compare": {
-    "cs": {
-      "questionLess": "7e4ee3a98285ca4ed95dfd1e338ab010a241fcbf4ff1fbe8a9f290326410033f",
-      "questionMore": "ab5bf48624fbf7057850ff6e225bb090c1348a31a973afdcb306af3259cef9f7"
-    },
-    "en": {
-      "questionLess": "9c3f3c3d95019aae537fcd34a17506a3ca6642a21e399793734092c20dff6eff",
-      "questionMore": "1986b9c393bb9a3e18510169d1f7e5756f202a3a52e0a00ee8e7e32cb5142a7f"
-    }
   }
 }

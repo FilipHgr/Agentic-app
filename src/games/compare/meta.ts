@@ -17,7 +17,7 @@ import tile from './tile.webp';
 export const COMPARE_META: GameMeta = {
   id: 'compare',
   categoryId: 'numbers',
-  symbol: '3<5',
+  symbol: '4☐2',
   access: 'free',
   titles: { cs: cs.title, en: en.title },
   tile,

@@ -2,13 +2,9 @@ import Phaser from 'phaser';
 
 import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
-import { isMaxNumber, isQuestionSetting, isShowMode } from '../logic/compareSettings';
-import type { CompareSettings, QuestionSetting, ShowMode } from '../logic/compareSettings';
-import {
-  layoutCompareSettings,
-  questionOptionIcon,
-  showOptionIcon,
-} from '../logic/compareSettingsLayout';
+import { isMaxNumber } from '../logic/compareSettings';
+import type { CompareSettings } from '../logic/compareSettings';
+import { layoutCompareSettings } from '../logic/compareSettingsLayout';
 import type {
   CompareSettingsLayout,
   SettingsOptionSlot,
@@ -28,8 +24,6 @@ const PANEL_FADE_MS = 150;
 /** Zhoupnutí volby po ťuknutí. */
 const OPTION_BOUNCE_SCALE = 1.08;
 const OPTION_BOUNCE_MS = 90;
-/** Číslo v obrázku volby „Ukázat“ (symbol, ne text jazyka). */
-const ICON_NUMERAL = '3';
 
 /** Co panel potřebuje od sezení hry. */
 export interface SettingsPanelHost {
@@ -43,16 +37,14 @@ interface OptionView {
   readonly change: Partial<CompareSettings>;
   readonly slot: SettingsOptionSlot;
   readonly background: Phaser.GameObjects.Graphics;
-  /** Obsah volby, který se přebarví podle výběru (číslo, tečky). */
+  /** Obsah volby, který se přebarví podle výběru (číslo). */
   readonly paint: (color: string) => void;
 }
 
 /**
- * Nastavení Porovnávání pro rodiče (#179): řada „Do kolika“ (5, 10, 20),
- * řada „Ukázat“ (tečky, číslo, tečky s číslem), řada „Otázka“ (#182: velká
- * hromádka, malá hromádka, obě) a zelené ✓. Vybrané volby
- * jsou plně modré jako v Počítání. Rozměry jsou v `compareSettingsLayout.ts`,
- * co je vybrané a co ✓ udělá, řídí sezení hry.
+ * Nastavení Porovnávání pro rodiče (#179, #187): řada „Do kolika“ (10, 20)
+ * a zelené ✓. Vybrané volby jsou plně modré jako v Počítání. Rozměry jsou
+ * v `compareSettingsLayout.ts`, co je vybrané a co ✓ udělá, řídí sezení hry.
  */
 export class SettingsPanel {
   private readonly container: Phaser.GameObjects.Container;
@@ -120,14 +112,7 @@ export class SettingsPanel {
     }
     const background = this.scene.add.graphics();
     const button = this.scene.add.container(slot.x, slot.y, [background]);
-    let paint: (color: string) => void;
-    if (change.show !== undefined) {
-      paint = this.addShowIcon(button, slot, change.show);
-    } else if (change.question !== undefined) {
-      paint = this.addQuestionIcon(button, slot, change.question);
-    } else {
-      paint = this.addNumeral(button, String(slot.value), 0, 0, slot.fontSize);
-    }
+    const paint = this.addNumeral(button, String(slot.value), slot.fontSize);
     button.setSize(slot.width, slot.height).setInteractive();
     const option: OptionView = { change, slot, background, paint };
     button.on('pointerdown', () => {
@@ -148,12 +133,10 @@ export class SettingsPanel {
   private addNumeral(
     button: Phaser.GameObjects.Container,
     text: string,
-    x: number,
-    y: number,
     fontSize: number,
   ): (color: string) => void {
     const label = this.scene.add
-      .text(x, y, text, {
+      .text(0, 0, text, {
         fontFamily: FONT_FAMILY,
         fontSize: `${Math.round(fontSize)}px`,
         fontStyle: 'bold',
@@ -161,59 +144,6 @@ export class SettingsPanel {
       .setOrigin(0.5);
     button.add(label);
     return (color) => label.setColor(color);
-  }
-
-  /** Tečky, číslo, nebo obojí ve volbě „Ukázat“; vrátí přebarvení. */
-  private addShowIcon(
-    button: Phaser.GameObjects.Container,
-    slot: SettingsOptionSlot,
-    show: ShowMode,
-  ): (color: string) => void {
-    const icon = showOptionIcon(slot, show);
-    const dots = this.scene.add.graphics();
-    button.add(dots);
-    const numeral = icon.numeral
-      ? this.addNumeral(
-          button,
-          ICON_NUMERAL,
-          icon.numeral.x - slot.x,
-          icon.numeral.y - slot.y,
-          icon.numeral.fontSize,
-        )
-      : null;
-    return (color) => {
-      dots.clear().fillStyle(colorNumber(color), 1);
-      for (const dot of icon.dots) {
-        dots.fillCircle(dot.x - slot.x, dot.y - slot.y, dot.radius);
-      }
-      numeral?.(color);
-    };
-  }
-
-  /** Hromádky jako symbol otázky nad kartami ve volbě „Otázka“; vrátí přebarvení. */
-  private addQuestionIcon(
-    button: Phaser.GameObjects.Container,
-    slot: SettingsOptionSlot,
-    question: QuestionSetting,
-  ): (color: string) => void {
-    const icon = questionOptionIcon(slot, question);
-    const shapes = this.scene.add.graphics();
-    button.add(shapes);
-    return (color) => {
-      shapes.clear().fillStyle(colorNumber(color), 1);
-      for (const dot of icon.dots) {
-        shapes.fillCircle(dot.x - slot.x, dot.y - slot.y, dot.radius);
-      }
-      for (const ground of icon.grounds) {
-        shapes.fillRoundedRect(
-          ground.left - slot.x,
-          ground.top - slot.y,
-          ground.width,
-          ground.height,
-          ground.height / 2,
-        );
-      }
-    };
   }
 
   private createConfirm(slot: CompareSettingsLayout['confirm']): Phaser.GameObjects.Container {
@@ -260,9 +190,7 @@ export class SettingsPanel {
     for (const option of this.options) {
       const selected =
         choice !== null &&
-        (option.change.maxNumber === undefined || option.change.maxNumber === choice.maxNumber) &&
-        (option.change.show === undefined || option.change.show === choice.show) &&
-        (option.change.question === undefined || option.change.question === choice.question);
+        (option.change.maxNumber === undefined || option.change.maxNumber === choice.maxNumber);
       const look = selected ? SETTINGS_OPTION_STYLE.selected : SETTINGS_OPTION_STYLE.unselected;
       const { width, height } = option.slot;
       // Okraj se kreslí dovnitř, aby se velikost volby nezměnila.
@@ -286,11 +214,8 @@ export class SettingsPanel {
 
 /** Co ťuknutí na volbu změní; hodnota mimo nabídku řady dá `null`. */
 function changeOf(kind: SettingsRowKind, value: unknown): Partial<CompareSettings> | null {
-  if (kind === 'maxNumber') {
-    return isMaxNumber(value) ? { maxNumber: value } : null;
+  switch (kind) {
+    case 'maxNumber':
+      return isMaxNumber(value) ? { maxNumber: value } : null;
   }
-  if (kind === 'question') {
-    return isQuestionSetting(value) ? { question: value } : null;
-  }
-  return isShowMode(value) ? { show: value } : null;
 }

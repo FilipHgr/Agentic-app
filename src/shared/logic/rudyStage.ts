@@ -4,7 +4,7 @@
  * `src/shared/ui/rudyWindow.ts`.
  *
  * Bez karty, okraje a ztmavení: panda s průhledným pozadím stojí přes hru
- * uprostřed obrazovky. Má výšku 70 % menší strany okna, nejméně 200 px,
+ * uprostřed obrazovky. Má výšku 55 % menší strany okna, nejméně 200 px,
  * a vždy se celá vejde do bezpečné oblasti (mimo výřez, stavový řádek
  * a lištu domů) a na plátno hry. Přískok začne celý pod spodním okrajem
  * plátna a skončí s malým přeskokem nahoru na místě; odskok se nejdřív
@@ -68,7 +68,7 @@ function drawableRect(viewport: Viewport, area: GameArea): RudyRect {
   };
 }
 
-/** Výška pandy: 70 % menší strany okna, aspoň 200 px, nejvýš co se vejde. */
+/** Výška pandy: 55 % menší strany okna, aspoň 200 px, nejvýš co se vejde. */
 function pandaHeight(viewport: Viewport, drawable: RudyRect): number {
   const wanted = Math.max(
     Math.round(RUDY_HEIGHT_SHARE * Math.min(viewport.width, viewport.height)),
