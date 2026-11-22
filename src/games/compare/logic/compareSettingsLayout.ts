@@ -1,9 +1,10 @@
 /**
- * Rozložení nastavení Porovnávání pro rodiče (#179, od #187 jen řada
- * „Do kolika“ 10 a 20) podle obrázků S (2026-11-04) jako v Počítání: na
+ * Rozložení nastavení Porovnávání pro rodiče (#179, #187: řada „Do
+ * kolika“ 10 a 20, #188: řada „Odpověď“ ťuknutím „123“ nebo psaním
+ * s tužkou jako v Počítání) podle obrázků S (2026-11-04) jako v Počítání: na
  * iPadu řady na středu s popisky nad nimi a ✓ pod nimi, na telefonu na
  * šířku řady vlevo s popisky před nimi a ✓ vpravo, na výšku řady pod
- * sebou a ✓ dole u palce. Řady jsou seznam, aby šla přidat další (#188).
+ * sebou a ✓ dole u palce.
  * Míry jsou v CSS px a na konci se převedou na herní jednotky plochy.
  * Čistý TypeScript.
  */
@@ -13,13 +14,13 @@ import { isPhoneMode } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { compareTexts } from '../texts/compareTexts';
 import type { CompareTexts } from '../texts/compareTexts';
-import { MAX_NUMBER_OPTIONS } from './compareSettings';
-import type { MaxNumber } from './compareSettings';
+import { ANSWER_INPUT_OPTIONS, MAX_NUMBER_OPTIONS } from './compareSettings';
+import type { AnswerInput, MaxNumber } from './compareSettings';
 
-export type SettingsRowKind = 'maxNumber';
+export type SettingsRowKind = 'maxNumber' | 'answerInput';
 
-/** Hodnota volby: rozsah. */
-export type SettingsOptionValue = MaxNumber;
+/** Hodnota volby: rozsah, nebo způsob odpovědi. */
+export type SettingsOptionValue = MaxNumber | AnswerInput;
 
 export type SettingsRowLabels = CompareTexts['rowLabels'];
 
@@ -32,6 +33,8 @@ export interface SettingsOptionSlot {
   readonly value: SettingsOptionValue;
   /** Písmo čísla ve volbě. */
   readonly fontSize: number;
+  /** Strana čtverce kreslené tužky ve volbě psaní. */
+  readonly pencilSize: number;
 }
 
 /** Popisek řady; `x` a `y` je střed jeho pruhu. */
@@ -55,7 +58,7 @@ export interface SettingsRow {
 }
 
 export interface CompareSettingsLayout {
-  /** Řady shora dolů (od #187 jen „Do kolika“). */
+  /** Řady shora dolů: „Do kolika“ a „Odpověď“ (#188). */
   readonly rows: readonly SettingsRow[];
   readonly confirm: { readonly x: number; readonly y: number; readonly size: number };
   /** Zaoblení a okraj voleb v herních jednotkách. */
@@ -140,10 +143,15 @@ const OPTION_BORDER_CSS = 2;
 const FIT_MARGIN_CSS = 8;
 const CORNER_GAP_CSS = 4;
 
+/** Tužka zabere tuto část výšky volby, nejvýš jako v Počítání (72 px). */
+const PENCIL_HEIGHT_SHARE = 0.72;
+const MAX_PENCIL_CSS = 72;
+
 const ROW_VALUES: Readonly<Record<SettingsRowKind, readonly SettingsOptionValue[]>> = {
   maxNumber: MAX_NUMBER_OPTIONS,
+  answerInput: ANSWER_INPUT_OPTIONS,
 };
-const ROW_ORDER: readonly SettingsRowKind[] = ['maxNumber'];
+const ROW_ORDER: readonly SettingsRowKind[] = ['maxNumber', 'answerInput'];
 
 /** Plocha v CSS px. */
 interface CssArea {
@@ -171,6 +179,7 @@ function buildRow(
     height: sizes.optionHeight,
     value,
     fontSize: sizes.optionFontSize,
+    pencilSize: Math.min(MAX_PENCIL_CSS, sizes.optionHeight * PENCIL_HEIGHT_SHARE),
   }));
   return {
     kind,
@@ -305,6 +314,7 @@ function scaled(layout: Layout, factor: number, dx: number, dy: number): Layout 
         width: option.width * factor,
         height: option.height * factor,
         fontSize: option.fontSize * factor,
+        pencilSize: option.pencilSize * factor,
       })),
     })),
     confirm: { x: x(layout.confirm.x), y: y(layout.confirm.y), size: layout.confirm.size * factor },

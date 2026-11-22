@@ -129,12 +129,14 @@ describe('#178 AC8: texty hry jsou v češtině i angličtině', () => {
 
   // #179 přidal popisky řad nastavení pro rodiče, #181 repliky Rudyho, které
   // jen zazní nahrávkou (hlídá je rudyVoiceFiles.test.ts). Od #187 má
-  // nastavení jen řadu „Do kolika“ a otázky průvodce (#182) jsou pryč; jiné
-  // texty hra nemá, symboly + − = ☐ nejsou texty jazyka.
-  it('texty hry mají název hry, popisek řady nastavení a repliky Rudyho a nic z nich není v žádném jazyce prázdné', () => {
+  // nastavení řadu „Do kolika“, od #188 i „Odpověď“, a otázky průvodce (#182)
+  // jsou pryč; jiné texty hra nemá, symboly + − = ☐ nejsou texty jazyka.
+  it('texty hry mají název hry, popisky řad nastavení a repliky Rudyho a nic z nich není v žádném jazyce prázdné', () => {
     for (const [language, texts] of Object.entries(COMPARE_FILES)) {
       const shown = [...leavesOf(texts).keys()].filter((key) => !key.startsWith('rudyLines.'));
-      expect(shown.sort(), language).toEqual(['rowLabels.maxNumber', 'title'].sort());
+      expect(shown.sort(), language).toEqual(
+        ['rowLabels.answerInput', 'rowLabels.maxNumber', 'title'].sort(),
+      );
       expect(Object.keys(texts), language).not.toContain('guideLines');
       for (const [key, value] of leavesOf(texts)) {
         expect(String(value ?? '').trim().length, `${language}: ${key}`).toBeGreaterThan(0);
@@ -142,8 +144,11 @@ describe('#178 AC8: texty hry jsou v češtině i angličtině', () => {
     }
   });
 
-  it('popisek řady nastavení je česky „Do kolika“ a anglicky „Up to“ (#179, #187)', () => {
-    expect(compareTexts('cs').rowLabels).toEqual({ maxNumber: 'Do kolika' });
-    expect(compareTexts('en').rowLabels).toEqual({ maxNumber: 'Up to' });
+  it('popisky řad nastavení jsou česky „Do kolika“ a „Odpověď“, anglicky „Up to“ a „Answer“ (#179, #187, #188)', () => {
+    expect(compareTexts('cs').rowLabels).toEqual({
+      maxNumber: 'Do kolika',
+      answerInput: 'Odpověď',
+    });
+    expect(compareTexts('en').rowLabels).toEqual({ maxNumber: 'Up to', answerInput: 'Answer' });
   });
 });

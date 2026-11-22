@@ -12,7 +12,12 @@ import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { StarRow } from '../../../shared/ui/StarRow';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import { COMPARE_GAME_AREA_FIT, layoutCompareScreen } from '../logic/compareLayout';
-import type { CompareLayout } from '../logic/compareLayout';
+import type {
+  CompareScreenLayout,
+  Rect,
+  SignButtonsLayout,
+  WritingButtonsLayout,
+} from '../logic/compareLayout';
 import { COMPARE_SIGNS } from '../logic/compareProblems';
 import type { CompareSign } from '../logic/compareProblems';
 import { createCompareSession } from '../logic/compareSession';
@@ -28,6 +33,8 @@ import type { CompareRudyLines } from '../logic/rudyLines';
 import { dimSettingsGear } from '../ui/gearOpacity';
 import { EquationView, SignButtonView } from './EquationView';
 import { SettingsPanel } from './SettingsPanel';
+import { SignPad } from './SignPad';
+import type { SignWriting } from '../logic/signWriting';
 
 /** Jak dlouho letí hvězdička od okénka do řady. */
 const STAR_FLIGHT_MS = 600;
@@ -42,14 +49,17 @@ const STAR_FLIGHT_MS = 600;
  * `Confetti`). Nastavení pro rodiče (#179) se otevře podržením kolečka
  * stránky a kreslí ho `SettingsPanel` nad hrou. Panda Rudy (#181: oslava
  * po 10. hvězdičce, od #186 přímo na obrazovce) je sdílené `RudyMoments`;
- * kdy se ukáže, řídí sezení.
+ * kdy se ukáže, řídí sezení. Při odpovědi psaním (#188) je okénko příkladu
+ * plocha na psaní (`SignPad`) se smazáním a ✓ místo tlačítek + a −.
  */
 export class CompareScene extends Phaser.Scene {
   private session!: CompareSession;
   private gameArea: GameArea = gameAreaFor(undefined, COMPARE_GAME_AREA_FIT);
-  private layout: CompareLayout = layoutCompareScreen(this.gameArea);
+  private layout: CompareScreenLayout = layoutCompareScreen(this.gameArea);
   private equation: EquationView | null = null;
   private signButtons: SignButtonView[] = [];
+  /** Okénko na psaní, když rodič zvolil odpověď psaním (#188). */
+  private signPad: SignPad | null = null;
   private settingsPanel: SettingsPanel | null = null;
   private host: GameHost | undefined;
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu.
@@ -113,6 +123,11 @@ export class CompareScene extends Phaser.Scene {
     this.drawProblem(false);
   }
 
+  /** Plocha na psaní se posouvá v čase každý snímek (rozpoznání 1 s po zvednutí prstu). */
+  override update(time: number): void {
+    this.signPad?.update(time);
+  }
+
   /** Rudy pro sezení; kdy se ukáže a stáhne dopředu, řídí sezení (#181, #186). */
   private sessionRudy(lines: CompareRudyLines): CompareRudy {
     const rudy = this.rudy;
@@ -155,11 +170,21 @@ export class CompareScene extends Phaser.Scene {
         this.showSolved(change.sign);
         break;
       case 'wrong':
-        this.equation?.reject(change.sign);
+        // Při psaní do okénka příkladu se zatřese a vyprázdní plocha na psaní
+        // sama; se samostatnou plochou se zatřese i okénko příkladu.
+        if (this.layout.writing?.padInProblem !== true) {
+          this.equation?.reject(change.sign);
+        }
+        break;
+      case 'writeAgain':
+        // Nerozpoznaný zápis vybledl: okénko se zhoupne a vyzve psát znovu.
+        this.signPad?.sway();
         break;
       case 'boxTapped':
-        // Ťuknutí na okénko není odpověď: okénko se zhoupne a tlačítka ukážou, čím ho vyplnit.
+        // Ťuknutí na okénko není odpověď: okénko se zhoupne a tlačítka
+        // (při psaní plocha na psaní) ukážou, čím ho vyplnit.
         this.equation?.sway();
+        this.signPad?.sway();
         for (const button of this.signButtons) {
           button.highlight();
         }
@@ -210,36 +235,97 @@ export class CompareScene extends Phaser.Scene {
       return;
     }
     equation.fill(sign, true);
+    this.signPad?.lock();
     this.starRow.flyToRow(equation.boxCenter, () => undefined);
   }
 
-  /** Smaže příklad i tlačítka. */
+  /** Smaže příklad, tlačítka i plochu na psaní. */
   private clearProblem(): void {
     this.equation?.destroy();
     this.equation = null;
+    this.signPad?.destroy();
+    this.signPad = null;
     for (const button of this.signButtons) {
       button.destroy();
     }
     this.signButtons = [];
   }
 
-  /** Nakreslí rozehraný příklad a tlačítka + a −; `animate` u nového příkladu. */
+  /**
+   * Nakreslí rozehraný příklad a tlačítka + a −, nebo plochu na psaní se
+   * smazáním a ✓; `animate` u nového příkladu. Po otočení (`animate` je
+   * `false`) zůstane rozepsaný zápis.
+   */
   private drawProblem(animate: boolean): void {
+    const previousWriting = animate ? undefined : this.signPad?.writing;
     this.clearProblem();
-    // Písmo příkladu je spočítané pro rozsah, ve kterém se hraje.
-    this.layout = layoutCompareScreen(this.gameArea, this.session.settings().maxNumber);
+    this.layout = this.currentLayout();
     const { layout } = this;
     const unit = layout.unitsPerCssPx;
     const problem = this.session.problem();
-    this.equation = new EquationView(this, layout.equationFor(problem), unit, problem, () =>
-      this.session.tapBox(),
+    const equationLayout = layout.equationFor(problem);
+    const writing = layout.writing;
+    const boxIsPad = writing?.padInProblem ?? false;
+    this.equation = new EquationView(
+      this,
+      equationLayout,
+      unit,
+      problem,
+      // Okénko, které samo není plochou na psaní, ťuknutí zhoupne (#187, #188).
+      boxIsPad ? null : () => this.session.tapBox(),
+      boxIsPad,
     );
+    if (writing !== null) {
+      this.signPad = this.createSignPad(writing.pad(problem), writing, previousWriting);
+    }
     const filled = this.session.filledSign();
     if (filled !== null) {
       // Vyřešený příklad po otočení: znaménko zůstane v zeleném okénku.
       this.equation.fill(filled, false);
+      this.signPad?.lock();
     }
-    const { signButtons } = layout;
+    if (animate) {
+      this.equation.popIn();
+    }
+    if (layout.signButtons !== null) {
+      this.drawSignButtons(layout.signButtons);
+    }
+  }
+
+  /** Rozložení podle plochy a platného nastavení (rozsah a způsob odpovědi). */
+  private currentLayout(): CompareScreenLayout {
+    const settings = this.session.settings();
+    // Písmo příkladu je spočítané pro rozsah, ve kterém se hraje.
+    return layoutCompareScreen(this.gameArea, settings.maxNumber, settings.answerInput);
+  }
+
+  private createSignPad(
+    box: Rect,
+    buttons: WritingButtonsLayout,
+    previous: SignWriting | undefined,
+  ): SignPad {
+    return new SignPad(
+      this,
+      box,
+      buttons,
+      {
+        answer: (sign) => this.session.tap(sign),
+        onRejected: () => this.session.writingRejected(),
+        // Se samostatnou plochou pod příkladem se znaménko ukáže i v okénku příkladu.
+        onSignChanged: (sign) => {
+          if (buttons.padInProblem) {
+            return;
+          }
+          this.equation?.showWritten(sign);
+        },
+      },
+      previous,
+    );
+  }
+
+  /** Tlačítka + a − pod příkladem (odpověď ťuknutím). */
+  private drawSignButtons(signButtons: SignButtonsLayout): void {
+    const unit = this.layout.unitsPerCssPx;
     this.signButtons = COMPARE_SIGNS.map(
       (sign) =>
         new SignButtonView(
@@ -251,15 +337,12 @@ export class CompareScene extends Phaser.Scene {
           () => this.session.tap(sign),
         ),
     );
-    if (animate) {
-      this.equation.popIn();
-    }
   }
 
   /** Otočení zařízení nebo změna lišty: totéž kolo v novém rozložení, bez nového příkladu. */
   private onGameAreaChanged(): void {
     this.gameArea = this.readGameArea();
-    this.layout = layoutCompareScreen(this.gameArea, this.session.settings().maxNumber);
+    this.layout = this.currentLayout();
     this.starRow.redraw();
     this.drawProblem(false);
     this.settingsPanel?.fitTo(this.gameArea);

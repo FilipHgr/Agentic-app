@@ -7,15 +7,26 @@
  * a hvězdičky ve 2 řadách po 5. Místo čísla odpovídá počtu jeho číslic,
  * písmo je v celém rozsahu stejné (podle nejširšího příkladu). Míry se
  * počítají z CSS px okna, aby tlačítka měla aspoň 64 px na každém
- * zařízení. Čistý TypeScript bez Phaseru.
+ * zařízení.
+ *
+ * Psaní prstem (#188): plocha na psaní má aspoň 200 × 200 px v každém
+ * okně. Kde se vedle ní čísla vejdou aspoň 64 px velká, je to okénko
+ * příkladu (iPad, telefon na šířku), jinak samostatná plocha pod velkým
+ * příkladem (telefon na výšku). Smazání (vlevo) a ✓ (vpravo) jsou místo
+ * + a − jako v Počítání: pod plochou, nebo vedle příkladu, kde se pod
+ * něj nevejdou. Čistý TypeScript bez Phaseru.
  */
 
 import { gearSizingFor } from '../../../shared/logic/settingsGear';
+import {
+  WRITING_AREA_CORNER_RADIUS,
+  WRITTEN_LABEL_HEIGHT_SHARE,
+} from '../../../shared/logic/writingBox';
 import { isPhoneMode } from '../../../shared/logic/viewportLayout';
 import type { GameArea, GameAreaFit } from '../../../shared/logic/viewportLayout';
 import type { CompareProblem } from './compareProblems';
 import { DEFAULT_COMPARE_SETTINGS } from './compareSettings';
-import type { MaxNumber } from './compareSettings';
+import type { AnswerInput, MaxNumber } from './compareSettings';
 
 /** Příklad přes celou volnou plochu okna, i na iPadu. */
 export const COMPARE_GAME_AREA_FIT: GameAreaFit = 'fullWindow';
@@ -60,14 +71,29 @@ export interface SignButtonsLayout {
   readonly cornerRadius: number;
 }
 
-export interface CompareLayout {
+/** Smazání a ✓ u okénka na psaní (#188). */
+export interface WritingButtonsLayout {
+  /**
+   * Píše se přímo do okénka příkladu (`true`), nebo do samostatné plochy
+   * pod příkladem, a rozpoznané znaménko se ukáže i v okénku příkladu.
+   */
+  readonly padInProblem: boolean;
+  /** Plocha na psaní pro příklad (při psaní do okénka je to okénko příkladu). */
+  pad(problem: CompareProblem): Rect;
+  readonly clear: Rect;
+  readonly confirm: Rect;
+  /** Herní jednotky na 1 CSS px pro tloušťku tahů a okrajů okénka. */
+  readonly detailScale: number;
+}
+
+/** Co mají obě rozložení společné (ťukání i psaní). */
+interface CompareLayoutBase {
   /** Rozsah, pro který je písmo příkladu spočítané (podle nejširšího příkladu). */
   readonly maxNumber: MaxNumber;
   /** Písmo čísel příkladu, v celém rozsahu stejné, aby mezi příklady neskákalo. */
   readonly equationFontSize: number;
   /** Rozložení příkladu: čísla mají místo podle počtu svých číslic. */
   equationFor(problem: CompareProblem): EquationLayout;
-  readonly signButtons: SignButtonsLayout;
   readonly stars: {
     readonly stars: readonly Point[];
     readonly starSize: number;
@@ -76,6 +102,21 @@ export interface CompareLayout {
   /** Herní jednotky na 1 CSS px: tloušťka čar, konfety, zatřesení. */
   readonly unitsPerCssPx: number;
 }
+
+/** Rozložení při ťukání: pod příkladem tlačítka + a −. */
+export interface CompareLayout extends CompareLayoutBase {
+  readonly signButtons: SignButtonsLayout;
+  readonly writing: null;
+}
+
+/** Rozložení při psaní (#188): plocha na psaní, smazání a ✓, žádná tlačítka + a −. */
+export interface CompareWritingLayout extends CompareLayoutBase {
+  readonly signButtons: null;
+  readonly writing: WritingButtonsLayout;
+}
+
+/** Rozložení obrazovky podle způsobu odpovědi. */
+export type CompareScreenLayout = CompareLayout | CompareWritingLayout;
 
 /** Mezera mezi rohovým tlačítkem a hrou v CSS px. */
 const CORNER_GAP_CSS = 4;
@@ -158,6 +199,44 @@ const SIGN_IN_BOX_SHARE = 0.85;
 const SYMBOL_IN_BUTTON_SHARE = 0.62;
 const BUTTON_CORNER_SHARE = 0.22;
 
+/** Okénko na psaní má v každém okně aspoň 200 × 200 CSS px (#188 AC5). */
+export const MIN_WRITING_BOX_CSS = 200;
+
+/**
+ * Míry při psaní v CSS px: chtěná strana okénka, strana smazání a ✓,
+ * mezera mezi nimi a mezera mezi příkladem a tlačítky. Při `beside` jsou
+ * tlačítka vedle příkladu, jinak pod ním, když se tam vejdou.
+ */
+interface WritingSizes {
+  readonly box: number;
+  readonly button: number;
+  readonly buttonGap: number;
+  readonly equationGap: number;
+  readonly beside: boolean;
+}
+
+const TABLET_WRITING: WritingSizes = {
+  box: 300,
+  button: 120,
+  buttonGap: 64,
+  equationGap: 40,
+  beside: false,
+};
+const PHONE_LANDSCAPE_WRITING: WritingSizes = {
+  box: 240,
+  button: 72,
+  buttonGap: 16,
+  equationGap: 16,
+  beside: true,
+};
+const PHONE_PORTRAIT_WRITING: WritingSizes = {
+  box: MIN_WRITING_BOX_CSS,
+  button: 104,
+  buttonGap: 32,
+  equationGap: 32,
+  beside: false,
+};
+
 /** Šířka místa pro číslo podle počtu číslic. */
 function numberSlotEm(value: number, em: EquationEm): number {
   return String(value).length > 1 ? em.twoDigits : em.oneDigit;
@@ -165,8 +244,13 @@ function numberSlotEm(value: number, em: EquationEm): number {
 
 /** Šířka celé řady příkladu jako násobek písma. */
 function equationWidthEm(problem: CompareProblem, em: EquationEm): number {
+  return numbersWidthEm(problem, em) + em.box;
+}
+
+/** Šířka řady příkladu bez okénka (čísla, „=“ a mezery) jako násobek písma. */
+function numbersWidthEm(problem: CompareProblem, em: EquationEm): number {
   const numbers = [problem.a, problem.b, problem.result].map((value) => numberSlotEm(value, em));
-  return numbers.reduce((sum, width) => sum + width, 0) + em.box + em.equals + 4 * em.gap;
+  return numbers.reduce((sum, width) => sum + width, 0) + em.equals + 4 * em.gap;
 }
 
 function sizesFor(area: GameArea): Sizes {
@@ -213,7 +297,8 @@ function buttonSize(sizes: Sizes, play: Rect, unit: number): number {
 
 /**
  * Řada příkladu `problem` s písmem `fontSize`, na středu `center.x` a se
- * svislým středem `center.y`.
+ * svislým středem `center.y`. Okénko je čtverec podle písma, při psaní
+ * okénko na psaní o straně `writingBox`.
  */
 function equationRow(
   problem: CompareProblem,
@@ -221,20 +306,22 @@ function equationRow(
   fontSize: number,
   unit: number,
   center: Point,
+  writingBox: number | null = null,
 ): EquationLayout {
-  const height = em.box * fontSize;
+  const boxSize = writingBox ?? em.box * fontSize;
+  const height = boxSize;
   const top = center.y - height / 2;
-  let left = center.x - (equationWidthEm(problem, em) * fontSize) / 2;
-  const slot = (widthEm: number): Rect => {
-    const rect = { left, top, width: widthEm * fontSize, height };
-    left += (widthEm + em.gap) * fontSize;
+  let left = center.x - (numbersWidthEm(problem, em) * fontSize + boxSize) / 2;
+  const slot = (width: number): Rect => {
+    const rect = { left, top, width, height };
+    left += width + em.gap * fontSize;
     return rect;
   };
-  const first = slot(numberSlotEm(problem.a, em));
-  const box = slot(em.box);
-  const second = slot(numberSlotEm(problem.b, em));
-  const equals = slot(em.equals);
-  const result = slot(numberSlotEm(problem.result, em));
+  const first = slot(numberSlotEm(problem.a, em) * fontSize);
+  const box = slot(boxSize);
+  const second = slot(numberSlotEm(problem.b, em) * fontSize);
+  const equals = slot(em.equals * fontSize);
+  const result = slot(numberSlotEm(problem.result, em) * fontSize);
   const hitSize = Math.max(box.width, MIN_TOUCH_CSS * unit);
   return {
     first,
@@ -249,8 +336,11 @@ function equationRow(
     equals,
     result,
     fontSize,
-    signSize: box.height * SIGN_IN_BOX_SHARE,
-    boxCornerRadius: box.height * BOX_CORNER_SHARE,
+    // Při psaní je znaménko stejně velké jako rozpoznané znaménko v okénku.
+    signSize: box.height * (writingBox === null ? SIGN_IN_BOX_SHARE : WRITTEN_LABEL_HEIGHT_SHARE),
+    // Při psaní má zelené okénko stejné rohy jako plocha na psaní pod ním.
+    boxCornerRadius:
+      writingBox === null ? box.height * BOX_CORNER_SHARE : WRITING_AREA_CORNER_RADIUS * unit,
   };
 }
 
@@ -273,22 +363,26 @@ function signButtonsRow(
  * Rozložení obrazovky pro herní plochu `area` a rozsah `maxNumber`. Písmo
  * příkladu se počítá podle nejširšího příkladu rozsahu.
  */
+export function layoutCompareScreen(area: GameArea, maxNumber?: MaxNumber): CompareLayout;
+export function layoutCompareScreen(
+  area: GameArea,
+  maxNumber: MaxNumber,
+  answerInput: AnswerInput,
+): CompareScreenLayout;
 export function layoutCompareScreen(
   area: GameArea,
   maxNumber: MaxNumber = DEFAULT_COMPARE_SETTINGS.maxNumber,
-): CompareLayout {
+  answerInput: AnswerInput = DEFAULT_COMPARE_SETTINGS.answerInput,
+): CompareScreenLayout {
   const unit = 1 / area.scale;
   const portrait = area.height > area.width;
   const sizes = sizesFor(area);
-  const { em } = sizes;
-  const margin = sizes.margin * unit;
   const corner = cornerSizeCss(area) * unit;
-  const play: Rect = {
-    left: margin,
-    top: corner + CORNER_GAP_CSS * unit,
-    width: area.width - 2 * margin,
-    height: area.height - corner - CORNER_GAP_CSS * unit - margin,
-  };
+  const play = playArea(area, sizes, unit, corner);
+  if (answerInput === 'writing') {
+    return layoutWritingScreen(area, maxNumber, play, corner);
+  }
+  const { em } = sizes;
   const button = buttonSize(sizes, play, unit);
   const buttonGap = sizes.buttonGap * unit;
   const equationGap = sizes.equationGap * unit;
@@ -314,9 +408,208 @@ export function layoutCompareScreen(
   const equationCenter = { x: centerX, y: equationTop + equationHeight / 2 };
   return {
     maxNumber,
+    writing: null,
     equationFontSize: fontSize,
     equationFor: (problem) => equationRow(problem, em, fontSize, unit, equationCenter),
     signButtons: signButtonsRow(button, buttonGap, centerX, buttonsTop),
+    stars: starRow(area, unit, corner, portrait),
+    unitsPerCssPx: unit,
+  };
+}
+
+/** Volná plocha pod rohy (domeček, hvězdičky, kolečko) s okrajem. */
+function playArea(area: GameArea, sizes: Sizes, unit: number, corner: number): Rect {
+  const margin = sizes.margin * unit;
+  return {
+    left: margin,
+    top: corner + CORNER_GAP_CSS * unit,
+    width: area.width - 2 * margin,
+    height: area.height - corner - CORNER_GAP_CSS * unit - margin,
+  };
+}
+
+function writingSizesFor(area: GameArea): WritingSizes {
+  if (area.mode === 'phonePortrait') {
+    return PHONE_PORTRAIT_WRITING;
+  }
+  return isPhoneMode(area.mode) ? PHONE_LANDSCAPE_WRITING : TABLET_WRITING;
+}
+
+/** Čtvercové tlačítko o straně `size` se středem `center`. */
+function squareAt(center: Point, size: number): Rect {
+  return { left: center.x - size / 2, top: center.y - size / 2, width: size, height: size };
+}
+
+/** Čísla příkladu při psaní na zařízení aspoň takhle velká (CSS px), jinak přijde plocha pod příkladem. */
+export const MIN_WRITING_NUMBER_FONT_CSS = 64;
+
+/** Míry v herních jednotkách společné oběma rozložením psaní. */
+interface WritingMetrics {
+  readonly area: GameArea;
+  readonly maxNumber: MaxNumber;
+  readonly play: Rect;
+  readonly corner: number;
+  readonly unit: number;
+  readonly portrait: boolean;
+  readonly sizes: Sizes;
+}
+
+/**
+ * Rozložení při psaní (#188 AC5). Když se čísla vedle okénka na psaní
+ * vejdou aspoň 64 px velká (iPad, telefon na šířku), píše se přímo do
+ * okénka příkladu. Na výšku, nebo když by čísla byla menší, je příklad
+ * velký jako při ťukání a pod ním samostatná plocha na psaní aspoň
+ * 200 px, jako v Počítání na výšku; smazání a ✓ jsou pod ní u palce.
+ */
+function layoutWritingScreen(
+  area: GameArea,
+  maxNumber: MaxNumber,
+  play: Rect,
+  corner: number,
+): CompareWritingLayout {
+  const unit = 1 / area.scale;
+  const metrics: WritingMetrics = {
+    area,
+    maxNumber,
+    play,
+    corner,
+    unit,
+    portrait: area.height > area.width,
+    sizes: sizesFor(area),
+  };
+  // Na výšku je plocha pod příkladem vždy, když se vejde (jako v Počítání na výšku).
+  const below = metrics.portrait ? layoutWritingBelow(metrics) : null;
+  if (below !== null) {
+    return below;
+  }
+  const inline = layoutWritingInBox(metrics);
+  if (inline.equationFontSize >= MIN_WRITING_NUMBER_FONT_CSS * unit) {
+    return inline;
+  }
+  return layoutWritingBelow(metrics) ?? inline;
+}
+
+/**
+ * Psaní přímo do okénka příkladu: okénko aspoň 200 px, čísla podle zbylé
+ * šířky, smazání vlevo a ✓ vpravo pod příkladem, nebo vedle něj, když se
+ * pod něj nevejdou.
+ */
+function layoutWritingInBox(metrics: WritingMetrics): CompareWritingLayout {
+  const { area, maxNumber, play, corner, unit, portrait, sizes } = metrics;
+  // Na telefonu těsnější mezery, aby čísla vedle velkého okénka zůstala velká.
+  const em = isPhoneMode(area.mode) ? TIGHT_EM : sizes.em;
+  const minBox = MIN_WRITING_BOX_CSS * unit;
+  const wanted = writingSizesFor(area);
+  const fitsBelow =
+    play.height >= minBox + (wanted.equationGap + Math.max(MIN_TOUCH_CSS, wanted.button)) * unit;
+  // Malé okno, kam se tlačítka pod okénko nevejdou: menší tlačítka vedle jako na telefonu.
+  const writing = wanted.beside || fitsBelow ? wanted : PHONE_LANDSCAPE_WRITING;
+  const beside = writing.beside;
+  const button = Math.ceil(Math.max(MIN_TOUCH_CSS * unit, writing.button * unit));
+  const buttonGap = writing.buttonGap * unit;
+  const equationGap = writing.equationGap * unit;
+  const boxRoom = beside ? play.height : play.height - equationGap - button;
+  const rowRoom = beside ? play.width - 2 * (button + equationGap) : play.width;
+  const numbersEm = numbersWidthEm(WIDEST_PROBLEM[maxNumber], em);
+  // Okénko se zmenší (nejvýš na 200 px), aby čísla vedle něj zůstala čitelná.
+  const roomForBox = rowRoom - numbersEm * MIN_WRITING_NUMBER_FONT_CSS * unit;
+  const box = Math.ceil(Math.max(minBox, Math.min(writing.box * unit, boxRoom, roomForBox)));
+  const fontSize = Math.min(sizes.maxFont * unit, box / em.box, (rowRoom - box) / numbersEm);
+  const centerX = play.left + play.width / 2;
+  let rowCenterY: number;
+  let buttonsCenterY: number;
+  if (beside) {
+    rowCenterY = play.top + play.height / 2;
+    buttonsCenterY = rowCenterY;
+  } else if (portrait) {
+    // Tlačítka dole u palce a příklad hned nad nimi.
+    buttonsCenterY = play.top + play.height - button / 2;
+    rowCenterY = buttonsCenterY - button / 2 - equationGap - box / 2;
+  } else {
+    const groupHeight = box + equationGap + button;
+    rowCenterY = play.top + (play.height - groupHeight) / 2 + box / 2;
+    buttonsCenterY = rowCenterY + box / 2 + equationGap + button / 2;
+  }
+  const rowCenter = { x: centerX, y: rowCenterY };
+  const equationFor = (problem: CompareProblem): EquationLayout =>
+    equationRow(problem, em, fontSize, unit, rowCenter, box);
+  let clearCenter: Point;
+  let confirmCenter: Point;
+  if (beside) {
+    // Vedle nejširšího příkladu, aby tlačítka mezi příklady neposkakovala.
+    const widest = equationFor(WIDEST_PROBLEM[maxNumber]);
+    const rowLeft = widest.first.left;
+    const rowRight = widest.result.left + widest.result.width;
+    clearCenter = { x: rowLeft - equationGap - button / 2, y: buttonsCenterY };
+    confirmCenter = { x: rowRight + equationGap + button / 2, y: buttonsCenterY };
+  } else {
+    clearCenter = { x: centerX - buttonGap / 2 - button / 2, y: buttonsCenterY };
+    confirmCenter = { x: centerX + buttonGap / 2 + button / 2, y: buttonsCenterY };
+  }
+  return {
+    maxNumber,
+    writing: {
+      padInProblem: true,
+      // Okénko příkladu je stejné pro všechny příklady rozsahu, jen se posouvá s čísly.
+      pad: (problem) => equationFor(problem).box,
+      clear: squareAt(clearCenter, button),
+      confirm: squareAt(confirmCenter, button),
+      detailScale: unit,
+    },
+    equationFontSize: fontSize,
+    equationFor,
+    signButtons: null,
+    stars: starRow(area, unit, corner, portrait),
+    unitsPerCssPx: unit,
+  };
+}
+
+/**
+ * Příklad velký jako při ťukání, pod ním plocha na psaní a pod ní smazání
+ * a ✓ u palce. `null`, když se pod sebe nevejdou s čísly aspoň 64 px.
+ */
+function layoutWritingBelow(metrics: WritingMetrics): CompareWritingLayout | null {
+  const { area, maxNumber, play, corner, unit, portrait, sizes } = metrics;
+  const { em } = sizes;
+  const writing = PHONE_PORTRAIT_WRITING;
+  const button = Math.ceil(Math.max(MIN_TOUCH_CSS * unit, writing.button * unit));
+  const buttonGap = writing.buttonGap * unit;
+  const gap = writing.equationGap * unit;
+  const minPad = MIN_WRITING_BOX_CSS * unit;
+  const widthFont = Math.min(
+    sizes.maxFont * unit,
+    play.width / equationWidthEm(WIDEST_PROBLEM[maxNumber], em),
+  );
+  const heightFont = (play.height - button - minPad - 2 * gap) / em.box;
+  const fontSize = Math.min(widthFont, heightFont);
+  if (fontSize < Math.min(widthFont, MIN_WRITING_NUMBER_FONT_CSS * unit)) {
+    return null;
+  }
+  const equationHeight = em.box * fontSize;
+  // Plocha na psaní je čtverec, co největší: přes šířku plochy, nebo co zbude pod příkladem.
+  const pad = Math.max(
+    minPad,
+    Math.min(play.width, play.height - button - equationHeight - 2 * gap),
+  );
+  const centerX = play.left + play.width / 2;
+  const buttonsCenterY = play.top + play.height - button / 2;
+  const padTop = buttonsCenterY - button / 2 - gap - pad;
+  const padRect: Rect = { left: centerX - pad / 2, top: padTop, width: pad, height: pad };
+  const rowCenter = { x: centerX, y: padTop - gap - equationHeight / 2 };
+  const equationFor = (problem: CompareProblem): EquationLayout =>
+    equationRow(problem, em, fontSize, unit, rowCenter);
+  return {
+    maxNumber,
+    writing: {
+      padInProblem: false,
+      pad: () => padRect,
+      clear: squareAt({ x: centerX - buttonGap / 2 - button / 2, y: buttonsCenterY }, button),
+      confirm: squareAt({ x: centerX + buttonGap / 2 + button / 2, y: buttonsCenterY }, button),
+      detailScale: unit,
+    },
+    equationFontSize: fontSize,
+    equationFor,
+    signButtons: null,
     stars: starRow(area, unit, corner, portrait),
     unitsPerCssPx: unit,
   };

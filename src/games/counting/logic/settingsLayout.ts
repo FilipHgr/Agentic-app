@@ -3,6 +3,7 @@
  * scéně, aby šlo bez prohlížeče ověřit rozměry a mezery. Čistý TypeScript.
  */
 
+import { PENCIL_ICON } from '../../../shared/logic/pencilIcon';
 import { countingTexts } from '../texts/countingTexts';
 import type { ButtonSlot, Point } from './screenLayout';
 import { ANSWER_INPUT_OPTIONS, MAX_NUMBER_OPTIONS, OPERATION_OPTIONS } from './settings';
@@ -75,17 +76,8 @@ const ROW_TO_LABEL_GAP = 20;
 const CONFIRM_SIZE = 150;
 const CONFIRM_GAP = 32;
 
-/**
- * Tužka ve volbě psaní, kreslená čarou (nezávisí na písmu). Souřadnice jsou
- * vůči středu volby, osa y míří dolů; hrot je vlevo dole jako při psaní.
- */
-export const PENCIL_ICON = {
-  width: 72,
-  height: 72,
-  strokeWidth: 10,
-  tip: { x: -30, y: 30 },
-  tail: { x: 30, y: -30 },
-} as const;
+/** Tužka ve volbě psaní, od #188 sdílená s ostatními hrami s psaním prstem. */
+export { PENCIL_ICON };
 
 /** Tři řady voleb pod sebou a pod nimi ✓, vše vodorovně na středu. */
 export function layoutSettingsPanel(width: number, height: number): SettingsLayout {

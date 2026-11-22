@@ -9,12 +9,13 @@
 import type { AnswerRound, TapOutcome } from './answerRound';
 import type { Stroke, WritingAreaSize } from './digitRecognition';
 import { isCorrectAnswer } from './problems';
+import { RECOGNITION_DELAY_MS, REJECTED_FADE_MS } from '../../../shared/logic/writingBox';
 
-/** Za jak dlouho po zvednutí prstu se ukáže rozpoznaná číslice. */
-export const RECOGNITION_DELAY_MS = 1000;
-
-/** Jak dlouho bledne odmítnutý zápis, než zmizí. */
-export const REJECTED_FADE_MS = 400;
+/**
+ * Za jak dlouho po zvednutí prstu se ukáže rozpoznaná číslice a jak dlouho
+ * bledne odmítnutý zápis: od #188 společné pro všechna okénka na psaní.
+ */
+export { RECOGNITION_DELAY_MS, REJECTED_FADE_MS };
 
 export type DigitRecognizer = (strokes: readonly Stroke[], area: WritingAreaSize) => number | null;
 

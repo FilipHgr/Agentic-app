@@ -49,20 +49,31 @@ function centeredText(
  * znaménka. Okénko se po správné odpovědi vyplní znaménkem a zezelená, po
  * chybě v něm chvíli šedě problikne ťuknuté znaménko, okénko se zatřese
  * a vyprázdní. Ťuknutí na okénko (aspoň 64 px kolem středu) ohlásí `onBoxTap`.
+ *
+ * Při psaní (#188, `onBoxTap` je `null`) okénko ťuknutí nezachytává. Když
+ * je okénko samo plochou na psaní (`boxIsPad`), prázdné se tu nekreslí
+ * a zelené okénko po správné odpovědi se nakreslí přes plochu. Se
+ * samostatnou plochou pod příkladem ukazuje okénko modře rozpoznané
+ * znaménko (`showWritten`).
  */
 export class EquationView {
   private readonly parts: Phaser.GameObjects.Text[];
   private readonly box: Phaser.GameObjects.Container;
   private readonly boxBackground: Phaser.GameObjects.Graphics;
   private readonly boxSign: Phaser.GameObjects.Text;
-  private readonly boxHit: Phaser.GameObjects.Zone;
+  private readonly boxHit: Phaser.GameObjects.Zone | null;
+  /** Okénko je zelené se správným znaménkem. */
+  private filled = false;
+  /** Okénko se po chybě třese se šedým znaménkem; napsané znaménko počká. */
+  private rejecting = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly layout: EquationLayout,
     private readonly unit: number,
     problem: CompareProblem,
-    onBoxTap: () => void,
+    onBoxTap: (() => void) | null,
+    private readonly boxIsPad = false,
   ) {
     const { fontSize } = layout;
     const color = EQUATION_STYLE.color;
@@ -80,16 +91,19 @@ export class EquationView {
         fontStyle: SIGN_BOX_STYLE.fontWeight,
       })
       .setOrigin(0.5);
-    this.box = scene.add.container(this.boxCenter.x, this.boxCenter.y, [
-      this.boxBackground,
-      this.boxSign,
-    ]);
-    const hit = layout.boxHit;
-    this.boxHit = scene.add
-      .zone(hit.left, hit.top, hit.width, hit.height)
-      .setOrigin(0)
-      .setInteractive();
-    this.boxHit.on('pointerdown', onBoxTap);
+    this.box = scene.add
+      .container(this.boxCenter.x, this.boxCenter.y, [this.boxBackground, this.boxSign])
+      // Zelené okénko po správné odpovědi leží i přes plochu na psaní.
+      .setDepth(1);
+    this.boxHit = null;
+    if (onBoxTap !== null) {
+      const hit = layout.boxHit;
+      this.boxHit = scene.add
+        .zone(hit.left, hit.top, hit.width, hit.height)
+        .setOrigin(0)
+        .setInteractive();
+      this.boxHit.on('pointerdown', onBoxTap);
+    }
     this.empty();
   }
 
@@ -114,6 +128,7 @@ export class EquationView {
 
   /** Správně: znaménko v zeleném okénku; s `animate` naskočí. */
   fill(sign: CompareSign, animate: boolean): void {
+    this.filled = true;
     this.stopBox();
     this.paintBox(SIGN_BOX_STYLE.correctFill, SIGN_BOX_STYLE.correctFill);
     this.boxSign.setText(sign).setColor(SIGN_BOX_STYLE.correctSign).setScale(1);
@@ -131,6 +146,7 @@ export class EquationView {
   /** Špatně: ťuknuté znaménko šedě, okénko se zatřese a pak vyprázdní. */
   reject(sign: CompareSign): void {
     this.stopBox();
+    this.rejecting = true;
     this.boxSign.setText(sign).setColor(SIGN_BOX_STYLE.wrongSign);
     const homeX = this.boxCenter.x;
     this.scene.tweens.add({
@@ -142,9 +158,24 @@ export class EquationView {
       ease: 'Sine.easeInOut',
       onComplete: () => {
         this.box.setX(homeX);
+        this.rejecting = false;
         this.empty();
       },
     });
+  }
+
+  /**
+   * Rozpoznané napsané znaménko (#188) modře v prázdném okénku, dokud ho
+   * dítě nepotvrdí; `null` okénko vyprázdní. Vyplněné okénko se nemění.
+   */
+  showWritten(sign: CompareSign | null): void {
+    if (this.filled || this.rejecting) {
+      return;
+    }
+    this.boxSign
+      .setText(sign ?? '')
+      .setColor(SIGN_BOX_STYLE.writtenSign)
+      .setScale(1);
   }
 
   /** Ťuknutí na okénko: okénko se zhoupne do stran a vrátí se rovně. */
@@ -164,7 +195,7 @@ export class EquationView {
 
   destroy(): void {
     this.stopBox();
-    this.boxHit.destroy();
+    this.boxHit?.destroy();
     for (const part of this.parts) {
       this.scene.tweens.killTweensOf(part);
       part.destroy();
@@ -174,15 +205,20 @@ export class EquationView {
 
   /** Zastaví zatřesení a vrátí okénko na místo. */
   private stopBox(): void {
+    this.rejecting = false;
     this.scene.tweens.killTweensOf(this.box);
     this.scene.tweens.killTweensOf(this.boxSign);
     this.box.setPosition(this.boxCenter.x, this.boxCenter.y).setScale(1).setAngle(0);
   }
 
-  /** Prázdné bílé okénko s šedým okrajem. */
+  /** Prázdné bílé okénko s šedým okrajem; při psaní ho kreslí plocha na psaní. */
   private empty(): void {
-    this.paintBox(SIGN_BOX_STYLE.fill, SIGN_BOX_STYLE.border);
     this.boxSign.setText('');
+    if (this.boxIsPad) {
+      this.boxBackground.clear();
+      return;
+    }
+    this.paintBox(SIGN_BOX_STYLE.fill, SIGN_BOX_STYLE.border);
   }
 
   private paintBox(fill: string, border: string): void {

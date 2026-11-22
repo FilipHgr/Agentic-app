@@ -4,21 +4,11 @@
  * a vyhraje číslice nejpodobnějších vzorů. Čistý TypeScript bez Phaseru.
  */
 
+import type { Stroke, StrokePoint, WritingAreaSize } from '../../../shared/logic/strokes';
 import { DIGIT_TEMPLATES, OPEN_NINE_TEMPLATES } from './digitTemplates';
 
-/** Bod tahu v pixelech plochy na psaní, osa y míří dolů. */
-export interface StrokePoint {
-  readonly x: number;
-  readonly y: number;
-}
-
-/** Jeden tah: body od položení prstu po jeho zvednutí. */
-export type Stroke = readonly StrokePoint[];
-
-export interface WritingAreaSize {
-  readonly width: number;
-  readonly height: number;
-}
+/** Bod tahu, tah a velikost plochy na psaní jsou od #188 společné všem hrám s psaním prstem. */
+export type { Stroke, StrokePoint, WritingAreaSize } from '../../../shared/logic/strokes';
 
 /** Kolik bodů má zápis po převzorkování, stejně jako vzory v sadě UCI. */
 const SAMPLE_POINTS = 8;

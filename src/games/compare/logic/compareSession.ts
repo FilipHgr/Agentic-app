@@ -13,6 +13,11 @@
  * odpověď: okénko se zhoupne s jemným tónem a tlačítka + a − se rozsvítí,
  * aby dítě vědělo, čím okénko vyplnit.
  *
+ * Psaní prstem (#188, volba „Odpověď“ v nastavení): okénko je plocha na
+ * psaní. Rozpoznané znaménko dítě potvrdí ✓ a vyhodnotí se stejně jako
+ * ťuknutí na tlačítko (`tap`). Zápis, který není + ani −, se nepočítá:
+ * okénko se zhoupne s jemným tónem a vyzve psát znovu (`writingRejected`).
+ *
  * Nastavení (#179, #187 AC3): podržení kolečka ho otevře s uloženými
  * volbami. Dokud je otevřené, ťuknutí do hry se nepočítají, domeček nejde
  * a nic se nedohrává (přechod na další příklad ani oslava). Ťuknutí na ✓
@@ -60,6 +65,7 @@ export type CompareChange =
   | { readonly kind: 'solved'; readonly sign: CompareSign }
   | { readonly kind: 'wrong'; readonly sign: CompareSign }
   | { readonly kind: 'boxTapped' }
+  | { readonly kind: 'writeAgain' }
   | { readonly kind: 'celebrationStarted' }
   | { readonly kind: 'celebrationEnded' }
   | { readonly kind: 'settingsOpened' }
@@ -128,13 +134,18 @@ export interface CompareSession {
   chooseSetting(change: Partial<CompareSettings>): void;
   /** Rodič ťukl na ✓: volby platí od dalšího příkladu, který hned přijde. */
   confirmSettings(): void;
-  /** Dítě ťuklo na tlačítko + nebo −. */
+  /** Dítě ťuklo na tlačítko + nebo −, nebo potvrdilo ✓ napsané znaménko (#188). */
   tap(sign: CompareSign): AnswerOutcome;
   /**
    * Dítě ťuklo na prázdné okénko (#187): není to odpověď, okénko se jen
    * zhoupne s jemným tónem a ukáže na tlačítka. `true`, když zareagovalo.
    */
   tapBox(): boolean;
+  /**
+   * Napsaný zápis se nerozpoznal (#188 AC3): není to chyba, okénko se
+   * zhoupne s jemným tónem a vyzve psát znovu. `true`, když zareagovalo.
+   */
+  writingRejected(): boolean;
   /** Odchod z hry: zruší naplánované akce a ztiší zvuky. */
   leave(): void;
 }
@@ -327,6 +338,15 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     return true;
   };
 
+  const writingRejected = (): boolean => {
+    if (phase !== 'waiting' || choice !== null || rudyIsOpen) {
+      return false;
+    }
+    sounds.play('boxTap');
+    notify({ kind: 'writeAgain' });
+    return true;
+  };
+
   const detachGear = options.attachSettingsGear?.(openSettings) ?? (() => undefined);
   // Rudy přijde až po 10. hvězdičce (#186); s 8 a víc hvězdičkami se stáhne hned.
   prepareCelebrationIfDue();
@@ -348,6 +368,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     confirmSettings,
     tap,
     tapBox,
+    writingRejected,
     leave: () => {
       if (phase === 'left') {
         return;

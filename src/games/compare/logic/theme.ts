@@ -5,7 +5,14 @@
  * v Počítání. Čistý TypeScript bez Phaseru.
  */
 
-import { BLUE, PAGE_BACKGROUND, SUCCESS_GREEN, TEXT, WHITE } from '../../../shared/logic/theme';
+import {
+  BLUE,
+  PAGE_BACKGROUND,
+  SECONDARY,
+  SUCCESS_GREEN,
+  TEXT,
+  WHITE,
+} from '../../../shared/logic/theme';
 
 /** Čísla a „=“ příkladu. */
 export const EQUATION_STYLE = {
@@ -25,6 +32,8 @@ export const SIGN_BOX_STYLE = {
   correctFill: SUCCESS_GREEN,
   correctSign: WHITE,
   wrongSign: '#8E8E93',
+  /** Rozpoznané napsané znaménko, dokud ho dítě nepotvrdí (#188), modře jako v Počítání. */
+  writtenSign: BLUE,
   fontWeight: 'bold',
 } as const;
 
@@ -35,6 +44,29 @@ export const SIGN_BUTTON_STYLE = {
   borderWidth: 2,
   symbolColor: BLUE,
   fontWeight: 'bold',
+} as const;
+
+/**
+ * Okénko na psaní (#188 AC2) vypadá jako okénko v Počítání: bílé s šedým
+ * okrajem a tmavým inkoustem, smazání jako tlačítka + a −, zelené ✓
+ * (pobledlé, dokud nejde potvrdit) a rozpoznané znaménko modře jako
+ * rozpoznané číslo v Počítání.
+ */
+export const WRITING_PAD_LOOK = {
+  areaBackground: WHITE,
+  areaBorder: SECONDARY,
+  areaBorderWidth: 2,
+  ink: TEXT,
+  clearBackground: SIGN_BUTTON_STYLE.fill,
+  clearBorder: SIGN_BUTTON_STYLE.border,
+  clearBorderWidth: SIGN_BUTTON_STYLE.borderWidth,
+  clearIcon: SECONDARY,
+  confirmBackground: SUCCESS_GREEN,
+  tick: WHITE,
+  disabledAlpha: 0.35,
+  label: BLUE,
+  /** Po správné odpovědi je pobledlé i smazání, jako ✓. */
+  dimClearWhenLocked: true,
 } as const;
 
 // ---------------------------------------------------------------------------

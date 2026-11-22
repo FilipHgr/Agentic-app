@@ -1,7 +1,10 @@
 /// <reference types="vite/client" />
 import { describe, expect, it } from 'vitest';
 
-import { MAX_NUMBER_OPTIONS } from '../../../src/games/compare/logic/compareSettings';
+import {
+  ANSWER_INPUT_OPTIONS,
+  MAX_NUMBER_OPTIONS,
+} from '../../../src/games/compare/logic/compareSettings';
 import { layoutCompareSettings } from '../../../src/games/compare/logic/compareSettingsLayout';
 import type {
   CompareSettingsLayout,
@@ -164,24 +167,44 @@ function allParts(panel: Panel): Part[] {
   return [...tapParts(panel), ...labels];
 }
 
-describe('#187 AC3: nastavení má řadu „Do kolika“ s 10 a 20 a ✓', () => {
-  it('rodič vidí jen řadu rozsahů 10 a 20 (karty s tečkami a otázka jsou pryč)', () => {
+describe('#187 AC3, #188 AC1: nastavení má řady „Do kolika“ (10, 20) a „Odpověď“ a ✓', () => {
+  it('rodič vidí řadu rozsahů 10 a 20 a pod ní řadu „Odpověď“ (karty s tečkami a otázka jsou pryč)', () => {
     for (const panel of panels()) {
       expect(
         panel.layout.rows.map((row) => row.kind),
         panel.name,
-      ).toEqual(['maxNumber']);
+      ).toEqual(['maxNumber', 'answerInput']);
       expect(
         panel.layout.rows[0]?.options.map((option) => option.value),
         panel.name,
       ).toEqual([...MAX_NUMBER_OPTIONS]);
+      expect(
+        panel.layout.rows[1]?.options.map((option) => option.value),
+        panel.name,
+      ).toEqual([...ANSWER_INPUT_OPTIONS]);
     }
   });
 
-  it('číslo rozsahu se celé vejde do volby', () => {
+  it('tužka psaní se celá vejde do své volby a je dost velká, aby ji rodič poznal', () => {
+    for (const panel of panels()) {
+      const answerRow = panel.layout.rows.find((row) => row.kind === 'answerInput');
+      expect(answerRow, panel.name).toBeDefined();
+      for (const option of answerRow?.options ?? []) {
+        expect(option.pencilSize, panel.name).toBeLessThanOrEqual(
+          Math.min(option.width, option.height),
+        );
+        expect(option.pencilSize * panel.area.scale, panel.name).toBeGreaterThanOrEqual(36);
+      }
+    }
+  });
+
+  it('číslo rozsahu i „123“ se celé vejdou do volby', () => {
     for (const panel of panels()) {
       for (const option of panel.layout.rows.flatMap((row) => row.options)) {
-        const digits = String(option.value).length;
+        if (option.value === 'writing') {
+          continue;
+        }
+        const digits = option.value === 'tap' ? '123'.length : String(option.value).length;
         expect(digits * DIGIT_WIDTH_RATIO * option.fontSize, panel.name).toBeLessThanOrEqual(
           option.width,
         );

@@ -1,8 +1,8 @@
 /**
  * Texty hry Porovnávání (#178) v souborech podle kódu jazyka (`cs.ts`).
  * Na herní obrazovce texty nejsou (příklad „a ☐ b = c“ a tlačítka + a −
- * jsou symboly, #187), jen název v menu, popisek řady nastavení pro rodiče
- * (#179) a repliky pandy Rudyho, které zazní nahrávkou (#181). Typ hlídá,
+ * jsou symboly, #187), jen název v menu, popisky řad nastavení pro rodiče
+ * (#179, #188) a repliky pandy Rudyho, které zazní nahrávkou (#181). Typ hlídá,
  * že žádnému jazyku nechybí klíč, takže chybějící překlad zastaví už
  * `npm run build`.
  */
@@ -16,9 +16,10 @@ import en from './en';
 export interface CompareTexts {
   /** Název hry pro menu. */
   readonly title: string;
-  /** Popisky řad nastavení pro rodiče (#179, od #187 jen „Do kolika“). */
+  /** Popisky řad nastavení pro rodiče (#179, #187 „Do kolika“, #188 „Odpověď“). */
   readonly rowLabels: {
     readonly maxNumber: string;
+    readonly answerInput: string;
   };
   /**
    * Repliky pandy Rudyho (#181); zazní jen nahrávky

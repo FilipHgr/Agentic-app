@@ -102,7 +102,7 @@ describe('#179 AC1, #187 AC3: nastavení se otevře až po podržení kolečka 1
     confirmChoice(openCompare(storage), { maxNumber: 20 });
     const again = openCompare(storage);
     again.gear.hold();
-    expect(again.session.settingsChoice()).toEqual({ maxNumber: 20 });
+    expect(again.session.settingsChoice()).toEqual({ maxNumber: 20, answerInput: 'tap' });
   });
 
   it('po odchodu z hry se hra od kolečka odpojí', () => {
@@ -116,8 +116,8 @@ describe('#179 AC1, #187 AC3: nastavení se otevře až po podržení kolečka 1
 describe('#187 AC3: „Do kolika“ 10 nebo 20, výchozí 10', () => {
   it('rodič vybírá z rozsahů 10 a 20, výchozí je 10', () => {
     expect([...MAX_NUMBER_OPTIONS]).toEqual([10, 20]);
-    expect(DEFAULT_COMPARE_SETTINGS).toEqual({ maxNumber: 10 });
-    expect(openCompare().session.settings()).toEqual({ maxNumber: 10 });
+    expect(DEFAULT_COMPARE_SETTINGS).toEqual({ maxNumber: 10, answerInput: 'tap' });
+    expect(openCompare().session.settings()).toEqual({ maxNumber: 10, answerInput: 'tap' });
   });
 
   it('po zvolení rozsahu 20 dává hra příklady do 20 a objeví se i čísla nad 10', () => {
@@ -192,7 +192,7 @@ describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené h
   it('po zavření a novém otevření hry platí zvolený rozsah', () => {
     const storage = new MemoryStorage();
     confirmChoice(openCompare(storage), { maxNumber: 20 });
-    expect(openCompare(storage).session.settings()).toEqual({ maxNumber: 20 });
+    expect(openCompare(storage).session.settings()).toEqual({ maxNumber: 20, answerInput: 'tap' });
   });
 
   it('každý profil má vlastní rozsah', () => {
@@ -211,10 +211,12 @@ describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené h
     reloaded.selectProfile(first.id);
     expect(openCompare(reloaded.gameStorage(COMPARE_META.id)).session.settings()).toEqual({
       maxNumber: 20,
+      answerInput: 'tap',
     });
     reloaded.selectProfile(second.id);
     expect(openCompare(reloaded.gameStorage(COMPARE_META.id)).session.settings()).toEqual({
       maxNumber: 10,
+      answerInput: 'tap',
     });
   });
 
@@ -228,7 +230,7 @@ describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené h
       const storage = new MemoryStorage();
       storage.data.set(COMPARE_SETTINGS_KEY, saved);
       const test = openCompare(storage);
-      expect(test.session.settings(), saved).toEqual({ maxNumber: 10 });
+      expect(test.session.settings(), saved).toEqual({ maxNumber: 10, answerInput: 'tap' });
       expect(Math.max(...numbersOf(test.session.problem())), saved).toBeLessThanOrEqual(10);
       expect(test.session.tap(correctSign(test.session.problem())), saved).toBe('correct');
     }
@@ -238,9 +240,12 @@ describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené h
     const storage = new MemoryStorage();
     storage.data.set(COMPARE_SETTINGS_KEY, '{"maxNumber":20,"show":"both","question":"less"}');
     const test = openCompare(storage);
-    expect(test.session.settings()).toEqual({ maxNumber: 20 });
+    expect(test.session.settings()).toEqual({ maxNumber: 20, answerInput: 'tap' });
     confirmChoice(test, {});
-    expect(JSON.parse(storage.data.get(COMPARE_SETTINGS_KEY) ?? '')).toEqual({ maxNumber: 20 });
+    expect(JSON.parse(storage.data.get(COMPARE_SETTINGS_KEY) ?? '')).toEqual({
+      maxNumber: 20,
+      answerInput: 'tap',
+    });
   });
 
   it('poškozený nebo neznámý záznam dá výchozí rozsah do 10 a hra jde dál', () => {
@@ -258,7 +263,7 @@ describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené h
       const storage = new MemoryStorage();
       storage.data.set(COMPARE_SETTINGS_KEY, saved);
       const test = openCompare(storage);
-      expect(test.session.settings(), saved).toEqual({ maxNumber: 10 });
+      expect(test.session.settings(), saved).toEqual({ maxNumber: 10, answerInput: 'tap' });
       expect(test.session.tap(correctSign(test.session.problem())), saved).toBe('correct');
     }
   });
@@ -270,7 +275,7 @@ describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené h
     const test = openCompare(storage);
     expect(test.session.settings()).toEqual(DEFAULT_COMPARE_SETTINGS);
     confirmChoice(test, { maxNumber: 20 });
-    expect(test.session.settings()).toEqual({ maxNumber: 20 });
+    expect(test.session.settings()).toEqual({ maxNumber: 20, answerInput: 'tap' });
   });
 });
 
