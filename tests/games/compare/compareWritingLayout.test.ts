@@ -12,7 +12,7 @@ import type {
   WritingButtonsLayout,
 } from '../../../src/games/compare/logic/compareLayout';
 import { allProblems } from '../../../src/games/compare/logic/compareProblems';
-import type { CompareProblem } from '../../../src/games/compare/logic/compareProblems';
+import type { ArithmeticProblem } from '../../../src/games/compare/logic/compareProblems';
 import { MAX_NUMBER_OPTIONS } from '../../../src/games/compare/logic/compareSettings';
 import type { MaxNumber } from '../../../src/games/compare/logic/compareSettings';
 import { homeButtonFor } from '../../../src/shared/logic/homeButton';
@@ -86,7 +86,7 @@ interface Screen {
   readonly area: GameArea;
   readonly layout: CompareWritingLayout;
   readonly writing: WritingButtonsLayout;
-  readonly problem: CompareProblem;
+  readonly problem: ArithmeticProblem;
   readonly equation: EquationLayout;
   /** Plocha na psaní (okénko příkladu, nebo samostatná plocha pod příkladem). */
   readonly pad: Rect;
@@ -99,8 +99,8 @@ afterEach(() => {
 });
 
 /** Jeden příklad za každý tvar (počet číslic čísel a znaménko) v rozsahu. */
-function problemShapes(maxNumber: MaxNumber): CompareProblem[] {
-  const byShape = new Map<string, CompareProblem>();
+function problemShapes(maxNumber: MaxNumber): ArithmeticProblem[] {
+  const byShape = new Map<string, ArithmeticProblem>();
   for (const problem of allProblems(maxNumber)) {
     const shape = [problem.a, problem.b, problem.result]
       .map((value) => String(value).length)

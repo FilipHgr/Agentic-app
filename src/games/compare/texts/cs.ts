@@ -1,10 +1,11 @@
-/** České texty hry Porovnávání (#178, #179, #181, #187, #188). */
+/** České texty hry Znaménka (#178, #179, #181, #187, #188, #190). */
 
 import type { CompareTexts } from './compareTexts';
 
 export default {
-  title: 'Porovnávání',
+  title: 'Znaménka',
   rowLabels: {
+    signKind: 'Znaménka',
     maxNumber: 'Do kolika',
     answerInput: 'Odpověď',
   },

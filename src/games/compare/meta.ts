@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 /**
- * Údaje o Porovnávání pro menu (#178): id, kategorie Čísla, symbol
+ * Údaje o hře Znaménka (do #190 Porovnávání) pro menu (#178): id, kategorie Čísla, symbol
  * dlaždice (znaky bez emoji varianty), přístup zdarma a název hry z textů
  * jazyků. Menu je zná bez stažení hry, proto tu nic jiného (scény,
  * logika, Phaser) být nesmí.

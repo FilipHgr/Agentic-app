@@ -7,7 +7,7 @@ import type {
   Rect,
 } from '../../../src/games/compare/logic/compareLayout';
 import { allProblems } from '../../../src/games/compare/logic/compareProblems';
-import type { CompareProblem } from '../../../src/games/compare/logic/compareProblems';
+import type { ArithmeticProblem } from '../../../src/games/compare/logic/compareProblems';
 import { MAX_NUMBER_OPTIONS } from '../../../src/games/compare/logic/compareSettings';
 import type { MaxNumber } from '../../../src/games/compare/logic/compareSettings';
 import { homeButtonFor } from '../../../src/shared/logic/homeButton';
@@ -83,7 +83,7 @@ interface Screen {
   readonly area: GameArea;
   readonly maxNumber: MaxNumber;
   readonly layout: CompareLayout;
-  readonly problem: CompareProblem;
+  readonly problem: ArithmeticProblem;
   readonly equation: EquationLayout;
 }
 
@@ -96,8 +96,8 @@ afterEach(() => {
  * (kolik číslic má které číslo a jaké je znaménko), tedy i ten nejširší
  * („10 − 10 = 0“, „20 − 10 = 10“), podle kterého se počítá písmo.
  */
-function problemShapes(maxNumber: MaxNumber): CompareProblem[] {
-  const byShape = new Map<string, CompareProblem>();
+function problemShapes(maxNumber: MaxNumber): ArithmeticProblem[] {
+  const byShape = new Map<string, ArithmeticProblem>();
   for (const problem of allProblems(maxNumber)) {
     const shape = [problem.a, problem.b, problem.result]
       .map((value) => String(value).length)

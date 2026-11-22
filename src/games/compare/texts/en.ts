@@ -1,10 +1,11 @@
-/** Anglické texty hry Porovnávání (#178, #179, #181, #187, #188). */
+/** Anglické texty hry Znaménka (#178, #179, #181, #187, #188, #190). */
 
 import type { CompareTexts } from './compareTexts';
 
 export default {
-  title: 'Compare',
+  title: 'Signs',
   rowLabels: {
+    signKind: 'Signs',
     maxNumber: 'Up to',
     answerInput: 'Answer',
   },

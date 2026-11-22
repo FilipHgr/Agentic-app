@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ANSWER_INPUT_OPTIONS,
   MAX_NUMBER_OPTIONS,
+  SIGN_KIND_OPTIONS,
 } from '../../../src/games/compare/logic/compareSettings';
 import { layoutCompareSettings } from '../../../src/games/compare/logic/compareSettingsLayout';
 import type {
@@ -33,8 +34,8 @@ import type { Box, TestWindow } from '../../shared/viewportFixtures';
  * Testy k #179 AC4 a #187 AC3, AC6: rozložení nastavení podle obrázků
  * S (2026-11-04) jako pravidla v cyklu přes zkušební okna iPadu, telefonu
  * na šířku i na výšku a přes všechny jazyky se souborem textů, vše
- * měřené v CSS px okna. Od #187 má panel jen řadu „Do kolika“ (10, 20)
- * a ✓: volby a ✓ aspoň 64 px s mezerou pro prst, nic se nepřekrývá ani
+ * měřené v CSS px okna. Od #190 má panel řady „Znaménka“ (+ −, < = >, vše),
+ * „Do kolika“ (10, 20), „Odpověď“ a ✓: volby a ✓ aspoň 64 px s mezerou pro prst, nic se nepřekrývá ani
  * neleží pod domečkem a kolečkem, popisky se vejdou v každém jazyce.
  */
 
@@ -43,6 +44,10 @@ const MIN_OPTION_GAP_CSS = 8;
 /** Odhad šířky znaku jako díl velikosti písma (bez měření v prohlížeči). */
 const CHARACTER_WIDTH_RATIO = 0.6;
 const DIGIT_WIDTH_RATIO = 0.62;
+/** Výška řádku symbolů jako násobek písma. */
+const SYMBOL_LINE_HEIGHT = 1.15;
+/** Symboly řady „Znaménka“ aspoň takhle velké (CSS px). */
+const MIN_SIGN_SYMBOL_CSS = 18;
 
 const SCALED_WINDOW: TestWindow = {
   name: '600×400 zmenšené zobrazení',
@@ -167,21 +172,60 @@ function allParts(panel: Panel): Part[] {
   return [...tapParts(panel), ...labels];
 }
 
-describe('#187 AC3, #188 AC1: nastavení má řady „Do kolika“ (10, 20) a „Odpověď“ a ✓', () => {
-  it('rodič vidí řadu rozsahů 10 a 20 a pod ní řadu „Odpověď“ (karty s tečkami a otázka jsou pryč)', () => {
+describe('#187 AC3, #188 AC1, #190 AC2: nastavení má řady „Znaménka“, „Do kolika“ a „Odpověď“ a ✓', () => {
+  it('rodič vidí nahoře řadu „Znaménka“, pod ní rozsahy 10 a 20 a řadu „Odpověď“ (karty s tečkami a otázka jsou pryč)', () => {
     for (const panel of panels()) {
       expect(
         panel.layout.rows.map((row) => row.kind),
         panel.name,
-      ).toEqual(['maxNumber', 'answerInput']);
+      ).toEqual(['signKind', 'maxNumber', 'answerInput']);
       expect(
         panel.layout.rows[0]?.options.map((option) => option.value),
         panel.name,
-      ).toEqual([...MAX_NUMBER_OPTIONS]);
+      ).toEqual([...SIGN_KIND_OPTIONS]);
       expect(
         panel.layout.rows[1]?.options.map((option) => option.value),
         panel.name,
+      ).toEqual([...MAX_NUMBER_OPTIONS]);
+      expect(
+        panel.layout.rows[2]?.options.map((option) => option.value),
+        panel.name,
       ).toEqual([...ANSWER_INPUT_OPTIONS]);
+    }
+  });
+
+  it('volby řady „Znaménka“ ukazují symboly, ne slova: „+ −“, „< = >“ a obojí pod sebou', () => {
+    for (const panel of panels()) {
+      const signRow = panel.layout.rows.find((row) => row.kind === 'signKind');
+      expect(
+        signRow?.options.map((option) => option.symbols),
+        panel.name,
+      ).toEqual([['+ −'], ['< = >'], ['+ −', '< = >']]);
+      for (const option of signRow?.options ?? []) {
+        for (const line of option.symbols) {
+          expect(line, panel.name).toMatch(/^[+−<=> ]+$/);
+        }
+      }
+    }
+  });
+
+  it('symboly řady „Znaménka“ se celé vejdou do volby a jsou čitelné', () => {
+    for (const panel of panels()) {
+      const signRow = panel.layout.rows.find((row) => row.kind === 'signKind');
+      for (const option of signRow?.options ?? []) {
+        const name = `${panel.name}: ${option.value}`;
+        const longest = Math.max(...option.symbols.map((line) => line.length));
+        expect(longest * DIGIT_WIDTH_RATIO * option.fontSize, name).toBeLessThanOrEqual(
+          option.width,
+        );
+        expect(
+          option.symbols.length * option.fontSize * SYMBOL_LINE_HEIGHT,
+          name,
+        ).toBeLessThanOrEqual(option.height);
+        expect(option.fontSize * panel.area.scale, name).toBeGreaterThanOrEqual(
+          MIN_SIGN_SYMBOL_CSS,
+        );
+      }
     }
   });
 
@@ -201,7 +245,7 @@ describe('#187 AC3, #188 AC1: nastavení má řady „Do kolika“ (10, 20) a �
   it('číslo rozsahu i „123“ se celé vejdou do volby', () => {
     for (const panel of panels()) {
       for (const option of panel.layout.rows.flatMap((row) => row.options)) {
-        if (option.value === 'writing') {
+        if (option.value === 'writing' || SIGN_KIND_OPTIONS.some((kind) => kind === option.value)) {
           continue;
         }
         const digits = option.value === 'tap' ? '123'.length : String(option.value).length;

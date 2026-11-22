@@ -11,16 +11,15 @@ import { RudyMoments } from '../../../shared/ui/rudyMoments';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { StarRow } from '../../../shared/ui/StarRow';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
-import { COMPARE_GAME_AREA_FIT, layoutCompareScreen } from '../logic/compareLayout';
-import type {
-  CompareScreenLayout,
-  Rect,
-  SignButtonsLayout,
-  WritingButtonsLayout,
+import {
+  COMPARE_GAME_AREA_FIT,
+  layoutCompareScreen,
+  layoutProblemScreen,
 } from '../logic/compareLayout';
-import { COMPARE_SIGNS } from '../logic/compareProblems';
-import type { CompareSign } from '../logic/compareProblems';
+import type { ProblemScreenLayout, Rect, WritingButtonsLayout } from '../logic/compareLayout';
+import type { CompareProblem, CompareSign } from '../logic/compareProblems';
 import { createCompareSession } from '../logic/compareSession';
+import type { CompareSettings } from '../logic/compareSettings';
 import type {
   CompareChange,
   CompareRudy,
@@ -32,6 +31,7 @@ import { compareRudyLines, compareRudyVoiceUrl } from '../logic/rudyLines';
 import type { CompareRudyLines } from '../logic/rudyLines';
 import { dimSettingsGear } from '../ui/gearOpacity';
 import { EquationView, SignButtonView } from './EquationView';
+import type { ProblemRowLayout, ProblemRowText } from './EquationView';
 import { SettingsPanel } from './SettingsPanel';
 import { SignPad } from './SignPad';
 import type { SignWriting } from '../logic/signWriting';
@@ -40,7 +40,8 @@ import type { SignWriting } from '../logic/signWriting';
 const STAR_FLIGHT_MS = 600;
 
 /**
- * Jediná scéna Porovnávání (#178, od #187 doplň znaménko). Scéna jen
+ * Jediná scéna hry Znaménka (#178, od #187 doplň znaménko, od #190
+ * i < = > do „a ☐ b“). Scéna jen
  * kreslí a animuje; co se ve hře děje (příklad, odpovědi, hvězdičky,
  * oslava, uložení), řídí sezení `compareSession.ts`. Rozložení se bere
  * podle herní plochy (iPad, telefon na šířku i na výšku) a po otočení se
@@ -51,11 +52,13 @@ const STAR_FLIGHT_MS = 600;
  * po 10. hvězdičce, od #186 přímo na obrazovce) je sdílené `RudyMoments`;
  * kdy se ukáže, řídí sezení. Při odpovědi psaním (#188) je okénko příkladu
  * plocha na psaní (`SignPad`) se smazáním a ✓ místo tlačítek + a −.
+ * Příklad „a ☐ b“ (#190) má vždy tlačítka <, = a >, i při psaní (psaní
+ * < > = přijde v #191); rozložení se proto bere podle druhu příkladu.
  */
 export class CompareScene extends Phaser.Scene {
   private session!: CompareSession;
   private gameArea: GameArea = gameAreaFor(undefined, COMPARE_GAME_AREA_FIT);
-  private layout: CompareScreenLayout = layoutCompareScreen(this.gameArea);
+  private layout: ProblemScreenLayout = layoutCompareScreen(this.gameArea);
   private equation: EquationView | null = null;
   private signButtons: SignButtonView[] = [];
   /** Okénko na psaní, když rodič zvolil odpověď psaním (#188). */
@@ -82,7 +85,6 @@ export class CompareScene extends Phaser.Scene {
     // Ostré plátno na iPadu (#77); kreslí se dál v herních jednotkách.
     followCanvasResolution(this);
     this.gameArea = this.readGameArea();
-    this.layout = layoutCompareScreen(this.gameArea);
     this.registry.events.on(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
@@ -118,9 +120,10 @@ export class CompareScene extends Phaser.Scene {
     host?.onLeave(() => session.leave());
     host?.setHomeAvailable(session.homeAvailable());
 
+    // Příklad nejdřív: spočítá rozložení podle plochy, podle kterého se kreslí i hvězdičky.
+    this.drawProblem(false);
     this.starRow.create();
     this.starRow.paint();
-    this.drawProblem(false);
   }
 
   /** Plocha na psaní se posouvá v čase každý snímek (rozpoznání 1 s po zvednutí prstu). */
@@ -259,23 +262,24 @@ export class CompareScene extends Phaser.Scene {
   private drawProblem(animate: boolean): void {
     const previousWriting = animate ? undefined : this.signPad?.writing;
     this.clearProblem();
-    this.layout = this.currentLayout();
+    const problem = this.session.problem();
+    // Písmo příkladu je spočítané pro rozsah, ve kterém se hraje.
+    const screen = screenFor(this.gameArea, this.session.settings(), problem);
+    this.layout = screen.layout;
     const { layout } = this;
     const unit = layout.unitsPerCssPx;
-    const problem = this.session.problem();
-    const equationLayout = layout.equationFor(problem);
     const writing = layout.writing;
     const boxIsPad = writing?.padInProblem ?? false;
     this.equation = new EquationView(
       this,
-      equationLayout,
+      screen.row,
       unit,
-      problem,
+      screen.texts,
       // Okénko, které samo není plochou na psaní, ťuknutí zhoupne (#187, #188).
       boxIsPad ? null : () => this.session.tapBox(),
       boxIsPad,
     );
-    if (writing !== null) {
+    if (writing !== null && problem.kind === 'arithmetic') {
       this.signPad = this.createSignPad(writing.pad(problem), writing, previousWriting);
     }
     const filled = this.session.filledSign();
@@ -287,16 +291,7 @@ export class CompareScene extends Phaser.Scene {
     if (animate) {
       this.equation.popIn();
     }
-    if (layout.signButtons !== null) {
-      this.drawSignButtons(layout.signButtons);
-    }
-  }
-
-  /** Rozložení podle plochy a platného nastavení (rozsah a způsob odpovědi). */
-  private currentLayout(): CompareScreenLayout {
-    const settings = this.session.settings();
-    // Písmo příkladu je spočítané pro rozsah, ve kterém se hraje.
-    return layoutCompareScreen(this.gameArea, settings.maxNumber, settings.answerInput);
+    this.drawSignButtons(layout);
   }
 
   private createSignPad(
@@ -323,31 +318,92 @@ export class CompareScene extends Phaser.Scene {
     );
   }
 
-  /** Tlačítka + a − pod příkladem (odpověď ťuknutím). */
-  private drawSignButtons(signButtons: SignButtonsLayout): void {
-    const unit = this.layout.unitsPerCssPx;
-    this.signButtons = COMPARE_SIGNS.map(
-      (sign) =>
-        new SignButtonView(
-          this,
-          sign === '+' ? signButtons.plus : signButtons.minus,
-          signButtons,
-          unit,
-          sign,
-          () => this.session.tap(sign),
-        ),
+  /** Tlačítka + a − nebo < = > pod příkladem (odpověď ťuknutím); při psaní žádná. */
+  private drawSignButtons(layout: ProblemScreenLayout): void {
+    const unit = layout.unitsPerCssPx;
+    const look = layout.problemKind === 'relation' ? layout.relationButtons : layout.signButtons;
+    if (look === null) {
+      return;
+    }
+    this.signButtons = buttonRectsOf(layout).map(
+      ({ sign, rect }) =>
+        new SignButtonView(this, rect, look, unit, sign, () => this.session.tap(sign)),
     );
   }
 
   /** Otočení zařízení nebo změna lišty: totéž kolo v novém rozložení, bez nového příkladu. */
   private onGameAreaChanged(): void {
     this.gameArea = this.readGameArea();
-    this.layout = this.currentLayout();
-    this.starRow.redraw();
+    // Nové rozložení spočítá překreslení příkladu, hvězdičky se pak srovnají podle něj.
     this.drawProblem(false);
+    this.starRow.redraw();
     this.settingsPanel?.fitTo(this.gameArea);
     this.rudy.relayout();
   }
+}
+
+/** Rozložení obrazovky s okénkem a čísly řady pro jeden příklad. */
+interface ProblemScreen {
+  readonly layout: ProblemScreenLayout;
+  readonly row: ProblemRowLayout;
+  readonly texts: readonly ProblemRowText[];
+}
+
+/**
+ * Rozložení pro druh příkladu (#190) podle `layoutProblemScreen` a k němu
+ * okénko a čísla řady: „a ☐ b“, nebo „a ☐ b = c“ s „=“ a výsledkem.
+ */
+function screenFor(
+  area: GameArea,
+  settings: CompareSettings,
+  problem: CompareProblem,
+): ProblemScreen {
+  if (problem.kind === 'relation') {
+    const layout = layoutProblemScreen(area, settings, problem.kind);
+    const row = layout.equationFor(problem);
+    return {
+      layout,
+      row,
+      texts: [
+        { rect: row.first, text: String(problem.a) },
+        { rect: row.second, text: String(problem.b) },
+      ],
+    };
+  }
+  const layout = layoutProblemScreen(area, settings, problem.kind);
+  const row = layout.equationFor(problem);
+  return {
+    layout,
+    row,
+    texts: [
+      { rect: row.first, text: String(problem.a) },
+      { rect: row.second, text: String(problem.b) },
+      // „=“ je symbol, ne text jazyka.
+      { rect: row.equals, text: '=' },
+      { rect: row.result, text: String(problem.result) },
+    ],
+  };
+}
+
+/** Tlačítka zleva doprava se znaménkem; při psaní „a ☐ b = c“ žádná. */
+function buttonRectsOf(
+  layout: ProblemScreenLayout,
+): Array<{ readonly sign: CompareSign; readonly rect: Rect }> {
+  if (layout.problemKind === 'relation') {
+    const { less, equal, greater } = layout.relationButtons;
+    return [
+      { sign: '<', rect: less },
+      { sign: '=', rect: equal },
+      { sign: '>', rect: greater },
+    ];
+  }
+  if (layout.signButtons === null) {
+    return [];
+  }
+  return [
+    { sign: '+', rect: layout.signButtons.plus },
+    { sign: '−', rect: layout.signButtons.minus },
+  ];
 }
 
 /** Je hodnota z registru herní plocha? */

@@ -185,14 +185,14 @@ describe('#138 AC2: po výběru English je menu anglicky', () => {
     });
   });
 
-  it('názvy her na dlaždicích jsou „Counting“, „Colouring“ a „Compare“ (#178)', async () => {
+  it('názvy her na dlaždicích jsou „Counting“, „Colouring“ a „Signs“ (#178, #190)', async () => {
     deviceStorage();
     const { test } = await englishPage();
     chooseLanguage(test, 'en');
     expect(tileTitles(test)).toEqual({
       counting: 'Counting',
       coloring: 'Colouring',
-      compare: 'Compare',
+      compare: 'Signs',
     });
   });
 
@@ -282,7 +282,7 @@ describe('#138 AC2: po výběru English je menu anglicky', () => {
     expect(menuBefore.tiles).toEqual({
       counting: 'Počítání',
       coloring: 'Omalovánky',
-      compare: 'Porovnávání',
+      compare: 'Znaménka',
     });
     expect(czech.page.documentElement.lang).toBe('cs');
     expect(czech.page.labels.get('aria-label')).toBe('Nastavení pro rodiče');

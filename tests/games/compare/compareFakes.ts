@@ -7,7 +7,11 @@ import type {
   CompareSoundName,
 } from '../../../src/games/compare/logic/compareSession';
 import { correctSign, otherSign } from '../../../src/games/compare/logic/compareProblems';
-import type { CompareSign } from '../../../src/games/compare/logic/compareProblems';
+import type {
+  ArithmeticProblem,
+  CompareProblem,
+  CompareSign,
+} from '../../../src/games/compare/logic/compareProblems';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 
 /**
@@ -265,4 +269,15 @@ export function solveProblems(test: TestCompare, count: number): void {
   for (let index = 0; index < count; index += 1) {
     solveProblem(test);
   }
+}
+
+/**
+ * Příklad „a ☐ b = c“: při výchozích znaménkách + − (#190) jiný nepřijde.
+ * Kdyby přišel příklad „a ☐ b“, test spadne.
+ */
+export function arithmeticOf(problem: CompareProblem): ArithmeticProblem {
+  if (problem.kind !== 'arithmetic') {
+    throw new Error(`při + − přišel příklad „${problem.a} ☐ ${problem.b}“`);
+  }
+  return problem;
 }

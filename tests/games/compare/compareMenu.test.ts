@@ -53,11 +53,11 @@ describe('#178 AC1: v menu je dlaždice Porovnávání v nové kategorii Čísla
     expect(GAME_METAS).toContain(COMPARE_META);
   });
 
-  it('dlaždice se jmenuje česky „Porovnávání“ a anglicky „Compare“', () => {
-    expect(compareTexts('cs').title).toBe('Porovnávání');
-    expect(compareTexts('en').title).toBe('Compare');
-    expect(menuText('games.compare.title', 'cs')).toBe('Porovnávání');
-    expect(menuText('games.compare.title', 'en')).toBe('Compare');
+  it('dlaždice se jmenuje česky „Znaménka“ a anglicky „Signs“ (#190)', () => {
+    expect(compareTexts('cs').title).toBe('Znaménka');
+    expect(compareTexts('en').title).toBe('Signs');
+    expect(menuText('games.compare.title', 'cs')).toBe('Znaménka');
+    expect(menuText('games.compare.title', 'en')).toBe('Signs');
   });
 
   it('kategorie se jmenuje česky „Čísla“ a anglicky „Numbers“ a má symbol „< >“', () => {
@@ -73,7 +73,7 @@ describe('#178 AC1: v menu je dlaždice Porovnávání v nové kategorii Čísla
     expect(menu.categories().map((category) => category.id)).toContain(NUMBERS_CATEGORY);
     menu.tapCategory(NUMBERS_CATEGORY);
     expect(menu.tiles()).toEqual([
-      { gameId: COMPARE_ID, symbol: COMPARE_META.symbol, title: 'Porovnávání' },
+      { gameId: COMPARE_ID, symbol: COMPARE_META.symbol, title: 'Znaménka' },
     ]);
   });
 
@@ -135,7 +135,7 @@ describe('#178 AC8: texty hry jsou v češtině i angličtině', () => {
     for (const [language, texts] of Object.entries(COMPARE_FILES)) {
       const shown = [...leavesOf(texts).keys()].filter((key) => !key.startsWith('rudyLines.'));
       expect(shown.sort(), language).toEqual(
-        ['rowLabels.answerInput', 'rowLabels.maxNumber', 'title'].sort(),
+        ['rowLabels.answerInput', 'rowLabels.maxNumber', 'rowLabels.signKind', 'title'].sort(),
       );
       expect(Object.keys(texts), language).not.toContain('guideLines');
       for (const [key, value] of leavesOf(texts)) {
@@ -144,11 +144,16 @@ describe('#178 AC8: texty hry jsou v češtině i angličtině', () => {
     }
   });
 
-  it('popisky řad nastavení jsou česky „Do kolika“ a „Odpověď“, anglicky „Up to“ a „Answer“ (#179, #187, #188)', () => {
+  it('popisky řad nastavení jsou česky „Znaménka“, „Do kolika“ a „Odpověď“, anglicky „Signs“, „Up to“ a „Answer“ (#179, #187, #188, #190)', () => {
     expect(compareTexts('cs').rowLabels).toEqual({
+      signKind: 'Znaménka',
       maxNumber: 'Do kolika',
       answerInput: 'Odpověď',
     });
-    expect(compareTexts('en').rowLabels).toEqual({ maxNumber: 'Up to', answerInput: 'Answer' });
+    expect(compareTexts('en').rowLabels).toEqual({
+      signKind: 'Signs',
+      maxNumber: 'Up to',
+      answerInput: 'Answer',
+    });
   });
 });

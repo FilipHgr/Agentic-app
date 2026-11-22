@@ -1,5 +1,6 @@
 /**
- * Rozložení nastavení Porovnávání pro rodiče (#179, #187: řada „Do
+ * Rozložení nastavení hry Znaménka pro rodiče (#190: řada „Znaménka“
+ * se symboly „+ −“, „< = >“ a obojím pod sebou, #179, #187: řada „Do
  * kolika“ 10 a 20, #188: řada „Odpověď“ ťuknutím „123“ nebo psaním
  * s tužkou jako v Počítání) podle obrázků S (2026-11-04) jako v Počítání: na
  * iPadu řady na středu s popisky nad nimi a ✓ pod nimi, na telefonu na
@@ -14,13 +15,45 @@ import { isPhoneMode } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { compareTexts } from '../texts/compareTexts';
 import type { CompareTexts } from '../texts/compareTexts';
-import { ANSWER_INPUT_OPTIONS, MAX_NUMBER_OPTIONS } from './compareSettings';
-import type { AnswerInput, MaxNumber } from './compareSettings';
+import {
+  ANSWER_INPUT_OPTIONS,
+  MAX_NUMBER_OPTIONS,
+  SIGN_KIND_OPTIONS,
+  isAnswerInput,
+  isSignKind,
+} from './compareSettings';
+import type { AnswerInput, MaxNumber, SignKind } from './compareSettings';
 
-export type SettingsRowKind = 'maxNumber' | 'answerInput';
+export type SettingsRowKind = 'signKind' | 'maxNumber' | 'answerInput';
 
-/** Hodnota volby: rozsah, nebo způsob odpovědi. */
-export type SettingsOptionValue = MaxNumber | AnswerInput;
+/** Hodnota volby: znaménka, rozsah, nebo způsob odpovědi. */
+export type SettingsOptionValue = SignKind | MaxNumber | AnswerInput;
+
+/**
+ * Symboly voleb řady „Znaménka“ (#190 AC2) po řádcích: žádné slovo ke
+ * čtení, „vše“ jsou obě sady pod sebou. Symboly nejsou texty jazyka.
+ */
+const SIGN_KIND_SYMBOLS: Readonly<Record<SignKind, readonly string[]>> = {
+  plusMinus: ['+ −'],
+  comparison: ['< = >'],
+  all: ['+ −', '< = >'],
+};
+
+/**
+ * Volby řady „Odpověď“ (#188 AC1) se stejnými symboly jako v Počítání:
+ * ťuknutí „123“, psaní kreslená tužka (žádný symbol).
+ */
+const ANSWER_INPUT_SYMBOLS: Readonly<Record<AnswerInput, readonly string[]>> = {
+  tap: ['123'],
+  writing: [],
+};
+
+/** Výška řádku symbolů jako násobek písma (víc řádků pod sebou). */
+const SYMBOL_LINE_HEIGHT = 1.15;
+/** Symboly zaberou nejvýš tuto část šířky a výšky volby. */
+const SYMBOLS_FILL = 0.85;
+/** Odhad šířky symbolu jako díl velikosti písma. */
+const SYMBOL_WIDTH_EM = 0.62;
 
 export type SettingsRowLabels = CompareTexts['rowLabels'];
 
@@ -31,7 +64,9 @@ export interface SettingsOptionSlot {
   readonly width: number;
   readonly height: number;
   readonly value: SettingsOptionValue;
-  /** Písmo čísla ve volbě. */
+  /** Symboly ve volbě po řádcích (číslo, „123“, „+ −“…); u psaní prázdné (tužka). */
+  readonly symbols: readonly string[];
+  /** Písmo symbolů ve volbě, v jedné řadě stejné. */
   readonly fontSize: number;
   /** Strana čtverce kreslené tužky ve volbě psaní. */
   readonly pencilSize: number;
@@ -58,7 +93,7 @@ export interface SettingsRow {
 }
 
 export interface CompareSettingsLayout {
-  /** Řady shora dolů: „Do kolika“ a „Odpověď“ (#188). */
+  /** Řady shora dolů: „Znaménka“ (#190), „Do kolika“ a „Odpověď“ (#188). */
   readonly rows: readonly SettingsRow[];
   readonly confirm: { readonly x: number; readonly y: number; readonly size: number };
   /** Zaoblení a okraj voleb v herních jednotkách. */
@@ -148,10 +183,41 @@ const PENCIL_HEIGHT_SHARE = 0.72;
 const MAX_PENCIL_CSS = 72;
 
 const ROW_VALUES: Readonly<Record<SettingsRowKind, readonly SettingsOptionValue[]>> = {
+  signKind: SIGN_KIND_OPTIONS,
   maxNumber: MAX_NUMBER_OPTIONS,
   answerInput: ANSWER_INPUT_OPTIONS,
 };
-const ROW_ORDER: readonly SettingsRowKind[] = ['maxNumber', 'answerInput'];
+const ROW_ORDER: readonly SettingsRowKind[] = ['signKind', 'maxNumber', 'answerInput'];
+
+/** Symboly volby po řádcích. */
+function symbolsOf(value: SettingsOptionValue): readonly string[] {
+  if (isSignKind(value)) {
+    return SIGN_KIND_SYMBOLS[value];
+  }
+  if (isAnswerInput(value)) {
+    return ANSWER_INPUT_SYMBOLS[value];
+  }
+  return [String(value)];
+}
+
+/**
+ * Písmo symbolů řady: jako v Počítání, ale menší, kde by se nejdelší
+ * řádek nebo všechny řádky do volby nevešly; v řadě pro všechny volby stejné.
+ */
+function rowFontSize(sizes: Sizes, values: readonly SettingsOptionValue[]): number {
+  const fits = values.map((value) => {
+    const lines = symbolsOf(value);
+    if (lines.length === 0) {
+      return sizes.optionFontSize;
+    }
+    const longest = Math.max(...lines.map((line) => line.length));
+    return Math.min(
+      (sizes.optionWidth * SYMBOLS_FILL) / (longest * SYMBOL_WIDTH_EM),
+      (sizes.optionHeight * SYMBOLS_FILL) / (lines.length * SYMBOL_LINE_HEIGHT),
+    );
+  });
+  return Math.min(sizes.optionFontSize, ...fits);
+}
 
 /** Plocha v CSS px. */
 interface CssArea {
@@ -172,13 +238,16 @@ function buildRow(
   centerY: number,
   label: Omit<SettingsRowLabel, 'fontSize' | 'height'>,
 ): SettingsRow {
-  const options = ROW_VALUES[kind].map((value, index) => ({
+  const values = ROW_VALUES[kind];
+  const fontSize = rowFontSize(sizes, values);
+  const options = values.map((value, index) => ({
     x: left + index * (sizes.optionWidth + sizes.optionGap) + sizes.optionWidth / 2,
     y: centerY,
     width: sizes.optionWidth,
     height: sizes.optionHeight,
     value,
-    fontSize: sizes.optionFontSize,
+    symbols: symbolsOf(value),
+    fontSize,
     pencilSize: Math.min(MAX_PENCIL_CSS, sizes.optionHeight * PENCIL_HEIGHT_SHARE),
   }));
   return {

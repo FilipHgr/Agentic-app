@@ -1,6 +1,7 @@
 /**
- * Sezení hry Porovnávání (#178, od #187 doplň znaménko), bez Phaseru:
- * příklad „a ☐ b = c“, vyhodnocení ťuknutí na + nebo −, hvězdičky,
+ * Sezení hry Znaménka (#178, od #187 doplň znaménko, od #190 i < = >),
+ * bez Phaseru: příklad „a ☐ b = c“ s + − nebo „a ☐ b“ s < = > podle řady
+ * „Znaménka“ v nastavení, vyhodnocení ťuknutí na znaménko, hvězdičky,
  * oslava po 10. hvězdičce, uložení postupu, nastavení pro rodiče za
  * kolečkem (#179) a odchod. Scéna jen kreslí, co sezení ohlásí
  * (`onChange`), a předává ťuknutí.
@@ -39,7 +40,7 @@ import type { AnswerOutcome, StarProgress } from '../../../shared/logic/stars';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { loadCompareSettings, saveCompareSettings } from '../storage/settingsStorage';
-import { correctSign, nextProblem } from './compareProblems';
+import { correctSign, nextProblem, signsFor } from './compareProblems';
 import type { CompareProblem, CompareSign } from './compareProblems';
 import { isSameSettings } from './compareSettings';
 import type { CompareSettings } from './compareSettings';
@@ -134,7 +135,11 @@ export interface CompareSession {
   chooseSetting(change: Partial<CompareSettings>): void;
   /** Rodič ťukl na ✓: volby platí od dalšího příkladu, který hned přijde. */
   confirmSettings(): void;
-  /** Dítě ťuklo na tlačítko + nebo −, nebo potvrdilo ✓ napsané znaménko (#188). */
+  /**
+   * Dítě ťuklo na tlačítko se znaménkem (+ −, u „a ☐ b“ < = >), nebo
+   * potvrdilo ✓ napsané znaménko (#188). Znaménko, které k druhu příkladu
+   * nepatří, se nepočítá (`ignored`).
+   */
   tap(sign: CompareSign): AnswerOutcome;
   /**
    * Dítě ťuklo na prázdné okénko (#187): není to odpověď, okénko se jen
@@ -159,7 +164,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   let settings: CompareSettings = loadCompareSettings(storage);
   /** Volby v otevřeném nastavení; `null`, když je zavřené. */
   let choice: CompareSettings | null = null;
-  let problem: CompareProblem = nextProblem(null, random, settings.maxNumber);
+  let problem: CompareProblem = nextProblem(null, random, settings.maxNumber, settings.signKind);
   let phase: Phase = 'waiting';
   let filledSign: CompareSign | null = null;
   let cancelPending: (() => void) | null = null;
@@ -180,7 +185,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   };
 
   const startNextProblem = (): void => {
-    problem = nextProblem(problem, random, settings.maxNumber);
+    problem = nextProblem(problem, random, settings.maxNumber, settings.signKind);
     filledSign = null;
     phase = 'waiting';
     notify({ kind: 'problemStarted' });
@@ -318,6 +323,10 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
 
   const tap = (sign: CompareSign): AnswerOutcome => {
     if (phase !== 'waiting' || choice !== null || rudyIsOpen) {
+      return 'ignored';
+    }
+    // Znaménko jiného druhu (třeba pozdě potvrzené + u „a ☐ b“) není odpověď.
+    if (!signsFor(problem).includes(sign)) {
       return 'ignored';
     }
     if (sign !== correctSign(problem)) {

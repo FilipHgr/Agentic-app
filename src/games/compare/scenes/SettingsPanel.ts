@@ -3,8 +3,7 @@ import Phaser from 'phaser';
 import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { drawPencilIcon } from '../../../shared/ui/pencilIcon';
-import { isAnswerInput, isMaxNumber } from '../logic/compareSettings';
-import type { AnswerInput } from '../logic/compareSettings';
+import { isAnswerInput, isMaxNumber, isSignKind } from '../logic/compareSettings';
 import type { CompareSettings } from '../logic/compareSettings';
 import { layoutCompareSettings } from '../logic/compareSettingsLayout';
 import type {
@@ -27,15 +26,6 @@ const PANEL_FADE_MS = 150;
 const OPTION_BOUNCE_SCALE = 1.08;
 const OPTION_BOUNCE_MS = 90;
 
-/**
- * Volby řady „Odpověď“ (#188 AC1) se stejnými symboly jako v Počítání:
- * ťuknutí „123“, psaní kreslená tužka (`null`). Žádný text ke čtení.
- */
-const ANSWER_INPUT_LABELS: Readonly<Record<AnswerInput, string | null>> = {
-  tap: '123',
-  writing: null,
-};
-
 /** Co panel potřebuje od sezení hry. */
 export interface SettingsPanelHost {
   /** Volby v otevřeném nastavení. */
@@ -48,12 +38,13 @@ interface OptionView {
   readonly change: Partial<CompareSettings>;
   readonly slot: SettingsOptionSlot;
   readonly background: Phaser.GameObjects.Graphics;
-  /** Obsah volby, který se přebarví podle výběru (číslo nebo tužka). */
+  /** Obsah volby, který se přebarví podle výběru (symboly nebo tužka). */
   readonly paint: (selected: boolean) => void;
 }
 
 /**
- * Nastavení Porovnávání pro rodiče (#179, #187, #188): řada „Do kolika“
+ * Nastavení hry Znaménka pro rodiče (#179, #187, #188, #190): řada
+ * „Znaménka“ („+ −“, „< = >“, obojí pod sebou), řada „Do kolika“
  * (10, 20), řada „Odpověď“ (ťuknutí „123“, psaní tužka) a zelené ✓.
  * Vybrané volby jsou plně modré jako v Počítání. Rozměry jsou
  * v `compareSettingsLayout.ts`, co je vybrané a co ✓ udělá, řídí sezení hry.
@@ -141,13 +132,12 @@ export class SettingsPanel {
     return option;
   }
 
-  /** Číslo, „123“, nebo tužka uprostřed volby; vrátí přebarvení podle výběru. */
+  /** Symboly (číslo, „123“, „+ −“…), nebo tužka uprostřed volby; vrátí přebarvení podle výběru. */
   private addContent(
     button: Phaser.GameObjects.Container,
     slot: SettingsOptionSlot,
   ): (selected: boolean) => void {
-    const text = isAnswerInput(slot.value) ? ANSWER_INPUT_LABELS[slot.value] : String(slot.value);
-    if (text === null) {
+    if (slot.symbols.length === 0) {
       // Tužka ve dvou barvách jako v Počítání: ukáže se ta podle výběru.
       const unselected = drawPencilIcon(
         this.scene,
@@ -166,10 +156,11 @@ export class SettingsPanel {
       };
     }
     const label = this.scene.add
-      .text(0, 0, text, {
+      .text(0, 0, [...slot.symbols], {
         fontFamily: FONT_FAMILY,
         fontSize: `${Math.round(slot.fontSize)}px`,
         fontStyle: 'bold',
+        align: 'center',
       })
       .setOrigin(0.5);
     button.add(label);
@@ -225,6 +216,7 @@ export class SettingsPanel {
     for (const option of this.options) {
       const selected =
         choice !== null &&
+        (option.change.signKind === undefined || option.change.signKind === choice.signKind) &&
         (option.change.maxNumber === undefined || option.change.maxNumber === choice.maxNumber) &&
         (option.change.answerInput === undefined ||
           option.change.answerInput === choice.answerInput);
@@ -252,6 +244,8 @@ export class SettingsPanel {
 /** Co ťuknutí na volbu změní; hodnota mimo nabídku řady dá `null`. */
 function changeOf(kind: SettingsRowKind, value: unknown): Partial<CompareSettings> | null {
   switch (kind) {
+    case 'signKind':
+      return isSignKind(value) ? { signKind: value } : null;
     case 'maxNumber':
       return isMaxNumber(value) ? { maxNumber: value } : null;
     case 'answerInput':

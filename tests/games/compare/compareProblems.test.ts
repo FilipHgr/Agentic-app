@@ -6,9 +6,12 @@ import {
   isSameProblem,
   nextProblem,
 } from '../../../src/games/compare/logic/compareProblems';
-import type { CompareProblem } from '../../../src/games/compare/logic/compareProblems';
+import type {
+  ArithmeticProblem,
+  CompareProblem,
+} from '../../../src/games/compare/logic/compareProblems';
 import { MAX_NUMBER_OPTIONS } from '../../../src/games/compare/logic/compareSettings';
-import { openCompare, solveProblem } from './compareFakes';
+import { arithmeticOf, openCompare, solveProblem } from './compareFakes';
 
 /**
  * Testy k #187 AC1: příklady „a ☐ b = c“ v rozsahu z nastavení, vždy
@@ -33,18 +36,20 @@ function seeded(seed: number): () => number {
 }
 
 /** Příklady, které dítě uvidí, když jich vyřeší `count` za sebou. */
-function playedProblems(seed: number, count = PROBLEM_COUNT): CompareProblem[] {
+function playedProblems(seed: number, count = PROBLEM_COUNT): ArithmeticProblem[] {
   const test = openCompare(undefined, seed);
-  const problems: CompareProblem[] = [];
+  const problems: ArithmeticProblem[] = [];
   for (let index = 0; index < count; index += 1) {
-    problems.push(test.session.problem());
+    problems.push(arithmeticOf(test.session.problem()));
     solveProblem(test);
   }
   return problems;
 }
 
 function nameOf(problem: CompareProblem): string {
-  return `${problem.a} ☐ ${problem.b} = ${problem.result}`;
+  return problem.kind === 'relation'
+    ? `${problem.a} ☐ ${problem.b}`
+    : `${problem.a} ☐ ${problem.b} = ${problem.result}`;
 }
 
 describe('#187 AC1: dítě vždy pozná jediné správné znaménko', () => {
@@ -103,7 +108,7 @@ describe('#187 AC1: výsledek i čísla jsou v rozsahu 0 až zvolený rozsah', (
       const random = seeded(maxNumber);
       let previous: CompareProblem | null = null;
       for (let index = 0; index < 5000; index += 1) {
-        const problem = nextProblem(previous, random, maxNumber);
+        const problem = arithmeticOf(nextProblem(previous, random, maxNumber));
         const name = `do ${maxNumber}: ${nameOf(problem)}`;
         for (const number of [problem.a, problem.b, problem.result]) {
           expect(Number.isInteger(number), name).toBe(true);

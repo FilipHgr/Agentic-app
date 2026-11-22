@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 
 import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
 import type { EquationLayout, Rect, SignButtonsLayout } from '../logic/compareLayout';
-import type { CompareProblem, CompareSign } from '../logic/compareProblems';
+import type { CompareSign } from '../logic/compareProblems';
 import { EQUATION_STYLE, SIGN_BOX_STYLE, SIGN_BUTTON_STYLE } from '../logic/theme';
 
 /** Jak daleko a jak dlouho se okénko po chybě zatřese (CSS px, ms). */
@@ -44,9 +44,21 @@ function centeredText(
     .setOrigin(0.5);
 }
 
+/** Okénko a písmo řady příkladu, stejné u „a ☐ b = c“ i „a ☐ b“ (#190). */
+export type ProblemRowLayout = Pick<
+  EquationLayout,
+  'box' | 'boxHit' | 'fontSize' | 'signSize' | 'boxCornerRadius'
+>;
+
+/** Číslo nebo „=“ v řadě příkladu a jeho místo. */
+export interface ProblemRowText {
+  readonly rect: Rect;
+  readonly text: string;
+}
+
 /**
- * Příklad „a ☐ b = c“ (#187): velká čísla a „=“ a okénko na místě
- * znaménka. Okénko se po správné odpovědi vyplní znaménkem a zezelená, po
+ * Příklad „a ☐ b = c“ (#187) nebo „a ☐ b“ (#190): velká čísla (a „=“)
+ * a okénko na místě znaménka. Okénko se po správné odpovědi vyplní znaménkem a zezelená, po
  * chybě v něm chvíli šedě problikne ťuknuté znaménko, okénko se zatřese
  * a vyprázdní. Ťuknutí na okénko (aspoň 64 px kolem středu) ohlásí `onBoxTap`.
  *
@@ -69,20 +81,15 @@ export class EquationView {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly layout: EquationLayout,
+    private readonly layout: ProblemRowLayout,
     private readonly unit: number,
-    problem: CompareProblem,
+    texts: readonly ProblemRowText[],
     onBoxTap: (() => void) | null,
     private readonly boxIsPad = false,
   ) {
     const { fontSize } = layout;
     const color = EQUATION_STYLE.color;
-    this.parts = [
-      centeredText(scene, layout.first, String(problem.a), fontSize, color),
-      centeredText(scene, layout.second, String(problem.b), fontSize, color),
-      centeredText(scene, layout.equals, '=', fontSize, color),
-      centeredText(scene, layout.result, String(problem.result), fontSize, color),
-    ];
+    this.parts = texts.map((part) => centeredText(scene, part.rect, part.text, fontSize, color));
     this.boxBackground = scene.add.graphics();
     this.boxSign = scene.add
       .text(0, 0, '', {
@@ -241,14 +248,14 @@ export class EquationView {
   }
 }
 
-/** Velké tlačítko se znaménkem + nebo − pod příkladem (#187 AC2). */
+/** Velké tlačítko se znaménkem (+ −, u „a ☐ b“ < = >) pod příkladem (#187 AC2, #190 AC4). */
 export class SignButtonView {
   private readonly container: Phaser.GameObjects.Container;
 
   constructor(
     private readonly scene: Phaser.Scene,
     rect: Rect,
-    layout: SignButtonsLayout,
+    layout: Pick<SignButtonsLayout, 'symbolSize' | 'cornerRadius'>,
     unit: number,
     sign: CompareSign,
     onTap: () => void,

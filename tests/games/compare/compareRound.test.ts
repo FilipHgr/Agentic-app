@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { CELEBRATION_MS, NEXT_PROBLEM_MS } from '../../../src/games/compare/logic/compareSession';
 import { holds } from '../../../src/games/compare/logic/compareProblems';
 import type { CompareProblem } from '../../../src/games/compare/logic/compareProblems';
-import { openCompare, rightSign, solveProblem, wrongSign } from './compareFakes';
+import { arithmeticOf, openCompare, rightSign, solveProblem, wrongSign } from './compareFakes';
 import type { TestCompare } from './compareFakes';
 
 /**
@@ -27,7 +27,7 @@ describe('#187 AC1: příklad „a ☐ b = c“ s jediným správným znaménkem
   it('v každém příkladu platí právě jedno znaménko a všechna čísla jsou 0 až 10', () => {
     const test = openCompare();
     for (let index = 0; index < 300; index += 1) {
-      const problem = test.session.problem();
+      const problem = arithmeticOf(test.session.problem());
       const name = `${problem.a} ☐ ${problem.b} = ${problem.result}`;
       expect(holds(problem, '+') !== holds(problem, '−'), name).toBe(true);
       for (const number of [problem.a, problem.b, problem.result]) {

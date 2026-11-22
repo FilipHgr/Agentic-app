@@ -20,6 +20,7 @@ import { openProfiles } from '../../../src/shared/storage/profileStorage';
 import { startGameSession } from '../../../src/shared/ui/gameSession';
 import { DeviceStorage } from '../../shared/profileFixtures';
 import {
+  arithmeticOf,
   FakeSounds,
   FakeTimers,
   MemoryStorage,
@@ -47,7 +48,8 @@ function confirmChoice(test: TestCompare, change: Partial<CompareSettings>): voi
 
 /** Všechna čísla v příkladu. */
 function numbersOf(problem: CompareProblem): number[] {
-  return [problem.a, problem.b, problem.result];
+  const { a, b, result } = arithmeticOf(problem);
+  return [a, b, result];
 }
 
 describe('#179 AC1, #187 AC3: nastavení se otevře až po podržení kolečka 1 s', () => {
@@ -102,7 +104,11 @@ describe('#179 AC1, #187 AC3: nastavení se otevře až po podržení kolečka 1
     confirmChoice(openCompare(storage), { maxNumber: 20 });
     const again = openCompare(storage);
     again.gear.hold();
-    expect(again.session.settingsChoice()).toEqual({ maxNumber: 20, answerInput: 'tap' });
+    expect(again.session.settingsChoice()).toEqual({
+      maxNumber: 20,
+      answerInput: 'tap',
+      signKind: 'plusMinus',
+    });
   });
 
   it('po odchodu z hry se hra od kolečka odpojí', () => {
@@ -116,8 +122,16 @@ describe('#179 AC1, #187 AC3: nastavení se otevře až po podržení kolečka 1
 describe('#187 AC3: „Do kolika“ 10 nebo 20, výchozí 10', () => {
   it('rodič vybírá z rozsahů 10 a 20, výchozí je 10', () => {
     expect([...MAX_NUMBER_OPTIONS]).toEqual([10, 20]);
-    expect(DEFAULT_COMPARE_SETTINGS).toEqual({ maxNumber: 10, answerInput: 'tap' });
-    expect(openCompare().session.settings()).toEqual({ maxNumber: 10, answerInput: 'tap' });
+    expect(DEFAULT_COMPARE_SETTINGS).toEqual({
+      maxNumber: 10,
+      answerInput: 'tap',
+      signKind: 'plusMinus',
+    });
+    expect(openCompare().session.settings()).toEqual({
+      maxNumber: 10,
+      answerInput: 'tap',
+      signKind: 'plusMinus',
+    });
   });
 
   it('po zvolení rozsahu 20 dává hra příklady do 20 a objeví se i čísla nad 10', () => {
@@ -192,7 +206,11 @@ describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené h
   it('po zavření a novém otevření hry platí zvolený rozsah', () => {
     const storage = new MemoryStorage();
     confirmChoice(openCompare(storage), { maxNumber: 20 });
-    expect(openCompare(storage).session.settings()).toEqual({ maxNumber: 20, answerInput: 'tap' });
+    expect(openCompare(storage).session.settings()).toEqual({
+      maxNumber: 20,
+      answerInput: 'tap',
+      signKind: 'plusMinus',
+    });
   });
 
   it('každý profil má vlastní rozsah', () => {
@@ -212,11 +230,13 @@ describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené h
     expect(openCompare(reloaded.gameStorage(COMPARE_META.id)).session.settings()).toEqual({
       maxNumber: 20,
       answerInput: 'tap',
+      signKind: 'plusMinus',
     });
     reloaded.selectProfile(second.id);
     expect(openCompare(reloaded.gameStorage(COMPARE_META.id)).session.settings()).toEqual({
       maxNumber: 10,
       answerInput: 'tap',
+      signKind: 'plusMinus',
     });
   });
 
@@ -230,7 +250,11 @@ describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené h
       const storage = new MemoryStorage();
       storage.data.set(COMPARE_SETTINGS_KEY, saved);
       const test = openCompare(storage);
-      expect(test.session.settings(), saved).toEqual({ maxNumber: 10, answerInput: 'tap' });
+      expect(test.session.settings(), saved).toEqual({
+        maxNumber: 10,
+        answerInput: 'tap',
+        signKind: 'plusMinus',
+      });
       expect(Math.max(...numbersOf(test.session.problem())), saved).toBeLessThanOrEqual(10);
       expect(test.session.tap(correctSign(test.session.problem())), saved).toBe('correct');
     }
@@ -240,11 +264,16 @@ describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené h
     const storage = new MemoryStorage();
     storage.data.set(COMPARE_SETTINGS_KEY, '{"maxNumber":20,"show":"both","question":"less"}');
     const test = openCompare(storage);
-    expect(test.session.settings()).toEqual({ maxNumber: 20, answerInput: 'tap' });
+    expect(test.session.settings()).toEqual({
+      maxNumber: 20,
+      answerInput: 'tap',
+      signKind: 'plusMinus',
+    });
     confirmChoice(test, {});
     expect(JSON.parse(storage.data.get(COMPARE_SETTINGS_KEY) ?? '')).toEqual({
       maxNumber: 20,
       answerInput: 'tap',
+      signKind: 'plusMinus',
     });
   });
 
@@ -263,7 +292,11 @@ describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené h
       const storage = new MemoryStorage();
       storage.data.set(COMPARE_SETTINGS_KEY, saved);
       const test = openCompare(storage);
-      expect(test.session.settings(), saved).toEqual({ maxNumber: 10, answerInput: 'tap' });
+      expect(test.session.settings(), saved).toEqual({
+        maxNumber: 10,
+        answerInput: 'tap',
+        signKind: 'plusMinus',
+      });
       expect(test.session.tap(correctSign(test.session.problem())), saved).toBe('correct');
     }
   });
@@ -275,7 +308,11 @@ describe('#179 AC5, #187 AC3: nastavení podle profilu, starší a poškozené h
     const test = openCompare(storage);
     expect(test.session.settings()).toEqual(DEFAULT_COMPARE_SETTINGS);
     confirmChoice(test, { maxNumber: 20 });
-    expect(test.session.settings()).toEqual({ maxNumber: 20, answerInput: 'tap' });
+    expect(test.session.settings()).toEqual({
+      maxNumber: 20,
+      answerInput: 'tap',
+      signKind: 'plusMinus',
+    });
   });
 });
 

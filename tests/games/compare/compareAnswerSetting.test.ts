@@ -50,6 +50,7 @@ describe('#188 AC1: rodič zvolí odpověď ťuknutím nebo psaním', () => {
     expect(openCompare(storage).session.settings()).toEqual({
       maxNumber: 20,
       answerInput: 'writing',
+      signKind: 'plusMinus',
     });
   });
 
@@ -85,6 +86,7 @@ describe('#188 AC1: rodič zvolí odpověď ťuknutím nebo psaním', () => {
       expect(openCompare(storage).session.settings(), value).toEqual({
         maxNumber: 20,
         answerInput: 'tap',
+        signKind: 'plusMinus',
       });
     }
   });
