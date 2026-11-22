@@ -240,7 +240,20 @@ export type PreviewTap =
       readonly picture: PictureIdentity;
       readonly tones: readonly Tone[];
     }
+  /**
+   * Druhé ťuknutí během první kontroly odemčení zdarma (#195): výběr si ho
+   * zapamatuje a klíč v zámku na místě `index` dál poskakuje. Rozhodne se,
+   * až kontrola doběhne (`freeCheckFinished`).
+   */
+  | { readonly kind: 'keyWaits'; readonly index: number; readonly tones: readonly Tone[] }
   | { readonly kind: 'ignored' };
+
+/**
+ * Jak dopadlo ťuknutí na omalovánku s klíčem v zámku (#159 AC3), i to
+ * zapamatované během první kontroly (#195): odemčená klíčem, otevřená
+ * zdarma, nebo bez klíče jen zhoupnutá.
+ */
+export type KeyInLockTap = Extract<PreviewTap, { readonly kind: 'unlocked' | 'open' | 'locked' }>;
 
 /** Jak skončila výměna po ťuknutí na štětec (#131). */
 export type ContinueResult =
@@ -325,6 +338,15 @@ export interface PictureChoice {
   keyLanded(): void;
   /** Kde je klíč poslaný do zámku; `null`, když je v ukazateli (#159). */
   keyInLock(): KeyInLock | null;
+  /**
+   * Scéna dokončila odemčení zdarma při otevření Omalovánek (#195). Klíč
+   * v zámku začne čekat 5 s až teď. Zapamatované druhé ťuknutí omalovánku
+   * odemkne klíčem (`unlocked`), nebo, když je omalovánka zdarma, ji otevře
+   * bez klíče (`open`) a klíč se vrátí; bez klíče (`locked`) se klíč vrátí.
+   * Klíč u omalovánky, která je zdarma nebo ji klíč neodemkne, se vrátí do
+   * ukazatele. Jinak (bez zapamatovaného ťuknutí) `null`.
+   */
+  freeCheckFinished(): KeyInLockTap | null;
   /** Domeček se držel 1 s. */
   holdHome(): HomeHold;
   /** Ťuknutí na knihu s albem, jak ho scéna přečetla; `null`, když ještě není přečtené. */
@@ -714,7 +736,17 @@ export function startPictureChoice(
     readonly index: number;
     readonly sentAt: number;
     readonly landedAt: number | null;
+    /** Vyletěl klíč během první kontroly odemčení zdarma, která ještě nedoběhla (#195)? */
+    readonly awaitingCheck: boolean;
+    /** Kdy výběr poznal, že kontrola, na kterou klíč čekal, doběhla (#195). */
+    readonly checkedAt: number | null;
+    /** Dítě ťuklo podruhé během kontroly; odemkne se, až doběhne (#195). */
+    readonly unlockRequested: boolean;
   } | null = null;
+
+  /** Čeká omalovánka na první kontrolu odemčení zdarma (#195)? */
+  const awaitsFreeCheck = (picture: PictureIdentity): boolean =>
+    options.locks?.awaitsFreeCheck?.(picture) === true;
 
   /**
    * Klíč poslaný do zámku, nebo `null`. Po 5 s v zámku bez ťuknutí se
@@ -725,10 +757,15 @@ export function startPictureChoice(
     if (sentKey === null) {
       return null;
     }
-    const returnsAt =
-      sentKey.landedAt === null
-        ? sentKey.sentAt + KEY_FLIGHT_MS + KEY_WAIT_MS
-        : sentKey.landedAt + KEY_WAIT_MS;
+    if (awaitsFreeCheck(sentKey.picture)) {
+      // Během kontroly klíč v zámku čeká; 5 s začne až po ní (#195).
+      return sentKey;
+    }
+    if (sentKey.awaitingCheck) {
+      sentKey = { ...sentKey, awaitingCheck: false, checkedAt: now() };
+    }
+    const arrivedAt = sentKey.landedAt ?? sentKey.sentAt + KEY_FLIGHT_MS;
+    const returnsAt = Math.max(arrivedAt, sentKey.checkedAt ?? arrivedAt) + KEY_WAIT_MS;
     if (now() >= returnsAt) {
       sentKey = null;
     }
@@ -753,12 +790,21 @@ export function startPictureChoice(
       return { kind: 'ignored' };
     }
     if (!keyHere) {
-      // Klíč vyletí, jen když ho druhé ťuknutí může utratit (#159 AC5, #140 AC2).
-      if (options.locks?.canUnlock(picture) !== true) {
+      // Klíč vyletí, jen když ho druhé ťuknutí může utratit (#159 AC5, #140 AC2),
+      // nebo když omalovánka čeká na první kontrolu odemčení zdarma (#195).
+      if (options.locks?.canUnlock(picture) !== true && !awaitsFreeCheck(picture)) {
         returnKey();
         return { kind: 'locked', index: place, tones: HOME_WOBBLE_TONES };
       }
-      sentKey = { picture, index: place, sentAt: now(), landedAt: null };
+      sentKey = {
+        picture,
+        index: place,
+        sentAt: now(),
+        landedAt: null,
+        awaitingCheck: awaitsFreeCheck(picture),
+        checkedAt: null,
+        unlockRequested: false,
+      };
       return {
         kind: 'keyToLock',
         index: place,
@@ -766,6 +812,19 @@ export function startPictureChoice(
         tones: KEY_SEND_TONES,
       };
     }
+    if (awaitsFreeCheck(picture)) {
+      // Druhé ťuknutí během kontroly se zapamatuje, klíč zůstane v zámku (#195).
+      sentKey = { ...key, unlockRequested: true };
+      return { kind: 'keyWaits', index: place, tones: KEY_SEND_TONES };
+    }
+    return unlockWithKeyInLock(picture, place);
+  };
+
+  /**
+   * Druhé ťuknutí na omalovánku s klíčem v zámku (#159 AC3): klíč se
+   * vrátí, nebo utratí; omalovánka zdarma se otevře bez klíče.
+   */
+  const unlockWithKeyInLock = (picture: PictureIdentity, place: number): KeyInLockTap => {
     returnKey();
     const unlock = options.locks?.unlock(picture) ?? 'alreadyUnlocked';
     if (unlock === 'noKey') {
@@ -847,6 +906,22 @@ export function startPictureChoice(
       if (sentKey !== null && sentKey.landedAt === null) {
         sentKey = { ...sentKey, landedAt: now() };
       }
+    },
+    freeCheckFinished: () => {
+      const key = currentKey();
+      if (key === null) {
+        return null;
+      }
+      const stillLocked = options.locks?.isLocked(key.picture) === true;
+      if (key.unlockRequested && screen.kind === 'picker') {
+        // Zapamatované druhé ťuknutí: klíčem, nebo zdarma bez klíče (#195).
+        return unlockWithKeyInLock(key.picture, key.index);
+      }
+      if (!stillLocked || options.locks?.canUnlock(key.picture) !== true) {
+        // Omalovánka je zdarma, nebo ji klíč neodemkne: klíč se vrátí nespotřebovaný.
+        returnKey();
+      }
+      return null;
     },
     keyInLock: () => {
       const key = currentKey();

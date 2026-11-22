@@ -135,7 +135,8 @@ interface PictureAssets {
  * ztlumený se zámkem a vedle knihy je ukazatel klíčů z Počítání
  * (`GameHost.keyRewards`). Po přečtení alba se jednou odemknou zdarma
  * rozmalované omalovánky a obrázky z alba (`unlockPaintedPictures`); do té
- * doby se ťuknutí na zámek jen zhoupne a klíč se neutratí. Bez klíče se
+ * doby klíč odemyká jen omalovánky zkontrolované při dřívějším otevření
+ * (#195), u ostatních se ťuknutí na zámek jen zhoupne a klíč se neutratí. Bez klíče se
  * zámek i ukazatel zhoupnou s tónem domečku, s klíčem se zámek otevře
  * a otevře se malování.
  *
@@ -270,10 +271,11 @@ export class PickerScene extends Phaser.Scene {
       pictures: COLORING_PICTURES,
       storage: host?.storage,
       keyRewards: host?.keyRewards,
+      freeCheckDone: () => this.locksReady,
     });
     this.locksReady = false;
     this.choice = startPictureChoice(COLORING_PICTURES, {
-      locks: this.choiceLocks(),
+      locks: this.locks,
       records: host?.records,
       storage: host?.storage,
       albumPictures: () => this.albumPictures,
@@ -302,8 +304,8 @@ export class PickerScene extends Phaser.Scene {
   }
 
   /**
-   * Odemčení zdarma po prvním přečtení alba (#140 AC2), dřív než výběr
-   * přijme ťuknutí na zámek. Dostane jen omalovánky s připraveným obrysem;
+   * Odemčení zdarma po prvním přečtení alba (#140 AC2). Do té doby klíč
+   * odemkne jen omalovánky zkontrolované dřív (#195). Dostane jen omalovánky s připraveným obrysem;
    * ostatní se zkontrolují při dalším otevření a klíč je do té doby neodemkne.
    */
   private async unlockPaintedOnce(reading: Promise<AlbumContents>): Promise<void> {
@@ -320,21 +322,13 @@ export class PickerScene extends Phaser.Scene {
     if (this.painting === null && this.choice.screen().kind === 'picker') {
       this.showLocks();
     }
+    // Klíč, který čekal v zámku na kontrolu, odemkne zapamatované ťuknutí, nebo se vrátí (#195).
+    const waitedTap = this.choice.freeCheckFinished();
+    if (waitedTap !== null) {
+      this.onPreviewTap(waitedTap, waitedTap.index);
+    }
     // Až po odemčení zdarma, aby se rozmalovaná stránka neschovala do alba nepřečtená (#141).
     void this.showMoves(this.choice.movePagesToAlbum());
-  }
-
-  /**
-   * Zámky pro výběr: do odemčení zdarma (#140 AC2) se zamčená omalovánka
-   * neodemkne klíčem (zámek se jen zhoupne, klíč nevyletí ani se neutratí).
-   */
-  private choiceLocks(): PictureLocks {
-    return {
-      isLocked: (picture) => this.locks.isLocked(picture),
-      keyIndicator: () => this.locks.keyIndicator(),
-      canUnlock: (picture) => this.locksReady && this.locks.canUnlock(picture),
-      unlock: (picture) => (this.locksReady ? this.locks.unlock(picture) : 'noKey'),
-    };
   }
 
   /** Rozložení výběru se šipkami, když má sada víc stránek (#150). */
@@ -1446,6 +1440,12 @@ export class PickerScene extends Phaser.Scene {
         // Klíč letí z ukazatele (nebo ze zámku jiné omalovánky) do zámku, nic se neutratí (#159 AC2).
         this.sounds.play(tap.tones);
         this.sendKey(tap.index);
+        return;
+      case 'keyWaits':
+        // Druhé ťuknutí během první kontroly (#195): klíč v zámku dál poskakuje,
+        // zámek ťuknutí potvrdí zhoupnutím a odemkne se, až kontrola doběhne.
+        this.sounds.play(tap.tones);
+        tile?.wobbleLock();
         return;
       case 'unlocked':
         // Druhé ťuknutí (#159 AC3): klíč se v zámku otočí, ukazatel ubere klíč,

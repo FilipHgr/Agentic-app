@@ -187,6 +187,42 @@ export async function enterColoring(
   return openPictureLocks({ pictures: COLORING_PICTURES, storage: page.storage, keyRewards });
 }
 
+/** Omalovánky právě otevřené, zatímco scéna ještě připravuje obrysy (#195). */
+export interface PreparingColoring {
+  /** Zámky, jak je výběr dostane hned při otevření (dítě už může ťukat). */
+  readonly locks: PictureLocks;
+  /**
+   * Scéna připravila všechny obrysy a přečetla album: proběhne odemčení
+   * zdarma (#140 AC2) a teprve pak platí, že odemčení zdarma proběhlo.
+   */
+  finishPreparing(): Promise<void>;
+}
+
+/**
+ * Dítě ťukne v menu na Omalovánky a výběr je hned vidět, ale scéna ještě
+ * několik sekund připravuje obrysy všech omalovánek a čte album (na iPadu
+ * 6–11 s, #195). Zámky dostanou, jestli odemčení zdarma už proběhlo,
+ * stejně jako je dává scéna (`freeCheckDone`).
+ */
+export function openColoringWhilePreparing(page: LockPage): PreparingColoring {
+  let freeCheckDone = false;
+  const locks = openPictureLocks({
+    pictures: COLORING_PICTURES,
+    storage: page.storage,
+    keyRewards: page.keys,
+    freeCheckDone: () => freeCheckDone,
+  });
+  return {
+    locks,
+    finishPreparing: async () => {
+      const pictures = setPictures();
+      const album = await readAlbum(page.records, pictures);
+      unlockPaintedPictures({ storage: page.storage, pictures, album });
+      freeCheckDone = true;
+    },
+  };
+}
+
 /** Které omalovánky sady jsou zamčené (v pořadí náhledů). */
 export function lockedIdsOf(locks: PictureLocks): string[] {
   return COLORING_PICTURES.filter((picture) => locks.isLocked(picture)).map(

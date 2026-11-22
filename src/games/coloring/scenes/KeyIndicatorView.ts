@@ -11,6 +11,11 @@
  * v zámku poskakuje, aby zval k druhému ťuknutí, při odemčení se otočí
  * (`turnKey`) a jinak se vrátí do ukazatele (`returnKey`). Klíč se otáčí
  * kolem hrotu v klíčové dírce (`KEY_IN_LOCK.tipShare`).
+ *
+ * Od #195 je klíč na výběru vidět jen jednou (`keyIndicatorLook`): vedle
+ * celého klíče je obrys jen jako půlka a klíč mimo ukazatel ukazatel
+ * nepočítá (místo ztlumeného zlatého klíče se nakreslí znovu bez něj,
+ * s posledním klíčem venku jako šedý obrys s 0).
  */
 
 import Phaser from 'phaser';
@@ -19,6 +24,7 @@ import { FONT_FAMILY } from '../../../shared/logic/theme';
 import type { LayoutRect } from '../logic/coloringLayout';
 import { KEY_IN_LOCK } from '../logic/pickerLayout';
 import { KEY_FLIGHT_MS } from '../logic/pictureChoice';
+import { keyIndicatorLook } from '../logic/pictureLocks';
 import type { KeyIndicatorState } from '../logic/pictureLocks';
 import { KEY_INDICATOR_STYLE, KEY_IN_LOCK_STYLE } from '../logic/theme';
 import { KEY_HEAD_ICON_FILE, KEY_ICON_FILE } from '../logic/toolIcons';
@@ -44,13 +50,20 @@ interface LooseKey {
   onLanded: (() => void) | null;
 }
 
+/** Co ukazatel dostal k nakreslení, aby se mohl nakreslit znovu, když klíč vyletí nebo se vrátí. */
+interface ShownIndicator {
+  readonly state: KeyIndicatorState;
+  readonly rect: LayoutRect;
+  readonly cssScale: number;
+}
+
 export class KeyIndicatorView {
   private container: Phaser.GameObjects.Container | null = null;
   /** Zlatý klíč ukazatele, odkud klíč vylétá a kam se vrací. */
   private keySpot: KeySpot | null = null;
   private looseKey: LooseKey | null = null;
-  /** Zlatý klíč ukazatele; ztlumí se, když je klíč mimo ukazatel. */
-  private goldKeyImage: Phaser.GameObjects.Image | Phaser.GameObjects.Text | null = null;
+  /** Co ukazatel naposledy dostal k nakreslení; `null`, když je schovaný nebo zrušený. */
+  private shown: ShownIndicator | null = null;
   private depth = 0;
 
   constructor(private readonly scene: Phaser.Scene) {}
@@ -61,66 +74,98 @@ export class KeyIndicatorView {
    * zůstane, kde je.
    */
   show(state: KeyIndicatorState | null, rect: LayoutRect, cssScale: number, depth: number): void {
-    this.destroyIndicator();
     this.depth = depth;
-    if (state === null) {
+    this.shown = state === null ? null : { state, rect, cssScale };
+    this.destroyIndicator();
+    this.drawIndicator();
+  }
+
+  /** Je jeden klíč mimo ukazatel (letí, čeká v zámku, nebo se vrací)? Otáčející se už je utracený. */
+  private isKeyOut(): boolean {
+    return this.looseKey !== null && this.looseKey.state !== 'turning';
+  }
+
+  /**
+   * Nakreslí obsah ukazatele podle toho, co dostal, a jestli je klíč mimo
+   * něj (#195 AC3). Když ukazatel už je, vymění jen obsah, aby běžící
+   * zhoupnutí nebo poskočení doběhlo.
+   */
+  private drawIndicator(): void {
+    const shown = this.shown;
+    if (shown === null) {
+      this.destroyIndicator();
       return;
     }
+    const { rect, cssScale } = shown;
+    const look = keyIndicatorLook(shown.state, this.isKeyOut());
+    // Rozměry řady podle ukazatele s klíčem doma: klíč, který vyletí, ji
+    // neposune, a vracející se klíč tak míří na stejné místo.
+    const restLook = keyIndicatorLook(shown.state, false);
     const style = KEY_INDICATOR_STYLE;
-    const empty = state.wholeKeys === 0;
-    // Střed ukazatele je počátek, aby se zhoupnutí točilo kolem středu.
-    const container = this.scene.add.container(
-      rect.left + rect.width / 2,
-      rect.top + rect.height / 2,
-    );
-    container.setDepth(depth);
-    // Široký ukazatel: klíč, číslice a obrys v řadě; úzký: obrys pod nimi.
-    // Velikost klíče počítá vždy s obrysem, aby se po utracení klíče nezměnila.
+    const container = this.container ?? this.newContainer(rect);
+    container.removeAll(true);
+    // Široký ukazatel: klíč, číslice a půlka v řadě; úzký: půlka pod nimi.
+    // Velikost klíče počítá vždy s půlkou, aby se po utracení klíče nezměnila.
     const inRow = rect.width >= rect.height * style.rowMinAspect;
     const rowWidthShare = 1 + style.digitWidthShare + (inRow ? style.progressShare : 0);
     const rowHeight = inRow ? rect.height : rect.height / (1 + style.progressShare);
     const keySide = Math.min(rowHeight * style.keyShare, rect.width / rowWidthShare);
     const progressSide = keySide * style.progressShare;
-    const withProgress = !empty;
     const rowWidth =
-      keySide * (1 + style.digitWidthShare + (inRow && withProgress ? style.progressShare : 0));
+      keySide *
+      (1 + style.digitWidthShare + (inRow && restLook.halfBeside ? style.progressShare : 0));
     const rowY = inRow ? 0 : -rect.height / 2 + rowHeight / 2;
     const keyX = -rowWidth / 2 + keySide / 2;
     const digitX = -rowWidth / 2 + keySide + (keySide * style.digitWidthShare) / 2;
-    this.goldKeyImage = empty ? null : this.goldKey(keySide, cssScale);
-    const mainKey =
-      this.goldKeyImage === null
-        ? this.outlineKey(keySide, cssScale, state.hasHalf)
-        : [this.goldKeyImage];
-    for (const part of mainKey) {
+    for (const part of this.mainKey(look.mainKey, keySide, cssScale)) {
       container.add(part.setPosition(keyX, rowY));
     }
     container.add(
       this.scene.add
-        .text(digitX, rowY, String(state.wholeKeys), {
+        .text(digitX, rowY, String(look.wholeKeys), {
           fontFamily: FONT_FAMILY,
           fontSize: `${Math.round(keySide * style.digitShare)}px`,
           fontStyle: 'bold',
-          color: empty ? style.emptyColor : style.digitColor,
+          color: look.wholeKeys === 0 ? style.emptyColor : style.digitColor,
         })
         .setOrigin(0.5),
     );
-    if (withProgress) {
+    if (look.halfBeside) {
       const progressX = inRow ? rowWidth / 2 - progressSide / 2 : 0;
-      // Úzký ukazatel: obrys hned pod řadou klíče s číslicí.
+      // Úzký ukazatel: půlka hned pod řadou klíče s číslicí.
       const progressY = inRow ? 0 : rowY + keySide * style.columnProgressDrop;
-      for (const part of this.outlineKey(progressSide, cssScale, state.hasHalf)) {
+      for (const part of this.outlineKey(progressSide, cssScale, true)) {
         container.add(part.setPosition(progressX, progressY));
       }
     }
     this.container = container;
     this.keySpot = { x: container.x + keyX, y: container.y + rowY, side: keySide };
-    this.dimGoldKey();
   }
 
-  /** Zlatý klíč ukazatele je ztlumený, dokud je klíč mimo ukazatel (letí, je v zámku, vrací se). */
-  private dimGoldKey(): void {
-    this.goldKeyImage?.setAlpha(this.looseKey === null ? 1 : KEY_IN_LOCK_STYLE.indicatorAwayAlpha);
+  /** Prázdný ukazatel na místě `rect`; střed je počátek, aby se zhoupnutí točilo kolem středu. */
+  private newContainer(rect: LayoutRect): Phaser.GameObjects.Container {
+    const container = this.scene.add.container(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+    );
+    container.setDepth(this.depth);
+    return container;
+  }
+
+  /** Hlavní klíč ukazatele podle vzhledu `mainKey` (#195). */
+  private mainKey(
+    mainKey: 'gold' | 'half' | 'empty',
+    side: number,
+    cssScale: number,
+  ): (Phaser.GameObjects.Image | Phaser.GameObjects.Text)[] {
+    switch (mainKey) {
+      case 'gold':
+        return [this.goldKey(side, cssScale)];
+      case 'half':
+        return this.outlineKey(side, cssScale, true);
+      case 'empty':
+        return this.outlineKey(side, cssScale, false);
+    }
   }
 
   /**
@@ -147,7 +192,10 @@ export class KeyIndicatorView {
     key.image.setAngle(0).setAlpha(1);
     key.state = 'flying';
     key.onLanded = onLanded;
-    this.dimGoldKey();
+    if (fresh) {
+      // Klíč opustil ukazatel: ukazatel ho už nepočítá (#195 AC3).
+      this.drawIndicator();
+    }
     const end = tipOf(target);
     this.scene.tweens.add({
       targets: key.image,
@@ -173,6 +221,10 @@ export class KeyIndicatorView {
     }
     if (fresh || key.state === 'flying') {
       key.onLanded = onLanded;
+    }
+    if (fresh) {
+      // Klíč nakreslený rovnou v zámku: ukazatel ho nepočítá (#195 AC3).
+      this.drawIndicator();
     }
     this.scene.tweens.killTweensOf(key.image);
     const end = tipOf(target);
@@ -210,7 +262,8 @@ export class KeyIndicatorView {
       duration: KEY_IN_LOCK_STYLE.turnMs,
       ease: 'Sine.easeInOut',
       onComplete: () => {
-        this.destroyLooseKey();
+        // Utracený klíč: nový stav ukazatele nakreslí scéna v `onDone` (jen jednou).
+        this.destroyLooseKey(false);
         onDone();
       },
     });
@@ -282,6 +335,7 @@ export class KeyIndicatorView {
 
   /** Zahodí ukazatel i klíč mimo něj. */
   destroy(): void {
+    this.shown = null;
     this.destroyIndicator();
     this.destroyLooseKey();
   }
@@ -295,7 +349,8 @@ export class KeyIndicatorView {
     this.keySpot = null;
   }
 
-  private destroyLooseKey(): void {
+  /** Zahodí klíč mimo ukazatel; `redraw` ukazatel nakreslí znovu s klíčem doma. */
+  private destroyLooseKey(redraw = true): void {
     const key = this.looseKey;
     if (key === null) {
       return;
@@ -303,7 +358,10 @@ export class KeyIndicatorView {
     this.scene.tweens.killTweensOf(key.image);
     key.image.destroy();
     this.looseKey = null;
-    this.dimGoldKey();
+    if (redraw) {
+      // Klíč je zpátky v ukazateli.
+      this.drawIndicator();
+    }
   }
 
   /** Klíč doletěl: zavolá, co čeká na dolet, a poskakuje, aby zval k ťuknutí. */
@@ -311,7 +369,6 @@ export class KeyIndicatorView {
     key.state = 'inLock';
     const onLanded = key.onLanded;
     key.onLanded = null;
-    this.dimGoldKey();
     const style = KEY_IN_LOCK_STYLE;
     const scale = key.image.scale;
     const angle = style.inviteTurnAngle;

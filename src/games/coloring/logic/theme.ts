@@ -323,8 +323,9 @@ export const PICTURE_LOCK_STYLE = {
 
 /**
  * Ukazatel klíčů na výběru (#140, od #159 s obrysem celého klíče): zlatý
- * klíč, číslice celých klíčů a vedle (úzký ukazatel pod nimi) obrys celého
- * klíče, prázdný, nebo při půlce se zlatou hlavou. S 0 klíči je klíč jen
+ * klíč, číslice celých klíčů a vedle (úzký ukazatel pod nimi) půlka jako
+ * obrys celého klíče se zlatou hlavou, jen když ji dítě má (od #195 bez
+ * prázdného obrysu, který vypadal jako druhý klíč). S 0 klíči je klíč jen
  * šedý obrys (při půlce se zlatou hlavou) a obrys vedle není.
  */
 export const KEY_INDICATOR_STYLE = {
@@ -370,8 +371,6 @@ export const KEY_IN_LOCK_STYLE = {
   inviteTurnAngle: 15,
   inviteTurnMs: 150,
   invitePauseMs: 200,
-  /** Zlatý klíč ukazatele, když je klíč mimo něj (v zámku je vidět jen jeden zlatý klíč). */
-  indicatorAwayAlpha: 0.35,
   /** Otočení v zámku při odemčení (stupně po směru hodinových ručiček). */
   turnAngle: 90,
   turnMs: 240,

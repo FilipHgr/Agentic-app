@@ -48,6 +48,39 @@ export interface KeyIndicatorState {
   readonly hasHalf: boolean;
 }
 
+/**
+ * Co ukazatel klíčů nakreslí (#195 AC3, AC4): klíč je na výběru vidět jen
+ * jednou. Hlavní klíč je zlatý, když je v ukazateli aspoň jeden celý klíč;
+ * s 0 klíči šedý obrys (s půlkou se zlatou hlavou). Půlka je obrys se
+ * zlatou hlavou, vedle zlatého klíče jen tehdy, když dítě půlku má (dřív
+ * tam byl vždy prázdný obrys a vypadal jako druhý klíč). Když je klíč
+ * mimo ukazatel (letí do zámku, čeká v něm, nebo se vrací), ukazatel ho
+ * nepočítá: zbylé celé klíče, a když žádný nezbyl, šedý obrys s číslicí 0
+ * jako s 0 klíči (s půlkou se zlatou hlavou). Zlatý je tak jen ten
+ * letící a utracením se ukazatel už nezmění; samotná 0 bez obrysu
+ * nebyla srozumitelná.
+ */
+export interface KeyIndicatorLook {
+  /** `gold` zlatý klíč, `half` obrys se zlatou hlavou, `empty` šedý obrys. */
+  readonly mainKey: 'gold' | 'half' | 'empty';
+  /** Číslice: celé klíče, které jsou v ukazateli. */
+  readonly wholeKeys: number;
+  /** Půlka vedle zlatého klíče (obrys se zlatou hlavou). */
+  readonly halfBeside: boolean;
+}
+
+/** Vzhled ukazatele se stavem `state`; `keyOut`, když je jeden klíč mimo ukazatel (#159). */
+export function keyIndicatorLook(state: KeyIndicatorState, keyOut: boolean): KeyIndicatorLook {
+  const wholeKeys = Math.max(0, state.wholeKeys - (keyOut ? 1 : 0));
+  if (wholeKeys > 0) {
+    return { mainKey: 'gold', wholeKeys, halfBeside: state.hasHalf };
+  }
+  if (state.hasHalf) {
+    return { mainKey: 'half', wholeKeys, halfBeside: false };
+  }
+  return { mainKey: 'empty', wholeKeys, halfBeside: false };
+}
+
 /** Jak dopadlo ťuknutí na zamčenou omalovánku: odemčená klíčem, už odemčená, nebo bez klíče. */
 export type PictureUnlock = 'unlocked' | 'alreadyUnlocked' | 'noKey';
 
@@ -61,6 +94,13 @@ export interface PictureLocks {
    * je zkontrolovaná (#140 AC2) a dítě má celý klíč. Nic nemění.
    */
   canUnlock(picture: PictureIdentity): boolean;
+  /**
+   * Čeká omalovánka na první kontrolu odemčení zdarma (#195)? Je zamčená,
+   * dítě má celý klíč, kontrola při tomto otevření ještě neproběhla a dřív
+   * ji také nikdo nezkontroloval. Klíč do jejího zámku smí vyletět, ale
+   * utratí se, až kontrola doběhne. Nic nemění; bez metody nic nečeká.
+   */
+  awaitsFreeCheck?(picture: PictureIdentity): boolean;
   /** Odemkne omalovánku jedním celým klíčem. */
   unlock(picture: PictureIdentity): PictureUnlock;
 }
@@ -241,8 +281,15 @@ export function openPictureLocks(options: {
   readonly pictures: readonly PictureIdentity[];
   readonly storage: KeyValueStorage | undefined;
   readonly keyRewards: KeyRewards | undefined;
+  /**
+   * Proběhlo už při tomto otevření Omalovánek odemčení zdarma
+   * (`unlockPaintedPictures` po přečtení alba)? Scéna ho spustí až po
+   * přípravě všech obrysů. Bez volby proběhlo.
+   */
+  readonly freeCheckDone?: () => boolean;
 }): PictureLocks {
   const { pictures, storage, keyRewards } = options;
+  const freeCheckDone = options.freeCheckDone ?? (() => true);
 
   const isLocked = (picture: PictureIdentity): boolean =>
     !isBlankPaper(picture) &&
@@ -258,16 +305,43 @@ export function openPictureLocks(options: {
   const pageChecked = (picture: PictureIdentity): boolean =>
     storage === undefined || readUnlocks(storage).pagesChecked.includes(picture.id);
 
+  /**
+   * Zkontrolovalo už dřívější otevření stránku i album omalovánky? Pak ji
+   * odemčení zdarma znovu nekontroluje (`unlockPaintedPictures`) a čekat
+   * na něj není potřeba (#195). Bez úložiště hry není co kontrolovat.
+   */
+  const checkedBefore = (picture: PictureIdentity): boolean => {
+    if (storage === undefined) {
+      return true;
+    }
+    const record = readUnlocks(storage);
+    return record.pagesChecked.includes(picture.id) && record.albumChecked.includes(picture.id);
+  };
+
+  /**
+   * Smí klíč omalovánku odemknout? Její stránka musí být zkontrolovaná
+   * (#140 AC2) a buď už proběhlo odemčení zdarma při tomto otevření, nebo
+   * ji zkontrolovalo dřívější otevření. Dřív se čekalo vždy na přípravu
+   * všech obrysů (na iPadu 6–11 s) a klíč do té doby nic neodemkl (#195).
+   */
+  const readyForKey = (picture: PictureIdentity): boolean =>
+    pageChecked(picture) && (freeCheckDone() || checkedBefore(picture));
+
   return {
     isLocked,
     keyIndicator: () => (pictures.some(isLocked) ? indicatorOf(keyRewards) : null),
     canUnlock: (picture) =>
-      isLocked(picture) && pageChecked(picture) && indicatorOf(keyRewards).wholeKeys >= 1,
+      isLocked(picture) && readyForKey(picture) && indicatorOf(keyRewards).wholeKeys >= 1,
+    awaitsFreeCheck: (picture) =>
+      !freeCheckDone() &&
+      !checkedBefore(picture) &&
+      isLocked(picture) &&
+      indicatorOf(keyRewards).wholeKeys >= 1,
     unlock: (picture) => {
       if (!isLocked(picture)) {
         return 'alreadyUnlocked';
       }
-      return pageChecked(picture) ? spendKeyFor(keyRewards, picture.id) : 'noKey';
+      return readyForKey(picture) ? spendKeyFor(keyRewards, picture.id) : 'noKey';
     },
   };
 }
