@@ -42,6 +42,8 @@ import { MAX_NICKNAME_LENGTH, letterFromKey, lettersOf } from './letterGrid';
 import type { LetterLayer } from './letterGrid';
 import { PROFILE_WITHOUT_NICKNAME_SYMBOL } from './menu';
 import type { MenuSoundName } from './menuSounds';
+import { profilePickerAppearance } from './profilePickerAppearance';
+import type { ProfilePickerAppearance } from './profilePickerAppearance';
 import { createTapButton } from './tapButton';
 import type { TapButton } from './tapButton';
 
@@ -182,6 +184,8 @@ export interface ProfileScreens {
   readonly editPencilButton: TapButton;
   /** Je výběr v režimu úprav (odznaky tužky, označená tužka)? Mimo výběr `false`. */
   isEditing(): boolean;
+  /** Jak má výběr vypadat (#197): v úpravách jiné pozadí, odznaky, pohupování. */
+  pickerAppearance(): ProfilePickerAppearance;
   /** „+“: ťuknutí otevře formulář nového profilu (#109). */
   readonly addButton: TapButton;
 
@@ -497,6 +501,7 @@ export function createProfileScreens(options: ProfileScreensOptions): ProfileScr
     profileButton,
     editPencilButton,
     isEditing,
+    pickerAppearance: () => profilePickerAppearance(isEditing()),
     addButton,
     formMode,
     formBadge,

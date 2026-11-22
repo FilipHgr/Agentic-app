@@ -6,7 +6,7 @@
  * nejvýš na dva řádky, za nimi „+“. Vpravo nahoře plné tlačítko jazyka
  * a pod ním nabídka jazyků jako v menu (#70), vlevo od jazyka jediná tužka
  * 64 px, která přepne výběr do úprav (#160); v úpravách má každé kolečko
- * odznak tužky uvnitř vpravo dole. Na iPadu kolečka 140 px v řadách co
+ * odznak tužky vpravo nahoře na obvodu (#197). Na iPadu kolečka 140 px v řadách co
  * nejvyrovnanějších (6 koleček ve 2 řadách po 3), na telefonu 110 px: na
  * šířku stejně jako na iPadu, na výšku jeden sloupec, a když se kolečka do
  * jednoho sloupce nevejdou, dva sloupce. Na menších telefonech se nejdřív
@@ -62,8 +62,9 @@ export interface ProfilePickerSlot {
   /** Plocha přezdívky pod kolečkem (dva řádky). */
   readonly nickname: MenuBox;
   /**
-   * Čtverec, do kterého se vepíše kulatý odznak tužky (#160). Leží celý
-   * uvnitř kolečka, scéna ho kreslí jen v režimu úprav. Není samostatná
+   * Čtverec, do kterého se vepíše kulatý odznak tužky (#160). Leží vpravo
+   * nahoře na obvodu kolečka a celý v jeho čtverci (#197), scéna ho kreslí
+   * jen v režimu úprav. Není samostatná
    * ťukací plocha: ťuknutí na odznak je ťuknutí na kolečko.
    */
   readonly editBadge: MenuBox;
@@ -167,14 +168,15 @@ const PENCIL_SIZE = BUTTON_SIZE;
 const SIDE_EDGE = MIN_GAP;
 
 /**
- * Odznak tužky (#160): průměr 22 % kolečka, 2 px od obvodu kolečka dovnitř,
- * střed na paprsku 65° pod vodorovnou vpravo dolů. Tak leží celý v kolečku
- * a pod písmenem: velké písmeno (i široké W) sahá dolů asi do 0,42 poloměru
- * pod střed kolečka, odznak začíná níž.
+ * Odznak tužky (#160, #197): průměr 24 % kolečka, střed na obvodu kolečka
+ * vpravo nahoře (45°), takže odznak je vidět „nad kolečkem“. Celý zůstává
+ * ve čtverci kolečka (ťukací ploše), i když se kolečko v úpravách pohupuje
+ * (při 2,5° je vnější okraj odznaku nejvýš asi 0,98 poloměru od středu
+ * na každé ose). Od velkého písmene (i širokého W, písmo je polovina
+ * průměru) ho dělí asi 0,15 poloměru.
  */
-const BADGE_RATIO = 0.22;
-const BADGE_INSET = 2;
-const BADGE_ANGLE_DEGREES = 65;
+const BADGE_RATIO = 0.24;
+const BADGE_ANGLE_DEGREES = -45;
 
 function pickerMetricsFor(mode: LayoutMode): PickerMetrics {
   switch (mode) {
@@ -432,14 +434,13 @@ function largestPickerGrid(
   };
 }
 
-/** Odznak tužky vpravo dole uvnitř kolečka, u obvodu a pod písmenem. */
+/** Odznak tužky vpravo nahoře na obvodu kolečka (#197), mimo písmeno. */
 function editBadgeIn(circle: MenuBox): MenuBox {
   const radius = widthOf(circle) / 2;
   const badgeSize = Math.round(widthOf(circle) * BADGE_RATIO);
-  const distance = radius - badgeSize / 2 - BADGE_INSET;
   const angle = (BADGE_ANGLE_DEGREES * Math.PI) / 180;
-  const centerX = circle.left + radius + distance * Math.cos(angle);
-  const centerY = circle.top + radius + distance * Math.sin(angle);
+  const centerX = circle.left + radius + radius * Math.cos(angle);
+  const centerY = circle.top + radius + radius * Math.sin(angle);
   return boxAt(centerX - badgeSize / 2, centerY - badgeSize / 2, badgeSize, badgeSize);
 }
 

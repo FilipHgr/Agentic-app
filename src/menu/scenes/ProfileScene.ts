@@ -5,7 +5,7 @@ import { createTonePlayer } from '../../shared/audio/tonePlayer';
 import type { Tone } from '../../shared/audio/tonePlayer';
 import type { HoldButton } from '../../shared/logic/holdButton';
 import type { ProfileColor } from '../../shared/logic/profiles';
-import { colorNumber } from '../../shared/logic/theme';
+import { PAGE_BACKGROUND, colorNumber } from '../../shared/logic/theme';
 import { readViewport } from '../../shared/ui/viewport';
 import { SWITCH_TO_ACCENTS_SYMBOL, SWITCH_TO_BASE_SYMBOL, letterKeys } from '../logic/letterGrid';
 import type { LetterKey } from '../logic/letterGrid';
@@ -32,6 +32,8 @@ import type {
   NicknameStepLayout,
   ProfilePickerLayout,
 } from '../logic/profileLayout';
+import { PROFILE_EDIT_WOBBLE } from '../logic/profilePickerAppearance';
+import type { ProfilePickerAppearance } from '../logic/profilePickerAppearance';
 import { DELETE_PROFILE_HOLD_MS, profileFeedbackSound } from '../logic/profileScreens';
 import type { ProfileFeedback, ProfileScreens } from '../logic/profileScreens';
 import {
@@ -220,6 +222,12 @@ export class ProfileScene extends Phaser.Scene {
   private trashItem: Tappable | undefined;
   /** Odznaky tužky na kolečkách v úpravách (#160), zhoupnou se po zapnutí úprav. */
   private editBadges: Phaser.GameObjects.Container[] = [];
+  /**
+   * Vnitřní kontejnery koleček, které se v úpravách pohupují (#197). Otáčí
+   * se jen kontejner (tween úhlu), nic se nepřekresluje; vnější kontejner
+   * kolečka se dál zmenšuje pod prstem.
+   */
+  private wobblingCircles: Phaser.GameObjects.Container[] = [];
   private confirmDeleteItem: Tappable | undefined;
 
   private keyboardListening = false;
@@ -427,6 +435,10 @@ export class ProfileScene extends Phaser.Scene {
       this.tweens.killTweensOf(badge);
     }
     this.editBadges = [];
+    for (const body of this.wobblingCircles) {
+      this.tweens.killTweensOf(body);
+    }
+    this.wobblingCircles = [];
     this.regions = [];
     this.letterItems = new Map();
     this.keyItems = {};
@@ -540,6 +552,8 @@ export class ProfileScene extends Phaser.Scene {
 
   private drawPicker(layout: ProfilePickerLayout): void {
     const screens = this.host.screens;
+    const appearance = screens.pickerAppearance();
+    this.drawPickerBackground(appearance);
     screens.pickerItems().forEach((profile, index) => {
       const slot = layout.profiles[index];
       if (slot === undefined) {
@@ -556,18 +570,58 @@ export class ProfileScene extends Phaser.Scene {
       this.region(slot.circle, item, () => undefined, {
         button: screens.profileButton(profile.id),
       });
-      if (screens.isEditing()) {
+      if (appearance.editBadges) {
         this.drawEditBadge(item, slot.circle, slot.editBadge);
+      }
+      if (appearance.wobble) {
+        this.startCircleWobble(item, index);
       }
       if (profile.nickname !== null) {
         this.drawNicknameLines(slot.nickname, profile.nickname, layout);
       }
     });
     if (layout.add !== null) {
-      this.drawAddButton(layout.add);
+      this.drawAddButton(layout.add, appearance.addAlpha);
     }
     this.drawLanguage(layout);
-    this.drawEditPencil(layout.editPencil, screens.isEditing());
+    this.drawEditPencil(layout.editPencil, appearance.pencilSelected);
+  }
+
+  /**
+   * V úpravách jiné jemné pozadí přes celé plátno (#197); jinak je vidět
+   * pozadí plátna (#F5F5F7) a nic se nekreslí.
+   */
+  private drawPickerBackground(appearance: ProfilePickerAppearance): void {
+    if (appearance.background === PAGE_BACKGROUND) {
+      return;
+    }
+    this.keep(
+      this.add
+        .rectangle(0, 0, this.scale.width, this.scale.height, colorNumber(appearance.background))
+        .setOrigin(0),
+    );
+  }
+
+  /**
+   * Jemné pohupování kolečka v úpravách (#197): obsah kolečka (i s odznakem)
+   * se přesune do vnitřního kontejneru, který tween stále otáčí o pár stupňů
+   * tam a zpět. Sousední kolečka se houpou proti sobě, aby to nebylo strojové.
+   */
+  private startCircleWobble(item: Tappable, index: number): void {
+    const body = this.add.container(0, 0, [...item.container.list]);
+    item.container.add(body);
+    const direction = index % 2 === 0 ? 1 : -1;
+    const angle = PROFILE_EDIT_WOBBLE.angleDegrees * direction;
+    body.setAngle(-angle);
+    this.tweens.add({
+      targets: body,
+      angle,
+      duration: PROFILE_EDIT_WOBBLE.swingMs,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+    });
+    this.wobblingCircles.push(body);
   }
 
   private drawCircle(box: MenuBox, color: string, symbol: string, fontSize: number): Tappable {
@@ -675,8 +729,8 @@ export class ProfileScene extends Phaser.Scene {
   }
 
   /**
-   * Odznak tužky na kolečku profilu v úpravách (#160): modré kolečko
-   * s bílým okrajem a bílou tužkou. Patří do kontejneru kolečka, aby se
+   * Odznak tužky na kolečku profilu v úpravách (#160), vpravo nahoře na
+   * obvodu (#197): modré kolečko s bílým okrajem a bílou tužkou. Patří do kontejneru kolečka, aby se
    * s ním zmáčkl; ťukací plochu nemá, ťuknutí na něj je ťuknutí na kolečko.
    */
   private drawEditBadge(circleItem: Tappable, circle: MenuBox, badge: MenuBox): void {
@@ -735,9 +789,14 @@ export class ProfileScene extends Phaser.Scene {
     return icon;
   }
 
-  /** „+“ ve stylu aktivního tlačítka A3 (#162): světle modré kolečko s okrajem a modré „+“. */
-  private drawAddButton(box: MenuBox): void {
+  /**
+   * „+“ ve stylu aktivního tlačítka A3 (#162): světle modré kolečko
+   * s okrajem a modré „+“. V úpravách je ztlumené (`alpha` pod 1, #197),
+   * ťuknutí funguje dál (#160).
+   */
+  private drawAddButton(box: MenuBox, alpha: number): void {
     const item = this.tappable(box);
+    item.container.setAlpha(alpha);
     const diameter = (box.right - box.left) * UNIT;
     const radius = diameter / 2;
     const background = this.add.graphics();

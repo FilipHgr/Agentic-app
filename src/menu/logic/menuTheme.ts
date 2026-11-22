@@ -129,7 +129,17 @@ export const PROFILE_SCREEN_STYLE = {
   /** Označená tužka v režimu úprav (#160): plné modré kolečko a bílá tužka. */
   pencilSelectedBackground: BLUE,
   pencilSelectedSymbol: WHITE,
-  /** Odznak tužky na kolečku profilu v úpravách (#160): modré kolečko s bílým okrajem a tužkou. */
+  /**
+   * Pozadí výběru v režimu úprav (#197): jemná světle modrá místo #F5F5F7.
+   * Tmavá přezdívka na ní má kontrast 13,8 : 1, modrý odznak 4,7 : 1.
+   */
+  editBackground: '#DCEAFB',
+  /** „+“ je v úpravách ztlumené (#197), ťuknutí na něj funguje dál. */
+  addEditingAlpha: 0.4,
+  /**
+   * Odznak tužky na kolečku profilu v úpravách (#160, vpravo nahoře #197):
+   * modré kolečko s bílým okrajem a tužkou.
+   */
   editBadgeBackground: BLUE,
   editBadgeBorder: WHITE,
   editBadgeSymbol: WHITE,

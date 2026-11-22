@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { MenuBox } from '../../src/menu/logic/menuLayout';
 import type { ProfilePickerLayout } from '../../src/menu/logic/profileLayout';
+import { PROFILE_EDIT_WOBBLE } from '../../src/menu/logic/profilePickerAppearance';
 import { MAX_PROFILES } from '../../src/menu/logic/profileScreens';
 import { LANGUAGES } from '../../src/shared/texts/languages';
 import type { LayoutItem, LayoutScene } from '../shared/layoutRules';
@@ -31,6 +32,12 @@ import { MENU_LAYOUT_RULES, WIDEST_NICKNAME, pickerLayout } from './menuLayoutSc
  *   něj je ťuknutí na kolečko,
  * - `ProfilePickerSlot` už nemá `pencil`.
  * Vzhled označené tužky a odznaku se kontroluje ručně.
+ *
+ * #197 AC4 a AC5: odznak je vpravo nahoře na okraji kolečka a kolečka se
+ * v úpravách pohupují (`PROFILE_EDIT_WOBBLE`). Odznak se proto měří i ve
+ * krajních polohách pohupování a pravidla se v cyklu zkouší pro všechna
+ * okna, 1–6 profilů, každý jazyk (zkratka na tlačítku) a běžný i upravovací
+ * režim.
  */
 
 const TOLERANCE = 0.01;
@@ -242,8 +249,11 @@ describe('#160 AC4: tužka a jazyk jsou od sebe a od okraje bezpečné plochy as
   });
 });
 
-describe('#160 AC4: odznak tužky leží uvnitř kolečka', () => {
-  it('každé kolečko má odznak a kulatý odznak je celý uvnitř kulatého kolečka', () => {
+describe('#160 AC4 a #197 AC1: odznak tužky na kolečku', () => {
+  // #197 AC1 posunul odznak z vnitřku kolečka vpravo dole na okraj kolečka
+  // vpravo nahoře („nad kolečkem“). Pravidlo „celý uvnitř kolečka“ z #160
+  // nahrazuje #197 AC4 níž: odznak zůstává v ťukacím čtverci kolečka.
+  it('každé kolečko má kulatý odznak vpravo nahoře, který přesahuje obvod kolečka (#197 AC1)', () => {
     for (const { label, layout } of allCases()) {
       layout.profiles.forEach((slot, index) => {
         const where = `${label}: kolečko ${index + 1}`;
@@ -251,11 +261,14 @@ describe('#160 AC4: odznak tužky leží uvnitř kolečka', () => {
         expect(badge, where).toBeDefined();
         expect(widthOf(badge), `${where}: odznak má velikost`).toBeGreaterThan(0);
         expect(heightOf(badge), `${where}: odznak je čtverec`).toBeCloseTo(widthOf(badge), 5);
+        const dx = (badge.left + badge.right) / 2 - (slot.circle.left + slot.circle.right) / 2;
+        const dy = (badge.top + badge.bottom) / 2 - (slot.circle.top + slot.circle.bottom) / 2;
+        expect(dx, `${where}: střed odznaku vpravo od středu kolečka`).toBeGreaterThan(0);
+        expect(dy, `${where}: střed odznaku nad středem kolečka`).toBeLessThan(0);
         const outside = badgeOutsideBy(badge, slot.circle);
-        expect(
-          outside,
-          `${where}: odznak přesahuje kolečko o ${round(outside)} px`,
-        ).toBeLessThanOrEqual(TOLERANCE);
+        expect(outside, `${where}: odznak přesahuje obvod o ${round(outside)} px`).toBeGreaterThan(
+          0,
+        );
       });
     }
   });
@@ -305,5 +318,201 @@ describe('#160 AC4: výběr profilu s tužkou v liště dodrží společná prav
   it('případy pokrývají všechna okna menu a 11 kombinací počtu profilů a „+“', () => {
     expect(PICKER_CASES).toHaveLength(11);
     expect(allCases()).toHaveLength(PICKER_CASES.length * MENU_WINDOWS.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #197 AC4 a AC5: odznak vpravo nahoře a pohupování koleček
+// ---------------------------------------------------------------------------
+
+/** Bod otočený o `degrees` kolem středu. */
+function rotatedAround(
+  x: number,
+  y: number,
+  centerX: number,
+  centerY: number,
+  degrees: number,
+): { x: number; y: number } {
+  const angle = (degrees * Math.PI) / 180;
+  const dx = x - centerX;
+  const dy = y - centerY;
+  return {
+    x: centerX + dx * Math.cos(angle) - dy * Math.sin(angle),
+    y: centerY + dx * Math.sin(angle) + dy * Math.cos(angle),
+  };
+}
+
+/**
+ * Plocha, kterou kulatý odznak zabere během pohupování kolečka (kolečko se
+ * s odznakem otáčí kolem svého středu nejvýš o `PROFILE_EDIT_WOBBLE`).
+ * Odznak je kulatý, jeho vlastní zhoupnutí po zapnutí úprav plochu nemění.
+ */
+function sweptBadge(badge: MenuBox, circle: MenuBox): MenuBox {
+  const radius = widthOf(badge) / 2;
+  const circleX = (circle.left + circle.right) / 2;
+  const circleY = (circle.top + circle.bottom) / 2;
+  const badgeX = (badge.left + badge.right) / 2;
+  const badgeY = (badge.top + badge.bottom) / 2;
+  const steps = 8;
+  const angle = PROFILE_EDIT_WOBBLE.angleDegrees;
+  const centers = Array.from({ length: 2 * steps + 1 }, (_, index) =>
+    rotatedAround(badgeX, badgeY, circleX, circleY, -angle + (index * angle) / steps),
+  );
+  return {
+    left: Math.min(...centers.map((point) => point.x)) - radius,
+    right: Math.max(...centers.map((point) => point.x)) + radius,
+    top: Math.min(...centers.map((point) => point.y)) - radius,
+    bottom: Math.max(...centers.map((point) => point.y)) + radius,
+  };
+}
+
+type PickerMode = 'běžný' | 'úpravy';
+const PICKER_MODES: readonly PickerMode[] = ['běžný', 'úpravy'];
+
+interface ModeCase extends LayoutCase {
+  readonly mode: PickerMode;
+  readonly language: string;
+}
+
+/** Všechna okna × 1–6 profilů (s „+“ i bez) × každý jazyk × běžný i upravovací režim. */
+function modeCases(): ModeCase[] {
+  return allCases().flatMap((layoutCase) =>
+    LANGUAGES.flatMap((language) =>
+      PICKER_MODES.map((mode) => ({
+        ...layoutCase,
+        label: `${layoutCase.label}, ${language}, ${mode}`,
+        mode,
+        language,
+      })),
+    ),
+  );
+}
+
+/**
+ * Výběr profilu pro společná pravidla: v režimu úprav i s odznaky v ploše,
+ * kterou zaberou při pohupování. Odznak smí ležet jen na svém kolečku.
+ */
+function modeScene({ label, window, layout, mode, language }: ModeCase): LayoutScene {
+  const symbol = { text: 'W', fontSize: layout.symbolFontSize, charWidth: WIDE_LETTER };
+  const items: LayoutItem[] = [
+    {
+      name: 'tlačítko jazyka',
+      box: layout.languageSlot,
+      tappable: true,
+      minEdge: BAR_GAP,
+      texts: [{ text: language.toUpperCase(), fontSize: layout.languageButtonFontSize }],
+    },
+    { name: 'tužka v liště', box: layout.editPencil, tappable: true, minEdge: BAR_GAP },
+    ...layout.profiles.flatMap((slot, index): LayoutItem[] => [
+      { name: `kolečko ${index + 1}`, box: slot.circle, tappable: true, texts: [symbol] },
+      {
+        name: `přezdívka ${index + 1}`,
+        box: slot.nickname,
+        texts: [
+          {
+            text: WIDEST_NICKNAME,
+            fontSize: layout.nicknameFontSize,
+            charWidth: WIDE_LETTER,
+            maxLines: layout.nicknameMaxLines,
+            lineHeight: NICKNAME_LINE_HEIGHT,
+            padding: 0,
+          },
+        ],
+      },
+      ...(mode === 'úpravy'
+        ? [{ name: `odznak ${index + 1}`, box: sweptBadge(slot.editBadge, slot.circle) }]
+        : []),
+    ]),
+  ];
+  if (layout.add !== null) {
+    // V úpravách je „+“ ztlumené (#197 AC2), ťukací plocha zůstává.
+    items.push({ name: '„+“', box: layout.add, tappable: true, texts: [symbol] });
+  }
+  const ownBadge = (first: LayoutItem, second: LayoutItem): boolean => {
+    const numberOf = (item: LayoutItem, prefix: string): string | null =>
+      item.name.startsWith(prefix) ? item.name.slice(prefix.length) : null;
+    const pairs: Array<[LayoutItem, LayoutItem]> = [
+      [first, second],
+      [second, first],
+    ];
+    return pairs.some(([badge, circle]) => {
+      const badgeNumber = numberOf(badge, 'odznak ');
+      return badgeNumber !== null && badgeNumber === numberOf(circle, 'kolečko ');
+    });
+  };
+  return {
+    label: `výběr profilu, ${label}`,
+    free: freeAreaOf(window),
+    items,
+    mayOverlap: ownBadge,
+  };
+}
+
+describe('#197 AC4: odznak tužky nezakrývá písmeno ani přezdívku a ťuká se jako kolečko', () => {
+  it('odznak leží i při pohupování celý v ťukací ploše svého kolečka, a ta má aspoň 64 × 64 px', () => {
+    for (const { label, layout } of allCases()) {
+      layout.profiles.forEach((slot, index) => {
+        const where = `${label}: kolečko ${index + 1}`;
+        const swept = sweptBadge(slot.editBadge, slot.circle);
+        const outside = -edgeDistance(swept, slot.circle);
+        expect(
+          outside,
+          `${where}: odznak přesahuje ťukací plochu kolečka o ${round(outside)} px`,
+        ).toBeLessThanOrEqual(TOLERANCE);
+        expect(widthOf(slot.circle), `${where}: šířka kolečka`).toBeGreaterThanOrEqual(
+          MIN_PENCIL_SIZE - TOLERANCE,
+        );
+        expect(heightOf(slot.circle), `${where}: výška kolečka`).toBeGreaterThanOrEqual(
+          MIN_PENCIL_SIZE - TOLERANCE,
+        );
+      });
+    }
+  });
+
+  it('odznak nezakrývá přezdívku: je nad ní a nedotkne se jí ani při pohupování', () => {
+    for (const { label, layout } of allCases()) {
+      layout.profiles.forEach((slot, index) => {
+        const swept = sweptBadge(slot.editBadge, slot.circle);
+        const gap = slot.nickname.top - swept.bottom;
+        expect(
+          gap,
+          `${label}: odznak ${index + 1} je ${round(gap)} px nad přezdívkou`,
+        ).toBeGreaterThan(0);
+      });
+    }
+  });
+
+  it('odznak nepřesahuje okraj obrazovky ani při pohupování (aspoň 4 px od okraje bezpečné plochy)', () => {
+    for (const { label, window, layout } of allCases()) {
+      const free = freeAreaOf(window);
+      layout.profiles.forEach((slot, index) => {
+        const distance = edgeDistance(sweptBadge(slot.editBadge, slot.circle), free);
+        expect(
+          distance,
+          `${label}: odznak ${index + 1} je ${round(distance)} px od okraje`,
+        ).toBeGreaterThanOrEqual(4 - TOLERANCE);
+      });
+    }
+  });
+});
+
+describe('#197 AC5: výběr profilu v běžném i upravovacím režimu dodrží společná pravidla (iPad, telefon na šířku i na výšku, 1–6 profilů, cs i en)', () => {
+  for (const [ruleName, rule] of Object.entries(MENU_LAYOUT_RULES)) {
+    it(`${ruleName}`, () => {
+      for (const scene of modeCases().map(modeScene)) {
+        expect(rule(scene), scene.label).toEqual([]);
+      }
+    });
+  }
+
+  it('případy pokrývají všechna okna, 11 kombinací profilů a „+“, oba jazyky a oba režimy', () => {
+    expect(LANGUAGES).toEqual(expect.arrayContaining(['cs', 'en']));
+    expect(modeCases()).toHaveLength(
+      PICKER_CASES.length * MENU_WINDOWS.length * LANGUAGES.length * PICKER_MODES.length,
+    );
+    const modes = new Set(MENU_WINDOWS.map((window) => pickerLayout(window, 1, true).mode));
+    expect([...modes]).toEqual(
+      expect.arrayContaining(['tablet', 'phoneLandscape', 'phonePortrait']),
+    );
   });
 });
