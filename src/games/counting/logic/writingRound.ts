@@ -1,7 +1,9 @@
 /**
- * Kolo s odpovědí psanou prstem (#41): tahy, čekání na rozpoznání,
- * ukázaná číslice, potvrzení ✓ a odmítnutý zápis. Čas se předává jako
- * číslo v ms, takže logika nepotřebuje skutečné časovače. Čistý TypeScript.
+ * Kolo s odpovědí psanou prstem (#41): jedno okénko na psaní a příklad,
+ * ke kterému patří. Tahy, čekání na rozpoznání, ukázaná číslice
+ * a odmítnutý zápis řídí sdílená logika okénka
+ * (`src/shared/logic/writingBox.ts`, #189), tady se jen vyhodnocuje
+ * odpověď. Čas se předává jako číslo v ms. Čistý TypeScript bez Phaseru.
  * Rozpoznávání se stahuje na pozadí (#58): dokud není, kolo má místo něj
  * `null`, zápis zůstane vidět a počká, ✓ nejde stisknout.
  */
@@ -9,7 +11,16 @@
 import type { AnswerRound, TapOutcome } from './answerRound';
 import type { Stroke, WritingAreaSize } from './digitRecognition';
 import { isCorrectAnswer } from './problems';
-import { RECOGNITION_DELAY_MS, REJECTED_FADE_MS } from '../../../shared/logic/writingBox';
+import {
+  RECOGNITION_DELAY_MS,
+  REJECTED_FADE_MS,
+  clearWritingBox,
+  createWritingBox,
+  finishWritingStroke,
+  startWritingStroke,
+  updateWritingBox,
+} from '../../../shared/logic/writingBox';
+import type { StrokeRecognizer, WritingBoxState } from '../../../shared/logic/writingBox';
 
 /**
  * Za jak dlouho po zvednutí prstu se ukáže rozpoznaná číslice a jak dlouho
@@ -17,25 +28,13 @@ import { RECOGNITION_DELAY_MS, REJECTED_FADE_MS } from '../../../shared/logic/wr
  */
 export { RECOGNITION_DELAY_MS, REJECTED_FADE_MS };
 
-export type DigitRecognizer = (strokes: readonly Stroke[], area: WritingAreaSize) => number | null;
+export type DigitRecognizer = StrokeRecognizer<number>;
 
-export interface WritingRound {
+/** Okénko na psaní číslice (`value` je rozpoznaná číslice) s příkladem. */
+export interface WritingRound extends WritingBoxState<number> {
   readonly answer: AnswerRound;
-  readonly area: WritingAreaSize;
   /** Stažené rozpoznávání; `null`, dokud se nestáhne (#58). */
   readonly recognize: DigitRecognizer | null;
-  /** Dopsané tahy současného zápisu. */
-  readonly strokes: readonly Stroke[];
-  /** Dítě má prst na ploše. */
-  readonly fingerDown: boolean;
-  /** Kdy se naposledy zvedl prst a zápis čeká na rozpoznání; jinak `null`. */
-  readonly waitingSinceMs: number | null;
-  /** Rozpoznaná číslice, kterou jde potvrdit; jinak `null`. */
-  readonly digit: number | null;
-  /** Odmítnutý zápis, který právě bledne. */
-  readonly fading: readonly Stroke[];
-  /** Kdy začal blednout odmítnutý zápis. */
-  readonly fadingSinceMs: number;
 }
 
 export interface ConfirmResult {
@@ -49,17 +48,7 @@ export function createWritingRound(
   area: WritingAreaSize,
   recognize: DigitRecognizer | null,
 ): WritingRound {
-  return {
-    answer,
-    area,
-    recognize,
-    strokes: [],
-    fingerDown: false,
-    waitingSinceMs: null,
-    digit: null,
-    fading: [],
-    fadingSinceMs: 0,
-  };
+  return { ...createWritingBox<number>(area), answer, recognize };
 }
 
 /** Rozpoznávání se stáhlo: čekající zápis se rozpozná při dalším posunu v čase. */
@@ -69,66 +58,48 @@ export function withRecognizer(round: WritingRound, recognize: DigitRecognizer):
 
 /** Prst se dotkl plochy: dokud je dole, nic se nerozpoznává. */
 export function startStroke(round: WritingRound, nowMs: number): WritingRound {
-  return { ...dropFinishedFade(round, nowMs), fingerDown: true, digit: null };
+  return { ...round, ...startWritingStroke(round, nowMs) };
 }
 
 /** Prst se zvedl: tah se přidá k zápisu a za 1 s se zápis rozpozná. */
 export function finishStroke(round: WritingRound, stroke: Stroke, nowMs: number): WritingRound {
-  return {
-    ...round,
-    strokes: [...round.strokes, stroke],
-    fingerDown: false,
-    waitingSinceMs: nowMs,
-    digit: null,
-  };
+  return { ...round, ...finishWritingStroke(round, stroke, nowMs) };
 }
 
 /**
  * Posune kolo v čase: rozpozná čekající zápis a nechá zmizet vybledlý.
- * Bez staženého rozpoznávání zápis čeká dál, bez časového limitu.
+ * Bez staženého rozpoznávání zápis čeká dál, bez časového limitu;
+ * vybledlý zápis ale zmizí i tak.
  */
 export function updateWriting(round: WritingRound, nowMs: number): WritingRound {
-  const current = dropFinishedFade(round, nowMs);
-  if (current.recognize === null || !isRecognitionDue(current, nowMs)) {
-    return current;
+  if (round.recognize === null) {
+    return { ...round, fading: fadingAfterWaiting(round, nowMs) };
   }
-
-  const digit = current.recognize(current.strokes, current.area);
-  if (digit === null) {
-    return {
-      ...current,
-      strokes: [],
-      waitingSinceMs: null,
-      fading: current.strokes,
-      fadingSinceMs: nowMs,
-    };
-  }
-  return { ...current, waitingSinceMs: null, digit };
+  return { ...round, ...updateWritingBox(round, nowMs, round.recognize) };
 }
 
-function isRecognitionDue(round: WritingRound, nowMs: number): boolean {
-  return (
-    !round.fingerDown &&
-    round.waitingSinceMs !== null &&
-    nowMs - round.waitingSinceMs >= RECOGNITION_DELAY_MS
-  );
+/**
+ * Bez rozpoznávání se okénko posune jako s prstem na ploše: zápis se
+ * nerozpozná ani neodmítne, jen odmítnutý zápis dobledne a zmizí.
+ */
+function fadingAfterWaiting(round: WritingRound, nowMs: number): readonly Stroke[] {
+  const waiting = updateWritingBox({ ...round, fingerDown: true }, nowMs, recognizeNothing);
+  return waiting.fading;
 }
 
-function dropFinishedFade(round: WritingRound, nowMs: number): WritingRound {
-  if (round.fading.length === 0 || nowMs - round.fadingSinceMs < REJECTED_FADE_MS) {
-    return round;
-  }
-  return { ...round, fading: [] };
+/** Rozpoznávání, které se nikdy nezavolá: okénko s prstem na ploše nic nerozpoznává. */
+function recognizeNothing(): null {
+  return null;
 }
 
 /** Smazání: zápis i číslice zmizí. Není to chyba. */
 export function clearWriting(round: WritingRound): WritingRound {
-  return { ...round, strokes: [], fingerDown: false, waitingSinceMs: null, digit: null };
+  return { ...round, ...clearWritingBox(round) };
 }
 
 /** Jde teď ťuknout na ✓? Jen s ukázanou číslicí a nevyřešeným příkladem. */
 export function canConfirm(round: WritingRound): boolean {
-  return round.digit !== null && !round.answer.solved;
+  return round.value !== null && !round.answer.solved;
 }
 
 /**
@@ -136,12 +107,12 @@ export function canConfirm(round: WritingRound): boolean {
  * odpovědi se zápis smaže, aby dítě mohlo psát znovu.
  */
 export function confirmWriting(round: WritingRound): ConfirmResult {
-  if (round.digit === null || !canConfirm(round)) {
+  if (round.value === null || !canConfirm(round)) {
     return { outcome: 'ignored', round };
   }
 
   const answer = round.answer;
-  if (isCorrectAnswer(answer.problem, round.digit)) {
+  if (isCorrectAnswer(answer.problem, round.value)) {
     return { outcome: 'correct', round: { ...round, answer: { ...answer, solved: true } } };
   }
 
@@ -153,7 +124,7 @@ export function confirmWriting(round: WritingRound): ConfirmResult {
 
 /** Rozpoznaná číslice, nebo `null`, když žádná není ukázaná. */
 export function shownDigit(round: WritingRound): number | null {
-  return round.digit;
+  return round.value;
 }
 
 /** Tahy současného zápisu. */

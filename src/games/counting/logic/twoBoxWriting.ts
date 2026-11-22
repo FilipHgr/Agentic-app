@@ -1,6 +1,7 @@
 /**
  * Odpověď psaná prstem do dvou okének (#42): vlevo desítky, vpravo jednotky.
- * Každé okénko je samostatné kolo psaní z `writingRound.ts` (rozpoznání po
+ * Každé okénko je samostatné kolo psaní z `writingRound.ts` nad sdílenou
+ * logikou okénka `src/shared/logic/writingBox.ts` (rozpoznání po
  * 1 s, odmítnutí, blednutí); tady se jen skládá číslo a vyhodnocuje odpověď.
  * Při rozsahu 5 se píše jen do okénka jednotek. Čistý TypeScript bez Phaseru.
  */
