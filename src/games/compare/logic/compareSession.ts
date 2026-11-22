@@ -7,7 +7,9 @@
  * Průběh: dítě ťukne správně → hvězdička a znak mezi kartami, za chvíli
  * nový příklad (po 10. hvězdičce nejdřív oslava a prázdná řada). Během
  * přechodu a oslavy se ťuknutí nepočítají. Špatné ťuknutí nic nebere,
- * jen zazní tichý tón a ťuknutá karta (nebo „=“) se zatřese.
+ * jen zazní tichý tón a ťuknutá karta (nebo „=“) se zatřese. Po 2. chybě
+ * v příkladu se ukáže nápověda párováním teček (#180), která zůstane do
+ * konce příkladu; další příklad začíná bez ní.
  *
  * Nastavení (#179): podržení kolečka ho otevře s uloženými volbami. Dokud
  * je otevřené, ťuknutí do hry se nepočítají, domeček nejde a nic se
@@ -22,6 +24,7 @@ import type { AnswerOutcome, StarProgress } from '../../../shared/logic/stars';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { loadCompareSettings, saveCompareSettings } from '../storage/settingsStorage';
+import { HINT_AFTER_MISTAKES } from './compareHint';
 import { correctChoice, nextProblem, signOf } from './compareProblems';
 import type { CompareChoice, CompareProblem, CompareSign } from './compareProblems';
 import { isSameSettings } from './compareSettings';
@@ -41,6 +44,7 @@ export type CompareChange =
   | { readonly kind: 'problemStarted' }
   | { readonly kind: 'solved'; readonly choice: CompareChoice; readonly sign: CompareSign }
   | { readonly kind: 'wrong'; readonly choice: CompareChoice }
+  | { readonly kind: 'hintShown' }
   | { readonly kind: 'celebrationStarted' }
   | { readonly kind: 'celebrationEnded' }
   | { readonly kind: 'settingsOpened' }
@@ -76,6 +80,8 @@ export interface CompareSession {
   /** Znak mezi kartami po správné odpovědi, jinak `null`. */
   shownSign(): CompareSign | null;
   isCelebrating(): boolean;
+  /** Ukazuje se v rozehraném příkladu nápověda párováním teček (#180)? */
+  hintShown(): boolean;
   /** Platné nastavení (po posledním ✓). */
   settings(): CompareSettings;
   /** Nastavení, se kterým začal rozehraný příklad: podle něj se karty kreslí. */
@@ -108,6 +114,8 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   let problem = nextProblem(null, random, settings.maxNumber);
   let phase: Phase = 'waiting';
   let sign: CompareSign | null = null;
+  /** Špatná ťuknutí v rozehraném příkladu (#180). */
+  let mistakes = 0;
   let cancelPending: (() => void) | null = null;
 
   const notify = (change: CompareChange): void => options.onChange?.(change);
@@ -123,6 +131,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     problemLook = settings;
     problem = nextProblem(problem, random, settings.maxNumber);
     sign = null;
+    mistakes = 0;
     phase = 'waiting';
     notify({ kind: 'problemStarted' });
   };
@@ -197,6 +206,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     starCount: () => progress.earned,
     shownSign: () => sign,
     isCelebrating: () => phase === 'celebrating' && choice === null,
+    hintShown: () => mistakes >= HINT_AFTER_MISTAKES,
     settings: () => settings,
     problemLook: () => problemLook,
     settingsOpen: () => choice !== null,
@@ -215,6 +225,10 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
       if (tapped !== correctChoice(problem)) {
         sounds.play('wrong');
         notify({ kind: 'wrong', choice: tapped });
+        mistakes += 1;
+        if (mistakes === HINT_AFTER_MISTAKES) {
+          notify({ kind: 'hintShown' });
+        }
         return 'wrong';
       }
       answerCorrectly(tapped);

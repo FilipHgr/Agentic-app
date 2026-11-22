@@ -33,6 +33,32 @@ export const SIGN_STYLE = {
   fontWeight: 'bold',
 } as const;
 
+/**
+ * Nápověda párováním (#180): spárovaná tečka se po spojení ztlumí, tečka
+ * bez dvojice svítí a kolem ní pulzuje záře v barvě karty. Spojení dvojice
+ * se rozsvítí jako šedá čára mezi tečkami a pak zůstane jemně vidět.
+ */
+export const HINT_STYLE = {
+  pairedAlpha: 0.35,
+  linkColor: '#6E6E73',
+  /** Tloušťka čáry spojení v CSS px. */
+  linkWidth: 5,
+  linkAlpha: 0.9,
+  /** Čára chvíli svítí a pak zjemní na `linkRestAlpha`. */
+  linkHoldMs: 300,
+  linkFadeMs: 500,
+  linkRestAlpha: 0.25,
+  /** Tečka dvojice se při spojení krátce zvětší. */
+  popScale: 1.35,
+  popMs: 120,
+  glowAlpha: 0.4,
+  /** Záře pulzuje mezi základní velikostí a tímto zvětšením. */
+  glowPulseScale: 1.08,
+  glowPulseMs: 600,
+  /** Tečky pod samotným číslem naskočí ze zmenšení. */
+  dotsAppearMs: 200,
+} as const;
+
 /** Číslo na kartě (#179): v barvě teček své karty, tučně. */
 export const NUMERAL_STYLE = { fontWeight: 'bold' } as const;
 

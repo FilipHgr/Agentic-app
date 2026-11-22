@@ -4,13 +4,15 @@ import { sharedToneContext } from '../../../shared/audio/sharedAudio';
 import { createTonePlayer } from '../../../shared/audio/tonePlayer';
 import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
 import type { GameHost } from '../../../shared/logic/gameHost';
-import { FONT_FAMILY } from '../../../shared/logic/theme';
+import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { Confetti } from '../../../shared/ui/Confetti';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { StarRow } from '../../../shared/ui/StarRow';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
+import { clipSegment, hintPicture, playHintPairing } from '../logic/compareHint';
+import type { HintLink, HintPairing } from '../logic/compareHint';
 import { COMPARE_GAME_AREA_FIT, layoutCompareScreen } from '../logic/compareLayout';
 import type { CompareLayout } from '../logic/compareLayout';
 import { correctChoice } from '../logic/compareProblems';
@@ -18,7 +20,7 @@ import type { CompareChoice } from '../logic/compareProblems';
 import { createCompareSession } from '../logic/compareSession';
 import type { CompareChange, CompareSession } from '../logic/compareSession';
 import { COMPARE_SOUNDS } from '../logic/compareSounds';
-import { SIGN_STYLE } from '../logic/theme';
+import { HINT_STYLE, SIGN_STYLE } from '../logic/theme';
 import { dimSettingsGear } from '../ui/gearOpacity';
 import { CardView, EqualButtonView } from './CardView';
 import { SettingsPanel } from './SettingsPanel';
@@ -38,7 +40,8 @@ const CARDS_POP_FROM = 0.92;
  * telefon na šířku i na výšku) a po otočení se překreslí bez nového
  * příkladu. Hvězdičky a konfety jsou sdílené (`StarRow`, `Confetti`).
  * Nastavení pro rodiče (#179) se otevře podržením kolečka stránky a kreslí
- * ho `SettingsPanel` nad hrou.
+ * ho `SettingsPanel` nad hrou. Po 2. chybě scéna nakreslí nápovědu
+ * párováním teček (#180) podle `compareHint.ts`.
  */
 export class CompareScene extends Phaser.Scene {
   private session!: CompareSession;
@@ -46,6 +49,13 @@ export class CompareScene extends Phaser.Scene {
   private layout: CompareLayout = layoutCompareScreen(this.gameArea);
   private cards: CardView[] = [];
   private equalButton: EqualButtonView | null = null;
+  /**
+   * Vrstva čar spojení dvojic (#180) pod kartami: z čáry je vidět jen kus
+   * mezi kartami, kus na kartě kreslí karta sama pod tečkami.
+   */
+  private hintLayer: Phaser.GameObjects.Container | null = null;
+  /** Rozehrané spojování dvojic; zastaví se s příkladem. */
+  private hintPairing: HintPairing | null = null;
   private sign: Phaser.GameObjects.Text | null = null;
   private settingsPanel: SettingsPanel | null = null;
   private host: GameHost | undefined;
@@ -128,6 +138,9 @@ export class CompareScene extends Phaser.Scene {
       case 'wrong':
         this.targetOf(change.choice)?.shake();
         break;
+      case 'hintShown':
+        this.showHint(true);
+        break;
       case 'celebrationStarted':
         this.confetti.throw(this.gameArea, this.layout.unitsPerCssPx);
         break;
@@ -180,6 +193,8 @@ export class CompareScene extends Phaser.Scene {
 
   /** Správně: karta se rozsvítí, místo „=“ naskočí znak a hvězdička letí do řady. */
   private showSolved(choice: CompareChoice): void {
+    // Správně během spojování: nápověda se hned dokreslí, bez animace a cinkání.
+    this.hintPairing?.finish();
     const target = this.targetOf(choice);
     if (choice !== 'equal') {
       this.cards[choice === 'left' ? 0 : 1]?.markCorrect();
@@ -197,8 +212,109 @@ export class CompareScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Nápověda párováním (#180): karty ukážou tečky (u čísel nově pod číslem),
+   * dvojice se po jedné spojí čarou s cinknutím a nakonec se rozsvítí tečky
+   * bez dvojice. Spojení zůstanou vidět jako jemné čáry pod tečkami. Bez
+   * `animate` (po otočení) je nápověda hned celá. Ťuknutí na karty a „=“
+   * fungují po celou dobu; správné ťuknutí nápovědu hned dokreslí.
+   */
+  private showHint(animate: boolean): void {
+    const picture = hintPicture(this.layout, this.session.problem(), this.session.problemLook());
+    const [left, right] = this.cards;
+    if (!left || !right) {
+      return;
+    }
+    const hadDots = this.session.problemLook().show !== 'numbers';
+    left.showHint(picture.cards[0], picture.numerals[0], animate);
+    right.showHint(picture.cards[1], picture.numerals[1], animate);
+    // Všechny tečky příkladu jsou stejně velké.
+    const dotRadius = picture.cards[0][0]?.radius ?? 0;
+    this.hintPairing?.cancel();
+    this.hintPairing = playHintPairing(
+      picture.links.length,
+      // Tečky pod samotným číslem nejdřív naskočí, pak se párují.
+      animate && !hadDots ? HINT_STYLE.dotsAppearMs : 0,
+      {
+        after: (ms, callback) => {
+          const timer = this.time.delayedCall(ms, callback);
+          return () => timer.remove(false);
+        },
+      },
+      {
+        pairUp: (pair, animatePair) => {
+          const link = picture.links[pair];
+          if (link) {
+            this.pairUp(link, dotRadius, animate && animatePair);
+          }
+        },
+        lightExtras: () => {
+          left.lightExtras();
+          right.lightExtras();
+        },
+      },
+    );
+    if (!animate) {
+      this.hintPairing.finish();
+    }
+  }
+
+  /**
+   * Jedna dvojice se spojí: čára mezi tečkami pod nimi. S `animate` obě
+   * tečky poskočí, čára se rozsvítí, cinkne tón a čára pak zjemní.
+   */
+  private pairUp(link: HintLink, dotRadius: number, animate: boolean): void {
+    this.cards[0]?.pairDot(link.pair, animate);
+    this.cards[1]?.pairDot(link.pair, animate);
+    if (animate) {
+      this.tones.play(COMPARE_SOUNDS.pair);
+    }
+    // Čára vede od okraje tečky k okraji tečky, aby ji ztlumené tečky nepřekryly.
+    const { from, to } = link;
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    const trim = length > 0 ? dotRadius / length : 0;
+    const start = { x: from.x + (to.x - from.x) * trim, y: from.y + (to.y - from.y) * trim };
+    const end = { x: to.x - (to.x - from.x) * trim, y: to.y - (to.y - from.y) * trim };
+    const width = HINT_STYLE.linkWidth * this.layout.unitsPerCssPx;
+    const parts: Phaser.GameObjects.Graphics[] = [];
+    if (this.hintLayer) {
+      const gap = this.add.graphics();
+      gap
+        .lineStyle(width, colorNumber(HINT_STYLE.linkColor))
+        .lineBetween(start.x, start.y, end.x, end.y);
+      this.hintLayer.add(gap);
+      parts.push(gap);
+    }
+    for (const [side, card] of this.cards.entries()) {
+      const part = clipSegment(start, end, this.layout.cards[side === 0 ? 0 : 1]);
+      if (part) {
+        parts.push(card.addLinkPart(part, width, HINT_STYLE.linkColor));
+      }
+    }
+    for (const part of parts) {
+      part.setAlpha(animate ? HINT_STYLE.linkAlpha : HINT_STYLE.linkRestAlpha);
+    }
+    if (animate) {
+      this.tweens.add({
+        targets: parts,
+        alpha: HINT_STYLE.linkRestAlpha,
+        delay: HINT_STYLE.linkHoldMs,
+        duration: HINT_STYLE.linkFadeMs,
+      });
+    }
+  }
+
   /** Smaže karty, „=“ i znak. */
   private clearProblem(): void {
+    this.hintPairing?.cancel();
+    this.hintPairing = null;
+    if (this.hintLayer) {
+      for (const line of this.hintLayer.list) {
+        this.tweens.killTweensOf(line);
+      }
+      this.hintLayer.destroy();
+      this.hintLayer = null;
+    }
     for (const card of this.cards) {
       card.destroy();
     }
@@ -215,6 +331,8 @@ export class CompareScene extends Phaser.Scene {
   /** Nakreslí rozehraný příklad podle rozložení; `animate` u nového příkladu. */
   private drawProblem(animate: boolean): void {
     this.clearProblem();
+    // Čáry spojení nápovědy jsou pod kartami: mezi kartami je z nich vidět kus.
+    this.hintLayer = this.add.container(0, 0);
     const { layout } = this;
     const unit = layout.unitsPerCssPx;
     const problem = this.session.problem();
@@ -246,6 +364,10 @@ export class CompareScene extends Phaser.Scene {
       // Vyřešený příklad po otočení: správná karta zůstane zeleně orámovaná.
       this.markCorrectCard(correctChoice(problem));
       this.drawSign(false);
+    }
+    if (this.session.hintShown()) {
+      // Po otočení zůstane nápověda celá, bez nového spárování.
+      this.showHint(false);
     }
     if (animate) {
       for (const card of this.cards) {

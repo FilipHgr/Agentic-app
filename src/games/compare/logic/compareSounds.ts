@@ -1,12 +1,13 @@
 /**
  * Tóny Porovnávání (#178): veselá melodie za správnou odpověď, jeden
  * tichý hluboký tón za chybu (žádný bzučák) a slavnostní melodie po
- * zaplnění řady hvězdiček. Čistý TypeScript bez Web Audio.
+ * zaplnění řady hvězdiček. Nápověda (#180) jemně cinká při spojení
+ * každé dvojice teček. Čistý TypeScript bez Web Audio.
  */
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
 
-export type CompareSoundName = 'correct' | 'wrong' | 'celebration';
+export type CompareSoundName = 'correct' | 'wrong' | 'celebration' | 'pair';
 
 const CORRECT_TONES: readonly Tone[] = [
   { frequencyHz: 523.25, startSeconds: 0, durationSeconds: 0.12, volume: 0.35 },
@@ -16,6 +17,11 @@ const CORRECT_TONES: readonly Tone[] = [
 
 const WRONG_TONES: readonly Tone[] = [
   { frequencyHz: 220, startSeconds: 0, durationSeconds: 0.18, volume: 0.2 },
+];
+
+/** Spojení dvojice teček v nápovědě (#180): krátké tiché cinknutí. */
+const PAIR_TONES: readonly Tone[] = [
+  { frequencyHz: 880, startSeconds: 0, durationSeconds: 0.06, volume: 0.12 },
 ];
 
 const CELEBRATION_TONES: readonly Tone[] = [
@@ -33,4 +39,5 @@ export const COMPARE_SOUNDS: Readonly<Record<CompareSoundName, readonly Tone[]>>
   correct: CORRECT_TONES,
   wrong: WRONG_TONES,
   celebration: CELEBRATION_TONES,
+  pair: PAIR_TONES,
 };
