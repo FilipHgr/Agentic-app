@@ -7,7 +7,9 @@ import type { GameHost } from '../../../shared/logic/gameHost';
 import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
+import type { RudyLineMove } from '../../../shared/logic/rudy';
 import { Confetti } from '../../../shared/ui/Confetti';
+import { RudyMoments } from '../../../shared/ui/rudyMoments';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { StarRow } from '../../../shared/ui/StarRow';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
@@ -18,8 +20,15 @@ import type { CompareLayout } from '../logic/compareLayout';
 import { correctChoice } from '../logic/compareProblems';
 import type { CompareChoice } from '../logic/compareProblems';
 import { createCompareSession } from '../logic/compareSession';
-import type { CompareChange, CompareSession } from '../logic/compareSession';
+import type {
+  CompareChange,
+  CompareRudy,
+  CompareRudyEvents,
+  CompareSession,
+} from '../logic/compareSession';
 import { COMPARE_SOUNDS } from '../logic/compareSounds';
+import { compareRudyLines, compareRudyVoiceUrl } from '../logic/rudyLines';
+import type { CompareRudyLines } from '../logic/rudyLines';
 import { HINT_STYLE, SIGN_STYLE } from '../logic/theme';
 import { dimSettingsGear } from '../ui/gearOpacity';
 import { CardView, EqualButtonView } from './CardView';
@@ -41,7 +50,9 @@ const CARDS_POP_FROM = 0.92;
  * příkladu. Hvězdičky a konfety jsou sdílené (`StarRow`, `Confetti`).
  * Nastavení pro rodiče (#179) se otevře podržením kolečka stránky a kreslí
  * ho `SettingsPanel` nad hrou. Po 2. chybě scéna nakreslí nápovědu
- * párováním teček (#180) podle `compareHint.ts`.
+ * párováním teček (#180) podle `compareHint.ts`. Okno s pandou Rudym
+ * (#181: pozdrav po otevření hry, oslava po 10. hvězdičce) je sdílené
+ * `RudyMoments`; kdy se ukáže, řídí sezení.
  */
 export class CompareScene extends Phaser.Scene {
   private session!: CompareSession;
@@ -68,6 +79,8 @@ export class CompareScene extends Phaser.Scene {
     STAR_FLIGHT_MS,
   );
   private readonly confetti = new Confetti(this);
+  /** Okno s pandou Rudym (#181); vznikne v `create`, kód a obrázky stáhne až při pozdravu. */
+  private rudy!: RudyMoments;
 
   constructor() {
     super('compare');
@@ -89,6 +102,10 @@ export class CompareScene extends Phaser.Scene {
 
     const host = this.readHost();
     this.host = host;
+    this.rudy = new RudyMoments(this, {
+      // Okraje stránky kolem plátna ztmavne okno stejně jako hru (#169).
+      pageBackdrop: (backdrop) => host?.setPageBackdrop?.(backdrop),
+    });
     const session = createCompareSession({
       // Úložiště aktivního profilu od stránky; bez stránky jen paměť.
       storage: host?.storage,
@@ -105,6 +122,7 @@ export class CompareScene extends Phaser.Scene {
       },
       // Podržení kolečka stránky otevře nastavení (#179 AC1); bez stránky kolečko není.
       attachSettingsGear: host ? (open) => host.attachSettingsGear(open) : undefined,
+      rudy: this.sessionRudy(compareRudyLines(host?.storage)),
       onChange: (change) => this.onSessionChange(change),
     });
     this.session = session;
@@ -114,6 +132,29 @@ export class CompareScene extends Phaser.Scene {
     this.starRow.create();
     this.starRow.paint();
     this.drawProblem(false);
+  }
+
+  /** Okno s pandou pro sezení; kdy se co ukáže a stáhne dopředu, řídí sezení (#181). */
+  private sessionRudy(lines: CompareRudyLines): CompareRudy {
+    const rudy = this.rudy;
+    return {
+      // Replika zazní v jazyce zvoleném v menu; varianty se v profilu střídají
+      // a zapamatuje se až ta, jejíž okno se ukázalo (#176).
+      show: (move: RudyLineMove, events: CompareRudyEvents) => {
+        const line = lines.upcoming(move);
+        rudy.show(move, {
+          onOpened: () => {
+            lines.said(move, line);
+            events.onOpened();
+          },
+          onClosed: () => events.onClosed(),
+          voiceUrl: compareRudyVoiceUrl(line),
+        });
+      },
+      prepare: (move: RudyLineMove) =>
+        rudy.prepare(move, compareRudyVoiceUrl(lines.upcoming(move))),
+      stop: () => rudy.stop(),
+    };
   }
 
   /** Stránka s domečkem z registru; bez ní hra běží jen bez něj. */
@@ -415,6 +456,7 @@ export class CompareScene extends Phaser.Scene {
     this.starRow.redraw();
     this.drawProblem(false);
     this.settingsPanel?.fitTo(this.gameArea);
+    this.rudy.relayout();
   }
 }
 

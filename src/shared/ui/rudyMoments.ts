@@ -23,7 +23,7 @@ import Phaser from 'phaser';
 import { createSharedRudyVoicePlayer } from '../audio/rudyVoicePlayer';
 import { isSharedAudioUnlocked } from '../audio/sharedAudio';
 import type { RudyLineMove, RudyMove } from '../logic/rudy';
-import { createRudyMomentGate } from '../logic/rudyMoment';
+import { createRudyMomentGate, rudyMomentTime } from '../logic/rudyMoment';
 import { createRudyVoice, rudyVoiceOpening } from '../logic/rudyVoice';
 import type { RudyWindow, RudyWindowOptions } from './rudyWindow';
 
@@ -168,7 +168,7 @@ export class RudyMoments {
   };
 
   private now(): number {
-    return this.scene.game.loop.time;
+    return rudyMomentTime(this.scene.game.loop.time, performance.now());
   }
 
   /** Okno, když už je; jinak začne stahovat jeho kód a vrátí `null`. */

@@ -4,6 +4,7 @@ import {
   RUDY_CELEBRATION_WAIT_MS,
   RUDY_WAIT_MS,
   createRudyMomentGate,
+  rudyMomentTime,
 } from '../../src/shared/logic/rudyMoment';
 import type { RudyMomentStep } from '../../src/shared/logic/rudyMoment';
 
@@ -147,5 +148,35 @@ describe('#173: zopakovaný pozdrav čeká na stažení kratší dobu', () => {
         kind: 'giveUp',
       });
     }
+  });
+});
+
+describe('#181: pozdrav ve hře, která vznikne před prvním snímkem hry', () => {
+  // Scéna bez načítání (Porovnávání) požádá o pozdrav ještě před prvním
+  // snímkem hry, kdy je čas smyčky hry 0; čas stránky už běží.
+  const PAGE_TIME_AT_START = 8600;
+
+  it('pozdrav nevyprší hned při prvním snímku, okno se ukáže', () => {
+    const gate = createRudyMomentGate();
+    gate.request('wave', rudyMomentTime(0, PAGE_TIME_AT_START));
+    const firstFrame = rudyMomentTime(PAGE_TIME_AT_START + 16, PAGE_TIME_AT_START + 16);
+    expect(gate.step(firstFrame, NOTHING)).toEqual<RudyMomentStep>({ kind: 'wait' });
+    expect(gate.step(firstFrame + 200, BOTH)).toEqual<RudyMomentStep>({
+      kind: 'open',
+      move: 'wave',
+    });
+  });
+
+  it('pozdrav, který se do limitu nestáhne, se vynechá i tady', () => {
+    const gate = createRudyMomentGate();
+    gate.request('wave', rudyMomentTime(0, PAGE_TIME_AT_START));
+    const late = PAGE_TIME_AT_START + RUDY_WAIT_MS + 1;
+    expect(gate.step(rudyMomentTime(late, late), NOTHING)).toEqual<RudyMomentStep>({
+      kind: 'giveUp',
+    });
+  });
+
+  it('jakmile hra běží, platí čas smyčky hry', () => {
+    expect(rudyMomentTime(1234, 1250)).toBe(1234);
   });
 });

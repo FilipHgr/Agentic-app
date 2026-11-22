@@ -17,6 +17,16 @@ export const RUDY_WAIT_MS = 4000;
 /** Oslava (stažená dopředu) čeká nejvýš tak dlouho, aby dítě po 10. hvězdičce nečekalo. */
 export const RUDY_CELEBRATION_WAIT_MS = 1500;
 
+/**
+ * Čas (ms), podle kterého chvíle čeká: čas smyčky hry. Scéna bez načítání
+ * (Porovnávání, #181) ale požádá o pozdrav ještě před prvním snímkem hry,
+ * kdy je čas smyčky 0; pozdrav by pak při prvním snímku vypršel. Do té doby
+ * platí čas stránky (`performance.now()`), ze stejných hodin jako snímky.
+ */
+export function rudyMomentTime(loopTime: number, pageTime: number): number {
+  return loopTime > 0 ? loopTime : pageTime;
+}
+
 function waitMsFor(move: RudyLineMove): number {
   return move === 'celebrate' ? RUDY_CELEBRATION_WAIT_MS : RUDY_WAIT_MS;
 }

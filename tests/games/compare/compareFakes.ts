@@ -1,11 +1,14 @@
 import { createCompareSession } from '../../../src/games/compare/logic/compareSession';
 import type {
   CompareChange,
+  CompareRudy,
+  CompareRudyEvents,
   CompareSession,
   CompareSoundName,
 } from '../../../src/games/compare/logic/compareSession';
 import { correctChoice } from '../../../src/games/compare/logic/compareProblems';
 import type { CompareChoice } from '../../../src/games/compare/logic/compareProblems';
+import type { RudyLineMove } from '../../../src/shared/logic/rudy';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 
 /**
@@ -139,6 +142,76 @@ export class FakeGear {
   }
 }
 
+/**
+ * Okno s pandou Rudym (#181): hra o něj požádá, test ho ukáže
+ * (`openPending`), zavře (`close`) nebo nechá nestáhnout (`giveUp`).
+ */
+export class FakeRudy implements CompareRudy {
+  /** Pohyby oken, o které hra požádala, v pořadí. */
+  readonly requested: RudyLineMove[] = [];
+  /** Pohyby, které hra chtěla stáhnout dopředu, v pořadí. */
+  readonly prepared: RudyLineMove[] = [];
+  private waiting: { move: RudyLineMove; events: CompareRudyEvents } | null = null;
+  private shown: { move: RudyLineMove; events: CompareRudyEvents } | null = null;
+  stopped = 0;
+
+  readonly show = (move: RudyLineMove, events: CompareRudyEvents): void => {
+    this.requested.push(move);
+    this.waiting = { move, events };
+  };
+
+  readonly prepare = (move: RudyLineMove): void => {
+    this.prepared.push(move);
+  };
+
+  readonly stop = (): void => {
+    this.stopped += 1;
+    this.waiting = null;
+    this.shown = null;
+  };
+
+  /** Pohyb okna, které je vidět, `null` bez okna. */
+  openMove(): RudyLineMove | null {
+    return this.shown?.move ?? null;
+  }
+
+  /** Pohyb okna, které čeká na stažení. */
+  waitingMove(): RudyLineMove | null {
+    return this.waiting?.move ?? null;
+  }
+
+  /** Okno se stáhlo a ukázalo. */
+  openPending(): void {
+    const waiting = this.waiting;
+    if (waiting === null) {
+      return;
+    }
+    this.waiting = null;
+    this.shown = waiting;
+    waiting.events.onOpened();
+  }
+
+  /** Okno se zavřelo (samo nebo ťuknutím). */
+  close(): void {
+    const shown = this.shown;
+    if (shown === null) {
+      return;
+    }
+    this.shown = null;
+    shown.events.onClosed();
+  }
+
+  /** Okno se nestáhlo včas: chvíle se vynechá a hra jde dál. */
+  giveUp(): void {
+    const waiting = this.waiting;
+    if (waiting === null) {
+      return;
+    }
+    this.waiting = null;
+    waiting.events.onClosed();
+  }
+}
+
 export interface TestCompare {
   readonly session: CompareSession;
   readonly timers: FakeTimers;
@@ -147,8 +220,15 @@ export interface TestCompare {
   readonly gear: FakeGear;
 }
 
-/** Dítě otevře Porovnávání nad úložištěm `storage` (bez něj jen paměť). */
-export function openCompare(storage?: KeyValueStorage, seed?: number): TestCompare {
+/**
+ * Dítě otevře Porovnávání nad úložištěm `storage` (bez něj jen paměť).
+ * S `rudy` hra ukazuje okna s pandou (#181), bez něj hraje bez nich.
+ */
+export function openCompare(
+  storage?: KeyValueStorage,
+  seed?: number,
+  rudy?: CompareRudy,
+): TestCompare {
   const timers = new FakeTimers();
   const sounds = new FakeSounds();
   const changes: CompareChange[] = [];
@@ -159,6 +239,7 @@ export function openCompare(storage?: KeyValueStorage, seed?: number): TestCompa
     sounds,
     timers,
     attachSettingsGear: gear.attach,
+    rudy,
     onChange: (change) => changes.push(change),
   });
   return { session, timers, sounds, changes, gear };

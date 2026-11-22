@@ -127,10 +127,12 @@ describe('#178 AC8: texty hry jsou v češtině i angličtině', () => {
     expect(Object.keys(COMPARE_FILES).sort()).toEqual(['cs', 'en']);
   });
 
-  // #179 přidal popisky řad nastavení pro rodiče, jiné texty hra nemá.
-  it('texty hry mají název hry a popisky řad nastavení a nic z nich není v žádném jazyce prázdné', () => {
+  // #179 přidal popisky řad nastavení pro rodiče, #181 repliky Rudyho, které
+  // jen zazní nahrávkou (hlídá je rudyVoiceFiles.test.ts); jiné texty hra nemá.
+  it('texty hry mají název hry, popisky řad nastavení a repliky Rudyho a nic z nich není v žádném jazyce prázdné', () => {
     for (const [language, texts] of Object.entries(COMPARE_FILES)) {
-      expect([...leavesOf(texts).keys()].sort(), language).toEqual(
+      const shown = [...leavesOf(texts).keys()].filter((key) => !key.startsWith('rudyLines.'));
+      expect(shown.sort(), language).toEqual(
         ['rowLabels.maxNumber', 'rowLabels.show', 'title'].sort(),
       );
       for (const [key, value] of leavesOf(texts)) {

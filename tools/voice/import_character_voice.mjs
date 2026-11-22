@@ -11,9 +11,10 @@
  *   npm run voice:character -- cs <složka s nahrávkami>
  * Ve složce je pro každou repliku soubor `<část>-<id>.mp3`, např.
  * `counting-greeting.mp3`, `counting-celebration.mp3`, `menu-greeting.mp3`,
- * `coloring-greeting.mp3`. Repliky jsou v textech částí pod klíčem `rudyLines`
- * (src/games/counting/texts/<jazyk>.ts, src/menu/texts/<jazyk>.ts,
- * src/games/coloring/texts/<jazyk>.ts, #175).
+ * `coloring-greeting.mp3`, `compare-greeting.mp3`. Repliky jsou v textech
+ * částí pod klíčem `rudyLines` (src/games/counting/texts/<jazyk>.ts,
+ * src/menu/texts/<jazyk>.ts, src/games/coloring/texts/<jazyk>.ts, #175,
+ * src/games/compare/texts/<jazyk>.ts, #181).
  *
  * Jádro je ve voiceCore.ts (TypeScript), proto ho načte Vite jako make_voice.mjs.
  */

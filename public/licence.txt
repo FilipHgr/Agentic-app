@@ -18,8 +18,9 @@ tarifu vlastníka hry. Nahrávky vznikly přes napojení ElevenLabs s výchozím
 nastavením hlasu a jsou převedené na mono 44,1 kHz 64 kb/s.
 
 Hlas pandy Rudyho (repliky v public/voice/<jazyk>/counting/rudy-*.mp3,
-public/voice/<jazyk>/menu/rudy-*.mp3 a
-public/voice/<jazyk>/coloring/rudy-*.mp3, čeština i angličtina) je
+public/voice/<jazyk>/menu/rudy-*.mp3,
+public/voice/<jazyk>/coloring/rudy-*.mp3 a
+public/voice/<jazyk>/compare/rudy-*.mp3, čeština i angličtina) je
 vytvořený službou ElevenLabs (https://elevenlabs.io), hlas Peanut, ID
 rBkiq5ZQ43ogwd6i4uIQ, model eleven_v3 (generace PtuTPLjDrR4MgNUf8Myd,
 alNb0AxqvizgX682kSSu, 2krWV8AD00oySxffhXX4, SkFfajETNZgay7V5uYjh,
@@ -28,7 +29,10 @@ W28rdxgObi8gTXnC5jPU, 2nrlMiP8l9Puaxj6kpvg, oJB7UHEcyz0ksgxU4F3u,
 Oif5y4BUmSNunOdNQhTD, d816pk2xb23raGBOUAB2, P38Jz5Xrzm2ti8cHn1iK; další
 varianty aHyyX79bNcNwQiW3DBRZ, lJEhYEoeNTYwCqDtpzTn, 6cJdEm0ImMFiWA8QFeRY,
 NYPNgImPTD4K3SJsd7Ey, AW0h5vz2Dis2fba5XO25, bhgVUYHFeX1ncWsUVPG2,
-K5ILkUdJ66aKd1zixczj, EKgjSP1C7NUjQusekJz5). Použito
+K5ILkUdJ66aKd1zixczj, EKgjSP1C7NUjQusekJz5; Porovnávání česky
+rF7IE0q4TRjzwTgJPWOw, GrhiDApR1rXIhuT0pMTL, fDAy3gXDLEVibHOzDat6,
+44t26lD1T6WbDQDLJehe, anglicky LiV77eRiu4dN8uc2l3PE, ohA4iuLYYNBcVSfhZZfM,
+WU96Oe4M4SURJ0nVgAk0, 8xznZNviI33ToRKUdPG2). Použito
 v rámci komerčního tarifu vlastníka hry. Nahrávky vznikly přes napojení
 ElevenLabs a jsou převedené na mono 44,1 kHz 64 kb/s.
 
