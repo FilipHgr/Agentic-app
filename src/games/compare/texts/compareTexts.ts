@@ -1,8 +1,8 @@
 /**
  * Texty hry Porovnávání (#178) v souborech podle kódu jazyka (`cs.ts`).
- * Hra nemá na obrazovce žádné texty, jen název v menu. Typ hlídá, že
- * žádnému jazyku nechybí klíč, takže chybějící překlad zastaví už
- * `npm run build`.
+ * Na herní obrazovce texty nejsou, jen název v menu a popisky řad
+ * nastavení pro rodiče (#179). Typ hlídá, že žádnému jazyku nechybí klíč,
+ * takže chybějící překlad zastaví už `npm run build`.
  */
 
 import { currentLanguage } from '../../../shared/texts/languages';
@@ -13,6 +13,11 @@ import en from './en';
 export interface CompareTexts {
   /** Název hry pro menu. */
   readonly title: string;
+  /** Popisky řad nastavení pro rodiče (#179). */
+  readonly rowLabels: {
+    readonly maxNumber: string;
+    readonly show: string;
+  };
 }
 
 const COMPARE_TEXTS: Record<Language, CompareTexts> = { cs, en };

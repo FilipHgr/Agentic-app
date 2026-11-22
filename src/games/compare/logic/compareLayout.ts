@@ -9,6 +9,8 @@
 
 import { gearSizingFor } from '../../../shared/logic/settingsGear';
 import { isPhoneMode } from '../../../shared/logic/viewportLayout';
+import { DEFAULT_COMPARE_SETTINGS } from './compareSettings';
+import type { CompareSettings } from './compareSettings';
 import type { GameArea, GameAreaFit } from '../../../shared/logic/viewportLayout';
 
 /** Karty přes celou volnou plochu okna, i na iPadu. */
@@ -199,34 +201,193 @@ export function layoutCompareScreen(area: GameArea): CompareLayout {
   };
 }
 
+/** Jak velká skupina teček je (po pěti v řadách nebo sloupcích, 2 × 5). */
+const DOTS_PER_BLOCK = DOTS_PER_GROUP * DOT_GROUPS;
+/** Mezera mezi dvěma skupinami po 10 při rozsahu 20 jako díl tečky s okolím (#179 AC4). */
+const BLOCK_GAP_CELLS = 0.6;
+
+/** Pruh pro číslo pod tečkami (#179 AC3): díl výšky karty, nejvýš díl její šířky. */
+const NUMERAL_BAND_HEIGHT_SHARE = 0.28;
+const NUMERAL_BAND_WIDTH_SHARE = 0.45;
+/** Písmo čísla jako díl výšky pruhu. */
+const NUMERAL_BAND_FONT_SHARE = 0.8;
+/** Samotné číslo: díl výšky karty, nejvýš díl šířky (číslo má až 2 číslice). */
+const NUMERAL_ALONE_HEIGHT_SHARE = 0.6;
+const NUMERAL_ALONE_WIDTH_SHARE = 0.55;
+
+/** Co a do kolika karta ukazuje (#179): nastavení rozehraného příkladu. */
+export type CardLook = CompareSettings;
+
+/** Bez nastavení jako dřív (#178): tečky do 10. */
+const DOTS_UP_TO_TEN: CardLook = DEFAULT_COMPARE_SETTINGS;
+
+/** Číslo na kartě: střed a velikost písma. */
+export interface Numeral extends Point {
+  readonly fontSize: number;
+}
+
+/** Jak jdou dvě skupiny po 10 za sebou: pod sebou, nebo vedle sebe. */
+type BlockArrangement = 'stacked' | 'sideBySide';
+
+/** Výška pruhu pro číslo pod tečkami na kartě. */
+function numeralBandHeight(card: Rect): number {
+  return Math.min(card.height * NUMERAL_BAND_HEIGHT_SHARE, card.width * NUMERAL_BAND_WIDTH_SHARE);
+}
+
+/** Část karty pro tečky: celá karta, nebo nad pruhem s číslem. */
+function dotsArea(card: Rect, look: CardLook): Rect {
+  if (look.show !== 'both') {
+    return card;
+  }
+  return { ...card, height: card.height - numeralBandHeight(card) };
+}
+
+/** Mřížka jedné skupiny po 10: kolik teček vedle sebe a pod sebou. */
+function blockGrid(groups: DotGroups): { readonly across: number; readonly down: number } {
+  return groups === 'rows'
+    ? { across: DOTS_PER_GROUP, down: DOT_GROUPS }
+    : { across: DOT_GROUPS, down: DOTS_PER_GROUP };
+}
+
+/** Celá mřížka pro rozsah: jedna skupina, nebo dvě pod sebou či vedle sebe s mezerou. */
+function gridCells(
+  groups: DotGroups,
+  blocks: number,
+  arrangement: BlockArrangement,
+): { readonly across: number; readonly down: number } {
+  const block = blockGrid(groups);
+  if (blocks === 1) {
+    return block;
+  }
+  return arrangement === 'stacked'
+    ? { across: block.across, down: 2 * block.down + BLOCK_GAP_CELLS }
+    : { across: 2 * block.across + BLOCK_GAP_CELLS, down: block.down };
+}
+
+/** Velikost políčka tečky, aby se do plochy vešla celá mřížka. */
+function cellSize(area: Rect, cells: { across: number; down: number }): number {
+  const padding = Math.min(area.width, area.height) * CARD_PADDING_SHARE;
+  return Math.min(
+    (area.width - 2 * padding) / cells.across,
+    (area.height - 2 * padding) / cells.down,
+  );
+}
+
+/** Rozmístění skupin pro rozsah 20: to, ve kterém jsou tečky větší. */
+function bestArrangement(area: Rect, groups: DotGroups): BlockArrangement {
+  const stacked = cellSize(area, gridCells(groups, 2, 'stacked'));
+  const sideBySide = cellSize(area, gridCells(groups, 2, 'sideBySide'));
+  return stacked >= sideBySide ? 'stacked' : 'sideBySide';
+}
+
+/** Místo tečky v mřížce v políčkách (sloupec a řada), i s mezerou mezi skupinami. */
+function dotCell(
+  index: number,
+  groups: DotGroups,
+  arrangement: BlockArrangement,
+): { readonly column: number; readonly row: number } {
+  const block = Math.floor(index / DOTS_PER_BLOCK);
+  const within = index % DOTS_PER_BLOCK;
+  const group = Math.floor(within / DOTS_PER_GROUP);
+  const place = within % DOTS_PER_GROUP;
+  const grid = blockGrid(groups);
+  const column = groups === 'rows' ? place : group;
+  const row = groups === 'rows' ? group : place;
+  const blockShift = block === 0 ? 0 : grid.down + BLOCK_GAP_CELLS;
+  const blockShiftAcross = block === 0 ? 0 : grid.across + BLOCK_GAP_CELLS;
+  return arrangement === 'stacked'
+    ? { column, row: row + blockShift }
+    : { column: column + blockShiftAcross, row };
+}
+
+/**
+ * Rozměr použité mřížky v políčkách: po směru skupin (řada nebo sloupec
+ * po pěti) vždy celá skupina, napříč jen tolik, kolik je potřeba.
+ */
+function usedExtent(
+  cells: readonly { column: number; row: number }[],
+  groups: DotGroups,
+  arrangement: BlockArrangement,
+  blocksUsed: number,
+): { readonly across: number; readonly down: number } {
+  const grid = blockGrid(groups);
+  const lastColumn = Math.max(...cells.map((cell) => cell.column));
+  const lastRow = Math.max(...cells.map((cell) => cell.row));
+  if (groups === 'rows') {
+    const blocksAcross = arrangement === 'sideBySide' ? blocksUsed : 1;
+    return {
+      across: blocksAcross * grid.across + (blocksAcross - 1) * BLOCK_GAP_CELLS,
+      down: lastRow + 1,
+    };
+  }
+  const blocksDown = arrangement === 'stacked' ? blocksUsed : 1;
+  return {
+    across: lastColumn + 1,
+    down: blocksDown * grid.down + (blocksDown - 1) * BLOCK_GAP_CELLS,
+  };
+}
+
 /**
  * Tečky na kartě po pěti (#178 AC1): na šířku v řadách (mřížka 5 × 2,
  * druhá řada pokračuje zleva), na výšku ve sloupcích (mřížka 2 × 5, druhý
  * sloupec pokračuje shora). S nejvýš pěti tečkami je jediná řada nebo
  * jediný sloupec na středu karty. Velikost teček nezávisí na počtu, aby
  * šly počty porovnat, a je co největší, jaká se do karty vejde.
+ *
+ * Podle nastavení (#179): při rozsahu 20 jsou dvě skupiny po 10 s mezerou
+ * (pod sebou, nebo vedle sebe, kde jsou tečky větší) a tečky jsou menší,
+ * aby se vešlo 20. S číslem pod tečkami jsou tečky nad pruhem s číslem,
+ * se samotným číslem žádné tečky nejsou.
  */
-export function cardDots(card: Rect, count: number, groups: DotGroups = 'rows'): Dot[] {
-  const padding = Math.min(card.width, card.height) * CARD_PADDING_SHARE;
-  const across = groups === 'rows' ? DOTS_PER_GROUP : DOT_GROUPS;
-  const down = groups === 'rows' ? DOT_GROUPS : DOTS_PER_GROUP;
-  const cell = Math.min((card.width - 2 * padding) / across, (card.height - 2 * padding) / down);
-  const usedGroups = Math.ceil(count / DOTS_PER_GROUP);
-  const columns = groups === 'rows' ? DOTS_PER_GROUP : usedGroups;
-  const rows = groups === 'rows' ? usedGroups : DOTS_PER_GROUP;
-  const gridLeft = card.left + (card.width - columns * cell) / 2;
-  const gridTop = card.top + (card.height - rows * cell) / 2;
-  const dots: Dot[] = [];
-  for (let index = 0; index < count; index += 1) {
-    const group = Math.floor(index / DOTS_PER_GROUP);
-    const place = index % DOTS_PER_GROUP;
-    const column = groups === 'rows' ? place : group;
-    const row = groups === 'rows' ? group : place;
-    dots.push({
-      x: gridLeft + (column + 0.5) * cell,
-      y: gridTop + (row + 0.5) * cell,
-      radius: cell * DOT_RADIUS_SHARE,
-    });
+export function cardDots(
+  card: Rect,
+  count: number,
+  groups: DotGroups = 'rows',
+  look: CardLook = DOTS_UP_TO_TEN,
+): Dot[] {
+  if (look.show === 'numbers' || count <= 0) {
+    return [];
   }
-  return dots;
+  const area = dotsArea(card, look);
+  const blocks = look.maxNumber > DOTS_PER_BLOCK ? 2 : 1;
+  const arrangement = blocks === 2 ? bestArrangement(area, groups) : 'stacked';
+  const cell = cellSize(area, gridCells(groups, blocks, arrangement));
+  const cells = Array.from({ length: count }, (_, index) => dotCell(index, groups, arrangement));
+  const blocksUsed = Math.ceil(count / DOTS_PER_BLOCK);
+  const extent = usedExtent(cells, groups, arrangement, blocksUsed);
+  const gridLeft = area.left + (area.width - extent.across * cell) / 2;
+  const gridTop = area.top + (area.height - extent.down * cell) / 2;
+  return cells.map((place) => ({
+    x: gridLeft + (place.column + 0.5) * cell,
+    y: gridTop + (place.row + 0.5) * cell,
+    radius: cell * DOT_RADIUS_SHARE,
+  }));
+}
+
+/**
+ * Číslo na kartě (#179 AC3): se samotným číslem velké na středu karty,
+ * s tečkami v pruhu pod nimi, jen s tečkami žádné (`null`).
+ */
+export function cardNumeral(card: Rect, look: CardLook): Numeral | null {
+  const centerX = card.left + card.width / 2;
+  if (look.show === 'numbers') {
+    return {
+      x: centerX,
+      y: card.top + card.height / 2,
+      fontSize: Math.min(
+        card.height * NUMERAL_ALONE_HEIGHT_SHARE,
+        card.width * NUMERAL_ALONE_WIDTH_SHARE,
+      ),
+    };
+  }
+  if (look.show === 'both') {
+    const band = numeralBandHeight(card);
+    return {
+      x: centerX,
+      // Pruh je dole v kartě; číslo trochu výš, ať nesedí na okraji.
+      y: card.top + card.height - band / 2 - band * 0.05,
+      fontSize: band * NUMERAL_BAND_FONT_SHARE,
+    };
+  }
+  return null;
 }

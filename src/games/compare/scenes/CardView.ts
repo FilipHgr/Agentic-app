@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 
 import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
-import { cardDots } from '../logic/compareLayout';
-import type { DotGroups, Rect } from '../logic/compareLayout';
-import { CARD_STYLE, DOT_COLORS, EQUAL_BUTTON_STYLE } from '../logic/theme';
+import { cardDots, cardNumeral } from '../logic/compareLayout';
+import type { CardLook, DotGroups, Rect } from '../logic/compareLayout';
+import { CARD_STYLE, DOT_COLORS, EQUAL_BUTTON_STYLE, NUMERAL_STYLE } from '../logic/theme';
 
 /** Jak daleko a jak dlouho se karta nebo „=“ po chybě zatřese (CSS px, ms). */
 const SHAKE_DISTANCE_CSS = 8;
@@ -84,29 +84,46 @@ abstract class TapTarget {
   }
 }
 
-/** Karta s tečkami po pěti v řadách nebo ve sloupcích (#178 AC1). */
+/**
+ * Karta s tečkami po pěti v řadách nebo ve sloupcích (#178 AC1), podle
+ * nastavení s číslem pod nimi, nebo jen s číslem (#179 AC3).
+ */
 export class CardView extends TapTarget {
   constructor(
     scene: Phaser.Scene,
     rect: Rect,
     unit: number,
     private readonly radius: number,
-    dots: { readonly count: number; readonly groups: DotGroups; readonly side: 0 | 1 },
+    dots: {
+      readonly count: number;
+      readonly groups: DotGroups;
+      readonly side: 0 | 1;
+      readonly look: CardLook;
+    },
     onTap: () => void,
   ) {
     super(scene, rect, unit, onTap);
     this.paintBox(CARD_STYLE.fill, CARD_STYLE.border, CARD_STYLE.borderWidth, radius);
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
-    for (const dot of cardDots(rect, dots.count, dots.groups)) {
+    const color = DOT_COLORS[dots.side];
+    for (const dot of cardDots(rect, dots.count, dots.groups, dots.look)) {
       this.container.add(
-        scene.add.circle(
-          dot.x - centerX,
-          dot.y - centerY,
-          dot.radius,
-          colorNumber(DOT_COLORS[dots.side]),
-        ),
+        scene.add.circle(dot.x - centerX, dot.y - centerY, dot.radius, colorNumber(color)),
       );
+    }
+    const numeral = cardNumeral(rect, dots.look);
+    if (numeral) {
+      // Číslice jsou symbol, ne text jazyka.
+      const label = scene.add
+        .text(numeral.x - centerX, numeral.y - centerY, String(dots.count), {
+          fontFamily: FONT_FAMILY,
+          fontSize: `${Math.round(numeral.fontSize)}px`,
+          fontStyle: NUMERAL_STYLE.fontWeight,
+          color,
+        })
+        .setOrigin(0.5);
+      this.container.add(label);
     }
   }
 

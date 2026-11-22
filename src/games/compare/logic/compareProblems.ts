@@ -1,11 +1,14 @@
 /**
- * Příklady Porovnávání (#178): dvě karty s 1 až 10 tečkami. Dítě ťukne na
+ * Příklady Porovnávání (#178): dvě karty s 1 až 10 tečkami, podle
+ * nastavení pro rodiče do 5, 10 nebo 20 (#179). Dítě ťukne na
  * kartu s víc tečkami, nebo na „=“, když je jich stejně. Stejný počet má
  * zhruba každý čtvrtý příklad a stejná dvojice (ani prohozená) nepřijde
  * dvakrát po sobě. Čistý TypeScript bez Phaseru.
  */
 
-/** Nejméně a nejvíc teček na kartě; prázdná karta se neukáže. */
+import type { MaxNumber } from './compareSettings';
+
+/** Nejméně teček na kartě (prázdná karta se neukáže) a nejvíc bez nastavení. */
 export const MIN_DOTS = 1;
 export const MAX_DOTS = 10;
 
@@ -51,28 +54,37 @@ export function isSamePair(first: CompareProblem, second: CompareProblem): boole
   return low(first) === low(second) && high(first) === high(second);
 }
 
-/** Všechny dvojice se stejným počtem (1 : 1 až 10 : 10). */
-function equalPairs(): CompareProblem[] {
+/** Všechny dvojice se stejným počtem (1 : 1 až `max` : `max`). */
+function equalPairs(max: number): CompareProblem[] {
   const pairs: CompareProblem[] = [];
-  for (let count = MIN_DOTS; count <= MAX_DOTS; count += 1) {
+  for (let count = MIN_DOTS; count <= max; count += 1) {
     pairs.push({ left: count, right: count });
   }
   return pairs;
 }
 
 /** Všechny dvojice různých počtů, menší číslo vlevo (strana se losuje potom). */
-function differentPairs(): CompareProblem[] {
+function differentPairs(max: number): CompareProblem[] {
   const pairs: CompareProblem[] = [];
-  for (let low = MIN_DOTS; low <= MAX_DOTS; low += 1) {
-    for (let high = low + 1; high <= MAX_DOTS; high += 1) {
+  for (let low = MIN_DOTS; low <= max; low += 1) {
+    for (let high = low + 1; high <= max; high += 1) {
       pairs.push({ left: low, right: high });
     }
   }
   return pairs;
 }
 
-const EQUAL_PAIRS = equalPairs();
-const DIFFERENT_PAIRS = differentPairs();
+interface PairPools {
+  readonly equal: readonly CompareProblem[];
+  readonly different: readonly CompareProblem[];
+}
+
+/** Dvojice podle rozsahu; spočítají se jednou při načtení. */
+const PAIRS_BY_MAX: Readonly<Record<MaxNumber, PairPools>> = {
+  5: { equal: equalPairs(5), different: differentPairs(5) },
+  10: { equal: equalPairs(10), different: differentPairs(10) },
+  20: { equal: equalPairs(20), different: differentPairs(20) },
+};
 
 /** Prvek seznamu podle náhody v rozsahu [0, 1). */
 function pick<T>(items: readonly T[], random: () => number): T {
@@ -87,10 +99,16 @@ function pick<T>(items: readonly T[], random: () => number): T {
  *
  * @param previous Minulý příklad, na začátku hry `null`.
  * @param random Náhoda v rozsahu [0, 1).
+ * @param maxNumber Rozsah z nastavení (#179); žádná karta ho nepřekročí.
  */
-export function nextProblem(previous: CompareProblem | null, random: () => number): CompareProblem {
+export function nextProblem(
+  previous: CompareProblem | null,
+  random: () => number,
+  maxNumber: MaxNumber = MAX_DOTS,
+): CompareProblem {
   const wantsEqual = random() < EQUAL_SHARE;
-  const pool = (wantsEqual ? EQUAL_PAIRS : DIFFERENT_PAIRS).filter(
+  const pools = PAIRS_BY_MAX[maxNumber];
+  const pool = (wantsEqual ? pools.equal : pools.different).filter(
     (pair) => previous === null || !isSamePair(pair, previous),
   );
   const pair = pick(pool, random);

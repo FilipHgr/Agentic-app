@@ -127,10 +127,20 @@ describe('#178 AC8: texty hry jsou v češtině i angličtině', () => {
     expect(Object.keys(COMPARE_FILES).sort()).toEqual(['cs', 'en']);
   });
 
-  it('texty hry mají jen název hry a ten není v žádném jazyce prázdný', () => {
+  // #179 přidal popisky řad nastavení pro rodiče, jiné texty hra nemá.
+  it('texty hry mají název hry a popisky řad nastavení a nic z nich není v žádném jazyce prázdné', () => {
     for (const [language, texts] of Object.entries(COMPARE_FILES)) {
-      expect([...leavesOf(texts).keys()], language).toEqual(['title']);
-      expect(String(texts['title'] ?? '').trim().length, language).toBeGreaterThan(0);
+      expect([...leavesOf(texts).keys()].sort(), language).toEqual(
+        ['rowLabels.maxNumber', 'rowLabels.show', 'title'].sort(),
+      );
+      for (const [key, value] of leavesOf(texts)) {
+        expect(String(value ?? '').trim().length, `${language}: ${key}`).toBeGreaterThan(0);
+      }
     }
+  });
+
+  it('popisky řad nastavení jsou česky „Do kolika“ a „Ukázat“, anglicky „Up to“ a „Show“ (#179)', () => {
+    expect(compareTexts('cs').rowLabels).toEqual({ maxNumber: 'Do kolika', show: 'Ukázat' });
+    expect(compareTexts('en').rowLabels).toEqual({ maxNumber: 'Up to', show: 'Show' });
   });
 });

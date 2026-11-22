@@ -1,0 +1,257 @@
+import Phaser from 'phaser';
+
+import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
+import type { GameArea } from '../../../shared/logic/viewportLayout';
+import { isMaxNumber, isShowMode } from '../logic/compareSettings';
+import type { CompareSettings, ShowMode } from '../logic/compareSettings';
+import { layoutCompareSettings, showOptionIcon } from '../logic/compareSettingsLayout';
+import type {
+  CompareSettingsLayout,
+  SettingsOptionSlot,
+  SettingsRowKind,
+  SettingsRowLabel,
+} from '../logic/compareSettingsLayout';
+import {
+  CONFIRM_BUTTON_STYLE,
+  SETTINGS_LABEL_COLOR,
+  SETTINGS_OPTION_STYLE,
+  SETTINGS_PANEL_BACKGROUND,
+} from '../logic/theme';
+
+/** Panel je nad vším ostatním, aby ťuknutí nepropadla do hry pod ním. */
+const PANEL_DEPTH = 100;
+const PANEL_FADE_MS = 150;
+/** Zhoupnutí volby po ťuknutí. */
+const OPTION_BOUNCE_SCALE = 1.08;
+const OPTION_BOUNCE_MS = 90;
+/** Číslo v obrázku volby „Ukázat“ (symbol, ne text jazyka). */
+const ICON_NUMERAL = '3';
+
+/** Co panel potřebuje od sezení hry. */
+export interface SettingsPanelHost {
+  /** Volby v otevřeném nastavení. */
+  readonly choice: () => CompareSettings | null;
+  readonly choose: (change: Partial<CompareSettings>) => void;
+  readonly confirm: () => void;
+}
+
+interface OptionView {
+  readonly change: Partial<CompareSettings>;
+  readonly slot: SettingsOptionSlot;
+  readonly background: Phaser.GameObjects.Graphics;
+  /** Obsah volby, který se přebarví podle výběru (číslo, tečky). */
+  readonly paint: (color: string) => void;
+}
+
+/**
+ * Nastavení Porovnávání pro rodiče (#179): řada „Do kolika“ (5, 10, 20),
+ * řada „Ukázat“ (tečky, číslo, tečky s číslem) a zelené ✓. Vybrané volby
+ * jsou plně modré jako v Počítání. Rozměry jsou v `compareSettingsLayout.ts`,
+ * co je vybrané a co ✓ udělá, řídí sezení hry.
+ */
+export class SettingsPanel {
+  private readonly container: Phaser.GameObjects.Container;
+  private options: OptionView[] = [];
+  private optionLook: CompareSettingsLayout['optionLook'] = { cornerRadius: 0, borderWidth: 0 };
+
+  constructor(
+    private readonly scene: Phaser.Scene,
+    area: GameArea,
+    private readonly host: SettingsPanelHost,
+  ) {
+    this.container = scene.add.container(0, 0).setDepth(PANEL_DEPTH);
+    this.fitTo(area);
+    this.container.setAlpha(0);
+    scene.tweens.add({ targets: this.container, alpha: 1, duration: PANEL_FADE_MS });
+  }
+
+  /** Po otočení nebo změně lišty se panel nakreslí podle nové plochy; volby zůstanou. */
+  fitTo(area: GameArea): void {
+    this.scene.tweens.killTweensOf(this.container.list);
+    this.container.removeAll(true);
+    // Neprůhledné pozadí stejné barvy jako stránka zachytí všechna ťuknutí.
+    const backdrop = this.scene.add
+      .rectangle(0, 0, area.width, area.height, colorNumber(SETTINGS_PANEL_BACKGROUND), 1)
+      .setOrigin(0)
+      .setInteractive();
+    this.container.add(backdrop);
+    const layout = layoutCompareSettings(area);
+    this.optionLook = layout.optionLook;
+    this.options = [];
+    for (const row of layout.rows) {
+      this.container.add(this.createLabel(row.label));
+      for (const slot of row.options) {
+        const option = this.createOption(row.kind, slot);
+        if (option) {
+          this.options.push(option);
+        }
+      }
+    }
+    this.container.add(this.createConfirm(layout.confirm));
+    this.repaint();
+  }
+
+  destroy(): void {
+    this.scene.tweens.killTweensOf(this.container);
+    this.container.destroy();
+  }
+
+  private createLabel(label: SettingsRowLabel): Phaser.GameObjects.Text {
+    const alignRight = label.align === 'right';
+    return this.scene.add
+      .text(alignRight ? label.x + label.width / 2 : label.x, label.y, label.text, {
+        fontFamily: FONT_FAMILY,
+        fontSize: `${label.fontSize}px`,
+        color: SETTINGS_LABEL_COLOR,
+      })
+      .setOrigin(alignRight ? 1 : 0.5, 0.5);
+  }
+
+  /** Volba řady; hodnota, která do řady nepatří, se nenakreslí. */
+  private createOption(kind: SettingsRowKind, slot: SettingsOptionSlot): OptionView | null {
+    const change = changeOf(kind, slot.value);
+    if (change === null) {
+      return null;
+    }
+    const background = this.scene.add.graphics();
+    const button = this.scene.add.container(slot.x, slot.y, [background]);
+    const paint =
+      change.show === undefined
+        ? this.addNumeral(button, String(slot.value), 0, 0, slot.fontSize)
+        : this.addShowIcon(button, slot, change.show);
+    button.setSize(slot.width, slot.height).setInteractive();
+    const option: OptionView = { change, slot, background, paint };
+    button.on('pointerdown', () => {
+      this.host.choose(change);
+      this.repaint();
+      this.scene.tweens.add({
+        targets: button,
+        scale: { from: 1, to: OPTION_BOUNCE_SCALE },
+        duration: OPTION_BOUNCE_MS,
+        yoyo: true,
+      });
+    });
+    this.container.add(button);
+    return option;
+  }
+
+  /** Číslo uprostřed volby; vrátí přebarvení. */
+  private addNumeral(
+    button: Phaser.GameObjects.Container,
+    text: string,
+    x: number,
+    y: number,
+    fontSize: number,
+  ): (color: string) => void {
+    const label = this.scene.add
+      .text(x, y, text, {
+        fontFamily: FONT_FAMILY,
+        fontSize: `${Math.round(fontSize)}px`,
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+    button.add(label);
+    return (color) => label.setColor(color);
+  }
+
+  /** Tečky, číslo, nebo obojí ve volbě „Ukázat“; vrátí přebarvení. */
+  private addShowIcon(
+    button: Phaser.GameObjects.Container,
+    slot: SettingsOptionSlot,
+    show: ShowMode,
+  ): (color: string) => void {
+    const icon = showOptionIcon(slot, show);
+    const dots = this.scene.add.graphics();
+    button.add(dots);
+    const numeral = icon.numeral
+      ? this.addNumeral(
+          button,
+          ICON_NUMERAL,
+          icon.numeral.x - slot.x,
+          icon.numeral.y - slot.y,
+          icon.numeral.fontSize,
+        )
+      : null;
+    return (color) => {
+      dots.clear().fillStyle(colorNumber(color), 1);
+      for (const dot of icon.dots) {
+        dots.fillCircle(dot.x - slot.x, dot.y - slot.y, dot.radius);
+      }
+      numeral?.(color);
+    };
+  }
+
+  private createConfirm(slot: CompareSettingsLayout['confirm']): Phaser.GameObjects.Container {
+    const { size } = slot;
+    const half = size / 2;
+    const background = this.scene.add
+      .graphics()
+      .fillStyle(colorNumber(CONFIRM_BUTTON_STYLE.fill), 1)
+      .fillRoundedRect(-half, -half, size, size, size * CONFIRM_BUTTON_STYLE.cornerShare);
+    const tick = this.scene.add
+      .graphics()
+      .lineStyle(size * CONFIRM_BUTTON_STYLE.tickShare, colorNumber(CONFIRM_BUTTON_STYLE.tick), 1)
+      .beginPath()
+      .moveTo(-size * 0.27, 0)
+      .lineTo(-size * 0.07, size * 0.2)
+      .lineTo(size * 0.28, -size * 0.18)
+      .strokePath();
+    const button = this.scene.add
+      .container(slot.x, slot.y, [background, tick])
+      .setSize(size, size)
+      .setInteractive();
+    // Krátké zhoupnutí jako u voleb, panel se zavře až po něm (jen jednou).
+    let confirming = false;
+    button.on('pointerdown', () => {
+      if (confirming) {
+        return;
+      }
+      confirming = true;
+      this.scene.tweens.add({
+        targets: button,
+        scale: { from: 1, to: OPTION_BOUNCE_SCALE },
+        duration: OPTION_BOUNCE_MS,
+        yoyo: true,
+        onComplete: () => this.host.confirm(),
+      });
+    });
+    return button;
+  }
+
+  /** Vybrané volby plně modře s bílým obsahem, ostatní světle modře. */
+  private repaint(): void {
+    const choice = this.host.choice();
+    const { cornerRadius, borderWidth } = this.optionLook;
+    for (const option of this.options) {
+      const selected =
+        choice !== null &&
+        (option.change.maxNumber === undefined || option.change.maxNumber === choice.maxNumber) &&
+        (option.change.show === undefined || option.change.show === choice.show);
+      const look = selected ? SETTINGS_OPTION_STYLE.selected : SETTINGS_OPTION_STYLE.unselected;
+      const { width, height } = option.slot;
+      // Okraj se kreslí dovnitř, aby se velikost volby nezměnila.
+      const inset = borderWidth / 2;
+      option.background
+        .clear()
+        .fillStyle(colorNumber(look.fill), 1)
+        .fillRoundedRect(-width / 2, -height / 2, width, height, cornerRadius)
+        .lineStyle(borderWidth, colorNumber(look.border), 1)
+        .strokeRoundedRect(
+          -width / 2 + inset,
+          -height / 2 + inset,
+          width - borderWidth,
+          height - borderWidth,
+          cornerRadius - inset,
+        );
+      option.paint(look.content);
+    }
+  }
+}
+
+/** Co ťuknutí na volbu změní; hodnota mimo nabídku řady dá `null`. */
+function changeOf(kind: SettingsRowKind, value: unknown): Partial<CompareSettings> | null {
+  if (kind === 'maxNumber') {
+    return isMaxNumber(value) ? { maxNumber: value } : null;
+  }
+  return isShowMode(value) ? { show: value } : null;
+}

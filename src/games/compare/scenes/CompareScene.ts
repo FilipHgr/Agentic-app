@@ -19,7 +19,9 @@ import { createCompareSession } from '../logic/compareSession';
 import type { CompareChange, CompareSession } from '../logic/compareSession';
 import { COMPARE_SOUNDS } from '../logic/compareSounds';
 import { SIGN_STYLE } from '../logic/theme';
+import { dimSettingsGear } from '../ui/gearOpacity';
 import { CardView, EqualButtonView } from './CardView';
+import { SettingsPanel } from './SettingsPanel';
 
 /** Jak dlouho letí hvězdička od karty do řady. */
 const STAR_FLIGHT_MS = 600;
@@ -35,6 +37,8 @@ const CARDS_POP_FROM = 0.92;
  * `compareSession.ts`. Rozložení se bere podle herní plochy (iPad,
  * telefon na šířku i na výšku) a po otočení se překreslí bez nového
  * příkladu. Hvězdičky a konfety jsou sdílené (`StarRow`, `Confetti`).
+ * Nastavení pro rodiče (#179) se otevře podržením kolečka stránky a kreslí
+ * ho `SettingsPanel` nad hrou.
  */
 export class CompareScene extends Phaser.Scene {
   private session!: CompareSession;
@@ -43,6 +47,8 @@ export class CompareScene extends Phaser.Scene {
   private cards: CardView[] = [];
   private equalButton: EqualButtonView | null = null;
   private sign: Phaser.GameObjects.Text | null = null;
+  private settingsPanel: SettingsPanel | null = null;
+  private host: GameHost | undefined;
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu.
   private readonly tones = createTonePlayer(sharedToneContext);
   private readonly starRow = new StarRow(
@@ -67,9 +73,12 @@ export class CompareScene extends Phaser.Scene {
       this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
       // Hra skončila jinak než domečkem: sezení se zastaví stejně.
       this.session.leave();
+      // Kolečko patří stránce: další hra ho dostane neztlumené.
+      dimSettingsGear(false);
     });
 
     const host = this.readHost();
+    this.host = host;
     const session = createCompareSession({
       // Úložiště aktivního profilu od stránky; bez stránky jen paměť.
       storage: host?.storage,
@@ -84,12 +93,13 @@ export class CompareScene extends Phaser.Scene {
           return () => timer.remove(false);
         },
       },
+      // Podržení kolečka stránky otevře nastavení (#179 AC1); bez stránky kolečko není.
+      attachSettingsGear: host ? (open) => host.attachSettingsGear(open) : undefined,
       onChange: (change) => this.onSessionChange(change),
     });
     this.session = session;
     host?.onLeave(() => session.leave());
-    // Domeček jde použít vždy, nastavení hra zatím nemá (kolečko zůstane skryté).
-    host?.setHomeAvailable(true);
+    host?.setHomeAvailable(session.homeAvailable());
 
     this.starRow.create();
     this.starRow.paint();
@@ -126,7 +136,35 @@ export class CompareScene extends Phaser.Scene {
         this.confetti.forget();
         this.starRow.paint();
         break;
+      case 'settingsOpened':
+        this.openSettingsPanel();
+        break;
+      case 'settingsClosed':
+        this.closeSettingsPanel();
+        break;
     }
+  }
+
+  /** Nastavení nad hrou; kolečko se ztlumí a domeček zmizí, dokud je otevřené. */
+  private openSettingsPanel(): void {
+    this.confetti.forget();
+    this.settingsPanel?.destroy();
+    this.settingsPanel = new SettingsPanel(this, this.gameArea, {
+      choice: () => this.session.settingsChoice(),
+      choose: (change) => this.session.chooseSetting(change),
+      confirm: () => this.session.confirmSettings(),
+    });
+    dimSettingsGear(true);
+    this.host?.setHomeAvailable(this.session.homeAvailable());
+  }
+
+  /** Po ✓: panel zmizí, kolečko a domeček jsou zpátky a hvězdičky se překreslí. */
+  private closeSettingsPanel(): void {
+    this.settingsPanel?.destroy();
+    this.settingsPanel = null;
+    dimSettingsGear(false);
+    this.host?.setHomeAvailable(this.session.homeAvailable());
+    this.starRow.paint();
   }
 
   private targetOf(choice: CompareChoice): CardView | EqualButtonView | null | undefined {
@@ -180,13 +218,15 @@ export class CompareScene extends Phaser.Scene {
     const { layout } = this;
     const unit = layout.unitsPerCssPx;
     const problem = this.session.problem();
+    // Karty se kreslí podle nastavení, se kterým příklad začal (#179 AC3).
+    const look = this.session.problemLook();
     this.cards = [
       new CardView(
         this,
         layout.cards[0],
         unit,
         layout.cardCornerRadius,
-        { count: problem.left, groups: layout.dotGroups, side: 0 },
+        { count: problem.left, groups: layout.dotGroups, side: 0, look },
         () => this.session.tap('left'),
       ),
       new CardView(
@@ -194,7 +234,7 @@ export class CompareScene extends Phaser.Scene {
         layout.cards[1],
         unit,
         layout.cardCornerRadius,
-        { count: problem.right, groups: layout.dotGroups, side: 1 },
+        { count: problem.right, groups: layout.dotGroups, side: 1, look },
         () => this.session.tap('right'),
       ),
     ];
@@ -252,6 +292,7 @@ export class CompareScene extends Phaser.Scene {
     this.layout = layoutCompareScreen(this.gameArea);
     this.starRow.redraw();
     this.drawProblem(false);
+    this.settingsPanel?.fitTo(this.gameArea);
   }
 }
 

@@ -116,11 +116,35 @@ export class MemoryStorage implements KeyValueStorage {
   }
 }
 
+/** Kolečko nastavení stránky: rodič ho podrží (`hold`), hra se na něj napojí. */
+export class FakeGear {
+  private opener: (() => void) | null = null;
+
+  readonly attach = (open: () => void): (() => void) => {
+    this.opener = open;
+    return () => {
+      if (this.opener === open) {
+        this.opener = null;
+      }
+    };
+  };
+
+  get attached(): boolean {
+    return this.opener !== null;
+  }
+
+  /** Rodič podržel kolečko 1 s. */
+  hold(): void {
+    this.opener?.();
+  }
+}
+
 export interface TestCompare {
   readonly session: CompareSession;
   readonly timers: FakeTimers;
   readonly sounds: FakeSounds;
   readonly changes: CompareChange[];
+  readonly gear: FakeGear;
 }
 
 /** Dítě otevře Porovnávání nad úložištěm `storage` (bez něj jen paměť). */
@@ -128,14 +152,16 @@ export function openCompare(storage?: KeyValueStorage, seed?: number): TestCompa
   const timers = new FakeTimers();
   const sounds = new FakeSounds();
   const changes: CompareChange[] = [];
+  const gear = new FakeGear();
   const session = createCompareSession({
     storage,
     random: seededRandom(seed),
     sounds,
     timers,
+    attachSettingsGear: gear.attach,
     onChange: (change) => changes.push(change),
   });
-  return { session, timers, sounds, changes };
+  return { session, timers, sounds, changes, gear };
 }
 
 /** Špatná volba v příkladu: karta s méně tečkami, nebo „=“ při různém počtu. */

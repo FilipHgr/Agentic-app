@@ -1,20 +1,31 @@
 /**
  * Sezení hry Porovnávání (#178), bez Phaseru: příklad, vyhodnocení
- * ťuknutí, hvězdičky, oslava po 10. hvězdičce, uložení postupu a odchod.
- * Scéna jen kreslí, co sezení ohlásí (`onChange`), a předává ťuknutí.
+ * ťuknutí, hvězdičky, oslava po 10. hvězdičce, uložení postupu, nastavení
+ * pro rodiče za kolečkem (#179) a odchod. Scéna jen kreslí, co sezení
+ * ohlásí (`onChange`), a předává ťuknutí.
  *
  * Průběh: dítě ťukne správně → hvězdička a znak mezi kartami, za chvíli
  * nový příklad (po 10. hvězdičce nejdřív oslava a prázdná řada). Během
  * přechodu a oslavy se ťuknutí nepočítají. Špatné ťuknutí nic nebere,
  * jen zazní tichý tón a ťuknutá karta (nebo „=“) se zatřese.
+ *
+ * Nastavení (#179): podržení kolečka ho otevře s uloženými volbami. Dokud
+ * je otevřené, ťuknutí do hry se nepočítají, domeček nejde a nic se
+ * nedohrává (přechod na další příklad ani oslava). Ťuknutí na ✓ volby
+ * uloží; změněné platí od dalšího příkladu, který hned přijde, beze změny
+ * zůstane rozehraný příklad. Hvězdičky zůstanou a oslava za plnou řadu
+ * přijde vždy, po ✓ znovu od začátku. Bez ✓ (odchod z hry) se nic neuloží.
  */
 
-import { createStarProgress, starsAfterTap } from '../../../shared/logic/stars';
+import { STARS_PER_SET, createStarProgress, starsAfterTap } from '../../../shared/logic/stars';
 import type { AnswerOutcome, StarProgress } from '../../../shared/logic/stars';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
+import { loadCompareSettings, saveCompareSettings } from '../storage/settingsStorage';
 import { correctChoice, nextProblem, signOf } from './compareProblems';
 import type { CompareChoice, CompareProblem, CompareSign } from './compareProblems';
+import { isSameSettings } from './compareSettings';
+import type { CompareSettings } from './compareSettings';
 import type { CompareSoundName } from './compareSounds';
 
 export type { CompareSoundName } from './compareSounds';
@@ -31,7 +42,9 @@ export type CompareChange =
   | { readonly kind: 'solved'; readonly choice: CompareChoice; readonly sign: CompareSign }
   | { readonly kind: 'wrong'; readonly choice: CompareChoice }
   | { readonly kind: 'celebrationStarted' }
-  | { readonly kind: 'celebrationEnded' };
+  | { readonly kind: 'celebrationEnded' }
+  | { readonly kind: 'settingsOpened' }
+  | { readonly kind: 'settingsClosed' };
 
 export interface CompareSounds {
   play(name: CompareSoundName): void;
@@ -49,6 +62,11 @@ export interface CompareSessionOptions {
   readonly random: () => number;
   readonly sounds: CompareSounds;
   readonly timers: CompareTimers;
+  /**
+   * Napojí podržení kolečka stránky na otevření nastavení (#179 AC1).
+   * Vrátí odpojení. Bez něj hra běží bez nastavení.
+   */
+  readonly attachSettingsGear?: ((open: () => void) => () => void) | undefined;
   readonly onChange?: ((change: CompareChange) => void) | undefined;
 }
 
@@ -58,6 +76,19 @@ export interface CompareSession {
   /** Znak mezi kartami po správné odpovědi, jinak `null`. */
   shownSign(): CompareSign | null;
   isCelebrating(): boolean;
+  /** Platné nastavení (po posledním ✓). */
+  settings(): CompareSettings;
+  /** Nastavení, se kterým začal rozehraný příklad: podle něj se karty kreslí. */
+  problemLook(): CompareSettings;
+  settingsOpen(): boolean;
+  /** Volby v otevřeném nastavení, při zavřeném `null`. */
+  settingsChoice(): CompareSettings | null;
+  /** Jde teď domečkem odejít (ne při otevřeném nastavení)? */
+  homeAvailable(): boolean;
+  /** Rodič ťukl na volbu v otevřeném nastavení. */
+  chooseSetting(change: Partial<CompareSettings>): void;
+  /** Rodič ťukl na ✓: volby platí od dalšího příkladu, který hned přijde. */
+  confirmSettings(): void;
   /** Dítě ťuklo na kartu nebo na „=“. */
   tap(choice: CompareChoice): AnswerOutcome;
   /** Odchod z hry: zruší naplánované akce a ztiší zvuky. */
@@ -70,7 +101,11 @@ type Phase = 'waiting' | 'solved' | 'celebrating' | 'left';
 export function createCompareSession(options: CompareSessionOptions): CompareSession {
   const { storage, random, sounds, timers } = options;
   let progress: StarProgress = loadProgress(storage);
-  let problem = nextProblem(null, random);
+  let settings: CompareSettings = loadCompareSettings(storage);
+  let problemLook: CompareSettings = settings;
+  /** Volby v otevřeném nastavení; `null`, když je zavřené. */
+  let choice: CompareSettings | null = null;
+  let problem = nextProblem(null, random, settings.maxNumber);
   let phase: Phase = 'waiting';
   let sign: CompareSign | null = null;
   let cancelPending: (() => void) | null = null;
@@ -85,7 +120,8 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   };
 
   const startNextProblem = (): void => {
-    problem = nextProblem(problem, random);
+    problemLook = settings;
+    problem = nextProblem(problem, random, settings.maxNumber);
     sign = null;
     phase = 'waiting';
     notify({ kind: 'problemStarted' });
@@ -117,21 +153,71 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     schedule(NEXT_PROBLEM_MS, result.setCompleted ? startCelebration : startNextProblem);
   };
 
+  /** Podržení kolečka: nastavení s uloženými volbami; přechod ani oslava se nedohrají. */
+  const openSettings = (): void => {
+    if (phase === 'left' || choice !== null) {
+      return;
+    }
+    cancelPending?.();
+    cancelPending = null;
+    choice = settings;
+    if (phase === 'celebrating') {
+      // Oslava se po ✓ přehraje znovu od začátku.
+      sounds.stopAll();
+    }
+    notify({ kind: 'settingsOpened' });
+  };
+
+  /**
+   * ✓: volby se uloží. Při plné řadě (10. hvězdička nebo přerušená oslava)
+   * přijde oslava znovu od začátku a teprve po ní prázdná řada (#179).
+   * Jinak přijde další příklad, jen když se nastavení změnilo nebo byl
+   * příklad už vyřešený; beze změny zůstane rozehraný příklad.
+   */
+  const confirmSettings = (): void => {
+    if (phase === 'left' || choice === null) {
+      return;
+    }
+    const changed = !isSameSettings(choice, settings);
+    settings = choice;
+    choice = null;
+    saveCompareSettings(storage, settings);
+    notify({ kind: 'settingsClosed' });
+    if (progress.earned >= STARS_PER_SET) {
+      startCelebration();
+    } else if (changed || phase !== 'waiting') {
+      startNextProblem();
+    }
+  };
+
+  const detachGear = options.attachSettingsGear?.(openSettings) ?? (() => undefined);
+
   return {
     problem: () => problem,
     starCount: () => progress.earned,
     shownSign: () => sign,
-    isCelebrating: () => phase === 'celebrating',
-    tap: (choice) => {
-      if (phase !== 'waiting') {
+    isCelebrating: () => phase === 'celebrating' && choice === null,
+    settings: () => settings,
+    problemLook: () => problemLook,
+    settingsOpen: () => choice !== null,
+    settingsChoice: () => choice,
+    homeAvailable: () => phase !== 'left' && choice === null,
+    chooseSetting: (change) => {
+      if (choice !== null) {
+        choice = { ...choice, ...change };
+      }
+    },
+    confirmSettings,
+    tap: (tapped) => {
+      if (phase !== 'waiting' || choice !== null) {
         return 'ignored';
       }
-      if (choice !== correctChoice(problem)) {
+      if (tapped !== correctChoice(problem)) {
         sounds.play('wrong');
-        notify({ kind: 'wrong', choice });
+        notify({ kind: 'wrong', choice: tapped });
         return 'wrong';
       }
-      answerCorrectly(choice);
+      answerCorrectly(tapped);
       return 'correct';
     },
     leave: () => {
@@ -139,8 +225,11 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
         return;
       }
       phase = 'left';
+      // Volby bez ✓ se zahodí, nic se neuloží (#179 AC6).
+      choice = null;
       cancelPending?.();
       cancelPending = null;
+      detachGear();
       sounds.stopAll();
     },
   };
