@@ -28,6 +28,25 @@ export const COMPARE_RUDY_LINES = [
 
 export type CompareRudyLine = (typeof COMPARE_RUDY_LINES)[number];
 
+/**
+ * Repliky, které mluví o „víc“ (#182), a co místo nich Rudy řekne, když se
+ * hra neptá jen na víc (otázka míň, nebo střídat): pozdrav „Kde je víc?“
+ * nahradí „Jdeme porovnávat!“, oslavu „Vždycky poznáš, kde je víc!“
+ * nahradí „Máš deset hvězdiček!“.
+ */
+export const COMPARE_RUDY_LINES_WITHOUT_MORE: Readonly<
+  Partial<Record<CompareRudyLine, CompareRudyLine>>
+> = {
+  greeting: 'greetingAgain',
+  celebrationMore: 'celebration',
+};
+
+/**
+ * Pozdrav, který se sám ptá „Kde je víc?“ (#182): po něm hlas průvodce
+ * otázku neopakuje.
+ */
+export const COMPARE_RUDY_GREETING_ASKING_MORE: CompareRudyLine = 'greeting';
+
 /** Klíče posledních variant v úložišti hry profilu, podle pohybu okna. */
 export const COMPARE_RUDY_VARIANT_KEYS: Readonly<Record<RudyLineMove, string>> = {
   wave: 'rudyLine.greeting',
@@ -39,9 +58,18 @@ function variantsOf(move: RudyLineMove): RudyVariantList<CompareRudyLine> {
   return move === 'celebrate' ? COMPARE_RUDY_CELEBRATIONS : COMPARE_RUDY_GREETINGS;
 }
 
+/** Co hra o chvíli okna ví (#182): smí Rudy mluvit o „víc“ (pozdrav i oslava). */
+export interface CompareRudyContext {
+  /** `false`, když se hra po otevření neptá jen na víc (míň, nebo střídat). */
+  readonly mayAskMore: boolean;
+}
+
 export interface CompareRudyLines {
-  /** Replika, která k pohybu okna zazní příště; nic nemění. */
-  upcoming(move: RudyLineMove): CompareRudyLine;
+  /**
+   * Replika, která k pohybu okna zazní příště; nic nemění. Když Rudy nesmí
+   * mluvit o „víc“, je to vždy replika bez „víc“.
+   */
+  upcoming(move: RudyLineMove, context?: CompareRudyContext): CompareRudyLine;
   /** Okno s replikou `line` se ukázalo: příště zazní další varianta. */
   said(move: RudyLineMove, line: CompareRudyLine): void;
 }
@@ -60,7 +88,11 @@ export function compareRudyLines(storage: KeyValueStorage | undefined): CompareR
   );
   const variantsFor = (move: RudyLineMove) => (move === 'celebrate' ? celebrations : greetings);
   return {
-    upcoming: (move) => variantsFor(move).upcoming(),
+    upcoming: (move, context) => {
+      const line = variantsFor(move).upcoming();
+      const withoutMore = COMPARE_RUDY_LINES_WITHOUT_MORE[line];
+      return context?.mayAskMore === false && withoutMore !== undefined ? withoutMore : line;
+    },
     said: (move, line) => variantsFor(move).said(line),
   };
 }

@@ -3,9 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { clipSegment, hintPicture } from '../../../src/games/compare/logic/compareHint';
 import type { CompareHintPicture, HintDot } from '../../../src/games/compare/logic/compareHint';
 import { cardDots, layoutCompareScreen } from '../../../src/games/compare/logic/compareLayout';
-import type { CompareLayout, Rect } from '../../../src/games/compare/logic/compareLayout';
+import type { CardLook, CompareLayout, Rect } from '../../../src/games/compare/logic/compareLayout';
 import { MAX_NUMBER_OPTIONS, SHOW_OPTIONS } from '../../../src/games/compare/logic/compareSettings';
-import type { CompareSettings } from '../../../src/games/compare/logic/compareSettings';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import type { GameArea } from '../../../src/shared/logic/viewportLayout';
 import {
@@ -77,7 +76,7 @@ function circleRect(x: number, y: number, radius: number): Rect {
 
 interface HintCase {
   readonly screen: Screen;
-  readonly look: CompareSettings;
+  readonly look: CardLook;
   readonly left: number;
   readonly right: number;
   readonly picture: CompareHintPicture;
@@ -106,7 +105,7 @@ function* hintCases(): Generator<HintCase> {
   for (const screen of SCREENS) {
     for (const maxNumber of MAX_NUMBER_OPTIONS) {
       for (const show of SHOW_OPTIONS) {
-        const look: CompareSettings = { maxNumber, show };
+        const look: CardLook = { maxNumber, show };
         for (const [left, right] of countPairs(maxNumber)) {
           yield {
             screen,

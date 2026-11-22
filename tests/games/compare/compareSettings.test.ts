@@ -102,7 +102,11 @@ describe('#179 AC1: nastavení se otevře až po podržení kolečka 1 s', () =>
     confirmChoice(openCompare(storage), { maxNumber: 20, show: 'both' });
     const again = openCompare(storage);
     again.gear.hold();
-    expect(again.session.settingsChoice()).toEqual({ maxNumber: 20, show: 'both' });
+    expect(again.session.settingsChoice()).toEqual({
+      maxNumber: 20,
+      show: 'both',
+      question: 'more',
+    });
   });
 
   it('po odchodu z hry se hra od kolečka odpojí', () => {
@@ -223,8 +227,12 @@ describe('#179 AC5: nastavení podle profilu, poškozené hodnoty dají výchoz�
     const storage = new MemoryStorage();
     confirmChoice(openCompare(storage), { maxNumber: 5, show: 'numbers' });
     const again = openCompare(storage);
-    expect(again.session.settings()).toEqual({ maxNumber: 5, show: 'numbers' });
-    expect(again.session.problemLook()).toEqual({ maxNumber: 5, show: 'numbers' });
+    expect(again.session.settings()).toEqual({ maxNumber: 5, show: 'numbers', question: 'more' });
+    expect(again.session.problemLook()).toEqual({
+      maxNumber: 5,
+      show: 'numbers',
+      question: 'more',
+    });
     expect(Math.max(...countsOf(again.session.problem()))).toBeLessThanOrEqual(5);
   });
 
@@ -245,11 +253,13 @@ describe('#179 AC5: nastavení podle profilu, poškozené hodnoty dají výchoz�
     expect(openCompare(reloaded.gameStorage(COMPARE_META.id)).session.settings()).toEqual({
       maxNumber: 20,
       show: 'dots',
+      question: 'more',
     });
     reloaded.selectProfile(second.id);
     expect(openCompare(reloaded.gameStorage(COMPARE_META.id)).session.settings()).toEqual({
       maxNumber: 10,
       show: 'numbers',
+      question: 'more',
     });
   });
 
@@ -267,7 +277,11 @@ describe('#179 AC5: nastavení podle profilu, poškozené hodnoty dají výchoz�
       const storage = new MemoryStorage();
       storage.data.set(COMPARE_SETTINGS_KEY, saved);
       const test = openCompare(storage);
-      expect(test.session.settings(), saved).toEqual({ maxNumber: 10, show: 'dots' });
+      expect(test.session.settings(), saved).toEqual({
+        maxNumber: 10,
+        show: 'dots',
+        question: 'more',
+      });
       expect(test.session.tap(correctChoice(test.session.problem())), saved).toBe('correct');
     }
   });
@@ -275,9 +289,17 @@ describe('#179 AC5: nastavení podle profilu, poškozené hodnoty dají výchoz�
   it('platná hodnota zůstane, i když je druhá neznámá', () => {
     const storage = new MemoryStorage();
     storage.data.set(COMPARE_SETTINGS_KEY, '{"maxNumber":20,"show":"stars"}');
-    expect(openCompare(storage).session.settings()).toEqual({ maxNumber: 20, show: 'dots' });
+    expect(openCompare(storage).session.settings()).toEqual({
+      maxNumber: 20,
+      show: 'dots',
+      question: 'more',
+    });
     storage.data.set(COMPARE_SETTINGS_KEY, '{"maxNumber":3,"show":"both"}');
-    expect(openCompare(storage).session.settings()).toEqual({ maxNumber: 10, show: 'both' });
+    expect(openCompare(storage).session.settings()).toEqual({
+      maxNumber: 10,
+      show: 'both',
+      question: 'more',
+    });
   });
 
   it('když úložiště nejde číst ani zapsat, platí výchozí a zvolené nastavení aspoň do zavření hry', () => {
@@ -287,8 +309,8 @@ describe('#179 AC5: nastavení podle profilu, poškozené hodnoty dají výchoz�
     const test = openCompare(storage);
     expect(test.session.settings()).toEqual(DEFAULT_COMPARE_SETTINGS);
     confirmChoice(test, { maxNumber: 20, show: 'both' });
-    expect(test.session.settings()).toEqual({ maxNumber: 20, show: 'both' });
-    expect(test.session.problemLook()).toEqual({ maxNumber: 20, show: 'both' });
+    expect(test.session.settings()).toEqual({ maxNumber: 20, show: 'both', question: 'more' });
+    expect(test.session.problemLook()).toEqual({ maxNumber: 20, show: 'both', question: 'more' });
   });
 });
 

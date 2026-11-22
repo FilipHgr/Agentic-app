@@ -2,9 +2,13 @@ import Phaser from 'phaser';
 
 import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
-import { isMaxNumber, isShowMode } from '../logic/compareSettings';
-import type { CompareSettings, ShowMode } from '../logic/compareSettings';
-import { layoutCompareSettings, showOptionIcon } from '../logic/compareSettingsLayout';
+import { isMaxNumber, isQuestionSetting, isShowMode } from '../logic/compareSettings';
+import type { CompareSettings, QuestionSetting, ShowMode } from '../logic/compareSettings';
+import {
+  layoutCompareSettings,
+  questionOptionIcon,
+  showOptionIcon,
+} from '../logic/compareSettingsLayout';
 import type {
   CompareSettingsLayout,
   SettingsOptionSlot,
@@ -45,7 +49,8 @@ interface OptionView {
 
 /**
  * Nastavení Porovnávání pro rodiče (#179): řada „Do kolika“ (5, 10, 20),
- * řada „Ukázat“ (tečky, číslo, tečky s číslem) a zelené ✓. Vybrané volby
+ * řada „Ukázat“ (tečky, číslo, tečky s číslem), řada „Otázka“ (#182: velká
+ * hromádka, malá hromádka, obě) a zelené ✓. Vybrané volby
  * jsou plně modré jako v Počítání. Rozměry jsou v `compareSettingsLayout.ts`,
  * co je vybrané a co ✓ udělá, řídí sezení hry.
  */
@@ -115,10 +120,14 @@ export class SettingsPanel {
     }
     const background = this.scene.add.graphics();
     const button = this.scene.add.container(slot.x, slot.y, [background]);
-    const paint =
-      change.show === undefined
-        ? this.addNumeral(button, String(slot.value), 0, 0, slot.fontSize)
-        : this.addShowIcon(button, slot, change.show);
+    let paint: (color: string) => void;
+    if (change.show !== undefined) {
+      paint = this.addShowIcon(button, slot, change.show);
+    } else if (change.question !== undefined) {
+      paint = this.addQuestionIcon(button, slot, change.question);
+    } else {
+      paint = this.addNumeral(button, String(slot.value), 0, 0, slot.fontSize);
+    }
     button.setSize(slot.width, slot.height).setInteractive();
     const option: OptionView = { change, slot, background, paint };
     button.on('pointerdown', () => {
@@ -181,6 +190,32 @@ export class SettingsPanel {
     };
   }
 
+  /** Hromádky jako symbol otázky nad kartami ve volbě „Otázka“; vrátí přebarvení. */
+  private addQuestionIcon(
+    button: Phaser.GameObjects.Container,
+    slot: SettingsOptionSlot,
+    question: QuestionSetting,
+  ): (color: string) => void {
+    const icon = questionOptionIcon(slot, question);
+    const shapes = this.scene.add.graphics();
+    button.add(shapes);
+    return (color) => {
+      shapes.clear().fillStyle(colorNumber(color), 1);
+      for (const dot of icon.dots) {
+        shapes.fillCircle(dot.x - slot.x, dot.y - slot.y, dot.radius);
+      }
+      for (const ground of icon.grounds) {
+        shapes.fillRoundedRect(
+          ground.left - slot.x,
+          ground.top - slot.y,
+          ground.width,
+          ground.height,
+          ground.height / 2,
+        );
+      }
+    };
+  }
+
   private createConfirm(slot: CompareSettingsLayout['confirm']): Phaser.GameObjects.Container {
     const { size } = slot;
     const half = size / 2;
@@ -226,7 +261,8 @@ export class SettingsPanel {
       const selected =
         choice !== null &&
         (option.change.maxNumber === undefined || option.change.maxNumber === choice.maxNumber) &&
-        (option.change.show === undefined || option.change.show === choice.show);
+        (option.change.show === undefined || option.change.show === choice.show) &&
+        (option.change.question === undefined || option.change.question === choice.question);
       const look = selected ? SETTINGS_OPTION_STYLE.selected : SETTINGS_OPTION_STYLE.unselected;
       const { width, height } = option.slot;
       // Okraj se kreslí dovnitř, aby se velikost volby nezměnila.
@@ -252,6 +288,9 @@ export class SettingsPanel {
 function changeOf(kind: SettingsRowKind, value: unknown): Partial<CompareSettings> | null {
   if (kind === 'maxNumber') {
     return isMaxNumber(value) ? { maxNumber: value } : null;
+  }
+  if (kind === 'question') {
+    return isQuestionSetting(value) ? { question: value } : null;
   }
   return isShowMode(value) ? { show: value } : null;
 }

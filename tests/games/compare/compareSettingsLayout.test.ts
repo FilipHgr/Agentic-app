@@ -6,7 +6,7 @@ import {
   cardNumeral,
   layoutCompareScreen,
 } from '../../../src/games/compare/logic/compareLayout';
-import type { Dot, Rect } from '../../../src/games/compare/logic/compareLayout';
+import type { CardLook, Dot, Rect } from '../../../src/games/compare/logic/compareLayout';
 import { MAX_NUMBER_OPTIONS, SHOW_OPTIONS } from '../../../src/games/compare/logic/compareSettings';
 import type { CompareSettings } from '../../../src/games/compare/logic/compareSettings';
 import {
@@ -178,14 +178,14 @@ function allParts(window: TestWindow): Part[] {
   return [...tapParts(window), ...labels];
 }
 
-describe('#179: nastavení má dvě řady „Do kolika“ a „Ukázat“ a ✓', () => {
-  it('rodič vidí řadu rozsahů 5, 10, 20 a řadu tečky, čísla, tečky s číslem', () => {
+describe('#179 a #182: nastavení má řady „Do kolika“, „Ukázat“, „Otázka“ a ✓', () => {
+  it('rodič vidí řadu rozsahů 5, 10, 20, řadu tečky, čísla, tečky s číslem a řadu otázky', () => {
     for (const window of ALL_WINDOWS) {
       const layout = settingsOf(window);
       expect(
         layout.rows.map((row) => row.kind),
         window.name,
-      ).toEqual(['maxNumber', 'show']);
+      ).toEqual(['maxNumber', 'show', 'question']);
       expect(
         layout.rows[0].options.map((option) => option.value),
         window.name,
@@ -262,7 +262,9 @@ describe('#179: nastavení má dvě řady „Do kolika“ a „Ukázat“ a ✓'
       const layout = settingsOf(window);
       const area = areaOf(window);
       const [first, second] = layout.rows;
-      const lastRow = second.options.at(-1);
+      // ✓ je za poslední řadou (od #182 „Otázka“).
+      const last = layout.rows[layout.rows.length - 1] ?? second;
+      const lastRow = last.options.at(-1);
       const name = window.name;
       if (PHONE_WINDOWS.includes(window)) {
         for (const row of layout.rows) {
@@ -281,7 +283,7 @@ describe('#179: nastavení má dvě řady „Do kolika“ a „Ukázat“ a ✓'
           expect(row.label.y, name).toBeLessThan(row.y);
         }
         expect(layout.confirm.y - layout.confirm.size / 2, name).toBeGreaterThan(
-          second.y + (lastRow?.height ?? 0) / 2,
+          last.y + (lastRow?.height ?? 0) / 2,
         );
         expect(layout.confirm.x, name).toBeCloseTo(area.width / 2, 3);
       }
@@ -290,6 +292,7 @@ describe('#179: nastavení má dvě řady „Do kolika“ a „Ukázat“ a ✓'
         expect(layout.confirm.y, name).toBeGreaterThan((area.height * 2) / 3);
       }
       expect(first.y, name).toBeLessThan(second.y);
+      expect(second.y, name).toBeLessThan(last.y);
     }
   });
 
@@ -330,7 +333,7 @@ describe('#179 AC4: při rozsahu 20 se na kartu vejde 20 teček ve dvou skupiná
       const area = areaOf(window);
       const layout = layoutCompareScreen(area);
       for (const show of ['dots', 'both'] as const) {
-        const look: CompareSettings = { maxNumber: 20, show };
+        const look: CardLook = { maxNumber: 20, show };
         for (const card of layout.cards) {
           const numeral = cardNumeral(card, look);
           for (let count = 1; count <= 20; count += 1) {
@@ -430,7 +433,7 @@ describe('#179 AC3: čísla na kartách', () => {
       const area = areaOf(window);
       const layout = layoutCompareScreen(area);
       for (const maxNumber of MAX_NUMBER_OPTIONS) {
-        const look: CompareSettings = { maxNumber, show: 'numbers' };
+        const look: CardLook = { maxNumber, show: 'numbers' };
         for (const card of layout.cards) {
           const name = `${window.name}, do ${maxNumber}`;
           expect(cardDots(card, 7, layout.dotGroups, look), name).toEqual([]);
@@ -452,7 +455,7 @@ describe('#179 AC3: čísla na kartách', () => {
       const area = areaOf(window);
       const layout = layoutCompareScreen(area);
       for (const maxNumber of MAX_NUMBER_OPTIONS) {
-        const look: CompareSettings = { maxNumber, show: 'both' };
+        const look: CardLook = { maxNumber, show: 'both' };
         for (const card of layout.cards) {
           const name = `${window.name}, do ${maxNumber}`;
           const numeral = cardNumeral(card, look);

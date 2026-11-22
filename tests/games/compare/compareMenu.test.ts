@@ -128,12 +128,16 @@ describe('#178 AC8: texty hry jsou v češtině i angličtině', () => {
   });
 
   // #179 přidal popisky řad nastavení pro rodiče, #181 repliky Rudyho, které
-  // jen zazní nahrávkou (hlídá je rudyVoiceFiles.test.ts); jiné texty hra nemá.
-  it('texty hry mají název hry, popisky řad nastavení a repliky Rudyho a nic z nich není v žádném jazyce prázdné', () => {
+  // jen zazní nahrávkou (hlídá je rudyVoiceFiles.test.ts), #182 řadu „Otázka“
+  // a otázky, které jen řekne hlas průvodce (hlídá je questionVoiceFiles.test.ts);
+  // jiné texty hra nemá.
+  it('texty hry mají název hry, popisky řad nastavení, repliky Rudyho a otázky průvodce a nic z nich není v žádném jazyce prázdné', () => {
     for (const [language, texts] of Object.entries(COMPARE_FILES)) {
-      const shown = [...leavesOf(texts).keys()].filter((key) => !key.startsWith('rudyLines.'));
+      const shown = [...leavesOf(texts).keys()].filter(
+        (key) => !key.startsWith('rudyLines.') && !key.startsWith('guideLines.'),
+      );
       expect(shown.sort(), language).toEqual(
-        ['rowLabels.maxNumber', 'rowLabels.show', 'title'].sort(),
+        ['rowLabels.maxNumber', 'rowLabels.question', 'rowLabels.show', 'title'].sort(),
       );
       for (const [key, value] of leavesOf(texts)) {
         expect(String(value ?? '').trim().length, `${language}: ${key}`).toBeGreaterThan(0);
@@ -141,8 +145,16 @@ describe('#178 AC8: texty hry jsou v češtině i angličtině', () => {
     }
   });
 
-  it('popisky řad nastavení jsou česky „Do kolika“ a „Ukázat“, anglicky „Up to“ a „Show“ (#179)', () => {
-    expect(compareTexts('cs').rowLabels).toEqual({ maxNumber: 'Do kolika', show: 'Ukázat' });
-    expect(compareTexts('en').rowLabels).toEqual({ maxNumber: 'Up to', show: 'Show' });
+  it('popisky řad nastavení jsou česky „Do kolika“, „Ukázat“ a „Otázka“, anglicky „Up to“, „Show“ a „Question“ (#179, #182)', () => {
+    expect(compareTexts('cs').rowLabels).toEqual({
+      maxNumber: 'Do kolika',
+      show: 'Ukázat',
+      question: 'Otázka',
+    });
+    expect(compareTexts('en').rowLabels).toEqual({
+      maxNumber: 'Up to',
+      show: 'Show',
+      question: 'Question',
+    });
   });
 });

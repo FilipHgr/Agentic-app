@@ -1,13 +1,16 @@
 import { createCompareSession } from '../../../src/games/compare/logic/compareSession';
 import type {
   CompareChange,
+  CompareQuestionVoice,
   CompareRudy,
+  CompareRudyContext,
   CompareRudyEvents,
   CompareSession,
   CompareSoundName,
 } from '../../../src/games/compare/logic/compareSession';
 import { correctChoice } from '../../../src/games/compare/logic/compareProblems';
 import type { CompareChoice } from '../../../src/games/compare/logic/compareProblems';
+import type { CompareQuestion } from '../../../src/games/compare/logic/compareQuestion';
 import type { RudyLineMove } from '../../../src/shared/logic/rudy';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 
@@ -155,13 +158,25 @@ export class FakeRudy implements CompareRudy {
   private shown: { move: RudyLineMove; events: CompareRudyEvents } | null = null;
   stopped = 0;
 
-  readonly show = (move: RudyLineMove, events: CompareRudyEvents): void => {
+  /** Co hra ke každému oknu řekla (#182: smí se pozdrav ptát na víc). */
+  readonly contexts: CompareRudyContext[] = [];
+
+  readonly show = (
+    move: RudyLineMove,
+    events: CompareRudyEvents,
+    context: CompareRudyContext,
+  ): void => {
     this.requested.push(move);
+    this.contexts.push(context);
     this.waiting = { move, events };
   };
 
-  readonly prepare = (move: RudyLineMove): void => {
+  /** Co hra ke stahování dopředu řekla (#182). */
+  readonly preparedContexts: CompareRudyContext[] = [];
+
+  readonly prepare = (move: RudyLineMove, context: CompareRudyContext): void => {
     this.prepared.push(move);
+    this.preparedContexts.push(context);
   };
 
   readonly stop = (): void => {
@@ -180,15 +195,15 @@ export class FakeRudy implements CompareRudy {
     return this.waiting?.move ?? null;
   }
 
-  /** Okno se stáhlo a ukázalo. */
-  openPending(): void {
+  /** Okno se stáhlo a ukázalo; `askedMore`, když nahlas zazněl pozdrav „Kde je víc?“. */
+  openPending(askedMore = false): void {
     const waiting = this.waiting;
     if (waiting === null) {
       return;
     }
     this.waiting = null;
     this.shown = waiting;
-    waiting.events.onOpened();
+    waiting.events.onOpened({ askedMore });
   }
 
   /** Okno se zavřelo (samo nebo ťuknutím). */
@@ -212,6 +227,23 @@ export class FakeRudy implements CompareRudy {
   }
 }
 
+/** Hlas průvodce, který říká otázku (#182): co a kolikrát hra chtěla říct. */
+export class FakeQuestionVoice implements CompareQuestionVoice {
+  readonly said: CompareQuestion[] = [];
+  stopped = 0;
+  /** Hraje nahrávka opravdu? `false` jako zamčený zvuk nebo chybějící nahrávka. */
+  plays = true;
+
+  readonly say = (question: CompareQuestion): Promise<boolean> => {
+    this.said.push(question);
+    return Promise.resolve(this.plays);
+  };
+
+  readonly stop = (): void => {
+    this.stopped += 1;
+  };
+}
+
 export interface TestCompare {
   readonly session: CompareSession;
   readonly timers: FakeTimers;
@@ -223,11 +255,13 @@ export interface TestCompare {
 /**
  * Dítě otevře Porovnávání nad úložištěm `storage` (bez něj jen paměť).
  * S `rudy` hra ukazuje okna s pandou (#181), bez něj hraje bez nich.
+ * S `voice` hlas průvodce říká otázku (#182), bez něj je hra bez hlasu.
  */
 export function openCompare(
   storage?: KeyValueStorage,
   seed?: number,
   rudy?: CompareRudy,
+  voice?: CompareQuestionVoice,
 ): TestCompare {
   const timers = new FakeTimers();
   const sounds = new FakeSounds();
@@ -240,20 +274,26 @@ export function openCompare(
     timers,
     attachSettingsGear: gear.attach,
     rudy,
+    voice,
     onChange: (change) => changes.push(change),
   });
   return { session, timers, sounds, changes, gear };
 }
 
-/** Špatná volba v příkladu: karta s méně tečkami, nebo „=“ při různém počtu. */
+/** Kam má dítě v rozehraném příkladu ťuknout, podle otázky příkladu (#182). */
+export function rightChoice(test: TestCompare): CompareChoice {
+  return correctChoice(test.session.problem(), test.session.question());
+}
+
+/** Špatná volba v příkladu: druhá karta, nebo „=“ při různém počtu. */
 export function wrongChoice(test: TestCompare): CompareChoice {
-  const right = correctChoice(test.session.problem());
+  const right = rightChoice(test);
   return right === 'equal' ? 'left' : 'equal';
 }
 
 /** Dítě ťukne správně a počká, až přijde další příklad (i po oslavě). */
 export function solveProblem(test: TestCompare): void {
-  test.session.tap(correctChoice(test.session.problem()));
+  test.session.tap(rightChoice(test));
   test.timers.runAll();
 }
 

@@ -307,8 +307,10 @@ describe('#178 AC7: na šířku karty vedle sebe s „=“ mezi nimi, na výšku
       expect(layout.equalPlacement, window.name).toBe('below');
       expect(right.right - left.left, window.name).toBeCloseTo(playWidth, 3);
       expect(right.left - left.right, window.name).toBeLessThanOrEqual(MAX_CARD_GAP_CSS);
-      // Vysoké karty: od rohů s domečkem a kolečkem až k „=“ pod nimi.
-      expect(left.top - belowCorners, window.name).toBeLessThanOrEqual(MAX_CARD_GAP_CSS);
+      // Vysoké karty: od symbolu otázky (#182) pod rohy s domečkem a kolečkem až k „=“ pod nimi.
+      const question = cssOf(layout.question, area);
+      expect(question.top - belowCorners, window.name).toBeLessThanOrEqual(MAX_CARD_GAP_CSS);
+      expect(left.top - question.bottom, window.name).toBeLessThanOrEqual(MAX_CARD_GAP_CSS);
       expect(equal.top - left.bottom, window.name).toBeLessThanOrEqual(MAX_CARD_GAP_CSS);
     }
   });

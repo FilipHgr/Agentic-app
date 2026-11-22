@@ -1,10 +1,11 @@
 /**
  * Rozložení obrazovky Porovnávání (#178 AC7) podle herní plochy: nahoře
- * řada hvězdiček mezi domečkem a kolečkem, pod ní dvě karty s tečkami
- * vedle sebe a „=“ mezi nimi. Na výšku jsou karty vysoké, „=“ pod nimi,
- * tečky po pěti ve sloupcích a hvězdičky ve 2 řadách po 5. Míry se počítají
- * z CSS px okna, aby karty i „=“ měly aspoň 64 px na každém zařízení.
- * Čistý TypeScript bez Phaseru.
+ * řada hvězdiček mezi domečkem a kolečkem, pod ní symbol otázky (#182)
+ * a pod ním dvě karty s tečkami vedle sebe a „=“ mezi nimi. Na výšku jsou
+ * karty vysoké, „=“ pod nimi, tečky po pěti ve sloupcích a hvězdičky ve
+ * 2 řadách po 5. Míry se počítají z CSS px okna, aby karty, „=“ i ťukací
+ * plocha symbolu měly aspoň 64 px na každém zařízení. Čistý TypeScript
+ * bez Phaseru.
  */
 
 import { gearSizingFor } from '../../../shared/logic/settingsGear';
@@ -46,6 +47,13 @@ export interface CompareLayout {
   /** Levá a pravá karta, vždy vedle sebe. */
   readonly cards: readonly [Rect, Rect];
   readonly equalButton: Rect;
+  /** Symbol otázky nad kartami (#182): velká, nebo malá hromádka. */
+  readonly question: Rect;
+  /**
+   * Ťukací plocha symbolu (ťuknutí otázku zopakuje): aspoň 64 × 64 px,
+   * i když je symbol menší; roste nahoru a do stran, ke kartám ne.
+   */
+  readonly questionHit: Rect;
   /** Znak po správné odpovědi: střed v místě „=“ a velikost písma. */
   readonly sign: Point & { readonly size: number };
   readonly stars: {
@@ -84,6 +92,21 @@ const CARD_PADDING_SHARE = 0.08;
 const CARD_CORNER_RADIUS_SHARE = 0.08;
 const DOT_RADIUS_SHARE = 0.4;
 const SIGN_FONT_SHARE = 0.9;
+
+/**
+ * Symbol otázky (#182): výška v CSS px (telefon na šířku, na výšku, nebo
+ * větší okno), šířka jako násobek výšky a mezera pod ním ke kartám (aspoň
+ * 8 px mezi ťukacími plochami). V okně menším než jakékoli zařízení se
+ * zmenší s kratší stranou plochy.
+ */
+const PHONE_LANDSCAPE_QUESTION = { height: 52, gap: 8 };
+const PHONE_PORTRAIT_QUESTION = { height: 72, gap: 8 };
+const TABLET_QUESTION = { height: 120, gap: 12 };
+const QUESTION_WIDTH_SHARE = 1.25;
+const QUESTION_MAX_SHORT_SIDE_SHARE = 0.12;
+
+/** Nejmenší ťukací plocha pro dětský prst (CSS px). */
+const MIN_QUESTION_HIT_CSS = 64;
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
@@ -169,6 +192,66 @@ function placeCards(play: Rect, unit: number, gap: number, portrait: boolean): C
   return portrait ? equalBelow(play, equal, gap) : equalBetween(play, equal, gap);
 }
 
+/** Posune karty a „=“ o `dy` nahoru (záporné `dy` dolů). */
+function liftCards(cards: CardsPlacement, dy: number): CardsPlacement {
+  return {
+    ...cards,
+    first: { ...cards.first, top: cards.first.top - dy },
+    second: { ...cards.second, top: cards.second.top - dy },
+    center: { x: cards.center.x, y: cards.center.y - dy },
+  };
+}
+
+/**
+ * Symbol otázky uprostřed nad kartami (#182) a karty pod ním. Karty se
+ * nejdřív rozloží do plochy pod symbolem; když jim zbude místo nad sebou
+ * (iPad), celá skupina symbolu a karet se posune na střed a symbol je
+ * hned nad kartami.
+ */
+function placeQuestionAndCards(
+  play: Rect,
+  area: GameArea,
+  unit: number,
+  gap: number,
+  portrait: boolean,
+): { readonly question: Rect; readonly questionHit: Rect; readonly cards: CardsPlacement } {
+  const sizes =
+    area.mode === 'phonePortrait'
+      ? PHONE_PORTRAIT_QUESTION
+      : area.mode === 'phoneLandscape'
+        ? PHONE_LANDSCAPE_QUESTION
+        : TABLET_QUESTION;
+  // Zmenšené zobrazení (menší než jakékoli zařízení) zmenší i symbol.
+  const shortSide = Math.min(area.width, area.height);
+  const height =
+    area.mode === 'scaled'
+      ? Math.min(sizes.height * unit, shortSide * QUESTION_MAX_SHORT_SIDE_SHARE)
+      : sizes.height * unit;
+  const width = height * QUESTION_WIDTH_SHARE;
+  const questionGap = sizes.gap * unit;
+  const below = height + questionGap;
+  const cardsArea: Rect = { ...play, top: play.top + below, height: play.height - below };
+  const placed = placeCards(cardsArea, unit, gap, portrait);
+  const cards = liftCards(placed, (placed.first.top - cardsArea.top) / 2);
+  const question: Rect = {
+    left: play.left + (play.width - width) / 2,
+    top: cards.first.top - below,
+    width,
+    height,
+  };
+  // Ťukací plocha má spodní okraj se symbolem, aby mezera ke kartám zůstala.
+  const hitSize = MIN_QUESTION_HIT_CSS * unit;
+  const hitWidth = Math.max(width, hitSize);
+  const hitHeight = Math.max(height, hitSize);
+  const questionHit: Rect = {
+    left: question.left + (width - hitWidth) / 2,
+    top: question.top + height - hitHeight,
+    width: hitWidth,
+    height: hitHeight,
+  };
+  return { question, questionHit, cards };
+}
+
 export function layoutCompareScreen(area: GameArea): CompareLayout {
   const unit = 1 / area.scale;
   const portrait = area.height > area.width;
@@ -182,7 +265,7 @@ export function layoutCompareScreen(area: GameArea): CompareLayout {
     width: area.width - 2 * margin,
     height: area.height - corner - CORNER_GAP_CSS * unit - margin,
   };
-  const cards = placeCards(play, unit, gap, portrait);
+  const { question, questionHit, cards } = placeQuestionAndCards(play, area, unit, gap, portrait);
   const equalButton: Rect = {
     left: cards.center.x - cards.equal / 2,
     top: cards.center.y - cards.equal / 2,
@@ -194,6 +277,8 @@ export function layoutCompareScreen(area: GameArea): CompareLayout {
     dotGroups: portrait ? 'columns' : 'rows',
     cards: [cards.first, cards.second],
     equalButton,
+    question,
+    questionHit,
     sign: { ...cards.center, size: cards.equal * SIGN_FONT_SHARE },
     stars: starRow(area, unit, corner, portrait),
     cardCornerRadius: Math.min(cards.first.width, cards.first.height) * CARD_CORNER_RADIUS_SHARE,
@@ -216,7 +301,7 @@ const NUMERAL_ALONE_HEIGHT_SHARE = 0.6;
 const NUMERAL_ALONE_WIDTH_SHARE = 0.55;
 
 /** Co a do kolika karta ukazuje (#179): nastavení rozehraného příkladu. */
-export type CardLook = CompareSettings;
+export type CardLook = Pick<CompareSettings, 'maxNumber' | 'show'>;
 
 /** Bez nastavení jako dřív (#178): tečky do 10. */
 const DOTS_UP_TO_TEN: CardLook = DEFAULT_COMPARE_SETTINGS;

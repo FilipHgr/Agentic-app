@@ -59,6 +59,22 @@ export const HINT_STYLE = {
   dotsAppearMs: 200,
 } as const;
 
+/**
+ * Symbol otázky nad kartami (#182): hromádka fialových teček (jiná barva
+ * než tečky karet, aby je dítě nepočítalo s kartami) na šedé podložce.
+ * Fialová má proti pozadí stránky kontrast aspoň 3 : 1. Při změně otázky
+ * symbol krátce naskočí, po ťuknutí se zhoupne.
+ */
+export const QUESTION_STYLE = {
+  dot: '#7C3AED',
+  ground: '#C7C7CC',
+  popFrom: 0.6,
+  popMs: 260,
+  /** Po ťuknutí se symbol zhoupne do stran (stupně, ms jednoho kmitu). */
+  swayDegrees: 8,
+  swayMs: 110,
+} as const;
+
 /** Číslo na kartě (#179): v barvě teček své karty, tučně. */
 export const NUMERAL_STYLE = { fontWeight: 'bold' } as const;
 

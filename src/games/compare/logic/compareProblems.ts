@@ -1,7 +1,8 @@
 /**
  * Příklady Porovnávání (#178): dvě karty s 1 až 10 tečkami, podle
  * nastavení pro rodiče do 5, 10 nebo 20 (#179). Dítě ťukne na
- * kartu s víc tečkami, nebo na „=“, když je jich stejně. Stejný počet má
+ * kartu s víc tečkami (při otázce „míň“ s méně, #182), nebo na „=“, když
+ * je jich stejně. Stejný počet má
  * zhruba každý čtvrtý příklad a stejná dvojice (ani prohozená) nepřijde
  * dvakrát po sobě. Čistý TypeScript bez Phaseru.
  */
@@ -27,24 +28,31 @@ export type CompareChoice = 'left' | 'right' | 'equal';
 /** Znak, který se po správné odpovědi ukáže mezi kartami. Symbol, ne text jazyka. */
 export type CompareSign = '>' | '<' | '=';
 
-/** Kam má dítě ťuknout. */
-export function correctChoice(problem: CompareProblem): CompareChoice {
-  if (problem.left > problem.right) {
-    return 'left';
+/** Na co se hra v příkladu ptá (#182): kde je víc, nebo kde je míň. */
+export type CompareQuestion = 'more' | 'less';
+
+/**
+ * Kam má dítě ťuknout: na kartu s víc (nebo při otázce „míň“ s méně)
+ * tečkami, při stejném počtu na „=“ (#182 AC2).
+ */
+export function correctChoice(
+  problem: CompareProblem,
+  question: CompareQuestion = 'more',
+): CompareChoice {
+  if (problem.left === problem.right) {
+    return 'equal';
   }
-  return problem.left < problem.right ? 'right' : 'equal';
+  const leftHasMore = problem.left > problem.right;
+  const wantsMore = question === 'more';
+  return leftHasMore === wantsMore ? 'left' : 'right';
 }
 
-/** Znak mezi kartami: levá strana proti pravé. */
+/** Znak mezi kartami: levá strana proti pravé, ať se hra ptá na víc, nebo míň. */
 export function signOf(problem: CompareProblem): CompareSign {
-  switch (correctChoice(problem)) {
-    case 'left':
-      return '>';
-    case 'right':
-      return '<';
-    case 'equal':
-      return '=';
+  if (problem.left > problem.right) {
+    return '>';
   }
+  return problem.left < problem.right ? '<' : '=';
 }
 
 /** Stejná dvojice počtů bez ohledu na stranu (3 : 5 i 5 : 3). */

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
-import { sharedToneContext } from '../../../shared/audio/sharedAudio';
+import { createSharedRudyVoicePlayer } from '../../../shared/audio/rudyVoicePlayer';
+import { isSharedAudioUnlocked, sharedToneContext } from '../../../shared/audio/sharedAudio';
 import { createTonePlayer } from '../../../shared/audio/tonePlayer';
 import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
 import type { GameHost } from '../../../shared/logic/gameHost';
@@ -19,17 +20,24 @@ import { COMPARE_GAME_AREA_FIT, layoutCompareScreen } from '../logic/compareLayo
 import type { CompareLayout } from '../logic/compareLayout';
 import { correctChoice } from '../logic/compareProblems';
 import type { CompareChoice } from '../logic/compareProblems';
+import { createQuestionVoice, questionPicture } from '../logic/compareQuestion';
+import type { CompareQuestion } from '../logic/compareQuestion';
 import { createCompareSession } from '../logic/compareSession';
 import type {
   CompareChange,
   CompareRudy,
+  CompareRudyContext,
   CompareRudyEvents,
   CompareSession,
 } from '../logic/compareSession';
 import { COMPARE_SOUNDS } from '../logic/compareSounds';
-import { compareRudyLines, compareRudyVoiceUrl } from '../logic/rudyLines';
+import {
+  COMPARE_RUDY_GREETING_ASKING_MORE,
+  compareRudyLines,
+  compareRudyVoiceUrl,
+} from '../logic/rudyLines';
 import type { CompareRudyLines } from '../logic/rudyLines';
-import { HINT_STYLE, SIGN_STYLE } from '../logic/theme';
+import { HINT_STYLE, QUESTION_STYLE, SIGN_STYLE } from '../logic/theme';
 import { dimSettingsGear } from '../ui/gearOpacity';
 import { CardView, EqualButtonView } from './CardView';
 import { SettingsPanel } from './SettingsPanel';
@@ -52,7 +60,9 @@ const CARDS_POP_FROM = 0.92;
  * ho `SettingsPanel` nad hrou. Po 2. chybě scéna nakreslí nápovědu
  * párováním teček (#180) podle `compareHint.ts`. Okno s pandou Rudym
  * (#181: pozdrav po otevření hry, oslava po 10. hvězdičce) je sdílené
- * `RudyMoments`; kdy se ukáže, řídí sezení.
+ * `RudyMoments`; kdy se ukáže, řídí sezení. Nad kartami je symbol otázky
+ * (#182: velká hromádka = kde je víc, malá = kde je míň) a otázku řekne
+ * hlas průvodce, když se změní (kdy, řídí sezení).
  */
 export class CompareScene extends Phaser.Scene {
   private session!: CompareSession;
@@ -68,6 +78,11 @@ export class CompareScene extends Phaser.Scene {
   /** Rozehrané spojování dvojic; zastaví se s příkladem. */
   private hintPairing: HintPairing | null = null;
   private sign: Phaser.GameObjects.Text | null = null;
+  /** Symbol otázky nad kartami (#182) a otázka, kterou ukazuje. */
+  private questionSymbol: Phaser.GameObjects.Graphics | null = null;
+  /** Ťukací plocha symbolu: ťuknutí otázku zopakuje. */
+  private questionHit: Phaser.GameObjects.Zone | null = null;
+  private drawnQuestion: CompareQuestion | null = null;
   private settingsPanel: SettingsPanel | null = null;
   private host: GameHost | undefined;
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu.
@@ -123,6 +138,12 @@ export class CompareScene extends Phaser.Scene {
       // Podržení kolečka stránky otevře nastavení (#179 AC1); bez stránky kolečko není.
       attachSettingsGear: host ? (open) => host.attachSettingsGear(open) : undefined,
       rudy: this.sessionRudy(compareRudyLines(host?.storage)),
+      // Dospělý hlas průvodce (#182): přehrávač nahrávek ve společném zvuku stránky.
+      // Bez odemčeného zvuku mlčí a otázku ukáže jen symbol.
+      voice: createQuestionVoice({
+        player: createSharedRudyVoicePlayer(),
+        isUnlocked: isSharedAudioUnlocked,
+      }),
       onChange: (change) => this.onSessionChange(change),
     });
     this.session = session;
@@ -140,19 +161,25 @@ export class CompareScene extends Phaser.Scene {
     return {
       // Replika zazní v jazyce zvoleném v menu; varianty se v profilu střídají
       // a zapamatuje se až ta, jejíž okno se ukázalo (#176).
-      show: (move: RudyLineMove, events: CompareRudyEvents) => {
-        const line = lines.upcoming(move);
+      show: (move: RudyLineMove, events: CompareRudyEvents, context: CompareRudyContext) => {
+        const line = lines.upcoming(move, context);
         rudy.show(move, {
-          onOpened: () => {
+          onOpened: (opened) => {
             lines.said(move, line);
-            events.onOpened();
+            // Pozdrav „Kde je víc?“ zazněl nahlas: hlas průvodce ho neopakuje (#182).
+            events.onOpened({
+              askedMore:
+                line === COMPARE_RUDY_GREETING_ASKING_MORE &&
+                opened.withVoice &&
+                opened.audioUnlocked,
+            });
           },
           onClosed: () => events.onClosed(),
           voiceUrl: compareRudyVoiceUrl(line),
         });
       },
-      prepare: (move: RudyLineMove) =>
-        rudy.prepare(move, compareRudyVoiceUrl(lines.upcoming(move))),
+      prepare: (move: RudyLineMove, context: CompareRudyContext) =>
+        rudy.prepare(move, compareRudyVoiceUrl(lines.upcoming(move, context))),
       stop: () => rudy.stop(),
     };
   }
@@ -367,6 +394,63 @@ export class CompareScene extends Phaser.Scene {
       this.sign.destroy();
       this.sign = null;
     }
+    if (this.questionSymbol) {
+      this.tweens.killTweensOf(this.questionSymbol);
+      this.questionSymbol.destroy();
+      this.questionSymbol = null;
+    }
+    this.questionHit?.destroy();
+    this.questionHit = null;
+  }
+
+  /**
+   * Symbol otázky nad kartami: hromádka teček na podložce. Když se otázka
+   * změnila, symbol naskočí, aby si ho dítě všimlo; po otočení ani se
+   * stejnou otázkou ne.
+   */
+  private drawQuestion(animate: boolean): void {
+    const question = this.session.question();
+    const box = this.layout.question;
+    const picture = questionPicture(question, box);
+    const centerX = box.left + box.width / 2;
+    const centerY = box.top + box.height / 2;
+    const symbol = this.add.graphics({ x: centerX, y: centerY });
+    symbol.fillStyle(colorNumber(QUESTION_STYLE.ground), 1);
+    for (const ground of picture.grounds) {
+      symbol.fillRoundedRect(
+        ground.left - centerX,
+        ground.top - centerY,
+        ground.width,
+        ground.height,
+        ground.height / 2,
+      );
+    }
+    symbol.fillStyle(colorNumber(QUESTION_STYLE.dot), 1);
+    for (const dot of picture.dots) {
+      symbol.fillCircle(dot.x - centerX, dot.y - centerY, dot.radius);
+    }
+    this.questionSymbol = symbol;
+    const hit = this.layout.questionHit;
+    this.questionHit = this.add
+      .zone(hit.left, hit.top, hit.width, hit.height)
+      .setOrigin(0)
+      .setInteractive();
+    this.questionHit.on('pointerdown', () => {
+      if (this.session.tapQuestion()) {
+        this.swayQuestion();
+      }
+    });
+    const changed = this.drawnQuestion !== null && this.drawnQuestion !== question;
+    this.drawnQuestion = question;
+    if (animate && changed) {
+      symbol.setScale(QUESTION_STYLE.popFrom);
+      this.tweens.add({
+        targets: symbol,
+        scale: 1,
+        duration: QUESTION_STYLE.popMs,
+        ease: 'Back.easeOut',
+      });
+    }
   }
 
   /** Nakreslí rozehraný příklad podle rozložení; `animate` u nového příkladu. */
@@ -379,6 +463,7 @@ export class CompareScene extends Phaser.Scene {
     const problem = this.session.problem();
     // Karty se kreslí podle nastavení, se kterým příklad začal (#179 AC3).
     const look = this.session.problemLook();
+    this.drawQuestion(animate);
     this.cards = [
       new CardView(
         this,
@@ -403,7 +488,7 @@ export class CompareScene extends Phaser.Scene {
       );
     } else {
       // Vyřešený příklad po otočení: správná karta zůstane zeleně orámovaná.
-      this.markCorrectCard(correctChoice(problem));
+      this.markCorrectCard(correctChoice(problem, this.session.question()));
       this.drawSign(false);
     }
     if (this.session.hintShown()) {
@@ -447,6 +532,25 @@ export class CompareScene extends Phaser.Scene {
         ease: 'Back.easeOut',
       });
     }
+  }
+
+  /** Symbol se po ťuknutí zhoupne do stran a vrátí se rovně. */
+  private swayQuestion(): void {
+    const symbol = this.questionSymbol;
+    if (!symbol) {
+      return;
+    }
+    this.tweens.killTweensOf(symbol);
+    symbol.setAngle(0).setScale(1);
+    this.tweens.add({
+      targets: symbol,
+      angle: { from: -QUESTION_STYLE.swayDegrees, to: QUESTION_STYLE.swayDegrees },
+      duration: QUESTION_STYLE.swayMs,
+      yoyo: true,
+      repeat: 1,
+      ease: 'Sine.easeInOut',
+      onComplete: () => symbol.setAngle(0),
+    });
   }
 
   /** Otočení zařízení nebo změna lišty: totéž kolo v novém rozložení, bez nového příkladu. */

@@ -1,8 +1,8 @@
 /**
- * Rozložení nastavení Porovnávání pro rodiče (#179) podle obrázků S
- * (2026-11-04) jako v Počítání: na iPadu řady na středu s popisky nad nimi
- * a ✓ pod nimi, na telefonu na šířku řady vlevo s popisky před nimi a ✓
- * vpravo, na výšku řady pod sebou a ✓ dole u palce. Míry jsou v CSS px
+ * Rozložení nastavení Porovnávání pro rodiče (#179, řada „Otázka“ #182)
+ * podle obrázků S (2026-11-04) jako v Počítání: na iPadu řady na středu
+ * s popisky nad nimi a ✓ pod nimi, na telefonu na šířku řady vlevo
+ * s popisky před nimi a ✓ vpravo, na výšku řady pod sebou a ✓ dole u palce. Míry jsou v CSS px
  * a na konci se převedou na herní jednotky plochy. Čistý TypeScript.
  */
 
@@ -11,11 +11,16 @@ import { isPhoneMode } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { compareTexts } from '../texts/compareTexts';
 import type { CompareTexts } from '../texts/compareTexts';
-import type { Dot, Numeral } from './compareLayout';
-import { MAX_NUMBER_OPTIONS, SHOW_OPTIONS } from './compareSettings';
-import type { MaxNumber, ShowMode } from './compareSettings';
+import type { Dot, Numeral, Rect } from './compareLayout';
+import { questionPicture } from './compareQuestion';
+import type { QuestionPicture } from './compareQuestion';
+import { MAX_NUMBER_OPTIONS, QUESTION_OPTIONS, SHOW_OPTIONS } from './compareSettings';
+import type { MaxNumber, QuestionSetting, ShowMode } from './compareSettings';
 
-export type SettingsRowKind = 'maxNumber' | 'show';
+export type SettingsRowKind = 'maxNumber' | 'show' | 'question';
+
+/** Hodnota volby: rozsah, způsob ukázání, nebo otázka. */
+export type SettingsOptionValue = MaxNumber | ShowMode | QuestionSetting;
 
 export type SettingsRowLabels = CompareTexts['rowLabels'];
 
@@ -25,7 +30,7 @@ export interface SettingsOptionSlot {
   readonly y: number;
   readonly width: number;
   readonly height: number;
-  readonly value: MaxNumber | ShowMode;
+  readonly value: SettingsOptionValue;
   /** Písmo čísla ve volbě. */
   readonly fontSize: number;
 }
@@ -51,8 +56,8 @@ export interface SettingsRow {
 }
 
 export interface CompareSettingsLayout {
-  /** Do kolika a Ukázat, v tomto pořadí. */
-  readonly rows: readonly [SettingsRow, SettingsRow];
+  /** Do kolika, Ukázat a Otázka, v tomto pořadí. */
+  readonly rows: readonly [SettingsRow, SettingsRow, SettingsRow];
   readonly confirm: { readonly x: number; readonly y: number; readonly size: number };
   /** Zaoblení a okraj voleb v herních jednotkách. */
   readonly optionLook: { readonly cornerRadius: number; readonly borderWidth: number };
@@ -95,8 +100,9 @@ const PHONE_LANDSCAPE: Sizes & {
   readonly rowStep: number;
   readonly confirmRightMargin: number;
 } = {
+  // Tři řady (#182) se vejdou pod rohy i na nejnižší telefon: volby 64 px, mezi řadami 8 px.
   optionWidth: 96,
-  optionHeight: 72,
+  optionHeight: 64,
   optionGap: 8,
   optionFontSize: 28,
   labelFontSize: 16,
@@ -105,7 +111,7 @@ const PHONE_LANDSCAPE: Sizes & {
   labelLeft: 12,
   labelWidth: 88,
   labelToOptions: 12,
-  rowStep: 96,
+  rowStep: 72,
   confirmRightMargin: 24,
 };
 
@@ -135,11 +141,12 @@ const OPTION_BORDER_CSS = 2;
 const FIT_MARGIN_CSS = 8;
 const CORNER_GAP_CSS = 4;
 
-const ROW_VALUES: Readonly<Record<SettingsRowKind, readonly (MaxNumber | ShowMode)[]>> = {
+const ROW_VALUES: Readonly<Record<SettingsRowKind, readonly SettingsOptionValue[]>> = {
   maxNumber: MAX_NUMBER_OPTIONS,
   show: SHOW_OPTIONS,
+  question: QUESTION_OPTIONS,
 };
-const ROW_ORDER = ['maxNumber', 'show'] as const;
+const ROW_ORDER = ['maxNumber', 'show', 'question'] as const;
 
 /** Plocha v CSS px. */
 interface CssArea {
@@ -189,8 +196,10 @@ function cornerSize(area: GameArea): number {
 function tabletLayout(css: CssArea, labels: SettingsRowLabels): Layout {
   const sizes = TABLET;
   const rowBlock = sizes.labelHeight + sizes.labelToRow + sizes.optionHeight;
-  const contentHeight = 2 * rowBlock + sizes.rowToLabel + sizes.confirmGap + sizes.confirmSize;
-  const contentWidth = Math.max(rowWidth(sizes, 'maxNumber'), rowWidth(sizes, 'show'));
+  const rowCount = ROW_ORDER.length;
+  const contentHeight =
+    rowCount * rowBlock + (rowCount - 1) * sizes.rowToLabel + sizes.confirmGap + sizes.confirmSize;
+  const contentWidth = Math.max(...ROW_ORDER.map((kind) => rowWidth(sizes, kind)));
   const fit = Math.min(
     1,
     (css.height - 2 * FIT_MARGIN_CSS) / contentHeight,
@@ -221,7 +230,7 @@ function tabletLayout(css: CssArea, labels: SettingsRowLabels): Layout {
 /** Telefon na šířku: řady svisle na středu pod rohy, ✓ vpravo na středu. */
 function phoneLandscapeLayout(css: CssArea, labels: SettingsRowLabels, corners: number): Layout {
   const sizes = PHONE_LANDSCAPE;
-  const rowsHeight = sizes.rowStep + sizes.optionHeight;
+  const rowsHeight = (ROW_ORDER.length - 1) * sizes.rowStep + sizes.optionHeight;
   const top = Math.max((css.height - rowsHeight) / 2, Math.min(corners, css.height - rowsHeight));
   const optionsLeft = sizes.labelLeft + sizes.labelWidth + sizes.labelToOptions;
   const rows = ROW_ORDER.map((kind, index) => {
@@ -325,9 +334,9 @@ export function layoutCompareSettings(
     layout = tabletLayout(css, labels);
   }
   const inUnits = scaled(layout, unit, 0, 0);
-  const [first, second] = inUnits.rows;
+  const [first, second, third] = inUnits.rows;
   return {
-    rows: [first as SettingsRow, second as SettingsRow],
+    rows: [first as SettingsRow, second as SettingsRow, third as SettingsRow],
     confirm: inUnits.confirm,
     optionLook: { cornerRadius: inUnits.cornerRadius, borderWidth: OPTION_BORDER_CSS * unit },
   };
@@ -371,4 +380,30 @@ export function showOptionIcon(slot: SettingsOptionSlot, value: ShowMode): ShowO
         numeral: { x, y: y + height * 0.17, fontSize: height * 0.38 },
       };
   }
+}
+
+/** Okraj kolem hromádek ve volbě „Otázka“ jako díl strany volby. */
+const QUESTION_ICON_INSET_SHARE = 0.08;
+
+/**
+ * Obrázek volby „Otázka“ (#182) uvnitř volby `slot`: stejné hromádky jako
+ * symbol nad kartami. „Víc“ velká hromádka, „míň“ malá a „střídat“ malá
+ * a velká vedle sebe.
+ */
+export function questionOptionIcon(
+  slot: SettingsOptionSlot,
+  value: QuestionSetting,
+): QuestionPicture {
+  // Hromádky nesahají k okraji volby.
+  const width = slot.width * (1 - 2 * QUESTION_ICON_INSET_SHARE);
+  const height = slot.height * (1 - 2 * QUESTION_ICON_INSET_SHARE);
+  const box: Rect = { left: slot.x - width / 2, top: slot.y - height / 2, width, height };
+  if (value !== 'alternate') {
+    return questionPicture(value, box);
+  }
+  // Mezi malou a velkou hromádkou zůstane mezera.
+  const half = { ...box, width: box.width * 0.46 };
+  const small = questionPicture('less', half);
+  const big = questionPicture('more', { ...half, left: box.left + box.width * 0.54 });
+  return { dots: [...small.dots, ...big.dots], grounds: [...small.grounds, ...big.grounds] };
 }

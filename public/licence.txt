@@ -17,6 +17,15 @@ Xb7hH8MSUJpSbSDYk0k2, model eleven_multilingual_v2. Použito v rámci komerční
 tarifu vlastníka hry. Nahrávky vznikly přes napojení ElevenLabs s výchozím
 nastavením hlasu a jsou převedené na mono 44,1 kHz 64 kb/s.
 
+Otázky v Porovnávání (public/voice/<jazyk>/compare/guide/, „Kde je víc?“
+a „Kde je míň?“) říká hlas průvodce jazyka, vytvořený službou ElevenLabs
+(https://elevenlabs.io): česky hlas ID 7JbZPqJGWUfXXBim0T8U (generace
+ah6eqFQII2pTsELwp4gW, Wo9nfeXLw8H4sQUWKOuM), anglicky hlas Alice, ID
+Xb7hH8MSUJpSbSDYk0k2 (generace ApXWCx85yE0Ptblr4lP1, 2gAB1JFu9Sh1OM5CtPlP),
+model eleven_multilingual_v2. Použito v rámci komerčního tarifu vlastníka
+hry. Nahrávky vznikly přes napojení ElevenLabs a jsou převedené na mono
+44,1 kHz 64 kb/s.
+
 Hlas pandy Rudyho (repliky v public/voice/<jazyk>/counting/rudy-*.mp3,
 public/voice/<jazyk>/menu/rudy-*.mp3,
 public/voice/<jazyk>/coloring/rudy-*.mp3 a
