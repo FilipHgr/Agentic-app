@@ -1,10 +1,10 @@
 /**
- * Okno s pandou Rudym (#169) bez Phaseru: co je v okně v daném čase vidět,
- * kdy se okno samo zavře, kdy ho zavře ťuknutí a které pohyby se kdy
- * stáhnou a uvolní z paměti.
+ * Rudy na obrazovce (#169, od #186 bez okna) bez Phaseru: co je v daném
+ * čase vidět, kdy Rudy sám odejde, kdy ho pošle pryč ťuknutí a které
+ * pohyby se kdy stáhnou a uvolní z paměti. Slovo „okno“ tu znamená dobu,
+ * kdy je Rudy vidět; kartu ani ztmavení od #186 nemá.
  *
- * Průběh okna (AC3): panda přehraje pohyb repliky (pozdrav nebo oslava,
- * asi 3,1 s), pak mluví (pohyb „mluví“ dokola), dokud nevyprší délka
+ * Průběh (AC3): panda přehraje oslavu (asi 3,1 s), pak mluví (pohyb „mluví“ dokola), dokud nevyprší délka
  * repliky, a okno se zavře 0,2 s po jejím konci, nejpozději 6 s od
  * otevření. Bez délky repliky (zatím bez hlasu) panda po pohybu stojí
  * v klidu a okno je otevřené 3,5 s.
@@ -20,7 +20,7 @@
  */
 
 import { loopFrameAt, onceFrameAt, rudyMoveDurationMs } from './rudy';
-import type { RudyFrame, RudyLineMove, RudyMove } from './rudy';
+import type { RudyFrame, RudyMove } from './rudy';
 
 /** Časy okna v ms (AC3, AC4). */
 export const RUDY_WINDOW_TIMES = {
@@ -34,9 +34,8 @@ export const RUDY_WINDOW_TIMES = {
   closeAfterLineMs: 200,
 } as const;
 
-/** Co má okno ukázat: pohyb repliky a volitelně délku repliky (nahrávky) v ms. */
+/** Co má okno ukázat: oslavu a volitelně délku repliky (nahrávky) v ms. */
 export interface RudyWindowRequest {
-  readonly move: RudyLineMove;
   readonly lineMs?: number;
 }
 
@@ -56,12 +55,12 @@ export interface RudyWindowModel {
   prepare(move: RudyMove): RudyCommand[];
   /**
    * Otevře okno v čase `now`. Neukáže se (`shown: false`), když není
-   * stažený klid nebo je okno už otevřené. Nestažený pohyb repliky se stáhne.
+   * stažený klid nebo je okno už otevřené. Nestažená oslava se stáhne.
    */
   open(request: RudyWindowRequest, now: number): { shown: boolean; commands: RudyCommand[] };
   /**
    * Ťuknutí do okna: po 1 s ho zavře (`closed`), dřív ho nezavře
-   * (`tooEarly`, karta se jen zhoupne); bez okna `none`.
+   * (`tooEarly`, Rudy se jen zhoupne); bez okna `none`.
    */
   tap(now: number): RudyTapResult;
   /** Zavření zvenku (třeba odchod stránky na pozadí); `true`, když bylo otevřené. */
@@ -87,8 +86,7 @@ type LoadState = 'none' | 'loading' | 'loaded';
 
 interface OpenWindow {
   readonly openedAt: number;
-  readonly move: RudyLineMove;
-  /** Hraje se pohyb repliky? Jen když byl při otevření stažený (okno nečeká). */
+  /** Hraje se oslava? Jen když byla při otevření stažená (okno nečeká). */
   readonly playsMove: boolean;
   /** Kdy (ms od otevření) končí replika, `null` bez hlasu. */
   readonly lineEndMs: number | null;
@@ -96,6 +94,7 @@ interface OpenWindow {
 }
 
 const IDLE: RudyMove = 'idle';
+const CELEBRATE: RudyMove = 'celebrate';
 const TALK: RudyMove = 'talk';
 
 function download(move: RudyMove): RudyCommand {
@@ -198,8 +197,8 @@ export function createRudyWindowModel(): RudyWindowModel {
   function frameIn(window: OpenWindow, now: number): RudyFrame {
     const elapsed = elapsedSince(window.openedAt, now);
     const moveMs = rudyMoveDurationMs();
-    if (elapsed < moveMs && window.playsMove && isLoaded(window.move)) {
-      return { move: window.move, frame: onceFrameAt(elapsed) };
+    if (elapsed < moveMs && window.playsMove && isLoaded(CELEBRATE)) {
+      return { move: CELEBRATE, frame: onceFrameAt(elapsed) };
     }
     const talking = window.lineEndMs !== null && elapsed >= moveMs && elapsed < window.lineEndMs;
     if (talking && isLoaded(TALK)) {
@@ -221,15 +220,14 @@ export function createRudyWindowModel(): RudyWindowModel {
         return { shown: false, commands: downloadIdle() };
       }
       const lineEndMs = validLineMs(request.lineMs);
-      const playsMove = isLoaded(request.move);
+      const playsMove = isLoaded(CELEBRATE);
       shown = {
         openedAt: now,
-        move: request.move,
         playsMove,
         lineEndMs,
         closeAtMs: closeAtFor(lineEndMs),
       };
-      return { shown: true, commands: playsMove ? [] : makeOther(request.move) };
+      return { shown: true, commands: playsMove ? [] : makeOther(CELEBRATE) };
     },
 
     tap(now) {

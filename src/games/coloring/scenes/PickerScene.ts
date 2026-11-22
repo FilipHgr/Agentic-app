@@ -10,7 +10,6 @@ import {
   gameAreaFor,
 } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
-import { RudyMoments } from '../../../shared/ui/rudyMoments';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import { albumEmptyPlaces, albumPageEntries, ALBUM_PAGE_SIZE, readAlbum } from '../logic/album';
@@ -19,8 +18,6 @@ import type { AlbumContents, AlbumEntry, AlbumPicture } from '../logic/album';
 import { settleAlbumSwap } from '../logic/albumSwap';
 import { isBlankPaper } from '../logic/blankPaper';
 import { COLORING_GAME_AREA_FIT } from '../logic/coloringLayout';
-import { createColoringRudy } from '../logic/coloringRudy';
-import type { ColoringRudy } from '../logic/coloringRudy';
 import { startColoringSession } from '../logic/coloringSession';
 import type { ColoringPage } from '../logic/coloringSession';
 import { TRASH_HOLD_MS, homeHoldDecision, startPictureChoice } from '../logic/pictureChoice';
@@ -55,7 +52,6 @@ import { openPictureLocks, unlockPaintedPictures } from '../logic/pictureLocks';
 import type { PictureLocks } from '../logic/pictureLocks';
 import { loadPicturePreview, previewOfColors } from '../logic/picturePreview';
 import { COLORING_PICTURES } from '../logic/pictureSet';
-import { coloringRudyVoiceUrl } from '../logic/rudyLines';
 import type { PaintingOrigin, PictureIdentity } from '../logic/savedPicture';
 import { ALBUM_ARROW_STYLE, ALBUM_PAGE_STYLE, BIG_PICTURE_STYLE } from '../logic/theme';
 import { AlbumArrowView } from './AlbumArrowView';
@@ -173,11 +169,6 @@ interface PictureAssets {
  * se zámek otevře. Když výběr klíč vrátí (`keyInLock` je `null`: ťuknutí
  * jinam, listování, 5 s bez ťuknutí), scéna v dalším snímku klíč pošle
  * zpátky do ukazatele.
- *
- * Od #175 po otevření Omalovánek jednou pozdraví panda Rudy v okně
- * (`RudyMoments`). Kdy, rozhoduje `coloringRudy.ts`, který výběr předá
- * i malování (pochvala obrázku v albu). Dotyk dřív, než se okno stáhne,
- * pozdrav vynechá; otevřené okno pohltí všechny dotyky samo.
  */
 export class PickerScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -260,10 +251,6 @@ export class PickerScene extends Phaser.Scene {
   private running = false;
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu (#67 AC6).
   private readonly sounds = createTonePlayer(sharedToneContext);
-  /** Kdy Rudy pozdraví a pochválí (#175); nové při každém otevření Omalovánek. */
-  private rudy: ColoringRudy = createColoringRudy();
-  /** Okno s pandou Rudym na výběru (#175); vznikne v `create`. */
-  private rudyMoments: RudyMoments | null = null;
 
   constructor() {
     super('coloringPicker');
@@ -305,45 +292,13 @@ export class PickerScene extends Phaser.Scene {
     this.readAlbumAgain();
     void this.unlockPaintedOnce(this.albumReading);
     this.listen();
-    this.rudy = createColoringRudy();
-    this.rudyMoments = new RudyMoments(this, {
-      // Okraje stránky kolem plátna ztmavne okno stejně jako hru (#169).
-      pageBackdrop: (backdrop) => host?.setPageBackdrop?.(backdrop),
-    });
     const screen = this.choice.screen();
     if (screen.kind === 'opening') {
-      // Jediná omalovánka v sadě: rovnou malování (bez pozdravu na výběru).
+      // Jediná omalovánka v sadě: rovnou malování.
       this.openPainting(screen.picture);
       return;
     }
     this.drawTiles();
-    this.greet();
-  }
-
-  /** Rudy po otevření Omalovánek jednou pozdraví (#175 AC1). */
-  private greet(): void {
-    const moment = this.rudy.greeting();
-    if (moment === null) {
-      return;
-    }
-    const rudy = this.rudy;
-    this.rudyMoments?.show(moment.move, {
-      // Replika zazní v jazyce zvoleném v menu ve chvíli, kdy hra o okno požádá (#171).
-      voiceUrl: coloringRudyVoiceUrl(moment.line),
-      onOpened: () => {
-        rudy.opened(performance.now());
-        // Během okna nic nejde ovládat: rozpracované dotyky se zapomenou.
-        this.cancelTouches();
-      },
-      onClosed: () => rudy.closed(),
-    });
-  }
-
-  /** Dotyk dřív, než se okno s pozdravem stáhlo: pozdrav se vynechá (#175 AC1). */
-  private skipWaitingRudy(): void {
-    if (this.rudy.childActed()) {
-      this.rudyMoments?.cancelWaiting();
-    }
   }
 
   /**
@@ -1342,7 +1297,6 @@ export class PickerScene extends Phaser.Scene {
    * hned a náhledy až po zvednutí prstu (#149, #150), na výběru kniha hned.
    */
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
-    this.skipWaitingRudy();
     const { worldX: x, worldY: y } = pointer;
     const screen = this.choice.screen().kind;
     if (screen === 'bigPicture' || screen === 'openingBigPicture') {
@@ -1542,8 +1496,6 @@ export class PickerScene extends Phaser.Scene {
     if (assets === undefined) {
       return;
     }
-    // Malování se otevírá: čekající pozdrav na výběru už nepřijde.
-    this.skipWaitingRudy();
     this.paintingCount += 1;
     const key = `coloring${this.paintingCount}`;
     const painting = new ColoringScene({
@@ -1561,7 +1513,6 @@ export class PickerScene extends Phaser.Scene {
       origin,
       broomButton: this.choice.broomButton,
       onPainting: (game) => this.choice.attachPainting(game),
-      rudy: this.rudy,
     });
     this.painting = painting;
     this.scene.add(key, painting, true);
@@ -1702,7 +1653,6 @@ export class PickerScene extends Phaser.Scene {
   private onGameAreaChanged(): void {
     this.gameArea = this.readGameArea();
     this.layout = this.pickerLayout();
-    this.rudyMoments?.relayout();
     // Po otočení by kopie letěla do knihy na starém místě: zmizí a kniha jen poskočí (#141).
     const flightsCancelled = this.flights.length > 0;
     for (const flight of this.flights) {

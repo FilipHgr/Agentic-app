@@ -13,14 +13,11 @@ import {
 } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import { colorNumber } from '../../../shared/logic/theme';
-import { RudyMoments } from '../../../shared/ui/rudyMoments';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import type { AlbumContents } from '../logic/album';
 import { actionButtonLook } from '../logic/actionButtons';
 import { strokeWidthFor } from '../logic/coloring';
-import { trackCameraPraise } from '../logic/coloringRudy';
-import type { CameraPraiseStep, ColoringRudy, ColoringRudyMoment } from '../logic/coloringRudy';
 import type { PointerSample } from '../logic/coloring';
 import {
   COLORING_GAME_AREA_FIT,
@@ -51,7 +48,6 @@ import { BROOM_SWEEP_TONES, PICTURE_STYLE } from '../logic/theme';
 import { ALL_COLOR_COUNT, TOOL_COLOR_SETS, placeInSet } from '../logic/toolColorSets';
 import { DEFAULT_TOOL_COLORS, isColorTool, toolReceivingColor } from '../logic/toolColors';
 import { handleColorDotFill } from '../logic/toolIcons';
-import { coloringRudyVoiceUrl } from '../logic/rudyLines';
 import {
   INITIAL_LINE_SIZE,
   INITIAL_TOOL,
@@ -131,11 +127,6 @@ export interface ColoringSceneOptions {
   readonly broomButton: HoldButton;
   /** Malování vzniklo (těsně před `onShown`); výběr ho předá koštěti (#142). */
   readonly onPainting: (game: SavedColoring) => void;
-  /**
-   * Kdy Rudy pochválí obrázek v albu (#175); drží ho výběr, aby střídání
-   * pochval a limit 2 minut platily přes všechna malování.
-   */
-  readonly rudy: ColoringRudy;
 }
 
 /**
@@ -182,11 +173,6 @@ export interface ColoringSceneOptions {
  * Od #142 je v pruhu koště. Podržení počítá výběr (`broomButton`), scéna
  * mu předává dotyky a kreslí odezvu (`showBroomFeedback`): bílý kroužek
  * podržení, zhoupnutí a smetení barev.
- *
- * Od #175 po uložení do alba (po doběhnutí cvaku a odletu fotky) může
- * přijít okno s pandou Rudym s pochvalou. Kdy, rozhoduje `coloringRudy.ts`
- * (`options.rudy`), okno a hlas sdílené `RudyMoments`. Dotyk dřív, než se
- * okno stáhne, pochvalu vynechá; otevřené okno přeruší rozpracovaný tah.
  */
 export class ColoringScene extends Phaser.Scene {
   private gameArea: GameArea = gameAreaFor(undefined, COLORING_GAME_AREA_FIT);
@@ -242,8 +228,6 @@ export class ColoringScene extends Phaser.Scene {
   };
   /** Zavíraná nebo obnovovaná stránka obrázek uloží (#92). */
   private readonly onPageHide = (): void => this.coloring?.suspend();
-  /** Okno s pandou Rudym (#175); vznikne v `create`, kód a obrázky stáhne až při pochvale. */
-  private rudyMoments: RudyMoments | null = null;
 
   private readonly paintTextureKey: string;
   private readonly outlineTextureKey: string;
@@ -308,11 +292,6 @@ export class ColoringScene extends Phaser.Scene {
     this.drawScreen();
     this.listenForTouches();
     this.listenForInterruptions();
-    const host = this.readHost();
-    this.rudyMoments = new RudyMoments(this, {
-      // Okraje stránky kolem plátna ztmavne okno stejně jako hru (#169).
-      pageBackdrop: (backdrop) => host?.setPageBackdrop?.(backdrop),
-    });
     void this.preparePicture();
   }
 
@@ -377,7 +356,6 @@ export class ColoringScene extends Phaser.Scene {
     this.placePicture();
     this.options.onPainting(this.coloring);
     this.options.onShown();
-    this.preparePraise();
   }
 
   // -------------------------------------------------------------------------
@@ -471,7 +449,6 @@ export class ColoringScene extends Phaser.Scene {
     // tah se převede už podle nového rozložení (#111 AC5).
     this.interruptStroke();
     this.drawScreen();
-    this.rudyMoments?.relayout();
   }
 
   // -------------------------------------------------------------------------
@@ -765,22 +742,11 @@ export class ColoringScene extends Phaser.Scene {
       tones: CAMERA_WOBBLE_TONES,
     };
     switch (tap.kind) {
-      case 'saving': {
+      case 'saving':
         this.sounds.play(tap.tones);
-        // Pochvala se zarezervuje hned při cvaku: dotyk od teď do otevření okna ji vynechá.
-        const praise = this.options.rudy.reservePraise(performance.now());
-        const photoEnded = this.startPhoto();
+        this.startPhoto();
         void tap.done.then((result) => this.onAlbumSaveDone(result));
-        if (praise !== null) {
-          // Okno až po uložení a po doběhnutí cvaku a odletu fotky (#175 AC2), pořadí hlídá logika.
-          const tracker = trackCameraPraise(this.options.rudy, praise);
-          void tap.done.then((result) =>
-            this.onPraiseStep(praise, tracker.saveFinished(result.kind === 'saved')),
-          );
-          void photoEnded.then(() => this.onPraiseStep(praise, tracker.photoEnded()));
-        }
         return;
-      }
       case 'wobble':
         this.cameraView.wobble();
         this.sounds.play(tap.tones);
@@ -790,20 +756,13 @@ export class ColoringScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Záblesk, stisknutí a odlet fotky z obrázku, jak vypadal při cvaku.
-   * Splní se, až animace skončí (doletí nebo se přeruší).
-   */
-  private startPhoto(): Promise<void> {
+  /** Záblesk, stisknutí a odlet fotky z obrázku, jak vypadal při cvaku. */
+  private startPhoto(): void {
     this.paintLayer?.flush();
     const snapshot = this.paintLayer?.snapshot() ?? null;
     if (snapshot === null) {
-      return Promise.resolve();
+      return;
     }
-    let ended: () => void = () => undefined;
-    const photoEnded = new Promise<void>((resolve) => {
-      ended = resolve;
-    });
     this.photoView.start({
       picture: this.layout.picture,
       layerSize: pictureLayerSize(this.layout),
@@ -812,56 +771,7 @@ export class ColoringScene extends Phaser.Scene {
       camera: this.cameraView,
       cssScale: this.gameArea.scale,
       depth: PHOTO_DEPTH,
-      onEnded: () => ended(),
     });
-    return photoEnded;
-  }
-
-  // -------------------------------------------------------------------------
-  // Panda Rudy (#175)
-  // -------------------------------------------------------------------------
-
-  /** Pochvala, která by přišla teď, se stáhne dopředu, aby okno po uložení nečekalo. */
-  private preparePraise(): void {
-    const upcoming = this.options.rudy.upcomingPraise(performance.now());
-    if (upcoming !== null) {
-      this.rudyMoments?.prepare(upcoming.move, coloringRudyVoiceUrl(upcoming.line));
-    }
-  }
-
-  /**
-   * Krok zarezervované pochvaly (`trackCameraPraise`): okno se ukáže, až
-   * logika řekne `show` (obrázek uložený, animace doběhla, bez dotyku).
-   */
-  private onPraiseStep(moment: ColoringRudyMoment, step: CameraPraiseStep): void {
-    if (step !== 'show') {
-      return;
-    }
-    const rudy = this.options.rudy;
-    const rudyMoments = this.rudyMoments;
-    if (!this.sys.isActive() || rudyMoments === null) {
-      rudy.withdraw(moment);
-      return;
-    }
-    rudyMoments.show(moment.move, {
-      // Replika zazní v jazyce zvoleném v menu ve chvíli, kdy hra o okno požádá (#171).
-      voiceUrl: coloringRudyVoiceUrl(moment.line),
-      onOpened: () => {
-        rudy.opened(performance.now());
-        // Během okna nic nejde ovládat: rozpracovaný tah a podržení skončí.
-        this.interruptStroke();
-        this.cancelBroom();
-        this.releaseQuickTool();
-      },
-      onClosed: () => rudy.closed(),
-    });
-  }
-
-  /** Dotyk od cvaku do otevření okna s pochvalou: pochvala se vynechá (#175 AC2). */
-  private skipWaitingRudy(): void {
-    if (this.options.rudy.childActed()) {
-      this.rudyMoments?.cancelWaiting();
-    }
   }
 
   /**
@@ -987,7 +897,6 @@ export class ColoringScene extends Phaser.Scene {
 
   /** Kam dotyk patří, rozhodne `touchTargetAt` (#96 AC4); malovat se smí jen na obrázku. */
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
-    this.skipWaitingRudy();
     const target = touchTargetAt(
       this.layout,
       this.currentPanelView(),
@@ -1103,8 +1012,6 @@ export class ColoringScene extends Phaser.Scene {
       this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
       this.photoView.destroy();
       this.sweepView.destroy();
-      // Čekající nebo otevřená pochvala skončí s malováním (okno zničí `RudyMoments`).
-      this.options.rudy.cancel();
       this.cancelBroom();
       this.releaseQuickTool();
       this.stop();

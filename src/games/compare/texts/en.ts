@@ -10,8 +10,6 @@ export default {
     question: 'Question',
   },
   rudyLines: {
-    greeting: "Hi, I'm Rudy! Where are there more?",
-    greetingAgain: "It's me, Rudy, again! Let's compare!",
     celebration: 'Hooray! You got ten stars!',
     celebrationMore: 'Great job! You always know where there are more!',
   },

@@ -49,7 +49,7 @@ const CZECH_VOICE_DIR = 'public/voice/cs/counting/guide';
 
 /**
  * Všechny nahrávky v `public/voice/` jako bajty, podle cesty od kořene repa,
- * kromě replik pandy Rudyho (jen `public/voice/<jazyk>/{counting,menu,coloring,compare}/rudy-<id>.mp3`,
+ * kromě replik pandy Rudyho (jen `public/voice/<jazyk>/{counting,compare}/rudy-<id>.mp3`,
  * #171): ty nejsou nahrávky průvodce a hlídá je `rudyVoiceFiles.test.ts`.
  * Zbloudilý `rudy-*.mp3` jinde kontrola dál najde. Bez otázek Porovnávání
  * (jen `public/voice/<jazyk>/compare/guide/<věta>.mp3`, #182), ty hlídá
@@ -65,7 +65,7 @@ const RECORDINGS: Record<string, Uint8Array> = Object.fromEntries(
   )
     .filter(
       ([path]) =>
-        !/\/voice\/[a-z]+\/(counting|menu|coloring|compare)\/rudy-[a-zA-Z]+\.mp3$/.test(path) &&
+        !/\/voice\/[a-z]+\/(counting|compare)\/rudy-[a-zA-Z]+\.mp3$/.test(path) &&
         !/\/voice\/[a-z]+\/compare\/guide\/[a-zA-Z]+\.mp3$/.test(path),
     )
     .map(([path, dataUrl]) => [path.replace('../../../', ''), bytesOfDataUrl(dataUrl)]),

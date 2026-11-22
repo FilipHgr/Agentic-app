@@ -280,46 +280,20 @@ describe('#182 AC3: hlas průvodce řekne otázku vždy, když se změní', () =
     expect(test.voice.said.length).toBeGreaterThan(20);
   });
 
-  it('dokud Rudy zdraví, hlas otázku neříká, po zavření okna ji řekne', () => {
+  it('po otevření hry hlas otázku řekne hned, Rudy nepozdraví (#186)', () => {
     const rudy = new FakeRudy();
     const test = openWithVoice(undefined, undefined, rudy);
-    expect(test.voice.said).toEqual([]);
-    rudy.openPending();
-    expect(test.voice.said).toEqual([]);
-    rudy.close();
     expect(test.voice.said).toEqual(['more']);
-  });
-
-  it('pozdrav, který se nestáhne, otázku nezdrží', () => {
-    const rudy = new FakeRudy();
-    const test = openWithVoice(undefined, undefined, rudy);
-    rudy.giveUp();
-    expect(test.voice.said).toEqual(['more']);
-  });
-
-  it('když dítě ťukne dřív, než se pozdrav stáhne, otázka zazní hned', () => {
-    const rudy = new FakeRudy();
-    const test = openWithVoice(undefined, undefined, rudy);
-    test.session.tap(wrongChoice(test));
-    expect(test.voice.said).toEqual(['more']);
-  });
-
-  it('nastavení otevřené před pozdravem: po ✓ beze změny otázka zazní, protože ji dítě ještě neslyšelo', () => {
-    const rudy = new FakeRudy();
-    const test = openWithVoice(undefined, undefined, rudy);
-    confirmChoice(test, {});
-    expect(test.voice.said).toEqual(['more']);
+    expect(rudy.requested).toBe(0);
   });
 
   it('při oslavě 10. hvězdičky s Rudym hlas mlčí a otázku po ní neopakuje', () => {
     const rudy = new FakeRudy();
     const test = openWithVoice(undefined, undefined, rudy);
-    rudy.openPending();
-    rudy.close();
     for (let star = 0; star < 10; star += 1) {
       solveOne(test);
     }
-    expect(rudy.openMove() ?? rudy.waitingMove()).toBe('celebrate');
+    expect(rudy.isWaiting()).toBe(true);
     rudy.openPending();
     rudy.close();
     test.timers.runAll();
@@ -363,25 +337,6 @@ describe('#182 AC3 a AC5: otázka se počítá za řečenou, až když opravdu z
     await settle();
     expect(voice.said).toEqual(['more', 'more', 'more']);
   });
-
-  it('když Rudy v pozdravu nahlas řekl „Kde je víc?“, hlas průvodce to hned neopakuje', async () => {
-    const rudy = new FakeRudy();
-    const test = openWithVoice(undefined, undefined, rudy);
-    rudy.openPending(true);
-    rudy.close();
-    expect(test.voice.said).toEqual([]);
-    solveProblems(test, 3);
-    await settle();
-    expect(test.voice.said).toEqual([]);
-  });
-
-  it('když pozdrav otázku neřekl (jiná varianta nebo bez hlasu), hlas ji řekne po zavření okna', () => {
-    const rudy = new FakeRudy();
-    const test = openWithVoice(undefined, undefined, rudy);
-    rudy.openPending(false);
-    rudy.close();
-    expect(test.voice.said).toEqual(['more']);
-  });
 });
 
 describe('#182: ťuknutí na symbol otázky ji zopakuje', () => {
@@ -408,16 +363,20 @@ describe('#182: ťuknutí na symbol otázky ji zopakuje', () => {
     expect(test.session.tap(rightChoice(test))).toBe('correct');
   });
 
-  it('při otevřeném nastavení, během okna s Rudym, při oslavě a po odchodu symbol nereaguje', () => {
+  it('při otevřeném nastavení, během Rudyho, při oslavě a po odchodu symbol nereaguje', () => {
     const settingsOpen = openWithVoice();
     settingsOpen.gear.hold();
     expect(settingsOpen.session.tapQuestion()).toBe(false);
 
     const rudy = new FakeRudy();
     const withRudy = openWithVoice(undefined, undefined, rudy);
+    for (let star = 0; star < 10; star += 1) {
+      solveOne(withRudy);
+    }
     rudy.openPending();
+    const said = withRudy.voice.said.length;
     expect(withRudy.session.tapQuestion()).toBe(false);
-    expect(withRudy.voice.said).toEqual([]);
+    expect(withRudy.voice.said).toHaveLength(said);
 
     const celebrating = openWithVoice();
     for (let star = 0; star < 10; star += 1) {
@@ -429,14 +388,6 @@ describe('#182: ťuknutí na symbol otázky ji zopakuje', () => {
     const left = openWithVoice();
     left.session.leave();
     expect(left.session.tapQuestion()).toBe(false);
-  });
-
-  it('ťuknutí na symbol, než se pozdrav stáhne, pozdrav vynechá a otázka zazní jednou', () => {
-    const rudy = new FakeRudy();
-    const test = openWithVoice(undefined, undefined, rudy);
-    expect(test.session.tapQuestion()).toBe(true);
-    expect(rudy.waitingMove()).toBeNull();
-    expect(test.voice.said).toEqual(['more']);
   });
 });
 
@@ -653,63 +604,14 @@ describe('#182: nápověda párováním dává smysl i při „míň“', () => 
   });
 });
 
-describe('#182: Rudy se při otázce „míň“ ani při střídání v pozdravu neptá „Kde je víc?“', () => {
-  /** Dítě otevře hru s Rudym nad úložištěm; vrátí, co Rudy v pozdravu řekne. */
-  function greetingOnOpen(storage: MemoryStorage, seed?: number): CompareRudyLine {
-    const rudy = new FakeRudy();
-    const test = openCompare(storage, seed, rudy);
-    const lines = compareRudyLines(storage);
-    const context = rudy.contexts[0];
-    const line = lines.upcoming('wave', context);
-    // Okno se ukázalo: příště zazní další varianta.
-    lines.said('wave', line);
-    test.session.leave();
-    return line;
-  }
-
-  it('s otázkou „víc“ se pozdravy střídají a Rudy se jednou zeptá „Kde je víc?“', () => {
-    const storage = new MemoryStorage();
-    const said = [greetingOnOpen(storage), greetingOnOpen(storage), greetingOnOpen(storage)];
-    expect(said).toEqual(['greeting', 'greetingAgain', 'greeting']);
-  });
-
-  it('s otázkou „míň“ Rudy po každém otevření řekne jen „Jdeme porovnávat!“', () => {
-    const storage = new MemoryStorage();
-    confirmChoice(openCompare(storage), { question: 'less' });
-    for (let open = 0; open < 4; open += 1) {
-      expect(greetingOnOpen(storage), `otevření ${open + 1}`).toBe('greetingAgain');
-    }
-  });
-
-  it('se „střídat“ Rudy vždy řekne „Jdeme porovnávat!“, ať první příklad začne „víc“, nebo „míň“', () => {
-    const storage = new MemoryStorage();
-    confirmChoice(openCompare(storage), { question: 'alternate' });
-    const firstQuestions = new Set<CompareQuestion>();
-    for (let seed = 1; seed <= 12; seed += 1) {
-      firstQuestions.add(openCompare(storage, seed).session.question());
-      expect(greetingOnOpen(storage, seed), `seed ${seed}`).toBe('greetingAgain');
-    }
-    expect([...firstQuestions].sort()).toEqual(['less', 'more']);
-  });
-
-  it('česky ani anglicky pozdrav, který Rudy při „míň“ řekne, neobsahuje otázku na víc', () => {
-    const storage = new MemoryStorage();
-    confirmChoice(openCompare(storage), { question: 'less' });
-    const line = greetingOnOpen(storage);
-    expect(compareTexts('cs').rudyLines[line]).not.toMatch(/víc/i);
-    expect(compareTexts('en').rudyLines[line]).not.toMatch(/more/i);
-  });
-});
-
 describe('#182: při „míň“ ani při střídání Rudy v oslavě neříká „Vždycky poznáš, kde je víc!“', () => {
   /**
-   * Dítě s Rudym vyplní `rows` řad hvězdiček; vrátí, co Rudy řekl v každém
-   * okně s oslavou a co hra stahovala dopředu.
+   * Dítě s Rudym vyplní `rows` řad hvězdiček; vrátí, co Rudy řekl v každé
+   * oslavě a co hra stahovala dopředu.
    */
   function celebrations(storage: MemoryStorage, rows: number) {
     const rudy = new FakeRudy();
     const test = openCompare(storage, 3, rudy);
-    rudy.giveUp();
     const lines = compareRudyLines(storage);
     const said: CompareRudyLine[] = [];
     for (let row = 0; row < rows; row += 1) {
@@ -717,16 +619,16 @@ describe('#182: při „míň“ ani při střídání Rudy v oslavě neříká 
         test.session.tap(rightChoice(test));
         test.timers.advance(NEXT_PROBLEM_MS);
       }
-      expect(rudy.waitingMove()).toBe('celebrate');
-      const line = lines.upcoming('celebrate', rudy.contexts.at(-1));
-      lines.said('celebrate', line);
+      expect(rudy.isWaiting()).toBe(true);
+      const line = lines.upcoming(rudy.contexts.at(-1));
+      lines.said(line);
       said.push(line);
       rudy.openPending();
       rudy.close();
       test.timers.runAll();
     }
     const prepared = rudy.preparedContexts.map((context) =>
-      compareRudyLines(storage).upcoming('celebrate', context),
+      compareRudyLines(storage).upcoming(context),
     );
     test.session.leave();
     return { said, prepared };

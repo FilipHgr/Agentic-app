@@ -13,7 +13,6 @@ import { serializeSettings } from '../../../src/games/counting/logic/settings';
 import type { GameSettings } from '../../../src/games/counting/logic/settings';
 import type { DigitRecognizer } from '../../../src/games/counting/logic/writingRound';
 import type { Tone } from '../../../src/shared/audio/tonePlayer';
-import type { RudyLineMove } from '../../../src/shared/logic/rudy';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 
 import { seededRandom } from './seededRandom';
@@ -135,38 +134,39 @@ export class FakePage implements SessionPage {
 }
 
 /**
- * Okno s pandou Rudym (#170) místo Phaser okna: zapíše, o co hra požádala,
- * a test ho otevře (`openPending`) a zavře (`close`), nebo nechá ukázat se
- * na čas `openMs` časovači hry. Bez otevření okno čeká jako na stažení.
+ * Panda Rudy (#170, #186) místo Phaser Rudyho: zapíše, o co hra požádala,
+ * a test ho ukáže (`openPending`) a pošle pryč (`close`), nebo nechá ukázat
+ * se na čas `openMs` časovači hry. Bez ukázání Rudy čeká jako na stažení.
  */
 export class FakeRudy implements SessionRudy {
-  readonly requested: RudyLineMove[] = [];
-  /** Pohyby, které hra chtěla stáhnout dopředu, v pořadí. */
-  readonly prepared: RudyLineMove[] = [];
-  /** Okno, které čeká na ukázání, a okno, které je vidět. */
-  private waiting: { move: RudyLineMove; events: SessionRudyEvents } | null = null;
-  private shown: { move: RudyLineMove; events: SessionRudyEvents } | null = null;
+  /** Kolikrát hra chtěla Rudyho s oslavou. */
+  requested = 0;
+  /** Kolikrát hra chtěla oslavu stáhnout dopředu. */
+  prepared = 0;
+  /** Rudy, který čeká na ukázání, a Rudy, který je vidět. */
+  private waiting: SessionRudyEvents | null = null;
+  private shown: SessionRudyEvents | null = null;
   stopped = 0;
 
   /**
-   * `timers` a `openMs`: okno se ukáže hned po požádání a samo se zavře
-   * po `openMs` ms; bez nich řídí ukázání a zavření test.
+   * `timers` a `openMs`: Rudy se ukáže hned po požádání a sám odejde
+   * po `openMs` ms; bez nich řídí ukázání a odchod test.
    */
   constructor(
     private readonly auto?: { readonly timers: SessionTimers; readonly openMs: number },
   ) {}
 
-  readonly show = (move: RudyLineMove, events: SessionRudyEvents): void => {
-    this.requested.push(move);
-    this.waiting = { move, events };
+  readonly celebrate = (events: SessionRudyEvents): void => {
+    this.requested += 1;
+    this.waiting = events;
     if (this.auto !== undefined) {
       this.openPending();
       this.auto.timers.after(this.auto.openMs, () => this.close());
     }
   };
 
-  readonly prepare = (move: RudyLineMove): void => {
-    this.prepared.push(move);
+  readonly prepare = (): void => {
+    this.prepared += 1;
   };
 
   readonly stop = (): void => {
@@ -175,17 +175,17 @@ export class FakeRudy implements SessionRudy {
     this.shown = null;
   };
 
-  /** Pohyb okna, které je vidět, `null` bez okna. */
-  openMove(): RudyLineMove | null {
-    return this.shown?.move ?? null;
+  /** Je Rudy vidět? */
+  isShown(): boolean {
+    return this.shown !== null;
   }
 
-  /** Pohyb okna, které čeká na ukázání. */
-  waitingMove(): RudyLineMove | null {
-    return this.waiting?.move ?? null;
+  /** Čeká Rudy na stažení? */
+  isWaiting(): boolean {
+    return this.waiting !== null;
   }
 
-  /** Okno se stáhlo a ukázalo. */
+  /** Rudy se stáhl a ukázal. */
   openPending(): void {
     const waiting = this.waiting;
     if (waiting === null) {
@@ -193,27 +193,27 @@ export class FakeRudy implements SessionRudy {
     }
     this.waiting = null;
     this.shown = waiting;
-    waiting.events.onOpened();
+    waiting.onOpened();
   }
 
-  /** Okno se zavřelo (samo nebo ťuknutím). */
+  /** Rudy odešel (sám nebo po ťuknutí). */
   close(): void {
     const shown = this.shown;
     if (shown === null) {
       return;
     }
     this.shown = null;
-    shown.events.onClosed();
+    shown.onClosed();
   }
 
-  /** Okno se nestáhlo včas: chvíle se vynechá a hra jde dál. */
+  /** Rudy se nestáhl včas: chvíle se vynechá a oslava jde dál. */
   giveUp(): void {
     const waiting = this.waiting;
     if (waiting === null) {
       return;
     }
     this.waiting = null;
-    waiting.events.onClosed();
+    waiting.onClosed();
   }
 }
 
@@ -286,7 +286,7 @@ export interface TestSession {
   changes(): number;
 }
 
-/** Jeden vstup do Počítání na zařízení `device`; s `rudyFor` hra ukazuje okna s pandou (#170). */
+/** Jeden vstup do Počítání na zařízení `device`; s `rudyFor` hra ukazuje Rudyho (#170). */
 export function enterCounting(
   device: TestDevice,
   seed?: number,

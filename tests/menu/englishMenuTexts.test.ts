@@ -39,11 +39,6 @@ const ENGLISH_MENU = {
     deleteConfirm: 'Delete',
     deleteCancel: 'Back',
   },
-  // Repliky pandy Rudyho (#171, #176), jen pro nahrávky.
-  rudyLines: {
-    greeting: "Hi, I'm Rudy! Pick a game.",
-    greetingWhat: 'Hi! What do you feel like playing today?',
-  },
 };
 
 function englishMenu(): Record<string, unknown> {

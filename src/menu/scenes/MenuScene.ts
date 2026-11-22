@@ -4,12 +4,6 @@ import { createTonePlayer } from '../../shared/audio/tonePlayer';
 import { isSharedAudioUnlocked, sharedToneContext } from '../../shared/audio/sharedAudio';
 import type { Tone } from '../../shared/audio/tonePlayer';
 import { FONT_FAMILY, colorNumber } from '../../shared/logic/theme';
-import { gameAreaFor } from '../../shared/logic/viewportLayout';
-import type { GameArea } from '../../shared/logic/viewportLayout';
-import { applyPageBackdrop } from '../../shared/ui/pageBackdrop';
-import { RudyMoments } from '../../shared/ui/rudyMoments';
-import type { RudyMomentOpened } from '../../shared/ui/rudyMoments';
-import { readViewport } from '../../shared/ui/viewport';
 import type { Menu, MenuFeedback } from '../logic/menu';
 import type {
   MenuBox,
@@ -17,8 +11,6 @@ import type {
   MenuLanguagePanel,
   MenuLayout,
 } from '../logic/menuLayout';
-import { menuRudyVoiceUrl } from '../logic/menuRudyVoice';
-import type { MenuRudyLine } from '../logic/menuRudyVoice';
 import { MENU_SOUNDS, menuSoundFor } from '../logic/menuSounds';
 import type { MenuTouch, TouchPoint } from '../logic/menuTouch';
 import { MENU_STYLE } from '../logic/menuTheme';
@@ -67,24 +59,8 @@ export interface MenuSceneHost {
   layout(): MenuLayout;
   /** Po každém zvednutí prstu. */
   onTapped(): void;
-  /** Každý snímek nakresleného menu (#173: čekání na odemčení zvuku). */
-  onFrame?(): void;
   /** Scéna se vytvořila; stránka nechá vidět jen menu, nebo jen výběr profilu. */
   onCreated(): void;
-}
-
-/** Pozdrav, o který stránka požádala, a co se o něm chce dozvědět. */
-export interface MenuGreetingRequest {
-  /** Který z pozdravů zazní (#176: střídají se). */
-  readonly line: MenuRudyLine;
-  /** Okno se opravdu ukázalo; s hlasem, nebo bez, a jestli byl zvuk odemčený. */
-  readonly onOpened: (opened: RudyMomentOpened) => void;
-  /** Ukázané okno se zavřelo. */
-  readonly onClosed: () => void;
-  /** Zopakovaný pozdrav (#173) se bez hlasu neukáže. */
-  readonly requireVoice?: boolean;
-  /** Na stažení se čeká nejvýš tolik ms (#173). */
-  readonly waitMs?: number;
 }
 
 /** Prvek menu, který se dá zmáčknout, zhoupnout nebo zatřást. */
@@ -113,10 +89,6 @@ interface Tappable {
  * (karta a posouvané řádky). Otevření a zavření seznamu překreslí jen
  * tlačítko a seznam, výběr jiné kategorie celé menu.
  *
- * Okno s pandou Rudym (#170) má vlastní vrstvu a kameru přes celé plátno
- * nad všemi ostatními. Pozdrav (`greet`) se ukáže, až je menu nakreslené;
- * kód a obrázky pandy se stáhnou až při něm.
- *
  * Obrázky dlaždic (#122) načte scéna loaderem Phaseru a výsledek každého
  * hlásí do `TileImages`. Menu se nakreslí, až jsou obrázky vyřízené, nebo
  * nejdéle po limitu čekání; do té doby je vidět jen pozadí stránky.
@@ -143,13 +115,6 @@ export class MenuScene extends Phaser.Scene {
   private languageLayer!: Phaser.GameObjects.Container;
   private pickerPanelLayer!: Phaser.GameObjects.Container;
   private pickerListLayer!: Phaser.GameObjects.Container;
-  /** Vrstva a kamera okna s pandou (#170), nad vším ostatním. */
-  private rudyLayer!: Phaser.GameObjects.Container;
-  private rudyCamera!: Phaser.Cameras.Scene2D.Camera;
-  /** Vznikne se scénou; dřív se menu neukazuje. */
-  private rudy: RudyMoments | undefined;
-  /** Pozdrav čeká, až se menu nakreslí; zavolá se, když se okno opravdu ukáže. */
-  private greetingWanted: MenuGreetingRequest | null = null;
   private categoryCamera!: Phaser.Cameras.Scene2D.Camera;
   private gridCamera!: Phaser.Cameras.Scene2D.Camera;
   private panelCamera!: Phaser.Cameras.Scene2D.Camera;
@@ -189,7 +154,6 @@ export class MenuScene extends Phaser.Scene {
     this.languageLayer = this.add.container(0, 0);
     this.pickerPanelLayer = this.add.container(0, 0);
     this.pickerListLayer = this.add.container(0, 0);
-    this.rudyLayer = this.add.container(0, 0);
     const layers = [
       this.barLayer,
       this.categoryLayer,
@@ -198,7 +162,6 @@ export class MenuScene extends Phaser.Scene {
       this.languageLayer,
       this.pickerPanelLayer,
       this.pickerListLayer,
-      this.rudyLayer,
     ];
     const onlyLayer = (camera: Phaser.Cameras.Scene2D.Camera, shown: unknown): void => {
       camera.ignore(layers.filter((layer) => layer !== shown));
@@ -218,14 +181,6 @@ export class MenuScene extends Phaser.Scene {
     onlyLayer(this.pickerPanelCamera, this.pickerPanelLayer);
     this.pickerListCamera = this.cameras.add(0, 0, 1, 1);
     onlyLayer(this.pickerListCamera, this.pickerListLayer);
-    // Okno s pandou (#170) přes celé plátno, nad nabídkami i seznamem kategorií.
-    this.rudyCamera = this.cameras.add(0, 0, this.scale.width, this.scale.height);
-    onlyLayer(this.rudyCamera, this.rudyLayer);
-    this.rudy = new RudyMoments(this, {
-      layer: this.rudyLayer,
-      gameArea: () => this.rudyArea(),
-      pageBackdrop: applyPageBackdrop,
-    });
     this.listenToFingers();
     this.loadTileImages();
     this.showMenuWhenReady();
@@ -255,75 +210,6 @@ export class MenuScene extends Phaser.Scene {
     }
     this.scrollCameras();
     this.showHeld();
-    this.host.onFrame?.();
-    this.showWantedGreeting();
-  }
-
-  /**
-   * Rudy pozdraví (#170 AC4), až bude menu nakreslené. Stránka se dozví,
-   * kdy se okno opravdu ukázalo (s hlasem, nebo bez) a kdy se zavřelo.
-   */
-  greet(request: MenuGreetingRequest): void {
-    this.greetingWanted = request;
-  }
-
-  /** Nahrávka pozdravu `line` se začne stahovat dopředu (#173: hned po odemčení zvuku). */
-  prepareGreetingVoice(line: MenuRudyLine): void {
-    this.rudy?.prepare('wave', menuRudyVoiceUrl(line));
-  }
-
-  /** Je otevřené okno s Rudym? */
-  isGreetingOpen(): boolean {
-    return this.rudy?.isOpen() ?? false;
-  }
-
-  /** Menu se schovalo za hru: čekající pozdrav se zruší a panda se uvolní z paměti. */
-  hidden(): void {
-    this.greetingWanted = null;
-    this.rudy?.unload();
-  }
-
-  private showWantedGreeting(): void {
-    // S rozběhnutým spuštěním hry Rudy nepozdraví, ani když už čeká na stažení.
-    if (this.host.menu.isLaunching()) {
-      this.greetingWanted = null;
-      this.rudy?.cancelWaiting();
-      return;
-    }
-    const wanted = this.greetingWanted;
-    if (wanted === null) {
-      return;
-    }
-    this.greetingWanted = null;
-    // Pozdrav zazní v jazyce zvoleném v menu (#171).
-    let opened = false;
-    this.rudy?.show('wave', {
-      onOpened: (how) => {
-        opened = true;
-        wanted.onOpened(how);
-      },
-      onClosed: () => {
-        if (opened) {
-          wanted.onClosed();
-        }
-      },
-      voiceUrl: menuRudyVoiceUrl(wanted.line),
-      ...(wanted.requireVoice === undefined ? {} : { requireVoice: wanted.requireVoice }),
-      ...(wanted.waitMs === undefined ? {} : { waitMs: wanted.waitMs }),
-    });
-  }
-
-  /** Plátno menu jako plocha pro okno s pandou: celé okno, CSS px na jednotku. */
-  private rudyArea(): GameArea {
-    const viewport = readViewport();
-    return {
-      mode: gameAreaFor(viewport).mode,
-      width: this.scale.width,
-      height: this.scale.height,
-      scale: 1 / MENU_UNITS_PER_CSS_PX,
-      offsetX: 0,
-      offsetY: 0,
-    };
   }
 
   /**
@@ -560,9 +446,6 @@ export class MenuScene extends Phaser.Scene {
     });
     this.redrawLanguagePanel();
     this.redrawCategoryPicker();
-    // Po otočení nebo změně okna i otevřené okno s pandou podle nového plátna.
-    this.rudyCamera.setSize(this.scale.width, this.scale.height);
-    this.rudy?.relayout();
   }
 
   /** Zahraje odezvu, kterou ohlásila logika menu: tón podle `menuSoundFor` a animaci. */

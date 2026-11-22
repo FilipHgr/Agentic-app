@@ -54,10 +54,8 @@ const ENGLISH_COUNTING = {
       'Later, change them by holding the gear in the top right.',
     ],
   },
-  // Repliky pandy Rudyho (#171), jen pro nahrávky.
+  // Repliky pandy Rudyho (#171), jen pro nahrávky; od #186 jen oslavy.
   rudyLines: {
-    greeting: "Hi, I'm Rudy! Let's count together.",
-    greetingAgain: "Hi, it's me, Rudy, again! Let's count!",
     celebration: 'Hooray! Ten stars, great job!',
     celebrationStars: 'Awesome! You got all ten stars!',
     celebrationStar: "Yippee! You're a counting star!",

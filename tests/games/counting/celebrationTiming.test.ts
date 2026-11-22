@@ -144,9 +144,6 @@ function enterTimed(storage: KeyValueStorage, keyRewards?: KeyRewards): TimedCou
     rudy,
     onChange: (change) => changes.push({ value: change.kind, atMs: clock.nowMs }),
   });
-  // Pozdrav po otevření hry (#170 AC2) se ukáže a zavře, pak se hraje.
-  rudy.openPending();
-  rudy.close();
   return Object.assign(test, { session });
 }
 
@@ -185,7 +182,7 @@ function answerTenth(test: TimedCounting): void {
   }
   test.session.tapAnswer(test.session.problem().result);
   tick(test, STAR_FLIGHT_MS);
-  expect(test.rudy.waitingMove(), 'po doletu 10. hvězdičky okno s oslavou').toBe('celebrate');
+  expect(test.rudy.isWaiting(), 'po doletu 10. hvězdičky Rudy s oslavou').toBe(true);
   test.rudy.openPending();
   tick(test, RUDY_OPEN_MS);
   test.changes.length = 0;

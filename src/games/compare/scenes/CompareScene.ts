@@ -8,7 +8,6 @@ import type { GameHost } from '../../../shared/logic/gameHost';
 import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
-import type { RudyLineMove } from '../../../shared/logic/rudy';
 import { Confetti } from '../../../shared/ui/Confetti';
 import { RudyMoments } from '../../../shared/ui/rudyMoments';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
@@ -31,11 +30,7 @@ import type {
   CompareSession,
 } from '../logic/compareSession';
 import { COMPARE_SOUNDS } from '../logic/compareSounds';
-import {
-  COMPARE_RUDY_GREETING_ASKING_MORE,
-  compareRudyLines,
-  compareRudyVoiceUrl,
-} from '../logic/rudyLines';
+import { compareRudyLines, compareRudyVoiceUrl } from '../logic/rudyLines';
 import type { CompareRudyLines } from '../logic/rudyLines';
 import { HINT_STYLE, QUESTION_STYLE, SIGN_STYLE } from '../logic/theme';
 import { dimSettingsGear } from '../ui/gearOpacity';
@@ -58,9 +53,9 @@ const CARDS_POP_FROM = 0.92;
  * příkladu. Hvězdičky a konfety jsou sdílené (`StarRow`, `Confetti`).
  * Nastavení pro rodiče (#179) se otevře podržením kolečka stránky a kreslí
  * ho `SettingsPanel` nad hrou. Po 2. chybě scéna nakreslí nápovědu
- * párováním teček (#180) podle `compareHint.ts`. Okno s pandou Rudym
- * (#181: pozdrav po otevření hry, oslava po 10. hvězdičce) je sdílené
- * `RudyMoments`; kdy se ukáže, řídí sezení. Nad kartami je symbol otázky
+ * párováním teček (#180) podle `compareHint.ts`. Panda Rudy (#181: oslava
+ * po 10. hvězdičce, od #186 přímo na obrazovce) je sdílené `RudyMoments`;
+ * kdy se ukáže, řídí sezení. Nad kartami je symbol otázky
  * (#182: velká hromádka = kde je víc, malá = kde je míň) a otázku řekne
  * hlas průvodce, když se změní (kdy, řídí sezení).
  */
@@ -94,7 +89,7 @@ export class CompareScene extends Phaser.Scene {
     STAR_FLIGHT_MS,
   );
   private readonly confetti = new Confetti(this);
-  /** Okno s pandou Rudym (#181); vznikne v `create`, kód a obrázky stáhne až při pozdravu. */
+  /** Panda Rudy (#181, #186); vznikne v `create`, kód a obrázky stáhne až při oslavě. */
   private rudy!: RudyMoments;
 
   constructor() {
@@ -117,10 +112,7 @@ export class CompareScene extends Phaser.Scene {
 
     const host = this.readHost();
     this.host = host;
-    this.rudy = new RudyMoments(this, {
-      // Okraje stránky kolem plátna ztmavne okno stejně jako hru (#169).
-      pageBackdrop: (backdrop) => host?.setPageBackdrop?.(backdrop),
-    });
+    this.rudy = new RudyMoments(this);
     const session = createCompareSession({
       // Úložiště aktivního profilu od stránky; bez stránky jen paměť.
       storage: host?.storage,
@@ -155,31 +147,25 @@ export class CompareScene extends Phaser.Scene {
     this.drawProblem(false);
   }
 
-  /** Okno s pandou pro sezení; kdy se co ukáže a stáhne dopředu, řídí sezení (#181). */
+  /** Rudy pro sezení; kdy se ukáže a stáhne dopředu, řídí sezení (#181, #186). */
   private sessionRudy(lines: CompareRudyLines): CompareRudy {
     const rudy = this.rudy;
     return {
       // Replika zazní v jazyce zvoleném v menu; varianty se v profilu střídají
-      // a zapamatuje se až ta, jejíž okno se ukázalo (#176).
-      show: (move: RudyLineMove, events: CompareRudyEvents, context: CompareRudyContext) => {
-        const line = lines.upcoming(move, context);
-        rudy.show(move, {
-          onOpened: (opened) => {
-            lines.said(move, line);
-            // Pozdrav „Kde je víc?“ zazněl nahlas: hlas průvodce ho neopakuje (#182).
-            events.onOpened({
-              askedMore:
-                line === COMPARE_RUDY_GREETING_ASKING_MORE &&
-                opened.withVoice &&
-                opened.audioUnlocked,
-            });
+      // a zapamatuje se až ta, se kterou se Rudy ukázal (#176).
+      celebrate: (events: CompareRudyEvents, context: CompareRudyContext) => {
+        const line = lines.upcoming(context);
+        rudy.celebrate({
+          onOpened: () => {
+            lines.said(line);
+            events.onOpened();
           },
           onClosed: () => events.onClosed(),
           voiceUrl: compareRudyVoiceUrl(line),
         });
       },
-      prepare: (move: RudyLineMove, context: CompareRudyContext) =>
-        rudy.prepare(move, compareRudyVoiceUrl(lines.upcoming(move, context))),
+      prepare: (context: CompareRudyContext) =>
+        rudy.prepare(compareRudyVoiceUrl(lines.upcoming(context))),
       stop: () => rudy.stop(),
     };
   }

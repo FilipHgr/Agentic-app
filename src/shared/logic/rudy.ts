@@ -1,17 +1,15 @@
 /**
  * Pohyby pandy Rudyho (#169) bez Phaseru: které pohyby jsou, jak velký je
- * snímek v archu a který snímek je v daném čase vidět.
+ * snímek v archu a který snímek je v daném čase vidět. Od #186 Rudy jen
+ * slaví po 10 hvězdičkách, pozdrav (mávání) není.
  *
  * Pohyb je arch snímků v mřížce (`RUDY_SHEET`). Všechny pohyby mají
  * společný výřez s místem kolem uší, panda je ve všech na stejném místě.
  */
 
-/** Pohyby pandy Rudyho; klid je první a v okně je vždy v paměti. */
-export const RUDY_MOVES = ['idle', 'wave', 'celebrate', 'talk'] as const;
+/** Pohyby pandy Rudyho; klid je první a je vždy v paměti, oslava, pak mluví. */
+export const RUDY_MOVES = ['idle', 'celebrate', 'talk'] as const;
 export type RudyMove = (typeof RUDY_MOVES)[number];
-
-/** Pohyby, se kterými se okno otevírá: pozdrav a oslava (pak panda mluví). */
-export type RudyLineMove = 'wave' | 'celebrate';
 
 /** Arch snímků jednoho pohybu: rozměr snímku, mřížka a rychlost. */
 export interface MascotSheet {

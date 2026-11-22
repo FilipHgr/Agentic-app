@@ -10,27 +10,21 @@ import { FakeRudy, MemoryStorage, openCompare, wrongChoice } from './compareFake
 import type { TestCompare } from './compareFakes';
 
 /**
- * Testy k #181 AC1, AC2 a AC4 v sezení Porovnávání: po otevření hry Rudy
- * jednou pozdraví a odpovídat jde až po zavření okna (pozdrav se vynechá,
- * když dítě mezitím hraje). Po 10. hvězdičce se ukáže okno s oslavou
- * a konfety přijdou až po jeho zavření. Okno, které se nestáhne, hru ani
- * oslavu nezdrží. Okno s pandou je `FakeRudy` z `compareFakes.ts`.
+ * Testy k #181 AC2, AC4 a #186 AC1, AC3, AC4 v sezení Porovnávání: Rudy
+ * se ukazuje jen po 10. hvězdičce, po otevření hry nepozdraví. Po 10.
+ * hvězdičce přiskočí Rudy s oslavou a konfety přijdou až po jeho odchodu.
+ * Rudy, který se nestáhne, oslavu nezdrží. Rudy je `FakeRudy`
+ * z `compareFakes.ts`.
  */
 
 interface RudyCompare extends TestCompare {
   readonly rudy: FakeRudy;
 }
 
-/** Dítě otevře Porovnávání s oknem s pandou, které ukazuje a zavírá test. */
+/** Dítě otevře Porovnávání s Rudym, kterého ukazuje a posílá pryč test. */
 function openWithRudy(storage?: MemoryStorage): RudyCompare {
   const rudy = new FakeRudy();
   return { ...openCompare(storage, undefined, rudy), rudy };
-}
-
-/** Pozdrav se ukáže a zavře, hra je připravená na odpovědi. */
-function closeGreeting(game: RudyCompare): void {
-  game.rudy.openPending();
-  game.rudy.close();
 }
 
 /** Dítě ťukne správně na kartu (nebo „=“). */
@@ -65,68 +59,40 @@ function kinds(game: TestCompare): string[] {
   return game.changes.map((change) => change.kind);
 }
 
-describe('#181 AC1: Rudy po otevření Porovnávání pozdraví', () => {
-  it('po otevření hry se jednou ukáže okno s pozdravem', () => {
+describe('#186 AC1: Rudy se v Porovnávání ukazuje jen po 10. hvězdičce', () => {
+  it('po otevření hry Rudy nepozdraví a odpovídat jde hned', () => {
     const game = openWithRudy();
-    expect(game.rudy.requested).toEqual(['wave']);
-    closeGreeting(game);
-    tapCorrect(game);
-    game.timers.advance(NEXT_PROBLEM_MS);
-    expect(game.rudy.requested, 'pozdrav jen jednou').toEqual(['wave']);
-  });
-
-  it('během okna s pozdravem nejde odpovídat, po zavření ano', () => {
-    const game = openWithRudy();
-    game.rudy.openPending();
-    expect(tapCorrect(game)).toBe('ignored');
-    expect(game.session.tap(wrongChoice(game))).toBe('ignored');
-    expect(game.session.starCount()).toBe(0);
-    expect(game.sounds.played, 'ťuknutí do okna nezazní jako odpověď').toEqual([]);
-    game.rudy.close();
+    expect(game.rudy.requested).toBe(0);
+    expect(game.rudy.isWaiting()).toBe(false);
     expect(tapCorrect(game)).toBe('correct');
     expect(game.session.starCount()).toBe(1);
   });
 
-  it('správné ťuknutí během stahování pozdrav vynechá a hvězdička se počítá', () => {
-    const game = openWithRudy();
-    expect(game.rudy.waitingMove()).toBe('wave');
-    expect(tapCorrect(game)).toBe('correct');
-    expect(game.session.starCount()).toBe(1);
-    expect(game.rudy.waitingMove(), 'pozdrav už nečeká').toBeNull();
-    game.rudy.openPending();
-    expect(game.rudy.openMove(), 'pozdrav nevyskočí uprostřed hraní').toBeNull();
-  });
-
-  it('i špatné ťuknutí během stahování pozdrav vynechá', () => {
+  it('během řady (1. až 9. hvězdička) ani po chybách se Rudy neukáže', () => {
     const game = openWithRudy();
     expect(game.session.tap(wrongChoice(game))).toBe('wrong');
-    expect(game.rudy.waitingMove()).toBeNull();
+    for (let star = 1; star < STARS_PER_SET; star += 1) {
+      tapCorrect(game);
+      game.timers.advance(NEXT_PROBLEM_MS);
+    }
+    expect(game.session.starCount()).toBe(STARS_PER_SET - 1);
+    expect(game.rudy.requested).toBe(0);
   });
 
-  it('nastavení otevřené dřív, než se pozdrav ukáže, pozdrav zruší a po ✓ se neopakuje', () => {
+  it('po ✓ nastavení bez plné řady se Rudy neukáže', () => {
     const game = openWithRudy();
     game.gear.hold();
-    expect(game.rudy.waitingMove()).toBeNull();
     game.session.confirmSettings();
-    expect(game.rudy.requested).toEqual(['wave']);
+    expect(game.rudy.requested).toBe(0);
     expect(tapCorrect(game)).toBe('correct');
-  });
-
-  it('odchod domečkem okno zavře a nic dalšího se neukáže', () => {
-    const game = openWithRudy();
-    game.rudy.openPending();
-    game.session.leave();
-    expect(game.rudy.stopped).toBeGreaterThan(0);
-    expect(game.rudy.openMove()).toBeNull();
   });
 });
 
-describe('#181 AC2: po 10. hvězdičce okno s oslavou, konfety až po jeho zavření', () => {
-  it('po 10. hvězdičce se ukáže okno s oslavou, ještě bez konfet a melodie', () => {
+describe('#181 AC2, #186 AC3: po 10. hvězdičce Rudy, konfety až po jeho odchodu', () => {
+  it('po 10. hvězdičce přiskočí Rudy s oslavou, ještě bez konfet a melodie', () => {
     const game = openWithRudy();
-    closeGreeting(game);
     fillRow(game);
-    expect(game.rudy.waitingMove()).toBe('celebrate');
+    expect(game.rudy.isWaiting()).toBe(true);
     game.rudy.openPending();
     game.timers.advance(10_000);
     expect(game.session.starCount(), 'hvězdičky svítí v řadě').toBe(STARS_PER_SET);
@@ -134,9 +100,8 @@ describe('#181 AC2: po 10. hvězdičce okno s oslavou, konfety až po jeho zavř
     expect(game.sounds.played).not.toContain('celebration');
   });
 
-  it('po zavření okna začnou konfety s melodií hned a pak přijde prázdná řada', () => {
+  it('po odchodu Rudyho začnou konfety s melodií hned a pak přijde prázdná řada', () => {
     const game = openWithRudy();
-    closeGreeting(game);
     fillRow(game);
     game.rudy.openPending();
     game.rudy.close();
@@ -147,83 +112,81 @@ describe('#181 AC2: po 10. hvězdičce okno s oslavou, konfety až po jeho zavř
     expect(game.session.starCount()).toBe(0);
   });
 
-  it('během okna s oslavou nejde odpovídat a hvězdička nepřibude', () => {
+  it('během Rudyho nejde odpovídat, hvězdička nepřibude a ťuknutí nezazní jako odpověď', () => {
     const game = openWithRudy();
-    closeGreeting(game);
     fillRow(game);
     game.rudy.openPending();
+    const played = game.sounds.played.length;
     expect(tapCorrect(game)).toBe('ignored');
+    expect(game.session.tap(wrongChoice(game))).toBe('ignored');
     expect(game.session.starCount()).toBe(STARS_PER_SET);
+    expect(game.sounds.played).toHaveLength(played);
   });
 
-  it('každá plná řada má jedno okno s oslavou a pozdrav se neopakuje', () => {
+  it('každá plná řada má jednoho Rudyho s oslavou', () => {
     const game = openWithRudy();
-    closeGreeting(game);
     for (let row = 0; row < 2; row += 1) {
       fillRow(game);
       game.rudy.openPending();
       game.rudy.close();
       game.timers.runAll();
     }
-    expect(game.rudy.requested).toEqual(['wave', 'celebrate', 'celebrate']);
+    expect(game.rudy.requested).toBe(2);
   });
 
-  it('nastavení otevřené, než se okno s oslavou ukáže: po ✓ přijde okno a teprve pak konfety', () => {
+  it('nastavení otevřené, než se Rudy ukáže: po ✓ přijde Rudy a teprve pak konfety', () => {
     const game = openWithRudy();
-    closeGreeting(game);
     fillRow(game);
     game.gear.hold();
-    expect(game.rudy.waitingMove(), 'okno se během nastavení neukáže').toBeNull();
+    expect(game.rudy.isWaiting(), 'Rudy se během nastavení neukáže').toBe(false);
     game.session.confirmSettings();
-    expect(game.rudy.waitingMove()).toBe('celebrate');
+    expect(game.rudy.isWaiting()).toBe(true);
     expect(kinds(game)).not.toContain('celebrationStarted');
     game.rudy.openPending();
     game.rudy.close();
     expect(kinds(game)).toContain('celebrationStarted');
   });
 
-  it('okno s oslavou, které už dítě vidělo, se po ✓ nastavení neopakuje: konfety hned', () => {
+  it('Rudy, kterého už dítě vidělo, se po ✓ nastavení neopakuje: konfety hned', () => {
     const game = openWithRudy();
-    closeGreeting(game);
     fillRow(game);
     game.rudy.openPending();
     game.gear.hold();
     game.session.confirmSettings();
-    expect(game.rudy.requested).toEqual(['wave', 'celebrate']);
+    expect(game.rudy.requested).toBe(1);
     expect(kinds(game)).toContain('celebrationStarted');
+  });
+
+  it('odchod domečkem Rudyho pošle pryč a nic dalšího se neukáže', () => {
+    const game = openWithRudy();
+    fillRow(game);
+    game.rudy.openPending();
+    game.session.leave();
+    expect(game.rudy.stopped).toBeGreaterThan(0);
+    expect(game.rudy.isShown()).toBe(false);
   });
 
   it('od 8. hvězdičky v řadě se oslava stahuje dopředu, dřív ne', () => {
     expect(PREPARE_CELEBRATION_FROM_STARS).toBe(8);
     const game = openWithRudy();
-    closeGreeting(game);
     for (let star = 1; star < PREPARE_CELEBRATION_FROM_STARS; star += 1) {
       tapCorrect(game);
       game.timers.advance(NEXT_PROBLEM_MS);
     }
-    expect(game.rudy.prepared, 'do 7. hvězdičky ne').toEqual([]);
+    expect(game.rudy.prepared, 'do 7. hvězdičky ne').toBe(0);
     tapCorrect(game);
-    expect(game.rudy.prepared).toContain('celebrate');
+    expect(game.rudy.prepared).toBeGreaterThan(0);
   });
 
-  it('s 8 a více hvězdičkami po otevření se oslava stáhne až po pozdravu', () => {
-    const game = openWithRudy(storageWithStars(9));
-    expect(game.rudy.prepared, 'během pozdravu ne').toEqual([]);
-    closeGreeting(game);
-    expect(game.rudy.prepared).toEqual(['celebrate']);
+  it('s 8 a více hvězdičkami po otevření hry se oslava stáhne hned', () => {
+    expect(openWithRudy(storageWithStars(9)).rudy.prepared).toBeGreaterThan(0);
+    expect(openWithRudy(storageWithStars(7)).rudy.prepared).toBe(0);
   });
 });
 
-describe('#181 AC4: bez okna nebo hlasu hra pokračuje a hráč chybu nevidí', () => {
-  it('pozdrav, který se nestáhne, hru nezdrží', () => {
+describe('#181 AC4, #186 AC4: bez Rudyho hra pokračuje a hráč chybu nevidí', () => {
+  it('Rudy, který se nestáhne, oslavu nezdrží: konfety přijdou hned', () => {
     const game = openWithRudy();
-    game.rudy.giveUp();
-    expect(tapCorrect(game)).toBe('correct');
-  });
-
-  it('okno s oslavou, které se nestáhne, oslavu nezdrží: konfety přijdou hned', () => {
-    const game = openWithRudy();
-    closeGreeting(game);
     fillRow(game);
     game.rudy.giveUp();
     expect(kinds(game)).toContain('celebrationStarted');
@@ -232,7 +195,7 @@ describe('#181 AC4: bez okna nebo hlasu hra pokračuje a hráč chybu nevidí', 
     expect(tapCorrect(game)).toBe('correct');
   });
 
-  it('hra bez okna s pandou jde hrát hned a oslava přijde jako dřív', () => {
+  it('hra bez Rudyho jde hrát hned a oslava přijde jako dřív', () => {
     const game = openCompare();
     fillRow(game);
     expect(kinds(game), 'oslava začne hned po 10. hvězdičce').toContain('celebrationStarted');

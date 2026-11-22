@@ -11,7 +11,6 @@ import type {
 import { correctChoice } from '../../../src/games/compare/logic/compareProblems';
 import type { CompareChoice } from '../../../src/games/compare/logic/compareProblems';
 import type { CompareQuestion } from '../../../src/games/compare/logic/compareQuestion';
-import type { RudyLineMove } from '../../../src/shared/logic/rudy';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 
 /**
@@ -146,36 +145,32 @@ export class FakeGear {
 }
 
 /**
- * Okno s pandou Rudym (#181): hra o něj požádá, test ho ukáže
- * (`openPending`), zavře (`close`) nebo nechá nestáhnout (`giveUp`).
+ * Panda Rudy (#181, #186): hra o něj požádá, test ho ukáže
+ * (`openPending`), pošle pryč (`close`) nebo nechá nestáhnout (`giveUp`).
  */
 export class FakeRudy implements CompareRudy {
-  /** Pohyby oken, o které hra požádala, v pořadí. */
-  readonly requested: RudyLineMove[] = [];
-  /** Pohyby, které hra chtěla stáhnout dopředu, v pořadí. */
-  readonly prepared: RudyLineMove[] = [];
-  private waiting: { move: RudyLineMove; events: CompareRudyEvents } | null = null;
-  private shown: { move: RudyLineMove; events: CompareRudyEvents } | null = null;
+  /** Kolikrát hra chtěla Rudyho s oslavou. */
+  requested = 0;
+  /** Kolikrát hra chtěla oslavu stáhnout dopředu. */
+  prepared = 0;
+  private waiting: CompareRudyEvents | null = null;
+  private shown: CompareRudyEvents | null = null;
   stopped = 0;
 
-  /** Co hra ke každému oknu řekla (#182: smí se pozdrav ptát na víc). */
+  /** Co hra ke každé oslavě řekla (#182: smí Rudy mluvit o víc). */
   readonly contexts: CompareRudyContext[] = [];
 
-  readonly show = (
-    move: RudyLineMove,
-    events: CompareRudyEvents,
-    context: CompareRudyContext,
-  ): void => {
-    this.requested.push(move);
+  readonly celebrate = (events: CompareRudyEvents, context: CompareRudyContext): void => {
+    this.requested += 1;
     this.contexts.push(context);
-    this.waiting = { move, events };
+    this.waiting = events;
   };
 
   /** Co hra ke stahování dopředu řekla (#182). */
   readonly preparedContexts: CompareRudyContext[] = [];
 
-  readonly prepare = (move: RudyLineMove, context: CompareRudyContext): void => {
-    this.prepared.push(move);
+  readonly prepare = (context: CompareRudyContext): void => {
+    this.prepared += 1;
     this.preparedContexts.push(context);
   };
 
@@ -185,45 +180,45 @@ export class FakeRudy implements CompareRudy {
     this.shown = null;
   };
 
-  /** Pohyb okna, které je vidět, `null` bez okna. */
-  openMove(): RudyLineMove | null {
-    return this.shown?.move ?? null;
+  /** Je Rudy vidět? */
+  isShown(): boolean {
+    return this.shown !== null;
   }
 
-  /** Pohyb okna, které čeká na stažení. */
-  waitingMove(): RudyLineMove | null {
-    return this.waiting?.move ?? null;
+  /** Čeká Rudy na stažení? */
+  isWaiting(): boolean {
+    return this.waiting !== null;
   }
 
-  /** Okno se stáhlo a ukázalo; `askedMore`, když nahlas zazněl pozdrav „Kde je víc?“. */
-  openPending(askedMore = false): void {
+  /** Rudy se stáhl a ukázal. */
+  openPending(): void {
     const waiting = this.waiting;
     if (waiting === null) {
       return;
     }
     this.waiting = null;
     this.shown = waiting;
-    waiting.events.onOpened({ askedMore });
+    waiting.onOpened();
   }
 
-  /** Okno se zavřelo (samo nebo ťuknutím). */
+  /** Rudy odešel (sám nebo po ťuknutí). */
   close(): void {
     const shown = this.shown;
     if (shown === null) {
       return;
     }
     this.shown = null;
-    shown.events.onClosed();
+    shown.onClosed();
   }
 
-  /** Okno se nestáhlo včas: chvíle se vynechá a hra jde dál. */
+  /** Rudy se nestáhl včas: chvíle se vynechá a oslava jde dál. */
   giveUp(): void {
     const waiting = this.waiting;
     if (waiting === null) {
       return;
     }
     this.waiting = null;
-    waiting.events.onClosed();
+    waiting.onClosed();
   }
 }
 
@@ -254,7 +249,7 @@ export interface TestCompare {
 
 /**
  * Dítě otevře Porovnávání nad úložištěm `storage` (bez něj jen paměť).
- * S `rudy` hra ukazuje okna s pandou (#181), bez něj hraje bez nich.
+ * S `rudy` hra ukazuje Rudyho po 10. hvězdičce (#181, #186), bez něj hraje bez něj.
  * S `voice` hlas průvodce říká otázku (#182), bez něj je hra bez hlasu.
  */
 export function openCompare(

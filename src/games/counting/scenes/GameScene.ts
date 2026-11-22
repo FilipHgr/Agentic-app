@@ -7,8 +7,8 @@ import { DEFAULT_PROFILE_COLOR } from '../../../shared/logic/profiles';
 import type { GameHost } from '../../../shared/logic/gameHost';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
-import type { RudyLineMove } from '../../../shared/logic/rudy';
 import { Confetti } from '../../../shared/ui/Confetti';
+import type { RudyVariants } from '../../../shared/storage/rudyVariantsStorage';
 import { RudyMoments } from '../../../shared/ui/rudyMoments';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import type { Origin } from '../../../shared/ui/StarRow';
@@ -29,7 +29,7 @@ import type { MapLook, MapPictureId } from '../logic/mapPictureLoading';
 import type { GameProgress } from '../logic/progress';
 import { mapMarkerFor, upcomingMapTheme } from '../logic/progressMap';
 import { countingRudyLines, countingRudyVoiceUrl } from '../logic/rudyLines';
-import type { CountingRudyLines } from '../logic/rudyLines';
+import type { CountingRudyLine } from '../logic/rudyLines';
 import {
   layoutProgressMapCard,
   mapCardPageBackdrop,
@@ -65,9 +65,9 @@ const NO_PAGE: SessionPage = { attachSettingsGear: () => () => undefined };
  * (příklad, číselník, okénka, nápověda), `MapStarRow` (sdílená řada
  * hvězdiček s letem do mapy), sdílené `Confetti`,
  * `ProgressMapView` (mapa postupu po oslavě, #87) a `ParentPanels`
- * (nastavení a průvodce). Okno s pandou Rudym (#170: pozdrav po otevření
- * hry, oslava po 10. hvězdičce) je sdílené `RudyMoments`; kdy se ukáže,
- * řídí sezení.
+ * (nastavení a průvodce). Panda Rudy (oslava po 10. hvězdičce přímo na
+ * obrazovce, #170, #186) je sdílené `RudyMoments`; kdy se ukáže, řídí
+ * sezení.
  */
 export class GameScene extends Phaser.Scene {
   /**
@@ -101,7 +101,6 @@ export class GameScene extends Phaser.Scene {
     onWritingConfirmed: (result) => this.onWritingConfirmed(result),
     onDotTapped: (index, circle) => this.onDotTapped(index, circle),
     onHintButtonTapped: () => this.onHintButtonTapped(),
-    onWritingStarted: () => this.session.writingStarted(),
   });
   private readonly starRow = new MapStarRow(this, this.layouts, () => this.currentProgress());
   private readonly confetti = new Confetti(this, ABOVE_MAP_DEPTH);
@@ -116,7 +115,7 @@ export class GameScene extends Phaser.Scene {
   );
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu (#67 AC6).
   private readonly sounds = createTonePlayer(sharedToneContext);
-  /** Okno s pandou Rudym (#170); vznikne v `create`, kód a obrázky stáhne až při pozdravu. */
+  /** Panda Rudy (#170, #186); vznikne v `create`, kód a obrázky stáhne až při oslavě. */
   private rudy!: RudyMoments;
 
   constructor() {
@@ -139,10 +138,7 @@ export class GameScene extends Phaser.Scene {
       this.session.leave();
     });
     const host = this.readHost();
-    this.rudy = new RudyMoments(this, {
-      // Okraje stránky kolem plátna ztmavne okno stejně jako hru (#169).
-      pageBackdrop: (backdrop) => host?.setPageBackdrop?.(backdrop),
-    });
+    this.rudy = new RudyMoments(this);
     const session = createCountingSession({
       // Úložiště aktivního profilu od stránky (#71); bez stránky jen paměť.
       storage: host?.storage,
@@ -178,25 +174,24 @@ export class GameScene extends Phaser.Scene {
     this.updateHome();
   }
 
-  /** Okno s pandou pro sezení; kdy se co ukáže a stáhne dopředu, řídí sezení (#170). */
-  private sessionRudy(lines: CountingRudyLines): SessionRudy {
+  /** Rudy pro sezení; kdy se ukáže a stáhne dopředu, řídí sezení (#170, #186). */
+  private sessionRudy(lines: RudyVariants<CountingRudyLine>): SessionRudy {
     const rudy = this.rudy;
     return {
-      // Replika zazní v jazyce zvoleném v menu ve chvíli, kdy hra o okno požádá (#171).
-      // Varianty se v profilu střídají; zapamatuje se až ta, jejíž okno se ukázalo (#176).
-      show: (move: RudyLineMove, events: SessionRudyEvents) => {
-        const line = lines.upcoming(move);
-        rudy.show(move, {
+      // Replika zazní v jazyce zvoleném v menu ve chvíli, kdy hra o Rudyho požádá (#171).
+      // Varianty se v profilu střídají; zapamatuje se až ta, se kterou se Rudy ukázal (#176).
+      celebrate: (events: SessionRudyEvents) => {
+        const line = lines.upcoming();
+        rudy.celebrate({
           onOpened: () => {
-            lines.said(move, line);
+            lines.said(line);
             events.onOpened();
           },
           onClosed: () => events.onClosed(),
           voiceUrl: countingRudyVoiceUrl(line),
         });
       },
-      prepare: (move: RudyLineMove) =>
-        rudy.prepare(move, countingRudyVoiceUrl(lines.upcoming(move))),
+      prepare: () => rudy.prepare(countingRudyVoiceUrl(lines.upcoming())),
       stop: () => rudy.stop(),
     };
   }

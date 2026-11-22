@@ -1,50 +1,36 @@
 /**
- * Chvíle s pandou Rudym ve scéně (#170): pozdrav a oslava v okně z #169.
- * Kód okna (`rudyWindow.ts`) i obrázky pohybů se stáhnou až při první
- * chvíli (nebo `prepare`), tedy až když je menu nebo hra vidět; startovní
- * soubor stránky je nezná.
+ * Rudy s oslavou po 10. hvězdičce ve scéně (#170 AC3, od #186 jediná
+ * chvíle s Rudym, přímo na obrazovce bez okna). Kód Rudyho
+ * (`rudyWindow.ts`) i obrázky pohybů se stáhnou až při první oslavě (nebo
+ * `prepare`), tedy až když je hra vidět; startovní soubor stránky je nezná.
  *
- * O tom, kdy okno ukázat, rozhoduje logika `logic/rudyMoment.ts`: okno
- * počká na stažení, nejdéle `RUDY_WAIT_MS`, pak se chvíle vynechá a hra
- * dostane `onClosed` hned (oslava čeká kratší dobu, `RUDY_CELEBRATION_WAIT_MS`).
- * Odchod stránky na pozadí čekání zruší. Chyba stažení se jen zapíše do konzole, hráč
- * nic nevidí.
+ * O tom, kdy Rudyho ukázat, rozhoduje logika `logic/rudyMoment.ts`: Rudy
+ * počká na stažení nejdéle `RUDY_CELEBRATION_WAIT_MS`, pak se vynechá
+ * a hra dostane `onClosed` hned (#186 AC4). Odchod stránky na pozadí
+ * čekání zruší. Chyba stažení se jen zapíše do konzole, hráč nic nevidí.
  *
- * Hlas (#171): chvíle může mít nahrávku repliky (`voiceUrl`). Kdy se
- * stáhne, jak dlouho je okno otevřené a kdy hlas zazní, rozhoduje
- * `logic/rudyVoice.ts`; okno počká i na nahrávku a zavření okna hlas
- * zastaví. Bez odemčeného zvuku nebo nahrávky je okno bez hlasu.
- * `onOpened` ohlásí, jestli okno zaznělo s hlasem; chvíle s `requireVoice`
- * (zopakovaný pozdrav v menu, #173) se bez hlasu vůbec neukáže.
+ * Hlas (#171): oslava může mít nahrávku repliky (`voiceUrl`). Kdy se
+ * stáhne, jak dlouho je Rudy vidět a kdy hlas zazní, rozhoduje
+ * `logic/rudyVoice.ts`; Rudy počká i na nahrávku a jeho odchod hlas
+ * zastaví. Bez odemčeného zvuku nebo nahrávky je Rudy bez hlasu.
  */
 
 import Phaser from 'phaser';
 
 import { createSharedRudyVoicePlayer } from '../audio/rudyVoicePlayer';
 import { isSharedAudioUnlocked } from '../audio/sharedAudio';
-import type { RudyLineMove, RudyMove } from '../logic/rudy';
-import { createRudyMomentGate, rudyMomentTime } from '../logic/rudyMoment';
-import { createRudyVoice, rudyVoiceOpening } from '../logic/rudyVoice';
+import { createRudyMomentGate } from '../logic/rudyMoment';
+import { createRudyVoice } from '../logic/rudyVoice';
 import type { RudyWindow, RudyWindowOptions } from './rudyWindow';
 
 type RudyWindowModule = typeof import('./rudyWindow');
 
-/** Jak se okno ukázalo: s hlasem (replika zazněla), nebo bez něj, a jestli byl zvuk odemčený. */
-export interface RudyMomentOpened {
-  readonly withVoice: boolean;
-  readonly audioUnlocked: boolean;
-}
-
-/** Co chvíle ohlásí: okno se ukázalo, nebo se zavřelo (i když se neukázalo). */
+/** Co chvíle ohlásí: Rudy se ukázal, nebo odešel (i když se neukázal). */
 export interface RudyMomentEvents {
-  readonly onOpened?: (opened: RudyMomentOpened) => void;
+  readonly onOpened?: () => void;
   readonly onClosed?: () => void;
-  /** Nahrávka repliky v jazyce zvoleném v menu (#171); bez ní je okno bez hlasu. */
+  /** Nahrávka repliky v jazyce zvoleném v menu (#171); bez ní je Rudy bez hlasu. */
   readonly voiceUrl?: string;
-  /** Bez hlasu se okno neukáže a chvíle se vynechá (#173). */
-  readonly requireVoice?: boolean;
-  /** Na stažení se čeká nejvýš tolik ms (kratší než běžný limit, #173). */
-  readonly waitMs?: number;
 }
 
 export class RudyMoments {
@@ -55,16 +41,16 @@ export class RudyMoments {
     player: createSharedRudyVoicePlayer(),
     isUnlocked: isSharedAudioUnlocked,
   });
-  /** Nahrávka čekající chvíle. */
+  /** Nahrávka čekající oslavy. */
   private voiceUrl: string | undefined;
   private module: RudyWindowModule | null = null;
   private loading: Promise<void> | null = null;
   private window: RudyWindow | null = null;
-  /** Kdo o chvíli požádal; `momentId` odliší chvíle, aby zastavená nic neohlásila. */
+  /** Kdo o oslavu požádal; `momentId` odliší chvíle, aby zastavená nic neohlásila. */
   private events: RudyMomentEvents = {};
   private momentId = 0;
-  /** Pohyb, který se má stáhnout dopředu, až bude okno. */
-  private prepared: RudyMove | null = null;
+  /** Oslava se má stáhnout dopředu, až bude kód Rudyho. */
+  private prepared = false;
   private destroyed = false;
 
   constructor(scene: Phaser.Scene, options: RudyWindowOptions = {}) {
@@ -76,10 +62,10 @@ export class RudyMoments {
   }
 
   /**
-   * Ukáže okno s pohybem `move`, až se stáhne. Čekající chvíli nahradí
-   * (ta už nic neohlásí). Když se okno nestihne stáhnout, zavolá `onClosed`.
+   * Ukáže Rudyho s oslavou, až se stáhne. Čekající chvíli nahradí (ta už
+   * nic neohlásí). Když se Rudy nestihne stáhnout, zavolá `onClosed`.
    */
-  show(move: RudyLineMove, events: RudyMomentEvents = {}): void {
+  celebrate(events: RudyMomentEvents = {}): void {
     if (this.destroyed) {
       events.onClosed?.();
       return;
@@ -88,21 +74,18 @@ export class RudyMoments {
     this.events = events;
     this.voiceUrl = events.voiceUrl;
     this.voice.request(events.voiceUrl);
-    this.gate.request(move, this.now(), events.waitMs);
-    this.windowOrLoad()?.prepare(move);
+    this.gate.request(this.now());
+    this.windowOrLoad()?.prepare('celebrate');
   }
 
-  /**
-   * Stáhne pohyb dopředu (třeba oslavu po pozdravu), aby se pak přehrál
-   * hned; s `voiceUrl` i nahrávku repliky.
-   */
-  prepare(move: RudyMove, voiceUrl?: string): void {
+  /** Stáhne oslavu dopředu, aby se po 10. hvězdičce přehrála hned; s `voiceUrl` i repliku. */
+  prepare(voiceUrl?: string): void {
     this.voice.request(voiceUrl);
-    this.prepared = move;
-    this.windowOrLoad()?.prepare(move);
+    this.prepared = true;
+    this.windowOrLoad()?.prepare('celebrate');
   }
 
-  /** Čekající chvíle se neukáže a otevřené okno se zavře, nic se neohlásí. */
+  /** Čekající oslava se neukáže a Rudy, který je vidět, odejde; nic se neohlásí. */
   stop(): void {
     this.momentId += 1;
     this.gate.cancel();
@@ -111,33 +94,13 @@ export class RudyMoments {
     this.window?.close();
   }
 
-  /** Čekající chvíle (ještě neukázaná) se zruší a nic neohlásí; otevřené okno zůstane. */
-  cancelWaiting(): void {
-    if (this.gate.pending() !== null) {
-      this.momentId += 1;
-      this.gate.cancel();
-      this.events = {};
-    }
-  }
-
   isOpen(): boolean {
     return this.window?.isOpen() ?? false;
   }
 
-  /** Po otočení nebo změně velikosti se otevřené okno nakreslí znovu. */
+  /** Po otočení nebo změně velikosti se Rudy postaví podle nového okna. */
   relayout(): void {
     this.window?.relayout();
-  }
-
-  /**
-   * Uvolní okno i stažené pohyby z paměti (menu se schovalo za hru);
-   * příští chvíle si je stáhne znovu.
-   */
-  unload(): void {
-    this.stop();
-    this.prepared = null;
-    this.window?.destroy();
-    this.window = null;
   }
 
   destroy(): void {
@@ -157,9 +120,9 @@ export class RudyMoments {
   }
 
   /**
-   * Stránka odešla na pozadí dřív, než se chvíle ukázala: čekání se zruší
-   * a hra dostane `onClosed` hned (pozdrav se vynechá, oslava jde bez okna).
-   * Otevřené okno zavře samo `RudyWindow`.
+   * Stránka odešla na pozadí dřív, než se Rudy ukázal: čekání se zruší
+   * a hra dostane `onClosed` hned (oslava jde bez Rudyho). Rudyho, který
+   * je vidět, pošle pryč samo `RudyWindow`.
    */
   private readonly onVisibilityChange = (): void => {
     if (document.hidden && this.gate.pageHidden()) {
@@ -168,10 +131,10 @@ export class RudyMoments {
   };
 
   private now(): number {
-    return rudyMomentTime(this.scene.game.loop.time, performance.now());
+    return this.scene.game.loop.time;
   }
 
-  /** Okno, když už je; jinak začne stahovat jeho kód a vrátí `null`. */
+  /** Rudy, když už je; jinak začne stahovat jeho kód a vrátí `null`. */
   private windowOrLoad(): RudyWindow | null {
     if (this.window !== null) {
       return this.window;
@@ -195,17 +158,13 @@ export class RudyMoments {
           return;
         }
         const rudyWindow = this.windowOrLoad();
-        const waiting = this.gate.pending();
-        if (waiting !== null) {
-          rudyWindow?.prepare(waiting);
-        }
-        if (this.prepared !== null && this.prepared !== waiting) {
-          rudyWindow?.prepare(this.prepared);
+        if (this.gate.pending() || this.prepared) {
+          rudyWindow?.prepare('celebrate');
         }
       })
       .catch((error: unknown) => {
-        // Bez okna hra jde dál: čekající chvíle se po limitu vynechá.
-        console.warn('panda Rudy: okno se nestáhlo', error);
+        // Bez Rudyho hra jde dál: čekající oslava se po limitu vynechá.
+        console.warn('panda Rudy: kód se nestáhl', error);
       })
       .finally(() => {
         this.loading = null;
@@ -213,15 +172,14 @@ export class RudyMoments {
   }
 
   private onUpdate(): void {
-    const rudyWindow = this.window;
-    const waiting = this.gate.pending();
-    if (waiting === null) {
+    if (!this.gate.pending()) {
       return;
     }
+    const rudyWindow = this.window;
     const voiceUrl = this.voiceUrl;
     const step = this.gate.step(this.now(), {
       idle: rudyWindow?.isReady() ?? false,
-      move: (rudyWindow?.isLoaded(waiting) ?? false) && this.voice.isSettled(voiceUrl),
+      move: (rudyWindow?.isLoaded('celebrate') ?? false) && this.voice.isSettled(voiceUrl),
     });
     const id = this.momentId;
     if (step.kind === 'giveUp') {
@@ -233,17 +191,10 @@ export class RudyMoments {
     }
     const onOpened = this.events.onOpened;
     const line = this.voice.lineFor(voiceUrl);
-    const opening = rudyVoiceOpening(line, this.events.requireVoice === true);
-    if (opening.kind === 'skip') {
-      // Hlas se nestáhl ani nepřehraje: chvíle bez hlasu se vynechá.
-      this.finish(id);
-      return;
-    }
     const shown = rudyWindow.open({
-      move: step.move,
       ...(line === null ? {} : { lineMs: line.lineMs }),
       onClosed: () => {
-        // Zavření okna (samo, ťuknutím, zvenku) hlas vždy zastaví.
+        // Odchod Rudyho (sám, ťuknutím, zvenku) hlas vždy zastaví.
         this.voice.stop();
         this.finish(id);
       },
@@ -254,10 +205,10 @@ export class RudyMoments {
     if (line !== null) {
       this.voice.play(line);
     }
-    onOpened?.({ withVoice: opening.withVoice, audioUnlocked: isSharedAudioUnlocked() });
+    onOpened?.();
   }
 
-  /** Chvíle `id` skončila: ohlásí zavření, jen když ji mezitím nic nezastavilo. */
+  /** Chvíle `id` skončila: ohlásí odchod, jen když ji mezitím nic nezastavilo. */
   private finish(id: number): void {
     if (id !== this.momentId) {
       return;

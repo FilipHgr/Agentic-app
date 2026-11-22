@@ -10,8 +10,6 @@ export default {
     question: 'Otázka',
   },
   rudyLines: {
-    greeting: 'Ahoj, já jsem Rudy! Kde je víc?',
-    greetingAgain: 'Zase já, Rudy! Jdeme porovnávat!',
     celebration: 'Hurá! Máš deset hvězdiček!',
     celebrationMore: 'Výborně! Vždycky poznáš, kde je víc!',
   },

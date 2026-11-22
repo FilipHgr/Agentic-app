@@ -1,5 +1,6 @@
 /**
- * Hlas pandy Rudyho v okně (#171), bez prohlížeče. Kdy se nahrávka repliky
+ * Hlas pandy Rudyho (#171; od #186 jen v oslavě po 10 hvězdičkách, přímo
+ * na obrazovce), bez prohlížeče. Kdy se nahrávka repliky
  * stáhne, kdy na ni okno počká, jak dlouho bude okno otevřené a kdy hlas
  * zazní nebo zmlkne. Stažení a přehrání dělá přehrávač zvenku
  * (`audio/rudyVoicePlayer.ts`), tady se o něm jen rozhoduje.
@@ -117,23 +118,4 @@ export function createRudyVoice(options: RudyVoiceOptions): RudyVoice {
       options.player.stop();
     },
   };
-}
-
-/** Jak se okno otevře: s hlasem, bez hlasu, nebo se chvíle vynechá. */
-export type RudyVoiceOpening =
-  { readonly kind: 'open'; readonly withVoice: boolean } | { readonly kind: 'skip' };
-
-/**
- * Okno se otevře s hlasem, když je replika připravená, jinak bez hlasu.
- * Chvíle, která bez hlasu nemá smysl (zopakovaný pozdrav v menu, #173),
- * se bez repliky vynechá.
- */
-export function rudyVoiceOpening(
-  line: RudyVoiceLine | null,
-  requireVoice: boolean,
-): RudyVoiceOpening {
-  if (line !== null) {
-    return { kind: 'open', withVoice: true };
-  }
-  return requireVoice ? { kind: 'skip' } : { kind: 'open', withVoice: false };
 }

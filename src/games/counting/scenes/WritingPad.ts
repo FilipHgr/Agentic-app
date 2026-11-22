@@ -54,8 +54,6 @@ const MIN_POINT_DISTANCE = 3;
 export interface WritingPadEvents {
   /** Změnilo se rozpoznané číslo (`null` = žádné). */
   readonly onNumberChanged: (number: number | null) => void;
-  /** Dítě začalo tah prstem v okénku (#170: čekající pozdrav se vynechá). */
-  readonly onStrokeStarted?: () => void;
   /** Dítě ťuklo na ✓ a odpověď se vyhodnotila. */
   readonly onConfirmed: (result: TwoBoxConfirmResult) => void;
 }
@@ -198,7 +196,6 @@ export class WritingPad {
     this.currentStroke = [this.toBoxPoint(view, pointer)];
     this.syncWithRound();
     this.drawInk(view);
-    this.events.onStrokeStarted?.();
   }
 
   private onPointerMove(pointer: Phaser.Input.Pointer): void {

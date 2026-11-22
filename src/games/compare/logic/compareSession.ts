@@ -18,24 +18,22 @@
  * zůstane rozehraný příklad. Hvězdičky zůstanou a oslava za plnou řadu
  * přijde vždy, po ✓ znovu od začátku. Bez ✓ (odchod z hry) se nic neuloží.
  *
- * Panda Rudy (#181, jako v Počítání #170): po otevření hry jednou okno
- * s pozdravem; dokud je vidět, ťuknutí se nepočítají. Ťuknutí dřív, než
- * se okno stáhne, pozdrav vynechá, aby nevyskočil uprostřed hraní. Po
- * 10. hvězdičce nejdřív okno s oslavou a teprve po jeho zavření melodie
- * a konfety. Okno, které se nestáhne, hra nečeká (jde dál hned). Nastavení
- * okno zavře; po ✓ s plnou řadou přijde okno s oslavou znovu, jen když ho
- * dítě za tuto řadu ještě nevidělo, jinak rovnou konfety.
+ * Panda Rudy (#181, od #186 jen po 10. hvězdičce, přímo na obrazovce):
+ * po 10. hvězdičce nejdřív přiskočí Rudy s oslavou a teprve po jeho
+ * odchodu melodie a konfety; dokud je vidět, ťuknutí se nepočítají. Rudyho,
+ * který se nestáhne, hra nečeká (jde dál hned). Nastavení Rudyho pošle
+ * pryč; po ✓ s plnou řadou přijde Rudy znovu, jen když ho dítě za tuto
+ * řadu ještě nevidělo, jinak rovnou konfety.
  *
  * Otázka (#182): každý příklad má otázku „víc“, nebo „míň“ podle nastavení
  * (při střídání losovanou), která se v příkladu nemění ani po chybě. Hlas
  * průvodce otázku řekne, když se změní proti naposledy řečené: po otevření
- * hry (až po pozdravu Rudyho), s novým příkladem a po ✓ nastavení. Dokud
- * je vidět Rudy nebo otevřené nastavení, hlas mlčí.
+ * hry, s novým příkladem a po ✓ nastavení. Dokud je vidět Rudy nebo
+ * otevřené nastavení, hlas mlčí.
  */
 
 import { STARS_PER_SET, createStarProgress, starsAfterTap } from '../../../shared/logic/stars';
 import type { AnswerOutcome, StarProgress } from '../../../shared/logic/stars';
-import type { RudyLineMove } from '../../../shared/logic/rudy';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { loadCompareSettings, saveCompareSettings } from '../storage/settingsStorage';
@@ -66,7 +64,7 @@ export const CELEBRATION_MS = 2600;
 
 /**
  * Od kolikáté hvězdičky v řadě se dopředu stahuje oslava Rudyho, aby po
- * 10. hvězdičce okno nečekalo (#181, jako v Počítání).
+ * 10. hvězdičce Rudy nečekal (#181, jako v Počítání).
  */
 export const PREPARE_CELEBRATION_FROM_STARS = 8;
 
@@ -86,32 +84,26 @@ export interface CompareSounds {
   stopAll(): void;
 }
 
-/** Jak se okno s pandou ukázalo (#182). */
-export interface CompareRudyOpened {
-  /** Zazněl pozdrav „Kde je víc?“ nahlas? Pak hlas průvodce otázku neopakuje. */
-  readonly askedMore: boolean;
-}
-
-/** Co okno s pandou hře ohlásí: ukázalo se, nebo se zavřelo (i když se neukázalo). */
+/** Co Rudy hře ohlásí: ukázal se, nebo odešel (i když se neukázal). */
 export interface CompareRudyEvents {
-  onOpened(opened?: CompareRudyOpened): void;
+  onOpened(): void;
   onClosed(): void;
 }
 
 /**
- * Okno s pandou Rudym (#181): pozdrav po otevření hry a oslava po
- * 10. hvězdičce. Okno se ukáže, až se stáhne; když se nestáhne,
- * zavolá rovnou `onClosed` a hra jde dál.
+ * Panda Rudy (#181, od #186 přímo na obrazovce a jen po 10. hvězdičce):
+ * přiskočí a oslaví. Ukáže se, až se stáhne; když se nestáhne, zavolá
+ * rovnou `onClosed` a oslava jde dál bez něj.
  */
 export interface CompareRudy {
   /**
-   * Ukáže okno; `context` říká, jestli se pozdrav smí ptát „kde je víc?“
-   * (#182: ne při otázce míň ani při střídání).
+   * Rudy oslaví; `context` říká, jestli smí mluvit o „víc“ (#182: ne při
+   * otázce míň ani při střídání).
    */
-  show(move: RudyLineMove, events: CompareRudyEvents, context: CompareRudyContext): void;
-  /** Stáhne pohyb dopředu, aby se pak okno ukázalo hned. */
-  prepare(move: RudyLineMove, context: CompareRudyContext): void;
-  /** Čekající okno se neukáže a otevřené se zavře (nastavení, odchod). */
+  celebrate(events: CompareRudyEvents, context: CompareRudyContext): void;
+  /** Stáhne oslavu dopředu, aby se pak Rudy ukázal hned. */
+  prepare(context: CompareRudyContext): void;
+  /** Čekající Rudy se neukáže a ten, který je vidět, odejde (nastavení, odchod). */
   stop(): void;
 }
 
@@ -131,7 +123,7 @@ export interface CompareSessionOptions {
    * Vrátí odpojení. Bez něj hra běží bez nastavení.
    */
   readonly attachSettingsGear?: ((open: () => void) => () => void) | undefined;
-  /** Okno s pandou Rudym (#181); bez něj hra pozdrav ani okno s oslavou neukazuje. */
+  /** Panda Rudy (#181, #186); bez ní oslava začne hned po 10. hvězdičce. */
   readonly rudy?: CompareRudy | undefined;
   /** Hlas průvodce, který řekne otázku (#182); bez něj ji ukáže jen symbol. */
   readonly voice?: CompareQuestionVoice | undefined;
@@ -185,8 +177,8 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   let problem = nextProblem(null, random, settings.maxNumber);
   let question: CompareQuestion = nextQuestion(settings.question, random);
   /**
-   * Otázka, kterou dítě naposledy opravdu slyšelo (hlas průvodce, nebo
-   * pozdrav Rudyho „Kde je víc?“); na začátku žádná (#182 AC3).
+   * Otázka, kterou dítě naposledy opravdu slyšelo od hlasu průvodce; na
+   * začátku žádná (#182 AC3).
    */
   let spokenQuestion: CompareQuestion | null = null;
   /** Otázka, kterou hlas právě říká (stahuje nebo hraje); `null`, když nic. */
@@ -197,11 +189,11 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   /** Špatná ťuknutí v rozehraném příkladu (#180). */
   let mistakes = 0;
   let cancelPending: (() => void) | null = null;
-  /** Okno s pandou, o které hra požádala a které se ještě nezavřelo (#181). */
-  let rudyMoment: { readonly move: RudyLineMove; readonly id: number } | null = null;
+  /** Rudy, o kterého hra požádala a který ještě neodešel (#181). */
+  let rudyMoment: { readonly id: number } | null = null;
   let rudyMomentCount = 0;
   let rudyIsOpen = false;
-  /** Vidělo dítě za plnou řadu okno s oslavou? Po ✓ nastavení se pak neopakuje. */
+  /** Vidělo dítě za plnou řadu Rudyho s oslavou? Po ✓ nastavení se pak neopakuje. */
   let rowCelebratedByRudy = false;
 
   const notify = (change: CompareChange): void => options.onChange?.(change);
@@ -239,7 +231,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
 
   /**
    * Hlas řekne otázku, když se změnila proti naposledy slyšené. Jen když
-   * dítě může odpovídat: ne při okně s Rudym (ani čekajícím) a nastavení.
+   * dítě může odpovídat: ne při Rudym (ani čekajícím) a nastavení.
    */
   const askQuestionIfChanged = (): void => {
     if (phase !== 'waiting' || choice !== null || rudyMoment !== null) {
@@ -263,36 +255,32 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   };
 
   /**
-   * Smí Rudy mluvit o „víc“ (pozdrav „Kde je víc?“, oslava „Vždycky poznáš,
-   * kde je víc!“)? Jen když se hra ptá jen na víc (#182).
+   * Smí Rudy mluvit o „víc“ (oslava „Vždycky poznáš, kde je víc!“)? Jen
+   * když se hra ptá jen na víc (#182).
    */
   const rudyContext = (): CompareRudyContext => ({ mayAskMore: settings.question === 'more' });
 
   /**
-   * Ukáže okno s pandou a po jeho zavření zavolá `then`. Bez okna zavolá
-   * `then` hned. Zastavené okno (`stopRudy`) už `then` nezavolá.
+   * Rudy přiskočí s oslavou a po jeho odchodu se zavolá `then`. Bez
+   * Rudyho se `then` zavolá hned. Zastavený Rudy (`stopRudy`) už `then`
+   * nezavolá.
    */
-  const showRudy = (move: RudyLineMove, then: () => void): void => {
+  const showRudy = (then: () => void): void => {
     const rudy = options.rudy;
     if (rudy === undefined) {
       then();
       return;
     }
     rudyMomentCount += 1;
-    const moment = { move, id: rudyMomentCount };
+    const moment = { id: rudyMomentCount };
     rudyMoment = moment;
     const isCurrent = (): boolean => phase !== 'left' && rudyMoment?.id === moment.id;
-    rudy.show(
-      move,
+    rudy.celebrate(
       {
-        onOpened: (opened) => {
+        onOpened: () => {
           if (isCurrent()) {
             rudyIsOpen = true;
-            rowCelebratedByRudy ||= move === 'celebrate';
-            // Rudy se sám zeptal „Kde je víc?“: hlas průvodce to hned neopakuje.
-            if (opened?.askedMore === true && question === 'more') {
-              spokenQuestion = 'more';
-            }
+            rowCelebratedByRudy = true;
           }
         },
         onClosed: () => {
@@ -308,7 +296,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     );
   };
 
-  /** Čekající nebo otevřené okno s pandou se zruší (nastavení, odchod). */
+  /** Čekající nebo viditelný Rudy se zruší (nastavení, odchod). */
   const stopRudy = (): void => {
     if (rudyMoment === null) {
       return;
@@ -318,19 +306,12 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     options.rudy?.stop();
   };
 
-  /**
-   * Od 8. hvězdičky se oslava stáhne dopředu, až skončí pozdrav (v paměti
-   * je vedle klidu jen jeden pohyb).
-   */
+  /** Od 8. hvězdičky se oslava stáhne dopředu, aby Rudy po 10. hvězdičce nečekal. */
   const prepareCelebrationIfDue = (): void => {
-    if (
-      phase === 'left' ||
-      rudyMoment?.move === 'wave' ||
-      progress.earned < PREPARE_CELEBRATION_FROM_STARS
-    ) {
+    if (phase === 'left' || progress.earned < PREPARE_CELEBRATION_FROM_STARS) {
       return;
     }
-    options.rudy?.prepare('celebrate', rudyContext());
+    options.rudy?.prepare(rudyContext());
   };
 
   /** Rozehraná otázka se zastaví; nedořečená se pak řekne znovu. */
@@ -342,31 +323,14 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
 
   /**
    * Dítě ťuklo na symbol otázky (#182): hlas otázku zopakuje. Jde to, když
-   * dítě může hrát (ne při nastavení, oslavě ani otevřeném okně s Rudym).
-   * Čekající pozdrav se vynechá jako po ťuknutí na kartu.
+   * dítě může hrát (ne při nastavení, oslavě ani s Rudym na obrazovce).
    */
   const tapQuestion = (): boolean => {
-    if (phase === 'left' || phase === 'celebrating' || choice !== null || rudyIsOpen) {
-      return false;
-    }
-    if (rudyMoment?.move === 'wave') {
-      stopRudy();
-      prepareCelebrationIfDue();
-    }
-    if (rudyMoment !== null) {
+    if (phase === 'left' || phase === 'celebrating' || choice !== null || rudyMoment !== null) {
       return false;
     }
     sayQuestion();
     return true;
-  };
-
-  /** Dítě ťuklo dřív, než se pozdrav stáhl: pozdrav se vynechá a otázka zazní hned. */
-  const skipWaitingGreeting = (): void => {
-    if (rudyMoment?.move === 'wave' && !rudyIsOpen) {
-      stopRudy();
-      prepareCelebrationIfDue();
-      askQuestionIfChanged();
-    }
   };
 
   const endCelebration = (): void => {
@@ -388,13 +352,13 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     schedule(CELEBRATION_MS, endCelebration);
   };
 
-  /** Plná řada: nejdřív okno s oslavou, po jeho zavření melodie a konfety (#181 AC2). */
+  /** Plná řada: nejdřív Rudy s oslavou, po jeho odchodu melodie a konfety (#181 AC2, #186 AC3). */
   const celebrateWithRudy = (): void => {
     if (rowCelebratedByRudy) {
       startCelebration();
       return;
     }
-    showRudy('celebrate', startCelebration);
+    showRudy(startCelebration);
   };
 
   const answerCorrectly = (choice: CompareChoice): void => {
@@ -453,12 +417,9 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   };
 
   const detachGear = options.attachSettingsGear?.(openSettings) ?? (() => undefined);
-  // Po otevření hry Rudy jednou pozdraví (#181 AC1); po pozdravu se jen hraje
-  // a hlas řekne otázku (#182 AC3).
-  showRudy('wave', () => {
-    prepareCelebrationIfDue();
-    askQuestionIfChanged();
-  });
+  // Po otevření hry hlas řekne otázku (#182 AC3); Rudy přijde až po 10. hvězdičce (#186).
+  prepareCelebrationIfDue();
+  askQuestionIfChanged();
 
   return {
     problem: () => problem,
@@ -483,7 +444,6 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
       if (phase !== 'waiting' || choice !== null || rudyIsOpen) {
         return 'ignored';
       }
-      skipWaitingGreeting();
       if (tapped !== correctChoice(problem, question)) {
         sounds.play('wrong');
         notify({ kind: 'wrong', choice: tapped });

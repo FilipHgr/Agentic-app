@@ -7,8 +7,8 @@ import { readWebpAlpha } from './webpAlpha';
 import type { AlphaPlane } from './webpAlpha';
 
 /**
- * Testy k #169 AC1: ve sdílené části jsou 4 nové pohyby pandy Rudyho
- * (klid, pozdrav, oslava, mluví) s průhledným pozadím, 37 snímků po
+ * Testy k #169 AC1: ve sdílené části jsou pohyby pandy Rudyho (klid,
+ * oslava, mluví; pozdrav zrušil #186) s průhledným pozadím, 37 snímků po
  * 12 snímcích/s. U horního, levého a pravého okraje každého snímku je pás
  * aspoň 6 px úplně průhledný, aby uši nikde nebyly useknuté. Každý soubor
  * má nejvýš 700 KiB, všechny dohromady nejvýš 2,8 MiB, původ je
@@ -38,7 +38,6 @@ const OTHER_FILES: readonly string[] = Object.keys(
 const GENERATION_IDS: readonly string[] = [
   'gbJQu790nIS0Mdau7nlD',
   'rCl07oAp6svAQx7ECbEJ',
-  'NMwJYA882PRQoSZguVbG',
   'N35UnWbC8ymxWfzN4ZiB',
   'jZgYXHG36kxthHr7dD2a',
   'jEzJqkTQkc077jcXR1Fs',
@@ -98,8 +97,8 @@ function visibleInBand(plane: AlphaPlane, frame: number): readonly string[] {
 const LICENCE_PARAGRAPHS: readonly string[] = licenceText.split(/\n\s*\n/);
 
 describe('#169 AC1: soubory pohybů pandy Rudyho', () => {
-  it('ve sdílené části jsou právě 4 nové pohyby: klid, pozdrav, oslava a mluví', () => {
-    expect(RUDY_MOVES).toEqual(['idle', 'wave', 'celebrate', 'talk']);
+  it('ve sdílené části jsou právě 3 pohyby: klid, oslava a mluví (pozdrav zrušil #186)', () => {
+    expect(RUDY_MOVES).toEqual(['idle', 'celebrate', 'talk']);
     expect(Object.keys(FILES).sort()).toEqual(RUDY_MOVES.map(filePath).sort());
   });
 
@@ -147,7 +146,7 @@ describe('#169 AC1: soubory pohybů pandy Rudyho', () => {
     }
   });
 
-  it('všechny 4 pohyby dohromady mají nejvýš 2,8 MiB', () => {
+  it('všechny pohyby dohromady mají nejvýš 2,8 MiB', () => {
     const total = Object.values(FILES).reduce((sum, dataUrl) => sum + bytesOf(dataUrl).length, 0);
     expect(total).toBeLessThanOrEqual(MAX_TOTAL_BYTES);
   });

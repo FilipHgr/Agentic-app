@@ -1,7 +1,7 @@
 /**
  * Jeden vstup do Počítání (#68 AC5): rozehraný příklad, chyby, nápověda,
  * hvězdičky, oslava, mapa postupu (#87), půlka klíče za dokončenou mapu
- * (#139), okna s pandou Rudym (#170), nastavení pro rodiče, průvodce
+ * (#139), Rudy s oslavou po 10. hvězdičce (#170, #186), nastavení pro rodiče, průvodce
  * a stahování rozpoznávání psaní. Scéna jen kreslí podle sezení a předává
  * mu ťuknutí.
  *
@@ -13,7 +13,6 @@
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
 import type { KeyReward, KeyRewards } from '../../../shared/logic/keyRewards';
-import type { RudyLineMove } from '../../../shared/logic/rudy';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import { loadActivity, saveActivity } from '../storage/activityStorage';
 import { loadMistakes, saveMistakes } from '../storage/mistakeStorage';
@@ -76,8 +75,8 @@ export const STAR_FLIGHT_MS = 450;
 
 /**
  * Za jak dlouho od začátku oslavy (melodie a konfety) se ukáže okno
- * s mapou (#154 AC1: nejvýš 1,5 s; od #170 AC3 se počítá od zavření okna
- * s oslavou). Melodie a konfety doběhnou přes okno.
+ * s mapou (#154 AC1: nejvýš 1,5 s; od #170 AC3 se počítá od odchodu
+ * Rudyho). Melodie a konfety doběhnou přes okno.
  */
 export const CELEBRATION_TO_MAP_MS = 800;
 
@@ -89,7 +88,7 @@ export const CELEBRATION_MS = CELEBRATION_TO_MAP_MS + STARS_LANDED_MS;
 
 /**
  * Od kolikáté hvězdičky v řadě se dopředu stahuje oslava Rudyho, aby po
- * 10. hvězdičce okno nečekalo (#170).
+ * 10. hvězdičce Rudy nečekal (#170).
  */
 export const PREPARE_CELEBRATION_FROM_STARS = 8;
 
@@ -112,22 +111,22 @@ export interface SessionTimers {
   after(ms: number, callback: () => void): () => void;
 }
 
-/** Co okno s pandou hře ohlásí: ukázalo se, nebo se zavřelo (i když se neukázalo). */
+/** Co Rudy hře ohlásí: ukázal se, nebo odešel (i když se neukázal). */
 export interface SessionRudyEvents {
   onOpened(): void;
   onClosed(): void;
 }
 
 /**
- * Okno s pandou Rudym (#170): pozdrav po otevření hry a oslava po
- * 10. hvězdičce. Okno se ukáže, až se stáhne; když se nestáhne,
- * zavolá rovnou `onClosed` a hra jde dál.
+ * Panda Rudy (#170, od #186 přímo na obrazovce a jen po 10. hvězdičce):
+ * přiskočí a oslaví. Ukáže se, až se stáhne; když se nestáhne, zavolá
+ * rovnou `onClosed` a oslava jde dál bez něj.
  */
 export interface SessionRudy {
-  show(move: RudyLineMove, events: SessionRudyEvents): void;
-  /** Stáhne pohyb dopředu, aby se pak okno ukázalo hned (v paměti je klid a jeden pohyb). */
-  prepare(move: RudyLineMove): void;
-  /** Čekající okno se neukáže a otevřené se zavře (nastavení, odchod). */
+  celebrate(events: SessionRudyEvents): void;
+  /** Stáhne oslavu dopředu, aby se pak Rudy ukázal hned. */
+  prepare(): void;
+  /** Čekající Rudy se neukáže a ten, který je vidět, odejde (nastavení, odchod). */
   stop(): void;
 }
 
@@ -140,8 +139,8 @@ export interface SessionPage {
 /**
  * Co se změnilo a má se nakreslit:
  * - `roundStarted` nový příklad (při startu hry se nehlásí),
- * - `celebrationStarted` po zavření okna s oslavou (#170 AC3; bez okna hned
- *   po doletu hvězdičky do plné řady): konfety,
+ * - `celebrationStarted` po odchodu Rudyho (#170 AC3, #186 AC3; bez Rudyho
+ *   hned po doletu hvězdičky do plné řady): konfety,
  * - `celebrationEnded` hvězdičky doletěly z řady do mapy, řada je prázdná
  *   (melodie a konfety smí doběhnout samy, nový příklad přijde zvlášť, #154),
  * - `celebrationStopped` oslavu přerušilo otevření nastavení,
@@ -191,8 +190,7 @@ export interface CountingSessionOptions {
    */
   readonly keyRewards?: KeyRewards | undefined;
   /**
-   * Okno s pandou Rudym (#170); bez něj hra pozdrav ani okno s oslavou
-   * neukazuje a oslava začne hned po doletu hvězdičky.
+   * Panda Rudy (#170, #186); bez ní oslava začne hned po doletu hvězdičky.
    */
   readonly rudy?: SessionRudy | undefined;
   /**
@@ -221,7 +219,7 @@ export interface CountingSession {
   starCount(): number;
   /** Plná řada: od desáté odpovědi do doletu hvězdiček do mapy (#154). */
   celebrating(): boolean;
-  /** Je vidět okno s pandou (#170)? Během něj se neodpovídá. */
+  /** Je vidět Rudy (#170, #186)? Během něj se neodpovídá. */
   rudyOpen(): boolean;
   /** Kde stojí značka na mapě a kolik map je hotových (#87). */
   mapProgress(): MapProgress;
@@ -264,11 +262,6 @@ export interface CountingSession {
    * a `outcome` výsledek, jako by dítě ťuklo na číslo.
    */
   answerWritten(answer: AnswerRound, outcome: TapOutcome): TapOutcome;
-  /**
-   * Dítě začalo psát prstem do okénka (#170): čekající pozdrav, který se
-   * ještě nestáhl, se vynechá, dítě už hraje.
-   */
-  writingStarted(): void;
   /** Ťuknutí na tečku nápovědy; vrátí číslo, které tečka dostala, nebo `null`. */
   tapDot(index: number): number | null;
   /**
@@ -315,8 +308,8 @@ export function createCountingSession(options: CountingSessionOptions): Counting
   let mapClosable = false;
   /** Karta se právě zavřela ťuknutím: chvíli se nepřijímají odpovědi (#145 AC5). */
   let answersPausedAfterMap = false;
-  /** Okno s pandou, o které hra požádala a které se ještě nezavřelo (#170). */
-  let rudyMoment: { readonly move: RudyLineMove; readonly id: number } | null = null;
+  /** Rudy, o kterého hra požádala a který ještě neodešel (#170). */
+  let rudyMoment: { readonly id: number } | null = null;
   let rudyMomentCount = 0;
   let rudyIsOpen = false;
   // Mapy dokončené dřív (i před #139) se započtou hned, jednou a bez
@@ -395,20 +388,21 @@ export function createCountingSession(options: CountingSessionOptions): Counting
   }
 
   /**
-   * Ukáže okno s pandou a po jeho zavření zavolá `then` (#170). Bez okna
-   * zavolá `then` hned. Zastavené okno (`stopRudy`) už `then` nezavolá.
+   * Rudy přiskočí s oslavou a po jeho odchodu se zavolá `then` (#170 AC3,
+   * #186). Bez Rudyho se `then` zavolá hned. Zastavený Rudy (`stopRudy`)
+   * už `then` nezavolá.
    */
-  function showRudy(move: RudyLineMove, then: () => void): void {
+  function showRudy(then: () => void): void {
     const rudy = options.rudy;
     if (rudy === undefined) {
       then();
       return;
     }
     rudyMomentCount += 1;
-    const moment = { move, id: rudyMomentCount };
+    const moment = { id: rudyMomentCount };
     rudyMoment = moment;
     const isCurrent = (): boolean => !left && rudyMoment?.id === moment.id;
-    rudy.show(move, {
+    rudy.celebrate({
       onOpened: () => {
         if (isCurrent()) {
           rudyIsOpen = true;
@@ -425,7 +419,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     });
   }
 
-  /** Čekající nebo otevřené okno s pandou se zruší (nastavení, odchod). */
+  /** Čekající nebo viditelný Rudy se zruší (nastavení, odchod). */
   function stopRudy(): void {
     if (rudyMoment === null) {
       return;
@@ -435,42 +429,23 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     options.rudy?.stop();
   }
 
-  /** Pozdrav po otevření hry (#170 AC2); po něm se jen hraje. */
-  function greet(): void {
-    showRudy('wave', prepareCelebrationIfDue);
-  }
-
-  /**
-   * Dítě začalo hrát dřív, než se pozdrav stáhl: pozdrav se vynechá, aby
-   * nevyskočil uprostřed hraní (#170).
-   */
-  function skipWaitingGreeting(): void {
-    if (rudyMoment?.move === 'wave' && !rudyIsOpen) {
-      stopRudy();
-      prepareCelebrationIfDue();
-    }
-  }
-
-  /**
-   * Od 8. hvězdičky se oslava stáhne dopředu, až skončí pozdrav (v paměti
-   * je vedle klidu jen jeden pohyb), aby okno po 10. hvězdičce nečekalo.
-   */
+  /** Od 8. hvězdičky se oslava stáhne dopředu, aby Rudy po 10. hvězdičce nečekal. */
   function prepareCelebrationIfDue(): void {
-    if (left || rudyMoment?.move === 'wave' || stars.earned < PREPARE_CELEBRATION_FROM_STARS) {
+    if (left || stars.earned < PREPARE_CELEBRATION_FROM_STARS) {
       return;
     }
-    options.rudy?.prepare('celebrate');
+    options.rudy?.prepare();
   }
 
   /**
-   * Hvězdička doletěla do plné řady: nejdřív okno s oslavou, po jeho
-   * zavření melodie, konfety a karta s mapou (#170 AC3).
+   * Hvězdička doletěla do plné řady: nejdřív Rudy s oslavou, po jeho
+   * odchodu melodie, konfety a karta s mapou (#170 AC3, #186 AC3).
    */
   function celebrateWithRudy(): void {
     if (stars.earned < STARS_PER_SET || settingsAreOpen) {
       return;
     }
-    showRudy('celebrate', startCelebration);
+    showRudy(startCelebration);
   }
 
   /**
@@ -601,9 +576,6 @@ export function createCountingSession(options: CountingSessionOptions): Counting
 
   /** Společné vyhodnocení číselníku i psaní: zvuk, hvězdička a další příklad. */
   function applyOutcome(outcome: TapOutcome): TapOutcome {
-    if (outcome !== 'ignored') {
-      skipWaitingGreeting();
-    }
     const sound = soundForOutcome(outcome);
     if (sound) {
       sounds.play(SOUNDS[sound]);
@@ -631,8 +603,8 @@ export function createCountingSession(options: CountingSessionOptions): Counting
   }
 
   /**
-   * Během oslavy, letu hvězdiček, karty s mapou a okna s pandou se odpověď
-   * nezadá (#145 AC5, #154 AC5, #170 AC2).
+   * Během oslavy, letu hvězdiček, karty s mapou a Rudyho se odpověď
+   * nezadá (#145 AC5, #154 AC5, #186 AC3).
    */
   function acceptsAnswers(): boolean {
     return (
@@ -676,8 +648,8 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     settingsAreOpen = true;
     moveToShow = null;
     keyRewardToShow = null;
-    // Okno s oslavou, které se ještě neukázalo, patří k oslavě (#170 AC3).
-    const celebrationRunning = celebrationSteps.size > 0 || rudyMoment?.move === 'celebrate';
+    // Rudy, který se ještě neukázal, patří k oslavě (#170 AC3).
+    const celebrationRunning = celebrationSteps.size > 0 || rudyMoment !== null;
     stopRudy();
     if (celebrationRunning) {
       cancelAll(celebrationSteps);
@@ -697,10 +669,8 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     notify({ kind: 'recognizer', status }),
   );
   const detachGear = options.page.attachSettingsGear(openSettings);
-  // Po otevření hry Rudy pozdraví; při prvním spuštění až po průvodci (#170 AC2).
-  if (!guideIsOpen) {
-    greet();
-  }
+  // Hra otevřená s 8 a více hvězdičkami v řadě: oslava se stáhne dopředu hned.
+  prepareCelebrationIfDue();
 
   return {
     round: () => round,
@@ -743,12 +713,6 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       }
       round = keepRequestedHint(answer, round);
       return applyOutcome(outcome);
-    },
-
-    writingStarted(): void {
-      if (!left) {
-        skipWaitingGreeting();
-      }
     },
 
     tapDot(index: number): number | null {
@@ -821,7 +785,6 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       useSettings(chosen);
       notify({ kind: 'guideClosed' });
       startRound();
-      greet();
     },
 
     leave(): void {

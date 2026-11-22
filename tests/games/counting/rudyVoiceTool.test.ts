@@ -22,7 +22,7 @@ import type { MemoryFiles } from './voiceFakes';
  * Testy k #171 AC2: hlas postavičky (panda Rudy) je samostatný oddíl
  * `character:rudy` ve `voice.config.json`, jeden pro všechny jazyky, a nemění
  * se. Nástroj nahrávek umí kromě hlasu jazyka i hlas postavičky: uloží
- * převedené nahrávky replik Počítání i menu a zapíše jejich otisky.
+ * převedené nahrávky replik Počítání i Porovnávání a zapíše jejich otisky.
  * Soubory jsou v paměti, síť se nevolá.
  */
 
@@ -43,8 +43,8 @@ const TOO_LONG_MP3 = fakeMp3({ bytes: 40_000 });
 
 const LINES: readonly CharacterLine[] = [
   { place: 'counting', id: 'celebration', text: 'Hurá!' },
-  { place: 'counting', id: 'greeting', text: 'Ahoj!' },
-  { place: 'menu', id: 'greeting', text: 'Vyber si hru.' },
+  { place: 'counting', id: 'celebrationStar', text: 'Jupí!' },
+  { place: 'compare', id: 'celebration', text: 'Máš deset hvězdiček!' },
 ];
 
 async function manifestOf(files: MemoryFiles): Promise<Record<string, unknown>> {
@@ -99,28 +99,31 @@ describe('#171 AC2: hlas postavičky je samostatný oddíl configu a nemění se
 
 describe('#171 AC2: nástroj nahrávek umí hlas postavičky', () => {
   it('repliky čte z textů části pod klíčem rudyLines', () => {
-    const texts = { title: 'Počítání', rudyLines: { greeting: 'Ahoj!', celebration: 'Hurá!' } };
+    const texts = {
+      title: 'Počítání',
+      rudyLines: { celebrationStar: 'Jupí!', celebration: 'Hurá!' },
+    };
     expect(characterLinesOf('counting', texts)).toEqual([
       { place: 'counting', id: 'celebration', text: 'Hurá!' },
-      { place: 'counting', id: 'greeting', text: 'Ahoj!' },
+      { place: 'counting', id: 'celebrationStar', text: 'Jupí!' },
     ]);
-    expect(characterLinesOf('menu', { categories: {} })).toEqual([]);
+    expect(characterLinesOf('compare', { title: 'Porovnávání' })).toEqual([]);
   });
 
-  it('nahrávky replik jdou do složky jazyka a části: Počítání i menu', () => {
-    expect(characterRecordingPath('rudy', 'cs', { place: 'counting', id: 'greeting' })).toBe(
-      'public/voice/cs/counting/rudy-greeting.mp3',
+  it('nahrávky replik jdou do složky jazyka a části: Počítání i Porovnávání', () => {
+    expect(characterRecordingPath('rudy', 'cs', { place: 'counting', id: 'celebrationStar' })).toBe(
+      'public/voice/cs/counting/rudy-celebrationStar.mp3',
     );
-    expect(characterRecordingPath('rudy', 'en', { place: 'menu', id: 'greeting' })).toBe(
-      'public/voice/en/menu/rudy-greeting.mp3',
+    expect(characterRecordingPath('rudy', 'en', { place: 'compare', id: 'celebration' })).toBe(
+      'public/voice/en/compare/rudy-celebration.mp3',
     );
   });
 
   it('do cesty nahrávky nepustí nic jiného než kód jazyka a id repliky', () => {
     expect(() =>
-      characterRecordingPath('rudy', '../x', { place: 'menu', id: 'greeting' }),
+      characterRecordingPath('rudy', '../x', { place: 'compare', id: 'celebration' }),
     ).toThrow();
-    expect(() => characterRecordingPath('rudy', 'cs', { place: 'menu', id: '../a' })).toThrow();
+    expect(() => characterRecordingPath('rudy', 'cs', { place: 'compare', id: '../a' })).toThrow();
   });
 
   it('uloží nahrávky všech replik a zapíše otisky do oddílu postavičky podle jazyka', async () => {
@@ -166,7 +169,7 @@ describe('#171 AC2: nástroj nahrávek umí hlas postavičky', () => {
     const files = memoryFiles();
     const before = files.snapshot();
     const { result, log } = await importLines(files, (line) =>
-      line.place === 'menu' ? TOO_LONG_MP3 : SHORT_MP3,
+      line.place === 'compare' ? TOO_LONG_MP3 : SHORT_MP3,
     );
     expect(result.ok).toBe(false);
     expect(log.join('\n')).toContain('4 s');
@@ -190,10 +193,10 @@ describe('#171 AC2: nástroj nahrávek umí hlas postavičky', () => {
   it('chybějící nahrávka repliky zastaví uložení a zpráva ji jmenuje', async () => {
     const files = memoryFiles();
     const { result, log } = await importLines(files, (line) =>
-      line.place === 'menu' ? null : SHORT_MP3,
+      line.place === 'compare' ? null : SHORT_MP3,
     );
     expect(result.ok).toBe(false);
-    expect(log.join('\n')).toContain('menu/greeting');
+    expect(log.join('\n')).toContain('compare/celebration');
     expect(files.snapshot()).toEqual({});
   });
 

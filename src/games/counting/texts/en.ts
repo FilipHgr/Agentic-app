@@ -33,8 +33,6 @@ export default {
     ],
   },
   rudyLines: {
-    greeting: "Hi, I'm Rudy! Let's count together.",
-    greetingAgain: "Hi, it's me, Rudy, again! Let's count!",
     celebration: 'Hooray! Ten stars, great job!',
     celebrationStars: 'Awesome! You got all ten stars!',
     celebrationStar: "Yippee! You're a counting star!",

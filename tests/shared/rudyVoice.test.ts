@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
 import { RUDY_WINDOW_TIMES, createRudyWindowModel } from '../../src/shared/logic/rudyWindow';
-import { createRudyVoice, rudyVoiceOpening } from '../../src/shared/logic/rudyVoice';
+import { createRudyVoice } from '../../src/shared/logic/rudyVoice';
 import type { RudyVoicePlayer } from '../../src/shared/logic/rudyVoice';
 
 /**
- * Testy k #171 AC3 a AC5: hlas pandy Rudyho v okně. Kdy se nahrávka
+ * Testy k #171 AC3 a AC5 (od #186 jen oslava po 10 hvězdičkách, přímo na
+ * obrazovce): hlas pandy Rudyho. Kdy se nahrávka
  * stáhne, kdy okno počká, jak dlouho je otevřené a kdy hlas zazní nebo
  * zmlkne. Přehrávač je napodobený, nic se nestahuje ani nehraje.
  */
 
-const GREETING = 'voice/cs/counting/rudy-greeting.mp3';
-const GREETING_EN = 'voice/en/counting/rudy-greeting.mp3';
+const CELEBRATION = 'voice/cs/counting/rudy-celebration.mp3';
+const CELEBRATION_EN = 'voice/en/counting/rudy-celebration.mp3';
 
 interface FakePlayer extends RudyVoicePlayer {
   readonly loads: string[];
@@ -61,35 +62,35 @@ function voiceWith(unlocked: { value: boolean } = { value: true }) {
 describe('#171 AC3: nahrávka začne s otevřením okna a okno má její délku', () => {
   it('s odemčeným zvukem se nahrávka repliky stáhne, už když hra o okno požádá', () => {
     const { player, voice } = voiceWith();
-    voice.request(GREETING);
-    expect(player.loads).toEqual([GREETING]);
+    voice.request(CELEBRATION);
+    expect(player.loads).toEqual([CELEBRATION]);
   });
 
   it('dokud se nahrávka stahuje, okno čeká; po stažení se může otevřít', async () => {
     const { player, voice } = voiceWith();
-    voice.request(GREETING);
-    expect(voice.isSettled(GREETING)).toBe(false);
-    await player.finish(GREETING, 3200);
-    expect(voice.isSettled(GREETING)).toBe(true);
+    voice.request(CELEBRATION);
+    expect(voice.isSettled(CELEBRATION)).toBe(false);
+    await player.finish(CELEBRATION, 3200);
+    expect(voice.isSettled(CELEBRATION)).toBe(true);
   });
 
   it('okno dostane délku nahrávky v ms', async () => {
     const { player, voice } = voiceWith();
-    voice.request(GREETING);
-    await player.finish(GREETING, 3552.6);
-    expect(voice.lineFor(GREETING)).toEqual({ url: GREETING, lineMs: 3552.6 });
+    voice.request(CELEBRATION);
+    await player.finish(CELEBRATION, 3552.6);
+    expect(voice.lineFor(CELEBRATION)).toEqual({ url: CELEBRATION, lineMs: 3552.6 });
   });
 
   it('s otevřením okna zazní replika', async () => {
     const { player, voice } = voiceWith();
-    voice.request(GREETING);
-    await player.finish(GREETING, 3000);
-    const line = voice.lineFor(GREETING);
+    voice.request(CELEBRATION);
+    await player.finish(CELEBRATION, 3000);
+    const line = voice.lineFor(CELEBRATION);
     expect(line).not.toBeNull();
     if (line !== null) {
       voice.play(line);
     }
-    expect(player.played).toEqual([GREETING]);
+    expect(player.played).toEqual([CELEBRATION]);
   });
 
   it('zavření okna (i ťuknutím) hlas zastaví', () => {
@@ -100,10 +101,10 @@ describe('#171 AC3: nahrávka začne s otevřením okna a okno má její délku'
 
   it('stažená nahrávka se pro další okno znovu nestahuje', async () => {
     const { player, voice } = voiceWith();
-    voice.request(GREETING);
-    await player.finish(GREETING, 3000);
-    voice.request(GREETING);
-    expect(player.loads).toEqual([GREETING]);
+    voice.request(CELEBRATION);
+    await player.finish(CELEBRATION, 3000);
+    voice.request(CELEBRATION);
+    expect(player.loads).toEqual([CELEBRATION]);
   });
 
   it('okno s délkou nahrávky se zavře nejvýš 0,3 s po jejím konci', () => {
@@ -111,7 +112,7 @@ describe('#171 AC3: nahrávka začne s otevřením okna a okno má její délku'
     const model = createRudyWindowModel();
     model.use();
     model.loaded('idle');
-    expect(model.open({ move: 'wave', lineMs }, 0).shown).toBe(true);
+    expect(model.open({ lineMs }, 0).shown).toBe(true);
     expect(model.update(lineMs).closed).toBe(false);
     expect(model.update(lineMs + 300).closed).toBe(true);
     expect(RUDY_WINDOW_TIMES.closeAfterLineMs).toBeLessThanOrEqual(300);
@@ -121,27 +122,27 @@ describe('#171 AC3: nahrávka začne s otevřením okna a okno má její délku'
 describe('#171 AC4: po změně jazyka další okno mluví novým jazykem', () => {
   it('další chvíle s anglickou adresou stáhne a pustí anglickou nahrávku', async () => {
     const { player, voice } = voiceWith();
-    voice.request(GREETING);
-    await player.finish(GREETING, 3000);
-    voice.request(GREETING_EN);
-    expect(player.loads).toEqual([GREETING, GREETING_EN]);
-    expect(voice.lineFor(GREETING_EN)).toBeNull();
-    await player.finish(GREETING_EN, 2600);
-    expect(voice.lineFor(GREETING_EN)).toEqual({ url: GREETING_EN, lineMs: 2600 });
+    voice.request(CELEBRATION);
+    await player.finish(CELEBRATION, 3000);
+    voice.request(CELEBRATION_EN);
+    expect(player.loads).toEqual([CELEBRATION, CELEBRATION_EN]);
+    expect(voice.lineFor(CELEBRATION_EN)).toBeNull();
+    await player.finish(CELEBRATION_EN, 2600);
+    expect(voice.lineFor(CELEBRATION_EN)).toEqual({ url: CELEBRATION_EN, lineMs: 2600 });
   });
 });
 
 describe('#171 AC5: bez odemčeného zvuku nebo nahrávky je okno bez hlasu', () => {
   it('bez odemčeného zvuku se nic nestahuje, okno nečeká a je bez hlasu (3,5 s)', () => {
     const { player, voice } = voiceWith({ value: false });
-    voice.request(GREETING);
+    voice.request(CELEBRATION);
     expect(player.loads).toEqual([]);
-    expect(voice.isSettled(GREETING)).toBe(true);
-    expect(voice.lineFor(GREETING)).toBeNull();
+    expect(voice.isSettled(CELEBRATION)).toBe(true);
+    expect(voice.lineFor(CELEBRATION)).toBeNull();
     const model = createRudyWindowModel();
     model.use();
     model.loaded('idle');
-    model.open({ move: 'wave' }, 0);
+    model.open({}, 0);
     expect(model.update(RUDY_WINDOW_TIMES.silentOpenMs - 1).closed).toBe(false);
     expect(model.update(RUDY_WINDOW_TIMES.silentOpenMs).closed).toBe(true);
     expect(RUDY_WINDOW_TIMES.silentOpenMs).toBe(3500);
@@ -150,33 +151,33 @@ describe('#171 AC5: bez odemčeného zvuku nebo nahrávky je okno bez hlasu', ()
   it('zvuk zamčený při stahování, ale odemčený při otevření: okno nečeká a je bez hlasu', () => {
     const unlocked = { value: false };
     const { voice } = voiceWith(unlocked);
-    voice.request(GREETING);
+    voice.request(CELEBRATION);
     unlocked.value = true;
-    expect(voice.isSettled(GREETING)).toBe(true);
-    expect(voice.lineFor(GREETING)).toBeNull();
+    expect(voice.isSettled(CELEBRATION)).toBe(true);
+    expect(voice.lineFor(CELEBRATION)).toBeNull();
   });
 
   it('nahrávka, která se nestáhne, okno nezdrží a okno je bez hlasu', async () => {
     const { player, voice } = voiceWith();
-    voice.request(GREETING);
-    await player.fail(GREETING);
-    expect(voice.isSettled(GREETING)).toBe(true);
-    expect(voice.lineFor(GREETING)).toBeNull();
+    voice.request(CELEBRATION);
+    await player.fail(CELEBRATION);
+    expect(voice.isSettled(CELEBRATION)).toBe(true);
+    expect(voice.lineFor(CELEBRATION)).toBeNull();
   });
 
   it('nepovedená nahrávka se při další chvíli zkusí stáhnout znovu', async () => {
     const { player, voice } = voiceWith();
-    voice.request(GREETING);
-    await player.fail(GREETING);
-    voice.request(GREETING);
-    expect(player.loads).toEqual([GREETING, GREETING]);
+    voice.request(CELEBRATION);
+    await player.fail(CELEBRATION);
+    voice.request(CELEBRATION);
+    expect(player.loads).toEqual([CELEBRATION, CELEBRATION]);
   });
 
   it('nahrávka s nesmyslnou délkou je jako nestažená: okno bez hlasu', async () => {
     const { player, voice } = voiceWith();
-    voice.request(GREETING);
-    await player.finish(GREETING, Number.NaN);
-    expect(voice.lineFor(GREETING)).toBeNull();
+    voice.request(CELEBRATION);
+    await player.finish(CELEBRATION, Number.NaN);
+    expect(voice.lineFor(CELEBRATION)).toBeNull();
   });
 
   it('přehrávač, který při stahování vyhodí výjimku, hráč nepozná: okno je bez hlasu', () => {
@@ -188,9 +189,9 @@ describe('#171 AC5: bez odemčeného zvuku nebo nahrávky je okno bez hlasu', ()
       stop: () => undefined,
     };
     const voice = createRudyVoice({ player, isUnlocked: () => true });
-    expect(() => voice.request(GREETING)).not.toThrow();
-    expect(voice.isSettled(GREETING)).toBe(true);
-    expect(voice.lineFor(GREETING)).toBeNull();
+    expect(() => voice.request(CELEBRATION)).not.toThrow();
+    expect(voice.isSettled(CELEBRATION)).toBe(true);
+    expect(voice.lineFor(CELEBRATION)).toBeNull();
   });
 
   it('chvíle bez nahrávky (bez adresy) je bez hlasu a nečeká', () => {
@@ -199,39 +200,5 @@ describe('#171 AC5: bez odemčeného zvuku nebo nahrávky je okno bez hlasu', ()
     expect(player.loads).toEqual([]);
     expect(voice.isSettled(undefined)).toBe(true);
     expect(voice.lineFor(undefined)).toBeNull();
-  });
-});
-
-describe('#173: okno ohlásí, jestli zaznělo s hlasem, zopakovaný pozdrav jen s hlasem', () => {
-  const LINE = { url: GREETING, lineMs: 2500 };
-
-  it('s připravenou replikou se okno otevře s hlasem', () => {
-    expect(rudyVoiceOpening(LINE, false)).toEqual({ kind: 'open', withVoice: true });
-    expect(rudyVoiceOpening(LINE, true)).toEqual({ kind: 'open', withVoice: true });
-  });
-
-  it('bez repliky se běžná chvíle otevře bez hlasu', () => {
-    expect(rudyVoiceOpening(null, false)).toEqual({ kind: 'open', withVoice: false });
-  });
-
-  it('bez repliky se chvíle, která musí mluvit, vůbec neukáže', () => {
-    expect(rudyVoiceOpening(null, true)).toEqual({ kind: 'skip' });
-  });
-
-  it('se zamčeným zvukem je okno bez hlasu a zopakování se neukáže', () => {
-    const { voice } = voiceWith({ value: false });
-    voice.request(GREETING);
-    expect(rudyVoiceOpening(voice.lineFor(GREETING), false)).toEqual({
-      kind: 'open',
-      withVoice: false,
-    });
-    expect(rudyVoiceOpening(voice.lineFor(GREETING), true)).toEqual({ kind: 'skip' });
-  });
-
-  it('když se nahrávka nestáhne, zopakování se neukáže', async () => {
-    const { player, voice } = voiceWith();
-    voice.request(GREETING);
-    await player.fail(GREETING);
-    expect(rudyVoiceOpening(voice.lineFor(GREETING), true)).toEqual({ kind: 'skip' });
   });
 });

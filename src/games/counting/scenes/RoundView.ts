@@ -37,8 +37,6 @@ export interface RoundViewEvents {
   readonly onDotTapped: (index: number, circle: Phaser.GameObjects.Arc) => void;
   /** Dítě ťuklo na tlačítko nápovědy (#84). */
   readonly onHintButtonTapped: () => void;
-  /** Dítě začalo psát prstem do okénka (#170). */
-  readonly onWritingStarted: () => void;
 }
 
 /** Co je potřeba k nakreslení rozehraného kola. */
@@ -287,7 +285,6 @@ export class RoundView {
       {
         onNumberChanged: (number) => this.events.onNumberWritten(number),
         onConfirmed: (result) => this.events.onWritingConfirmed(result),
-        onStrokeStarted: () => this.events.onWritingStarted(),
       },
       writingState,
     );

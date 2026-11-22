@@ -13,7 +13,7 @@ import type {
  * i síť jsou napodobené.
  */
 
-const URL_CS = 'voice/cs/menu/rudy-greeting.mp3';
+const URL_CS = 'voice/cs/counting/rudy-celebration.mp3';
 
 interface FakeAudio extends RudyAudioContextLike {
   readonly sources: Array<RudyAudioSourceLike & { started: number; stopped: number }>;

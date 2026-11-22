@@ -26,16 +26,12 @@ model eleven_multilingual_v2. Použito v rámci komerčního tarifu vlastníka
 hry. Nahrávky vznikly přes napojení ElevenLabs a jsou převedené na mono
 44,1 kHz 64 kb/s.
 
-Hlas pandy Rudyho (repliky v public/voice/<jazyk>/counting/rudy-*.mp3,
-public/voice/<jazyk>/menu/rudy-*.mp3,
-public/voice/<jazyk>/coloring/rudy-*.mp3 a
+Hlas pandy Rudyho (repliky v public/voice/<jazyk>/counting/rudy-*.mp3 a
 public/voice/<jazyk>/compare/rudy-*.mp3, čeština i angličtina) je
 vytvořený službou ElevenLabs (https://elevenlabs.io), hlas Peanut, ID
 rBkiq5ZQ43ogwd6i4uIQ, model eleven_v3 (generace PtuTPLjDrR4MgNUf8Myd,
 alNb0AxqvizgX682kSSu, 2krWV8AD00oySxffhXX4, SkFfajETNZgay7V5uYjh,
-5A4cOgFgvS2ZuX8E9cdC, GuwKo6iczEkc6mJSnHCi; Omalovánky
-W28rdxgObi8gTXnC5jPU, 2nrlMiP8l9Puaxj6kpvg, oJB7UHEcyz0ksgxU4F3u,
-Oif5y4BUmSNunOdNQhTD, d816pk2xb23raGBOUAB2, P38Jz5Xrzm2ti8cHn1iK; další
+5A4cOgFgvS2ZuX8E9cdC, GuwKo6iczEkc6mJSnHCi; další
 varianty aHyyX79bNcNwQiW3DBRZ, lJEhYEoeNTYwCqDtpzTn, 6cJdEm0ImMFiWA8QFeRY,
 NYPNgImPTD4K3SJsd7Ey, AW0h5vz2Dis2fba5XO25, bhgVUYHFeX1ncWsUVPG2,
 K5ILkUdJ66aKd1zixczj, EKgjSP1C7NUjQusekJz5; Porovnávání česky
@@ -151,11 +147,10 @@ Zdrojový arch není v repozitáři, otisky SHA-256 zdroje a ikon:
   action-broom.webp: 3848dfba7702c2eeebbd3ebd22b22cbaddd2addf50694de70a56d11c0661b14c
 
 Panda Rudy, nové pohyby pandy červené (src/shared/mascot/: klid
-rudy-idle.webp, pozdrav rudy-wave.webp, oslava rudy-celebrate.webp a mluví
-rudy-talk.webp) je vytvořená službou ElevenLabs (https://elevenlabs.io):
+rudy-idle.webp, oslava rudy-celebrate.webp a mluví rudy-talk.webp) je vytvořená službou ElevenLabs (https://elevenlabs.io):
 výchozí obrázek s místem kolem uší modelem GPT Image 2.5 (generace
 gbJQu790nIS0Mdau7nlD), z něj videa modelem Kling 3 Pro (klid
-rCl07oAp6svAQx7ECbEJ, pozdrav NMwJYA882PRQoSZguVbG, oslava
+rCl07oAp6svAQx7ECbEJ, oslava
 N35UnWbC8ymxWfzN4ZiB, mluví jZgYXHG36kxthHr7dD2a) a odstranění pozadí
 nástrojem VEED v ElevenLabs (jEzJqkTQkc077jcXR1Fs, Hp6StYQERZ7T3AQyR2Wp,
 LjuAoSwlkH1iP6aNW6X0, BJbFR1AJm9fDDeY5R6UJ). Použito v rámci komerčního
@@ -167,7 +162,6 @@ okraje snímků vynulované, maska zúžená o 1 px a v pásu 4 px u okraje
 odbarvený zelený lem po pozadí. Zdrojová videa nejsou v repozitáři, otisky
 SHA-256 výsledků:
   rudy-idle.webp: 1b5726d0bc1ed0198f3fe5895e16b3b1fcac72c8634a75f91178fe9f7e7c63ef
-  rudy-wave.webp: f267086d9b7e695ee2805c8cfb03215ee5eb8b0c3fed1951325dac29af60c625
   rudy-celebrate.webp: 51d53676d1b767e3e798059d572561fe2eec618789e4100ddf56d462a6bf92c9
   rudy-talk.webp: 49da775fff9282197d79ca27e39a1aab10c0591fb002935d02e94219fb890358
 

@@ -189,11 +189,6 @@ export interface Menu {
   tapTile(gameId: string): void;
   /** Hra, která naběhla, nebo `null` v menu. */
   runningGame(): GameEntry | null;
-  /**
-   * Stahuje se nebo spouští hra, nebo už běží (#170: pozdrav Rudyho se pak
-   * v menu neukáže).
-   */
-  isLaunching(): boolean;
   /** Název stránky: v menu název menu, po spuštění název hry. */
   pageTitle(): string;
   /** Kolečko nastavení jde otevřít, až když hra naběhne. */
@@ -475,10 +470,6 @@ export function createMenu(options: MenuOptions): Menu {
 
     runningGame(): GameEntry | null {
       return running;
-    },
-
-    isLaunching(): boolean {
-      return launch !== null || running !== null;
     },
 
     pageTitle(): string {

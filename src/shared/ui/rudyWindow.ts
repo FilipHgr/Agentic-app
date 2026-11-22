@@ -1,20 +1,20 @@
 /// <reference types="vite/client" />
 /**
- * Phaser okno s pandou Rudym (#169): ztmavení přes celé okno, karta
- * s bílým okrajem a stínem jako karta mapy (#145) a uprostřed velká panda.
- * O všem rozhoduje logika: průběh okna a paměť `logic/rudyWindow.ts`,
- * rozložení `logic/rudyCard.ts`. Tady se jen kreslí, stahuje a ťuká.
+ * Phaser Rudy přímo na obrazovce (#186, dřív okno z #169): bez karty,
+ * okraje a ztmavení. Panda s průhledným pozadím přiskočí zdola na střed
+ * obrazovky přes hru, slaví a mluví a pak odskočí dolů. O všem rozhoduje
+ * logika: průběh a paměť `logic/rudyWindow.ts`, místo a skoky
+ * `logic/rudyStage.ts`. Tady se jen kreslí, stahuje a ťuká.
  *
- * Během okna nereaguje nic pod ním: přes celou stránku leží průhledná
- * vrstva, která chytá všechny dotyky (i nad domečkem a kolečkem nastavení,
- * které jsou prvky stránky nad plátnem), takže se pod ní nezačne ani
- * podržení. Ťuknutí do vrstvy předá logice (zavře okno po 1 s). Domeček
- * a kolečko nastavení jsou během okna ztmavené stejně jako hra pod kartou
- * (#170), aby bylo vidět, že teď nereagují.
+ * Dokud je Rudy vidět, nereaguje nic pod ním: přes celou stránku leží
+ * průhledná vrstva, která chytá všechny dotyky (i nad domečkem a kolečkem
+ * nastavení, které jsou prvky stránky nad plátnem), takže se pod ní
+ * nezačne ani podržení. Ťuknutí do vrstvy předá logice (po 1 s pošle
+ * Rudyho pryč, dřív se Rudy jen zhoupne). Odskok dolů už dotyky nebere.
  *
- * Archy pohybů se stahují Phaser loaderem až při použití okna. Chyba
- * stažení se jen zapíše do konzole, hráč nic nevidí a hra jde dál.
- * Odchod stránky na pozadí okno zavře.
+ * Archy pohybů se stahují Phaser loaderem až při použití. Chyba stažení
+ * se jen zapíše do konzole, hráč nic nevidí a hra jde dál. Odchod stránky
+ * na pozadí pošle Rudyho pryč.
  */
 
 import Phaser from 'phaser';
@@ -22,33 +22,25 @@ import Phaser from 'phaser';
 import rudyCelebrateUrl from '../mascot/rudy-celebrate.webp';
 import rudyIdleUrl from '../mascot/rudy-idle.webp';
 import rudyTalkUrl from '../mascot/rudy-talk.webp';
-import rudyWaveUrl from '../mascot/rudy-wave.webp';
 
-import type { PageBackdrop } from '../logic/gameHost';
 import { RUDY_MOVES, RUDY_SHEET } from '../logic/rudy';
-import type { RudyLineMove, RudyMove } from '../logic/rudy';
-import { RUDY_CARD_STYLE, layoutRudyCard, rudyCardPageBackdrop } from '../logic/rudyCard';
-import type { RudyRect } from '../logic/rudyCard';
-import { dimPageButtons } from '../logic/rudyPageButtons';
+import type { RudyMove } from '../logic/rudy';
+import { isRudyHopDone, layoutRudyStage, rudyHopTop } from '../logic/rudyStage';
+import type { RudyHopPhase, RudyStageLayout } from '../logic/rudyStage';
 import { createRudyWindowModel } from '../logic/rudyWindow';
 import type { RudyCommand, RudyWindowModel } from '../logic/rudyWindow';
-import { colorNumber } from '../logic/theme';
 import { gameAreaFor } from '../logic/viewportLayout';
 import type { GameArea } from '../logic/viewportLayout';
 import { GAME_AREA_KEY, readViewport } from './viewport';
 
 const SHEET_URLS: Readonly<Record<RudyMove, string>> = {
   idle: rudyIdleUrl,
-  wave: rudyWaveUrl,
   celebrate: rudyCelebrateUrl,
   talk: rudyTalkUrl,
 };
 
 /** Vrstva proti dotykům je nad vším na stránce (domeček a kolečko mají 10). */
 const TOUCH_SHIELD_Z_INDEX = '100';
-
-/** Tlačítka stránky nad plátnem (domeček a kolečko), která okno ztmaví. */
-const PAGE_BUTTON_IDS = ['home-button', 'settings-button'] as const;
 
 function textureKey(move: RudyMove): string {
   return `rudy:${move}`;
@@ -69,39 +61,37 @@ function isGameArea(value: unknown): value is GameArea {
 }
 
 export interface RudyWindowOptions {
-  /** Hloubka okna ve scéně (výchozí 1000, nad vším ve hře). */
+  /** Hloubka Rudyho ve scéně (výchozí 1000, nad vším ve hře). */
   readonly depth?: number;
-  /** Kontejner, do kterého se okno přidá (výchozí scéna), např. vrstva menu. */
-  readonly layer?: Phaser.GameObjects.Container;
-  /**
-   * Pozadí stránky kolem plátna: během okna ztmavené jako hra, po zavření
-   * `null` (výchozí). Hra sem dá `setPageBackdrop` hostitele.
-   */
-  readonly pageBackdrop?: (backdrop: PageBackdrop | null) => void;
-  /**
-   * Herní plocha plátna v CSS px (výchozí plocha hry z registru). Menu má
-   * plátno přes celé okno s vlastním měřítkem.
-   */
-  readonly gameArea?: () => GameArea;
 }
 
 export interface RudyOpenOptions {
-  /** Pohyb repliky: pozdrav nebo oslava. */
-  readonly move: RudyLineMove;
-  /** Délka repliky (nahrávky) v ms; bez ní je okno otevřené 3,5 s. */
+  /** Délka repliky (nahrávky) v ms; bez ní je Rudy vidět 3,5 s. */
   readonly lineMs?: number;
-  /** Okno se zavřelo (samo, ťuknutím, zvenku), nebo se vůbec neukázalo. */
+  /** Rudy odešel (sám, ťuknutím, zvenku), nebo se vůbec neukázal. */
   readonly onClosed?: () => void;
 }
 
-/** Nakreslené části otevřeného okna. */
+/** Nakreslený Rudy. */
 interface Drawn {
-  readonly dim: Phaser.GameObjects.Graphics;
-  /** Plocha přes celé plátno pod kartou: ťuknutí na plátně nedostane nic pod oknem. */
-  readonly blocker: Phaser.GameObjects.Zone;
-  /** Karta s pandou, střed v počátku: zhoupne se kolem středu karty. */
-  readonly card: Phaser.GameObjects.Container;
+  /**
+   * Plocha přes celé plátno, dokud je Rudy na místě: ťuknutí na plátně
+   * nedostane nic pod ním. Při odskoku už není.
+   */
+  blocker: Phaser.GameObjects.Zone | null;
+  /** Panda se středem v počátku: zhoupne se kolem svého středu. */
+  readonly holder: Phaser.GameObjects.Container;
   readonly panda: Phaser.GameObjects.Image;
+  /** Kde Rudy stojí a odkud skáče, v CSS px okna. */
+  layout: RudyStageLayout;
+  /** Herní plocha, podle které se CSS px převádí na jednotky plátna. */
+  area: GameArea;
+}
+
+/** Skok, který právě běží: přískok zdola, nebo odskok dolů, a kdy začal. */
+interface Hop {
+  readonly phase: RudyHopPhase;
+  readonly startedAt: number;
 }
 
 /** Prst nebo myš, které jsou právě dole, a prvek stránky, na kterém začaly. */
@@ -110,8 +100,8 @@ interface PressedPointer {
   readonly target: EventTarget | null;
 }
 
-/** Zhoupnutí karty po ťuknutí v první 1 s (AC4): úhel ve stupních a délka půlkmitu. */
-const CARD_WOBBLE = { angle: 3, halfSwingMs: 70, swings: 2 } as const;
+/** Zhoupnutí Rudyho po ťuknutí v první 1 s (AC4): úhel ve stupních a délka půlkmitu. */
+const PANDA_WOBBLE = { angle: 3, halfSwingMs: 70, swings: 2 } as const;
 
 /** Vrstva proti dotykům zůstane nejvýš takhle dlouho po zavření, než se zvedne prst. */
 const SHIELD_LINGER_MAX_MS = 1000;
@@ -128,20 +118,17 @@ const SWALLOWED_EVENTS = [
   'contextmenu',
 ] as const;
 
-/** Sdílené okno s pandou Rudym ve scéně. Po konci scény se samo uklidí. */
+/** Sdílený Rudy na obrazovce ve scéně. Po konci scény se sám uklidí. */
 export class RudyWindow {
   private readonly scene: Phaser.Scene;
   private readonly model: RudyWindowModel = createRudyWindowModel();
   private readonly container: Phaser.GameObjects.Container;
-  private readonly pageBackdrop: ((backdrop: PageBackdrop | null) => void) | undefined;
-  private readonly gameArea: (() => GameArea) | undefined;
-  /** Vrátí ztmaveným tlačítkům stránky původní `filter` (#170). */
-  private restoreButtons: (() => void) | null = null;
   /** Pohyby, jejichž stažení loader právě vyřizuje. */
   private readonly pending = new Set<RudyMove>();
   private drawn: Drawn | null = null;
+  private hop: Hop | null = null;
   private shield: HTMLElement | null = null;
-  /** Prsty dole na vrstvě; vrstva zmizí, až se po zavření okna všechny zvednou. */
+  /** Prsty dole na vrstvě; vrstva zmizí, až se po odchodu Rudyho všechny zvednou. */
   private readonly shieldPointers = new Set<number>();
   private shieldTimer: number | undefined;
   /** Prsty a myš dole kdekoli na stránce (aby šlo přerušit rozběhnuté podržení). */
@@ -154,11 +141,8 @@ export class RudyWindow {
 
   constructor(scene: Phaser.Scene, options: RudyWindowOptions = {}) {
     this.scene = scene;
-    this.pageBackdrop = options.pageBackdrop;
-    this.gameArea = options.gameArea;
     this.container = scene.add.container(0, 0).setDepth(options.depth ?? 1000);
     this.container.setVisible(false);
-    options.layer?.add(this.container);
     scene.load.on(Phaser.Loader.Events.FILE_COMPLETE, this.onFileComplete, this);
     scene.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, this.onFileError, this);
     scene.load.on(Phaser.Loader.Events.COMPLETE, this.onLoaderComplete, this);
@@ -171,12 +155,12 @@ export class RudyWindow {
     this.run(this.model.use());
   }
 
-  /** Stáhne pohyb dopředu, aby se při otevření přehrál hned (vystřídá jiný v paměti). */
+  /** Stáhne pohyb dopředu, aby se při ukázání přehrál hned (vystřídá jiný v paměti). */
   prepare(move: RudyMove): void {
     this.run(this.model.prepare(move));
   }
 
-  /** Je stažený klid, takže se okno může ukázat? */
+  /** Je stažený klid, takže se Rudy může ukázat? */
   isReady(): boolean {
     return this.model.isReady();
   }
@@ -185,21 +169,18 @@ export class RudyWindow {
     return this.model.isOpen();
   }
 
-  /** Je pohyb stažený, takže se při otevření hned přehraje? */
+  /** Je pohyb stažený, takže se při ukázání hned přehraje? */
   isLoaded(move: RudyMove): boolean {
     return this.model.isLoaded(move);
   }
 
   /**
-   * Otevře okno s pohybem repliky. Vrátí `false`, když se okno neukáže
-   * (klid není stažený nebo je okno už otevřené); `onClosed` se pak
-   * zavolá hned, aby hra šla dál.
+   * Rudy přiskočí s oslavou. Vrátí `false`, když se neukáže (klid není
+   * stažený nebo už je vidět); `onClosed` se pak zavolá hned, aby hra
+   * šla dál.
    */
   open(options: RudyOpenOptions): boolean {
-    const request =
-      options.lineMs === undefined
-        ? { move: options.move }
-        : { move: options.move, lineMs: options.lineMs };
+    const request = options.lineMs === undefined ? {} : { lineMs: options.lineMs };
     const result = this.model.open(request, this.now());
     this.run(result.commands);
     if (!result.shown) {
@@ -208,30 +189,32 @@ export class RudyWindow {
     }
     this.onClosed = options.onClosed;
     this.draw();
+    this.hop = { phase: 'in', startedAt: this.now() };
     this.addShield();
     this.cancelPagePresses();
-    this.dimPageButtons();
-    this.pageBackdrop?.(rudyCardPageBackdrop());
     this.render();
+    this.placeForHop();
     return true;
   }
 
-  /** Zavře okno zvenku (bez čekání na 1 s); zavolá `onClosed`. */
+  /** Pošle Rudyho pryč zvenku (bez čekání na 1 s); zavolá `onClosed`. */
   close(): void {
     if (this.model.close()) {
       this.finishClosing();
     }
   }
 
-  /** Okno se po otočení nebo změně velikosti nakreslí znovu podle nového okna. */
+  /** Po otočení nebo změně velikosti se Rudy postaví podle nového okna. */
   relayout(): void {
     if (this.drawn !== null) {
-      this.draw();
-      this.render();
+      this.drawn.area = this.readGameArea();
+      this.drawn.layout = layoutRudyStage(readViewport(), this.drawn.area);
+      this.scaleToLayout(this.drawn);
+      this.placeForHop();
     }
   }
 
-  /** Uklidí okno a uvolní textury; otevřené okno zavře bez `onClosed`. */
+  /** Uklidí Rudyho a uvolní textury; Rudy, který je vidět, odejde bez `onClosed`. */
   destroy(): void {
     if (this.destroyed) {
       return;
@@ -240,8 +223,8 @@ export class RudyWindow {
     this.onClosed = undefined;
     if (this.model.isOpen()) {
       this.model.close();
-      this.hide();
     }
+    this.hideNow();
     this.removeShield();
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     window.removeEventListener('pointerdown', this.onPagePointerDown, true);
@@ -262,92 +245,56 @@ export class RudyWindow {
   }
 
   private readGameArea(): GameArea {
-    if (this.gameArea !== undefined) {
-      return this.gameArea();
-    }
     const stored: unknown = this.scene.game.registry.get(GAME_AREA_KEY);
     return isGameArea(stored) ? stored : gameAreaFor(readViewport());
   }
 
-  /** Ztmavení, karta a panda podle dnešního okna, v herních jednotkách plochy. */
+  /** Rudy podle dnešního okna; bez karty, okraje a ztmavení (#186). */
   private draw(): void {
     this.clearDrawn();
-    const viewport = readViewport();
     const area = this.readGameArea();
-    const layout = layoutRudyCard(viewport, area);
-    const scale = area.scale > 0 ? area.scale : 1;
-    const toUnits = (rect: RudyRect): RudyRect => ({
-      left: (rect.left - area.offsetX) / scale,
-      top: (rect.top - area.offsetY) / scale,
-      width: rect.width / scale,
-      height: rect.height / scale,
-    });
-    const style = RUDY_CARD_STYLE;
-    const whole = toUnits({ left: 0, top: 0, width: viewport.width, height: viewport.height });
-    const dim = this.scene.add
-      .graphics()
-      .fillStyle(colorNumber(style.dimColor), style.dimAlpha)
-      .fillRect(whole.left, whole.top, whole.width, whole.height);
-    // Ťuknutí kamkoli na plátno patří oknu (Phaser má `input.topOnly`), ne tlačítkům pod ním.
+    const layout = layoutRudyStage(readViewport(), area);
+    // Ťuknutí kamkoli na plátno patří Rudymu (Phaser má `input.topOnly`), ne tlačítkům pod ním.
     const blocker = this.scene.add
       .zone(0, 0, area.width, area.height)
       .setOrigin(0, 0)
       .setInteractive();
-    const cardRect = toUnits(layout.card);
-    const center = { x: cardRect.left + cardRect.width / 2, y: cardRect.top + cardRect.height / 2 };
-    const frame = this.drawCard(
-      { ...cardRect, left: -cardRect.width / 2, top: -cardRect.height / 2 },
-      scale,
-    );
-    const pandaRect = toUnits(layout.panda);
-    const panda = this.scene.add
-      .image(
-        pandaRect.left + pandaRect.width / 2 - center.x,
-        pandaRect.top + pandaRect.height / 2 - center.y,
-        '__MISSING',
-      )
-      .setScale(pandaRect.height / RUDY_SHEET.frameHeight)
-      .setVisible(false);
-    const card = this.scene.add.container(center.x, center.y, [frame, panda]);
-    this.container.add([dim, blocker, card]);
+    const panda = this.scene.add.image(0, 0, '__MISSING').setVisible(false);
+    const holder = this.scene.add.container(0, 0, [panda]);
+    this.container.add([blocker, holder]);
     this.container.setVisible(true);
-    this.drawn = { dim, blocker, card, panda };
+    const drawn: Drawn = { blocker, holder, panda, layout, area };
+    this.scaleToLayout(drawn);
+    this.drawn = drawn;
     this.shownKey = '';
     this.shownFrame = -1;
   }
 
-  /** Stín z několika vrstev, bílý okraj a plocha karty (jako karta mapy z #145). */
-  private drawCard(card: RudyRect, scale: number): Phaser.GameObjects.Graphics {
-    const style = RUDY_CARD_STYLE;
-    const units = (css: number): number => css / scale;
-    // Zaoblení 24 px má plocha uvnitř okraje, okraj i stín jsou o svou šířku kulatější.
-    const border = units(style.borderCss);
-    const radius = units(style.cornerRadiusCss) + border;
-    const graphics = this.scene.add.graphics();
-    for (let layer = style.shadowLayers; layer >= 1; layer -= 1) {
-      const spread = units(style.shadowSpreadCss * layer);
-      graphics
-        .fillStyle(colorNumber(style.shadowColor), style.shadowLayerAlpha)
-        .fillRoundedRect(
-          card.left - spread,
-          card.top - spread + units(style.shadowOffsetCss),
-          card.width + spread * 2,
-          card.height + spread * 2,
-          radius + spread,
-        );
+  /** Velikost pandy a vodorovné místo podle rozložení, v herních jednotkách plochy. */
+  private scaleToLayout(drawn: Drawn): void {
+    const { area, layout } = drawn;
+    const scale = area.scale > 0 ? area.scale : 1;
+    drawn.panda.setScale(layout.panda.height / scale / RUDY_SHEET.frameHeight);
+    drawn.holder.x = (layout.panda.left + layout.panda.width / 2 - area.offsetX) / scale;
+    drawn.blocker?.setSize(area.width, area.height);
+  }
+
+  /** Svislé místo pandy podle běžícího skoku; po odskoku se Rudy schová. */
+  private placeForHop(): void {
+    const drawn = this.drawn;
+    const hop = this.hop;
+    if (drawn === null || hop === null) {
+      return;
     }
-    graphics
-      .fillStyle(colorNumber(style.borderColor), 1)
-      .fillRoundedRect(card.left, card.top, card.width, card.height, radius)
-      .fillStyle(colorNumber(style.fillColor), 1)
-      .fillRoundedRect(
-        card.left + border,
-        card.top + border,
-        card.width - 2 * border,
-        card.height - 2 * border,
-        radius - border,
-      );
-    return graphics;
+    const elapsed = this.now() - hop.startedAt;
+    if (hop.phase === 'out' && isRudyHopDone('out', elapsed)) {
+      this.hideNow();
+      return;
+    }
+    const { area, layout } = drawn;
+    const scale = area.scale > 0 ? area.scale : 1;
+    const top = rudyHopTop(layout, hop.phase, elapsed);
+    drawn.holder.y = (top + layout.panda.height / 2 - area.offsetY) / scale;
   }
 
   private clearDrawn(): void {
@@ -356,13 +303,14 @@ export class RudyWindow {
     }
     this.wobble?.stop();
     this.wobble = null;
-    const { dim, blocker, card } = this.drawn;
-    // Karta zničí i svůj obsah (okraj a pandu).
-    [dim, blocker, card].forEach((object) => object.destroy());
+    const { blocker, holder } = this.drawn;
+    // Kontejner zničí i pandu.
+    blocker?.destroy();
+    holder.destroy();
     this.drawn = null;
   }
 
-  /** Průhledná vrstva přes celou stránku: dotyky pod okno neprojdou (AC4). */
+  /** Průhledná vrstva přes celou stránku: dotyky pod Rudyho neprojdou (AC4). */
   private addShield(): void {
     if (this.shield !== null) {
       return;
@@ -390,8 +338,8 @@ export class RudyWindow {
   }
 
   /**
-   * Po zavření okna zůstane vrstva, dokud se nezvednou prsty, které na ní
-   * jsou (ťuknutí, které okno zavřelo, nesmí doťuknout na tlačítko pod ním),
+   * Po odchodu Rudyho zůstane vrstva, dokud se nezvednou prsty, které na ní
+   * jsou (ťuknutí, které ho poslalo pryč, nesmí doťuknout na tlačítko pod ním),
    * nejvýš 1 s.
    */
   private releaseShield(): void {
@@ -437,7 +385,7 @@ export class RudyWindow {
         this.finishClosing();
         break;
       case 'tooEarly':
-        this.wobbleCard();
+        this.wobblePanda();
         break;
       case 'none':
         break;
@@ -452,21 +400,21 @@ export class RudyWindow {
     }
   };
 
-  /** Ťuknutí v první 1 s okno nezavře, karta se jen krátce zhoupne (AC4). */
-  private wobbleCard(): void {
+  /** Ťuknutí v první 1 s Rudyho nepošle pryč, Rudy se jen krátce zhoupne (AC4). */
+  private wobblePanda(): void {
     if (this.drawn === null || this.wobble?.isPlaying()) {
       return;
     }
-    const card = this.drawn.card;
-    card.setAngle(-CARD_WOBBLE.angle);
+    const holder = this.drawn.holder;
+    holder.setAngle(-PANDA_WOBBLE.angle);
     this.wobble = this.scene.tweens.add({
-      targets: card,
-      angle: CARD_WOBBLE.angle,
-      duration: CARD_WOBBLE.halfSwingMs,
+      targets: holder,
+      angle: PANDA_WOBBLE.angle,
+      duration: PANDA_WOBBLE.halfSwingMs,
       ease: 'Sine.easeInOut',
       yoyo: true,
-      repeat: CARD_WOBBLE.swings - 1,
-      onComplete: () => card.setAngle(0),
+      repeat: PANDA_WOBBLE.swings - 1,
+      onComplete: () => holder.setAngle(0),
     });
   }
 
@@ -481,7 +429,7 @@ export class RudyWindow {
   };
 
   /**
-   * Okno se otevřelo, zatímco byl prst dole (třeba držení domečku nebo
+   * Rudy se ukázal, zatímco byl prst dole (třeba držení domečku nebo
    * kolečka): prvek pod prstem dostane `pointercancel`, takže rozběhnuté
    * podržení nedoběhne (AC4). Prohlížeč by prst dál posílal jen jemu.
    */
@@ -502,31 +450,37 @@ export class RudyWindow {
     }
   };
 
-  /** Okno už je v logice zavřené: schová se a hra dostane `onClosed`. */
+  /**
+   * Rudy už v logice odešel: odskočí dolů a hra hned dostane `onClosed`
+   * (#186 AC3: v Počítání pak karta mapy, v Porovnávání konfety). Odskok
+   * dotyky nebere, hra pod ním už reaguje.
+   */
   private finishClosing(): void {
-    this.hide();
+    this.startHopOut();
+    this.releaseShield();
     const onClosed = this.onClosed;
     this.onClosed = undefined;
     onClosed?.();
   }
 
-  private hide(): void {
+  private startHopOut(): void {
+    if (this.drawn === null) {
+      return;
+    }
+    this.drawn.blocker?.destroy();
+    this.drawn.blocker = null;
+    this.wobble?.stop();
+    this.wobble = null;
+    this.drawn.holder.setAngle(0);
+    this.hop = { phase: 'out', startedAt: this.now() };
+    this.placeForHop();
+  }
+
+  /** Rudy zmizí hned, bez odskoku (konec scény, nebo po odskoku). */
+  private hideNow(): void {
+    this.hop = null;
     this.clearDrawn();
     this.container.setVisible(false);
-    this.releaseShield();
-    this.restorePageButtons();
-    this.pageBackdrop?.(null);
-  }
-
-  /** Domeček a kolečko nad plátnem ztmavne jako hru pod kartou (#170). */
-  private dimPageButtons(): void {
-    this.restorePageButtons();
-    this.restoreButtons = dimPageButtons(PAGE_BUTTON_IDS.map((id) => document.getElementById(id)));
-  }
-
-  private restorePageButtons(): void {
-    this.restoreButtons?.();
-    this.restoreButtons = null;
   }
 
   private onUpdate(): void {
@@ -537,6 +491,7 @@ export class RudyWindow {
       return;
     }
     this.render();
+    this.placeForHop();
   }
 
   /** Ukáže snímek, který je podle logiky v tuto chvíli vidět. */
@@ -547,7 +502,8 @@ export class RudyWindow {
     const { panda } = this.drawn;
     const frame = this.model.frame(this.now());
     if (frame === null) {
-      panda.setVisible(false);
+      // Při odskoku zůstane poslední snímek, jinak Rudy není vidět.
+      panda.setVisible(this.hop?.phase === 'out' && this.shownKey !== '');
       return;
     }
     const key = textureKey(frame.move);

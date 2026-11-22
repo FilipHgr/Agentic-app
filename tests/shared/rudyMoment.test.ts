@@ -1,182 +1,96 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  RUDY_CELEBRATION_WAIT_MS,
-  RUDY_WAIT_MS,
-  createRudyMomentGate,
-  rudyMomentTime,
-} from '../../src/shared/logic/rudyMoment';
+import { RUDY_CELEBRATION_WAIT_MS, createRudyMomentGate } from '../../src/shared/logic/rudyMoment';
 import type { RudyMomentStep } from '../../src/shared/logic/rudyMoment';
 
 /**
- * Testy k #170 AC2–AC4: chvíle s pandou (pozdrav, oslava) se ukáže, až je
- * okno připravené. Hra nebo menu chvíli počká, než se stáhne klid a pohyb
- * repliky; když se do `RUDY_WAIT_MS` stáhne aspoň klid, okno se ukáže
- * (nestažený pohyb nahradí klid), jinak se chvíle vynechá a hra jde dál.
- * Oslava čeká nejvýš `RUDY_CELEBRATION_WAIT_MS` (stahuje se dopředu).
- * Odchod stránky na pozadí čekání zruší. Čas (ms) dává test.
+ * Testy k #170 AC3 a #186 AC4: oslava s Rudym po 10. hvězdičce se ukáže,
+ * až je Rudy připravený. Hra chvíli počká, než se stáhne klid a oslava;
+ * když se do `RUDY_CELEBRATION_WAIT_MS` stáhne aspoň klid, Rudy se ukáže
+ * (nestaženou oslavu nahradí klid), jinak se chvíle vynechá a oslava jde
+ * dál bez něj. Odchod stránky na pozadí čekání zruší. Čas (ms) dává test.
  */
 
 const NOTHING = { idle: false, move: false } as const;
 const IDLE_ONLY = { idle: true, move: false } as const;
 const BOTH = { idle: true, move: true } as const;
 
-describe('#170: chvíle s pandou počká na stažení okna', () => {
+describe('#170, #186: Rudy počká na stažení, ale dítě po 10. hvězdičce nečeká', () => {
   it('bez požadavku se nic neukáže', () => {
     const gate = createRudyMomentGate();
     expect(gate.step(0, BOTH)).toEqual<RudyMomentStep>({ kind: 'none' });
-    expect(gate.pending()).toBeNull();
+    expect(gate.pending()).toBe(false);
   });
 
-  it('stažený klid i pohyb: okno se ukáže hned a jen jednou', () => {
+  it('stažený klid i oslava: Rudy se ukáže hned a jen jednou', () => {
     const gate = createRudyMomentGate();
-    gate.request('wave', 100);
-    expect(gate.pending()).toBe('wave');
-    expect(gate.step(100, BOTH)).toEqual<RudyMomentStep>({ kind: 'open', move: 'wave' });
+    gate.request(100);
+    expect(gate.pending()).toBe(true);
+    expect(gate.step(100, BOTH)).toEqual<RudyMomentStep>({ kind: 'open' });
     expect(gate.step(101, BOTH)).toEqual<RudyMomentStep>({ kind: 'none' });
-    expect(gate.pending()).toBeNull();
+    expect(gate.pending()).toBe(false);
   });
 
-  it('dokud se nic nestáhlo, čeká se; po limitu bez klidu se chvíle vynechá', () => {
-    const gate = createRudyMomentGate();
-    gate.request('wave', 0);
-    expect(gate.step(RUDY_WAIT_MS - 1, NOTHING)).toEqual<RudyMomentStep>({ kind: 'wait' });
-    expect(gate.step(RUDY_WAIT_MS, NOTHING)).toEqual<RudyMomentStep>({ kind: 'giveUp' });
-    expect(gate.step(RUDY_WAIT_MS + 1, BOTH)).toEqual<RudyMomentStep>({ kind: 'none' });
-  });
-
-  it('stažený jen klid: čeká se na pohyb, po limitu se okno ukáže s klidem', () => {
-    const gate = createRudyMomentGate();
-    gate.request('wave', 0);
-    expect(gate.step(10, IDLE_ONLY)).toEqual<RudyMomentStep>({ kind: 'wait' });
-    expect(gate.step(RUDY_WAIT_MS, IDLE_ONLY)).toEqual<RudyMomentStep>({
-      kind: 'open',
-      move: 'wave',
-    });
-  });
-
-  it('čekání trvá nejvýš 4 s, aby dítě nečekalo dlouho', () => {
-    expect(RUDY_WAIT_MS).toBeLessThanOrEqual(4000);
-    expect(RUDY_WAIT_MS).toBeGreaterThan(0);
-  });
-
-  it('zrušená chvíle se už neukáže', () => {
-    const gate = createRudyMomentGate();
-    gate.request('wave', 0);
-    gate.cancel();
-    expect(gate.pending()).toBeNull();
-    expect(gate.step(1, BOTH)).toEqual<RudyMomentStep>({ kind: 'none' });
-  });
-
-  it('nový požadavek nahradí čekající a čeká se znovu od začátku', () => {
-    const gate = createRudyMomentGate();
-    gate.request('celebrate', 0);
-    gate.request('wave', 3000);
-    expect(gate.pending()).toBe('wave');
-    expect(gate.step(RUDY_WAIT_MS + 1, NOTHING)).toEqual<RudyMomentStep>({ kind: 'wait' });
-    expect(gate.step(3000 + RUDY_WAIT_MS, NOTHING)).toEqual<RudyMomentStep>({ kind: 'giveUp' });
-  });
-
-  it('nesmyslný čas se nebere jako uplynulý limit', () => {
-    const gate = createRudyMomentGate();
-    gate.request('wave', 0);
-    expect(gate.step(Number.NaN, NOTHING)).toEqual<RudyMomentStep>({ kind: 'wait' });
-  });
-});
-
-describe('#170: oslava nečeká dlouho a pozadí čekání zruší', () => {
-  it('oslava čeká na stažení nejvýš 1,5 s, pak se vynechá', () => {
+  it('oslava čeká na stažení nejvýš 1,5 s, pak se Rudy vynechá', () => {
     expect(RUDY_CELEBRATION_WAIT_MS).toBe(1500);
     const gate = createRudyMomentGate();
-    gate.request('celebrate', 0);
+    gate.request(0);
     expect(gate.step(RUDY_CELEBRATION_WAIT_MS - 1, NOTHING)).toEqual<RudyMomentStep>({
       kind: 'wait',
     });
     expect(gate.step(RUDY_CELEBRATION_WAIT_MS, NOTHING)).toEqual<RudyMomentStep>({
       kind: 'giveUp',
     });
-  });
-
-  it('oslava se staženým jen klidem se po 1,5 s ukáže s klidem', () => {
-    const gate = createRudyMomentGate();
-    gate.request('celebrate', 0);
-    expect(gate.step(RUDY_CELEBRATION_WAIT_MS, IDLE_ONLY)).toEqual<RudyMomentStep>({
-      kind: 'open',
-      move: 'celebrate',
+    expect(gate.step(RUDY_CELEBRATION_WAIT_MS + 1, BOTH)).toEqual<RudyMomentStep>({
+      kind: 'none',
     });
   });
 
-  it('pozdrav čeká déle než oslava', () => {
+  it('stažený jen klid: čeká se na oslavu, po 1,5 s se Rudy ukáže s klidem', () => {
     const gate = createRudyMomentGate();
-    gate.request('wave', 0);
-    expect(gate.step(RUDY_CELEBRATION_WAIT_MS, NOTHING)).toEqual<RudyMomentStep>({ kind: 'wait' });
+    gate.request(0);
+    expect(gate.step(10, IDLE_ONLY)).toEqual<RudyMomentStep>({ kind: 'wait' });
+    expect(gate.step(RUDY_CELEBRATION_WAIT_MS, IDLE_ONLY)).toEqual<RudyMomentStep>({
+      kind: 'open',
+    });
   });
 
-  it('stránka odešla na pozadí dřív, než se chvíle ukázala: čekání se zruší', () => {
+  it('zrušená chvíle se už neukáže', () => {
     const gate = createRudyMomentGate();
-    gate.request('wave', 0);
+    gate.request(0);
+    gate.cancel();
+    expect(gate.pending()).toBe(false);
+    expect(gate.step(1, BOTH)).toEqual<RudyMomentStep>({ kind: 'none' });
+  });
+
+  it('nový požadavek nahradí čekající a čeká se znovu od začátku', () => {
+    const gate = createRudyMomentGate();
+    gate.request(0);
+    gate.request(1000);
+    expect(gate.step(RUDY_CELEBRATION_WAIT_MS + 1, NOTHING)).toEqual<RudyMomentStep>({
+      kind: 'wait',
+    });
+    expect(gate.step(1000 + RUDY_CELEBRATION_WAIT_MS, NOTHING)).toEqual<RudyMomentStep>({
+      kind: 'giveUp',
+    });
+  });
+
+  it('nesmyslný čas se nebere jako uplynulý limit', () => {
+    const gate = createRudyMomentGate();
+    gate.request(0);
+    expect(gate.step(Number.NaN, NOTHING)).toEqual<RudyMomentStep>({ kind: 'wait' });
+  });
+
+  it('stránka odešla na pozadí dřív, než se Rudy ukázal: čekání se zruší', () => {
+    const gate = createRudyMomentGate();
+    gate.request(0);
     expect(gate.pageHidden()).toBe(true);
-    expect(gate.pending()).toBeNull();
+    expect(gate.pending()).toBe(false);
     expect(gate.step(1, BOTH)).toEqual<RudyMomentStep>({ kind: 'none' });
   });
 
   it('pozadí bez čekající chvíle nic neruší', () => {
     const gate = createRudyMomentGate();
     expect(gate.pageHidden()).toBe(false);
-  });
-});
-
-describe('#173: zopakovaný pozdrav čeká na stažení kratší dobu', () => {
-  it('s kratším limitem se chvíle bez stažení vynechá po něm', () => {
-    const gate = createRudyMomentGate();
-    gate.request('wave', 0, 900);
-    expect(gate.step(899, IDLE_ONLY)).toEqual<RudyMomentStep>({ kind: 'wait' });
-    expect(gate.step(900, NOTHING)).toEqual<RudyMomentStep>({ kind: 'giveUp' });
-  });
-
-  it('stažené okno se v kratším limitu ukáže jako obvykle', () => {
-    const gate = createRudyMomentGate();
-    gate.request('wave', 0, 900);
-    expect(gate.step(300, BOTH)).toEqual<RudyMomentStep>({ kind: 'open', move: 'wave' });
-  });
-
-  it('delší nebo nesmyslný limit běžné čekání neprodlouží', () => {
-    for (const waitMs of [RUDY_WAIT_MS * 2, Number.NaN]) {
-      const gate = createRudyMomentGate();
-      gate.request('wave', 0, waitMs);
-      expect(gate.step(RUDY_WAIT_MS, NOTHING), `limit ${waitMs}`).toEqual<RudyMomentStep>({
-        kind: 'giveUp',
-      });
-    }
-  });
-});
-
-describe('#181: pozdrav ve hře, která vznikne před prvním snímkem hry', () => {
-  // Scéna bez načítání (Porovnávání) požádá o pozdrav ještě před prvním
-  // snímkem hry, kdy je čas smyčky hry 0; čas stránky už běží.
-  const PAGE_TIME_AT_START = 8600;
-
-  it('pozdrav nevyprší hned při prvním snímku, okno se ukáže', () => {
-    const gate = createRudyMomentGate();
-    gate.request('wave', rudyMomentTime(0, PAGE_TIME_AT_START));
-    const firstFrame = rudyMomentTime(PAGE_TIME_AT_START + 16, PAGE_TIME_AT_START + 16);
-    expect(gate.step(firstFrame, NOTHING)).toEqual<RudyMomentStep>({ kind: 'wait' });
-    expect(gate.step(firstFrame + 200, BOTH)).toEqual<RudyMomentStep>({
-      kind: 'open',
-      move: 'wave',
-    });
-  });
-
-  it('pozdrav, který se do limitu nestáhne, se vynechá i tady', () => {
-    const gate = createRudyMomentGate();
-    gate.request('wave', rudyMomentTime(0, PAGE_TIME_AT_START));
-    const late = PAGE_TIME_AT_START + RUDY_WAIT_MS + 1;
-    expect(gate.step(rudyMomentTime(late, late), NOTHING)).toEqual<RudyMomentStep>({
-      kind: 'giveUp',
-    });
-  });
-
-  it('jakmile hra běží, platí čas smyčky hry', () => {
-    expect(rudyMomentTime(1234, 1250)).toBe(1234);
   });
 });
