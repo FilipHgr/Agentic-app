@@ -6,10 +6,12 @@ import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
 import type { GameHost } from '../../../shared/logic/gameHost';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
+import { ABOVE_MAP_DEPTH } from '../../../shared/logic/mapDepths';
 import { Confetti } from '../../../shared/ui/Confetti';
+import { MapCardScreen } from '../../../shared/ui/MapCardScreen';
+import { MapStarRow } from '../../../shared/ui/MapStarRow';
 import { RudyMoments } from '../../../shared/ui/rudyMoments';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
-import { StarRow } from '../../../shared/ui/StarRow';
 import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import {
   COMPARE_GAME_AREA_FIT,
@@ -51,7 +53,9 @@ const STAR_FLIGHT_MS = 600;
  * `Confetti`). Nastavení pro rodiče (#179) se otevře podržením kolečka
  * stránky a kreslí ho `SettingsPanel` nad hrou. Panda Rudy (#181: oslava
  * po 10. hvězdičce, od #186 přímo na obrazovce) je sdílené `RudyMoments`;
- * kdy se ukáže, řídí sezení. Při odpovědi psaním (#188) je okénko příkladu
+ * kdy se ukáže, řídí sezení. Po oslavě se ukáže karta se společnou mapou
+ * postupu profilu (#193), stejná jako v Počítání (`MapCardScreen`), a do
+ * ní odletí plná řada hvězdiček (`MapStarRow`). Při odpovědi psaním (#188) je okénko příkladu
  * plocha na psaní (`SignPad`) se smazáním a ✓ místo tlačítek + a −.
  * Příklad „a ☐ b“ (#190) má při ťukání tlačítka <, = a >, při psaní
  * (#191) stejnou plochu na psaní jako „a ☐ b = c“, která rozpozná jen
@@ -69,18 +73,36 @@ export class CompareScene extends Phaser.Scene {
   private host: GameHost | undefined;
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu.
   private readonly tones = createTonePlayer(sharedToneContext);
-  private readonly starRow = new StarRow(
+  private readonly starRow = new MapStarRow(
     this,
     () => this.layout.stars,
     () => ({ earned: this.session.starCount() }),
     STAR_FLIGHT_MS,
   );
-  private readonly confetti = new Confetti(this);
+  // Konfety oslavy padají přes kartu s mapou (#154 AC1), jako v Počítání.
+  private readonly confetti = new Confetti(this, ABOVE_MAP_DEPTH);
+  /** Karta s mapou postupu po oslavě, společná s Počítáním (#193). */
+  private readonly progressMap = new MapCardScreen(this, {
+    gameArea: () => this.gameArea,
+    fit: COMPARE_GAME_AREA_FIT,
+    host: () => this.host,
+    source: () => ({
+      shownMove: () => this.session.shownMap(),
+      goalKeyReward: () => this.session.goalKeyReward(),
+      mapProgress: () => this.session.mapProgress(),
+      tap: () => this.session.tapMap(),
+    }),
+  });
   /** Panda Rudy (#181, #186); vznikne v `create`, kód a obrázky stáhne až při oslavě. */
   private rudy!: RudyMoments;
 
   constructor() {
     super('compare');
+  }
+
+  /** Symboly cíle map a půlky klíče jsou malé, načtou se hned se scénou (#134 AC2). */
+  preload(): void {
+    this.progressMap.preload();
   }
 
   create(): void {
@@ -116,6 +138,9 @@ export class CompareScene extends Phaser.Scene {
       // Podržení kolečka stránky otevře nastavení (#179 AC1); bez stránky kolečko není.
       attachSettingsGear: host ? (open) => host.attachSettingsGear(open) : undefined,
       rudy: this.sessionRudy(compareRudyLines(host?.storage)),
+      // Klíče a mapa postupu aktivního profilu, společné všem hrám (#193).
+      keyRewards: host?.keyRewards,
+      mapProgress: host?.mapProgress,
       onChange: (change) => this.onSessionChange(change),
     });
     this.session = session;
@@ -126,6 +151,8 @@ export class CompareScene extends Phaser.Scene {
     this.drawProblem(false);
     this.starRow.create();
     this.starRow.paint();
+    // Obrázek mapy, kterou ukáže příští plná řada, se stáhne během hraní (#134).
+    this.progressMap.prepare();
   }
 
   /** Plocha na psaní se posouvá v čase každý snímek (rozpoznání 1 s po zvednutí prstu). */
@@ -170,6 +197,7 @@ export class CompareScene extends Phaser.Scene {
     switch (change.kind) {
       case 'problemStarted':
         this.drawProblem(true);
+        this.progressMap.prepare();
         break;
       case 'solved':
         this.showSolved(change.sign);
@@ -198,9 +226,26 @@ export class CompareScene extends Phaser.Scene {
         this.confetti.throw(this.gameArea, this.layout.unitsPerCssPx);
         break;
       case 'celebrationEnded':
-        // Zbylé konfety dopadnou samy, řada je zase prázdná.
-        this.confetti.forget();
+        // Hvězdičky doletěly do mapy; konfety padají dál přes okno (#154).
+        this.starRow.stopMapFlight();
         this.starRow.paint();
+        break;
+      case 'mapShown':
+        this.progressMap.show(this.starRow);
+        this.syncProblemVisibility();
+        break;
+      case 'mapHidden':
+        // Okno se zavřelo: zbylé konfety dopadnou samy (#154 AC1).
+        this.confetti.forget();
+        this.progressMap.hide();
+        this.syncProblemVisibility();
+        break;
+      case 'mapStopped':
+        // Nastavení přerušilo okno i let hvězdiček: nic se nedohraje (#154 AC6).
+        this.confetti.clear();
+        this.starRow.stopMapFlight();
+        this.progressMap.hide();
+        this.syncProblemVisibility();
         break;
       case 'settingsOpened':
         this.openSettingsPanel();
@@ -294,6 +339,22 @@ export class CompareScene extends Phaser.Scene {
       this.equation.popIn();
     }
     this.drawSignButtons(layout);
+    // Po otočení během karty s mapou zůstane příklad schovaný (#193).
+    this.syncProblemVisibility();
+  }
+
+  /**
+   * Během karty s mapou je příklad i s tlačítky nebo plochou na psaní
+   * schovaný, jinak by vyčníval po stranách karty (#193); po zavření karty
+   * se ukáže ve stejném snímku, bez bliknutí.
+   */
+  private syncProblemVisibility(): void {
+    const hidden = this.session.problemHidden();
+    this.equation?.setHidden(hidden);
+    this.signPad?.setHidden(hidden);
+    for (const button of this.signButtons) {
+      button.setHidden(hidden);
+    }
   }
 
   private createSignPad(
@@ -341,6 +402,7 @@ export class CompareScene extends Phaser.Scene {
     // Nové rozložení spočítá překreslení příkladu, hvězdičky se pak srovnají podle něj.
     this.drawProblem(false);
     this.starRow.redraw();
+    this.progressMap.relayout();
     this.settingsPanel?.fitTo(this.gameArea);
     this.rudy.relayout();
   }

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createCountingSession } from '../../../src/games/counting/logic/countingSession';
 import type { CountingSession } from '../../../src/games/counting/logic/countingSession';
 import type { Problem } from '../../../src/games/counting/logic/problems';
-import { START_MAP } from '../../../src/games/counting/logic/progressMap';
+import { START_MAP } from '../../../src/shared/logic/progressMap';
 import type { GameSettings } from '../../../src/games/counting/logic/settings';
 
 import {

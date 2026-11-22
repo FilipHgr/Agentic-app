@@ -1,5 +1,6 @@
 /**
- * Mapa postupu v okně (#145, varianta V2): po oslavě se mapa ukáže jako
+ * Mapa postupu v okně (#145, varianta V2), společná všem hrám s hvězdičkami
+ * (#193): po oslavě se mapa ukáže jako
  * karta se zaoblenými rohy a bílým okrajem nad ztmavenou hrou. Tady je,
  * kam a jak velkou kartu v okně dát, plocha mapy v ní, obrázek prostředí
  * přes kartu a barva okrajů stránky kolem hry. Kreslí scéna.
@@ -11,17 +12,17 @@
  * Čistý TypeScript bez Phaseru.
  */
 
-import { homeButtonFor } from '../../../shared/logic/homeButton';
-import type { PageBackdrop } from '../../../shared/logic/gameHost';
-import { settingsGearFor } from '../../../shared/logic/settingsGear';
-import { PAGE_BACKGROUND } from '../../../shared/logic/theme';
-import { gameAreaFor, safeAreaOrNone } from '../../../shared/logic/viewportLayout';
-import type { GameArea, Viewport } from '../../../shared/logic/viewportLayout';
+import { homeButtonFor } from './homeButton';
+import type { PageBackdrop } from './gameHost';
+import { settingsGearFor } from './settingsGear';
+import { PAGE_BACKGROUND } from './theme';
+import { gameAreaFor, safeAreaOrNone } from './viewportLayout';
+import type { GameArea, GameAreaFit, Viewport } from './viewportLayout';
 import { MAP_PICTURE_SIZE, mapOrientationOf, mapPictureCover } from './mapPictures';
 import type { MapOrientation, PictureRect } from './mapPictures';
 import { progressMapMarkerSize } from './progressMapLayout';
 import type { MapArea } from './progressMapLayout';
-import { PROGRESS_MAP_CARD_STYLE } from './theme';
+import { PROGRESS_MAP_CARD_STYLE } from './mapTheme';
 
 /** Karta s mapou: kde leží obrázek mapy a v jaké ploše se mapa rozloží. */
 export interface ProgressMapCard {
@@ -156,10 +157,15 @@ function largerMarker(first: ProgressMapCard, second: ProgressMapCard): Progress
  * Kam dát kartu s mapou v okně `viewport` (AC1, AC2): asi 75 % viditelné
  * plochy pod rohem kolečka a domečku, nebo mezi nimi, podle toho, kde má
  * značka víc místa. Když by značka měla méně než 64 px, karta se zvětšuje,
- * dokud se značka nevejde, nejvýš po 8 px od okraje.
+ * dokud se značka nevejde, nejvýš po 8 px od okraje. `fit` je, jak hra
+ * kreslí herní plochu (#193: Počítání pevnou plochu, Znaménka přes celé
+ * okno); karta se počítá ve stejné ploše a míře jako hra pod ní.
  */
-export function layoutProgressMapCard(viewport: Viewport): ProgressMapCard {
-  const gameArea = gameAreaFor(viewport);
+export function layoutProgressMapCard(
+  viewport: Viewport,
+  fit: GameAreaFit = 'fixed',
+): ProgressMapCard {
+  const gameArea = gameAreaFor(viewport, fit);
   const visible = visibleEdges(viewport, gameArea);
   const regions = cardRegions(viewport, visible);
   if (regions.length === 0) {

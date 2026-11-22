@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapPlacePadStyleFor } from '../../../src/games/counting/logic/mapPlacePads';
-import type { MapPlacePad } from '../../../src/games/counting/logic/mapPlacePads';
-import type { MapLook } from '../../../src/games/counting/logic/mapPictureLoading';
-import { MAP_STEPS, MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
-import type { MapThemeId } from '../../../src/games/counting/logic/progressMap';
-import type { MapPoint } from '../../../src/games/counting/logic/progressMapLayout';
+import { mapPlacePadStyleFor } from '../../../src/shared/logic/mapPlacePads';
+import type { MapPlacePad } from '../../../src/shared/logic/mapPlacePads';
+import type { MapLook } from '../../../src/shared/logic/mapPictureLoading';
+import { MAP_STEPS, MAP_THEMES } from '../../../src/shared/logic/progressMap';
+import type { MapThemeId } from '../../../src/shared/logic/progressMap';
+import type { MapPoint } from '../../../src/shared/logic/progressMapLayout';
 import {
   PROGRESS_MAP_BACKGROUNDS,
   PROGRESS_MAP_STYLE,
   progressMapStyleFor,
-} from '../../../src/games/counting/logic/theme';
+} from '../../../src/shared/logic/mapTheme';
 import { contrastRatio } from '../../../src/shared/logic/theme';
 import { describePoint, toneUnder } from './mapFootprintHelpers';
 import { padCases, padName, padsWithStep } from './mapPlacePadHelpers';

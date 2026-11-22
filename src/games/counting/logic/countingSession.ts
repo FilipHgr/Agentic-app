@@ -17,7 +17,6 @@ import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
 import { equationKey } from '../../../shared/logic/overviewProblems';
 import { createActivityLog } from '../../../shared/storage/activityStorage';
 import { COUNTING_OVERVIEW } from '../meta';
-import { loadMapProgress, saveMapProgress } from '../storage/mapStorage';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { loadSettingsState, saveSettings } from '../storage/settingsStorage';
 import {
@@ -36,14 +35,11 @@ import type { DotCounting } from './dotCounting';
 import { drawProblem, startProblemRotation } from './problemRotation';
 import type { ProblemRotation } from './problemRotation';
 import type { Problem } from './problems';
-import {
-  KEY_REWARD_APPEAR_MS,
-  MARKER_ARRIVAL_MS,
-  STARS_LANDED_MS,
-  mapClosableFromMs,
-} from './mapAnimation';
-import { mapShowMs, stepOnMap } from './progressMap';
-import type { MapMove, MapProgress } from './progressMap';
+import { STARS_LANDED_MS } from '../../../shared/logic/mapAnimation';
+import { CELEBRATION_TO_MAP_MS, createMapCardFlow } from '../../../shared/logic/mapCardFlow';
+import type { MapTapOutcome } from '../../../shared/logic/mapCardFlow';
+import type { MapMove, MapProgress, MapProgressStore } from '../../../shared/logic/progressMap';
+import { openMapProgress } from '../../../shared/storage/mapProgressStorage';
 import { createRecognizerLoading } from './recognizerLoading';
 import type { LoadRecognizer, RecognizerLoadStatus } from './recognizerLoading';
 import { isWritingActive } from './settings';
@@ -56,21 +52,15 @@ import type { DigitRecognizer } from './writingRound';
 /** Jak dlouho se po správné odpovědi čeká na nový příklad. */
 export const NEXT_PROBLEM_DELAY_MS = 800;
 
-/**
- * Jak dlouho po zavření karty ťuknutím hra nepřijímá odpovědi (#145 AC5),
- * aby rychlé druhé ťuknutí nezadalo číslo nového příkladu.
- */
-export const MAP_CLOSE_ANSWER_PAUSE_MS = 300;
+// Karta s mapou je společná všem hrám s hvězdičkami (#193), časy jsou ve sdílené části.
+export {
+  CELEBRATION_TO_MAP_MS,
+  MAP_CLOSE_ANSWER_PAUSE_MS,
+} from '../../../shared/logic/mapCardFlow';
+export type { MapTapOutcome } from '../../../shared/logic/mapCardFlow';
 
 /** Jak dlouho letí hvězdička od odpovědi do řady; oslava začne po doletu. */
 export const STAR_FLIGHT_MS = 450;
-
-/**
- * Za jak dlouho od začátku oslavy (melodie a konfety) se ukáže okno
- * s mapou (#154 AC1: nejvýš 1,5 s; od #170 AC3 se počítá od odchodu
- * Rudyho). Melodie a konfety doběhnou přes okno.
- */
-export const CELEBRATION_TO_MAP_MS = 800;
 
 /**
  * Jak dlouho trvá oslava od začátku melodie do doletu hvězdiček z řady
@@ -160,14 +150,6 @@ export type SessionChange =
   | { readonly kind: 'guideClosed' }
   | { readonly kind: 'recognizer'; readonly status: RecognizerLoadStatus };
 
-/**
- * Co udělalo ťuknutí na kartu s mapou (#145 AC4):
- * - `closed` karta se zavřela a hra pokračuje jako po mapě,
- * - `tooEarly` animace ještě běží, karta zůstane (scéna ji jen zhoupne),
- * - `ignored` karta není vidět (nebo je otevřené nastavení či po odchodu).
- */
-export type MapTapOutcome = 'closed' | 'tooEarly' | 'ignored';
-
 export interface CountingSessionOptions {
   readonly storage: KeyValueStorage | undefined;
   readonly random: () => number;
@@ -181,6 +163,11 @@ export interface CountingSessionOptions {
    * a hra jede dál jako dřív.
    */
   readonly keyRewards?: KeyRewards | undefined;
+  /**
+   * Mapa postupu aktivního profilu od stránky, společná všem hrám (#193);
+   * bez ní se mapa pamatuje jen v paměti.
+   */
+  readonly mapProgress?: MapProgressStore | undefined;
   /**
    * Panda Rudy (#170, #186); bez ní oslava začne hned po doletu hvězdičky.
    */
@@ -279,8 +266,6 @@ export function createCountingSession(options: CountingSessionOptions): Counting
   // Hvězdičky přežijí odchod i zavření hry (načtou se ze zařízení, #38).
   let stars: StarProgress = loadProgress(storage);
   let isCelebrating = false;
-  // Mapa postupu přežije odchod i zavření hry (#87 AC3).
-  let map: MapProgress = loadMapProgress(storage);
   // Vyřešené příklady, chyby a nápověda pro přehled pro rodiče v menu (#183,
   // #184, #192); zápis je společný se Znaménky ve sdílené části.
   const activityLog = createActivityLog({
@@ -288,23 +273,27 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     spec: COUNTING_OVERVIEW,
     today: options.today ?? (() => new Date()),
   });
-  /** Krok za právě zaplněnou řadu, který mapa ukáže po oslavě. */
-  let moveToShow: MapMove | null = null;
-  let shownMove: MapMove | null = null;
-  /** Co dal cíl za právě zaplněnou řadu; ukáže se s mapou po oslavě (#139). */
-  let keyRewardToShow: KeyReward | null = null;
-  let shownKeyReward: KeyReward | null = null;
-  /** Doběhla už animace ukázané karty, takže ji ťuknutí zavře (#145 AC4)? */
-  let mapClosable = false;
-  /** Karta se právě zavřela ťuknutím: chvíli se nepřijímají odpovědi (#145 AC5). */
-  let answersPausedAfterMap = false;
   /** Rudy, o kterého hra požádala a který ještě neodešel (#170). */
   let rudyMoment: { readonly id: number } | null = null;
   let rudyMomentCount = 0;
   let rudyIsOpen = false;
-  // Mapy dokončené dřív (i před #139) se započtou hned, jednou a bez
-  // animace (AC5); dřív započtené mapy klíče nepřidají (AC3).
-  reportCompletedMaps(map.completedMaps);
+  // Mapa postupu profilu přežije odchod i zavření hry (#87 AC3) a je
+  // společná všem hrám (#193). Karta s mapou po oslavě, půlka klíče za
+  // dokončenou mapu a mapy dokončené dřív (#139 AC5) jsou ve sdílené části.
+  const mapCard = createMapCardFlow({
+    mapProgress: options.mapProgress ?? openMapProgress(undefined),
+    keyRewards: options.keyRewards,
+    timers,
+    playSound: (name) => sounds.play(SOUNDS[name]),
+    events: {
+      onShown: () => notify({ kind: 'mapShown' }),
+      onStarsLanded: () => landStars(),
+      onHidden: () => {
+        notify({ kind: 'mapHidden' });
+        startRound();
+      },
+    },
+  });
   const recognizerLoading = createRecognizerLoading(options.loadRecognizer);
   // Vystřídání příkladů jen pro toto spuštění, nic se neukládá (#94 AC7).
   let rotation: ProblemRotation = startProblemRotation();
@@ -314,7 +303,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
 
   /** Naplánované akce; odchod je zruší všechny. */
   const pending = new Set<() => void>();
-  /** Naplánované kroky oslavy a mapy; nastavení je zruší (#45, #87 AC4). */
+  /** Naplánované kroky oslavy před kartou s mapou; nastavení je zruší (#45, #87 AC4). */
   const celebrationSteps = new Set<() => void>();
 
   function notify(change: SessionChange): void {
@@ -461,79 +450,15 @@ export function createCountingSession(options: CountingSessionOptions): Counting
   }
 
   /**
-   * Nahlásí stránce počet dokončených map a vrátí, co tím dítě dostalo.
-   * Klíče jsou cizí kód stránky: když selžou, dítě hraje dál bez půlky
-   * a nevidí chybu (AC6).
-   */
-  function reportCompletedMaps(completedMaps: number): KeyReward | null {
-    if (options.keyRewards === undefined) {
-      return null;
-    }
-    try {
-      return options.keyRewards.reportCompletedMaps(completedMaps);
-    } catch {
-      // Selhání klíčů nesmí zastavit mapu ani další příklad.
-      return null;
-    }
-  }
-
-  /**
-   * Plná řada: krok na mapě se započte a uloží hned, ještě před oslavou
-   * (#87 AC4). Došla-li značka do cíle, nahlásí se hned i dokončená mapa,
-   * aby přerušení obrazovky cíle půlku klíče nevzalo (#139 AC3).
-   */
-  function stepMap(): void {
-    const result = stepOnMap(map);
-    map = result.progress;
-    moveToShow = result.move;
-    saveMapProgress(storage, map);
-    keyRewardToShow = result.move.reachedGoal ? reportCompletedMaps(map.completedMaps) : null;
-  }
-
-  /**
-   * Během oslavy se na chvíli ukáže mapa s krokem, hvězdičky z řady do ní
-   * odletí a pak sama zmizí (#87 AC1, #154). Ukázání oslavu nepřeruší:
-   * melodie a konfety doběhnou přes okno.
+   * Během oslavy se ukáže karta s mapou s krokem za plnou řadu, hvězdičky
+   * z řady do ní odletí a pak sama zmizí (#87 AC1, #154). Ukázání oslavu
+   * nepřeruší: melodie a konfety doběhnou přes okno.
    */
   function showMap(): void {
-    const move = moveToShow;
-    const keyReward = keyRewardToShow;
-    moveToShow = null;
-    keyRewardToShow = null;
-    if (move === null) {
+    if (!mapCard.show()) {
       landStars();
       startRound();
-      return;
     }
-    shownMove = move;
-    shownKeyReward = keyReward;
-    mapClosable = false;
-    notify({ kind: 'mapShown' });
-    schedule(STARS_LANDED_MS, landStars, celebrationSteps);
-    // Zvuk zazní, až po doletu hvězdiček značka na novém místě zastaví
-    // (#135 AC2, AC3); melodie cíle tak začne až po melodii oslavy (#154 AC3).
-    const arrivalSound = move.reachedGoal ? SOUNDS.mapGoal : SOUNDS.mapStep;
-    schedule(MARKER_ARRIVAL_MS, () => sounds.play(arrivalSound), celebrationSteps);
-    if (keyReward !== null) {
-      // Tón půlky klíče až po melodii cíle, spolu s půlkou (#139 AC2).
-      schedule(KEY_REWARD_APPEAR_MS, () => sounds.play(SOUNDS.keyReward), celebrationSteps);
-    }
-    schedule(
-      mapClosableFromMs(move, keyReward),
-      () => {
-        mapClosable = true;
-      },
-      celebrationSteps,
-    );
-    schedule(mapShowMs(move), hideMap, celebrationSteps);
-  }
-
-  function hideMap(): void {
-    shownMove = null;
-    shownKeyReward = null;
-    mapClosable = false;
-    notify({ kind: 'mapHidden' });
-    startRound();
   }
 
   /**
@@ -578,7 +503,8 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     if (outcome === 'correct') {
       countSolvedProblem();
       if (result.setCompleted) {
-        stepMap();
+        // Krok na mapě se započte a uloží hned, ještě před oslavou (#87 AC4).
+        mapCard.step();
         isCelebrating = true;
         schedule(STAR_FLIGHT_MS, celebrateWithRudy, celebrationSteps);
       } else {
@@ -599,27 +525,16 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       !guideIsOpen &&
       !settingsAreOpen &&
       !isCelebrating &&
-      shownMove === null &&
-      !answersPausedAfterMap
+      !mapCard.blocksAnswers()
     );
   }
 
   /** Ťuknutí na kartu: po doběhnutí animace ji zavře, jinak nic nezmění (#145 AC4). */
   function tapMap(): MapTapOutcome {
-    if (left || settingsAreOpen || shownMove === null) {
+    if (settingsAreOpen) {
       return 'ignored';
     }
-    if (!mapClosable) {
-      return 'tooEarly';
-    }
-    // Zbývající kroky karty (zavření po 7 s) se zruší, aby se nic nezdvojilo.
-    cancelAll(celebrationSteps);
-    answersPausedAfterMap = true;
-    schedule(MAP_CLOSE_ANSWER_PAUSE_MS, () => {
-      answersPausedAfterMap = false;
-    });
-    hideMap();
-    return 'closed';
+    return mapCard.tap();
   }
 
   /**
@@ -632,21 +547,16 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       return;
     }
     settingsAreOpen = true;
-    moveToShow = null;
-    keyRewardToShow = null;
     // Rudy, který se ještě neukázal, patří k oslavě (#170 AC3).
-    const celebrationRunning = celebrationSteps.size > 0 || rudyMoment !== null;
+    const celebrationRunning =
+      celebrationSteps.size > 0 || rudyMoment !== null || mapCard.shownMove() !== null;
     stopRudy();
+    // Krok na mapě je už započtený; karta se po zavření nastavení neukáže.
+    const mapWasShown = mapCard.stop();
+    mapCard.forgetMoveToShow();
     if (celebrationRunning) {
       cancelAll(celebrationSteps);
-      if (shownMove === null) {
-        notify({ kind: 'celebrationStopped' });
-      } else {
-        shownMove = null;
-        shownKeyReward = null;
-        mapClosable = false;
-        notify({ kind: 'mapStopped' });
-      }
+      notify({ kind: mapWasShown ? 'mapStopped' : 'celebrationStopped' });
     }
     notify({ kind: 'settingsOpened' });
   }
@@ -670,9 +580,9 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     starCount: () => stars.earned,
     celebrating: () => isCelebrating,
     rudyOpen: () => rudyIsOpen,
-    mapProgress: () => map,
-    shownMap: () => shownMove,
-    goalKeyReward: () => shownKeyReward,
+    mapProgress: () => mapCard.mapProgress(),
+    shownMap: () => mapCard.shownMove(),
+    goalKeyReward: () => mapCard.goalKeyReward(),
     settings: () => settings,
     answerInput: () => roundInput,
     recognizer: () => recognizerLoading.recognizer(),
@@ -756,7 +666,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
         // Nový příklad hned; čekající příklad po odpovědi by přišel podruhé.
         cancelAll(pending);
         // Zrušená chvíle po zavření karty nesmí odpovědi zablokovat natrvalo.
-        answersPausedAfterMap = false;
+        mapCard.resumeAnswers();
         startRound();
       }
     },
@@ -777,11 +687,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       }
       left = true;
       isCelebrating = false;
-      moveToShow = null;
-      shownMove = null;
-      keyRewardToShow = null;
-      shownKeyReward = null;
-      mapClosable = false;
+      mapCard.leave();
       stopRudy();
       cancelAll(pending);
       stopWatchingRecognizer();

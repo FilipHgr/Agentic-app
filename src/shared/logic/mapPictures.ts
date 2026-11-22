@@ -7,7 +7,7 @@
  * stahuje a kreslí scéna. Čistý TypeScript bez Phaseru.
  */
 
-import type { GameSize } from '../../../shared/logic/viewportLayout';
+import type { GameSize } from './viewportLayout';
 import type { MapThemeId } from './progressMap';
 import castleLandscape from '../maps/castle-landscape.webp';
 import castlePortrait from '../maps/castle-portrait.webp';

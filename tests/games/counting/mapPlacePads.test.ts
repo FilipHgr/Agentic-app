@@ -1,25 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { isPlaceLitAt, markerShareAt } from '../../../src/games/counting/logic/mapAnimation';
+import { isPlaceLitAt, markerShareAt } from '../../../src/shared/logic/mapAnimation';
 import {
   MAP_PLACE_PAD_KINDS,
   layoutMapPlacePads,
   mapPlacePadStyleFor,
-} from '../../../src/games/counting/logic/mapPlacePads';
-import type { PlacePadKind } from '../../../src/games/counting/logic/mapPlacePads';
-import type { MapLook } from '../../../src/games/counting/logic/mapPictureLoading';
-import {
-  MAP_STEPS,
-  MAP_THEMES,
-  mapShowMs,
-  stepOnMap,
-} from '../../../src/games/counting/logic/progressMap';
-import type { MapThemeId } from '../../../src/games/counting/logic/progressMap';
+} from '../../../src/shared/logic/mapPlacePads';
+import type { PlacePadKind } from '../../../src/shared/logic/mapPlacePads';
+import type { MapLook } from '../../../src/shared/logic/mapPictureLoading';
+import { MAP_STEPS, MAP_THEMES, mapShowMs, stepOnMap } from '../../../src/shared/logic/progressMap';
+import type { MapThemeId } from '../../../src/shared/logic/progressMap';
 import {
   layoutProgressMap,
   progressMapMarkerSize,
-} from '../../../src/games/counting/logic/progressMapLayout';
-import { PROGRESS_MAP_SHAPE } from '../../../src/games/counting/logic/theme';
+} from '../../../src/shared/logic/progressMapLayout';
+import { PROGRESS_MAP_SHAPE } from '../../../src/shared/logic/mapTheme';
 import { HOME_SCREEN_WINDOWS } from '../../shared/layoutRules';
 import { IPAD_WINDOWS } from '../../shared/viewportFixtures';
 import type { TestWindow } from '../../shared/viewportFixtures';

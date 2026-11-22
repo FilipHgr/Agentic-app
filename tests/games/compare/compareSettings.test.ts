@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CELEBRATION_MS,
+  CELEBRATION_TO_MAP_MS,
   NEXT_PROBLEM_MS,
   createCompareSession,
 } from '../../../src/games/compare/logic/compareSession';
+import { STARS_LANDED_MS } from '../../../src/shared/logic/mapAnimation';
 import { correctSign } from '../../../src/games/compare/logic/compareProblems';
 import type { CompareProblem } from '../../../src/games/compare/logic/compareProblems';
 import {
@@ -403,10 +405,14 @@ describe('#179 AC6, #187 AC3: zavření bez ✓ nic nezmění, hvězdičky zůst
       before + 1,
     );
     expect(test.sounds.played.at(-1)).toBe('celebration');
-    test.timers.advance(CELEBRATION_MS - 1);
+    // Řada odletí do karty s mapou (#193): prázdná je až po doletu hvězdiček.
+    const starsLandedMs = CELEBRATION_TO_MAP_MS + STARS_LANDED_MS;
+    test.timers.advance(starsLandedMs - 1);
     expect(test.session.starCount()).toBe(10);
     test.timers.advance(1);
     expect(test.session.starCount()).toBe(0);
+    expect(test.session.shownMap(), 'karta s mapou je vidět').not.toBeNull();
+    test.timers.advance(CELEBRATION_MS - starsLandedMs);
     expect(test.session.isCelebrating()).toBe(false);
     expect(test.session.tap(correctSign(test.session.problem()))).toBe('correct');
   });

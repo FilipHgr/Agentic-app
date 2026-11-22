@@ -15,11 +15,11 @@
  *
  * Navržené rozhraní (navíc k #133):
  * - `ProgressMapLayout.goalSymbol: MapSquare` v
- *   `src/games/counting/logic/progressMapLayout.ts`, `MapSquare { x, y,
+ *   `src/shared/logic/progressMapLayout.ts`, `MapSquare { x, y,
  *   size }` střed a strana čtverce symbolu v herních jednotkách,
  * - `MAP_ARRIVAL_PULSE_SCALE` tamtéž: kolikrát se místo a značka při
  *   dojití zvětší (scéna ho použije místo dnešních 1,15 v kódu scény),
- * - `PROGRESS_MAP_SHAPE` v `src/games/counting/logic/theme.ts`:
+ * - `PROGRESS_MAP_SHAPE` v `src/shared/logic/mapTheme.ts`:
  *   `placeBorderShare`, `goalBorderShare`, `markerBorderShare` šířka
  *   okraje jako díl průměru (dnes konstanty ve scéně 0,08, 0,14, 0,07).
  *
@@ -27,15 +27,15 @@
  * Kolečko a domeček zůstanou a mapa nesmí do jejich rohu (#87 AC4).
  */
 
-import { MAP_STEPS, MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
-import type { MapThemeId } from '../../../src/games/counting/logic/progressMap';
+import { MAP_STEPS, MAP_THEMES } from '../../../src/shared/logic/progressMap';
+import type { MapThemeId } from '../../../src/shared/logic/progressMap';
 import {
   MAP_ARRIVAL_PULSE_SCALE,
   layoutProgressMap,
   markerAt,
-} from '../../../src/games/counting/logic/progressMapLayout';
-import type { ProgressMapLayout } from '../../../src/games/counting/logic/progressMapLayout';
-import { PROGRESS_MAP_SHAPE } from '../../../src/games/counting/logic/theme';
+} from '../../../src/shared/logic/progressMapLayout';
+import type { ProgressMapLayout } from '../../../src/shared/logic/progressMapLayout';
+import { PROGRESS_MAP_SHAPE } from '../../../src/shared/logic/mapTheme';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import type { GameArea } from '../../../src/shared/logic/viewportLayout';
 import type { LayoutItem, LayoutScene } from '../../shared/layoutRules';

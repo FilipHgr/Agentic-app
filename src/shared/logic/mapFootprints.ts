@@ -19,7 +19,7 @@ import type { MapArea, MapPoint, ProgressMapLayout } from './progressMapLayout';
 import { layoutMapScenery } from './mapScenery';
 import { walkBetween } from './progressMapPath';
 import type { PathPose, PathWalk } from './progressMapPath';
-import { MAP_FOOTPRINT_COLORS, progressMapStyleFor } from './theme';
+import { MAP_FOOTPRINT_COLORS, progressMapStyleFor } from './mapTheme';
 
 /** Druh stop: tlapky, šlápoty bosých nohou, stopy bot, bublinky, hvězdičky. */
 export type FootprintKind = 'paw' | 'bareFoot' | 'boot' | 'bubble' | 'star';

@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import { SOUNDS } from '../../../src/games/counting/logic/answerSounds';
 import { MAP_CLOSE_ANSWER_PAUSE_MS } from '../../../src/games/counting/logic/countingSession';
-import { mapClosableFromMs } from '../../../src/games/counting/logic/mapAnimation';
-import { MAP_STEPS, serializeMapProgress } from '../../../src/games/counting/logic/progressMap';
-import type { MapMove, MapProgress } from '../../../src/games/counting/logic/progressMap';
-import { layoutProgressMapCard } from '../../../src/games/counting/logic/progressMapCard';
-import { MAP_PROGRESS_KEY, loadMapProgress } from '../../../src/games/counting/storage/mapStorage';
+import { mapClosableFromMs } from '../../../src/shared/logic/mapAnimation';
+import { MAP_STEPS, serializeMapProgress } from '../../../src/shared/logic/progressMap';
+import type { MapMove, MapProgress } from '../../../src/shared/logic/progressMap';
+import { layoutProgressMapCard } from '../../../src/shared/logic/progressMapCard';
+import { MAP_PROGRESS_KEY, loadMapProgress } from '../../../src/shared/storage/mapProgressStorage';
 import { IPAD_WINDOWS, PHONE_PORTRAIT_WINDOWS, viewportOf } from '../../shared/viewportFixtures';
 import { DeviceStorage } from '../../shared/profileFixtures';
 import { enterCountingOn, fillRow, keysOf, openPage, waitForMap } from './keyRewardFakes';

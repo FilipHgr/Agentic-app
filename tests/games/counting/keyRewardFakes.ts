@@ -1,10 +1,15 @@
 import { createCountingSession } from '../../../src/games/counting/logic/countingSession';
 import { STAR_FLIGHT_MS, CELEBRATION_MS } from '../../../src/games/counting/logic/countingSession';
-import { serializeMapProgress } from '../../../src/games/counting/logic/progressMap';
-import type { MapProgress } from '../../../src/games/counting/logic/progressMap';
+import { serializeMapProgress } from '../../../src/shared/logic/progressMap';
+import type { MapProgress } from '../../../src/shared/logic/progressMap';
 import { serializeSettings } from '../../../src/games/counting/logic/settings';
 import { STARS_PER_SET } from '../../../src/shared/logic/stars';
-import { MAP_PROGRESS_KEY } from '../../../src/games/counting/storage/mapStorage';
+import {
+  MAP_PROGRESS_AREA,
+  MAP_PROGRESS_KEY,
+  openMapProgress,
+} from '../../../src/shared/storage/mapProgressStorage';
+import type { MapProgressStore } from '../../../src/shared/logic/progressMap';
 import type { KeyRewards } from '../../../src/shared/logic/keyRewards';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 import { KEY_REWARDS_AREA, openKeyRewards } from '../../../src/shared/storage/keyRewardsStorage';
@@ -41,14 +46,29 @@ export function openPage(storage: DeviceStorage): ProfileStore {
   return openProfiles(storage);
 }
 
+/**
+ * Mapa postupu aktivního profilu, jak ji stránka předá hře (#193): ve
+ * společné oblasti profilu a s převodem dřívější mapy Počítání.
+ */
+export function mapOf(page: ProfileStore): MapProgressStore {
+  return openMapProgress(page.gameStorage(MAP_PROGRESS_AREA), page.gameStorage(COUNTING));
+}
+
 /** Klíče aktivního profilu, jak je stránka předá hře. */
 export function keysOf(page: ProfileStore): KeyRewards {
   return openKeyRewards(page.gameStorage(KEY_REWARDS_AREA));
 }
 
+/** Společné úložiště mapy postupu aktivního profilu (#193), kam mapu ukládají všechny hry. */
+export function mapStorageOf(page: ProfileStore): KeyValueStorage {
+  return page.gameStorage(MAP_PROGRESS_AREA);
+}
+
 /**
  * Úložiště Počítání aktivního profilu s uloženým nastavením (průvodce se
- * neukáže); volitelně s mapou uloženou dřív.
+ * neukáže); volitelně s mapou, kterou Počítání uložilo dřív (do #193 ve
+ * svém úložišti). Stránka ji při prvním otevření převede do společné mapy
+ * profilu (`mapOf`).
  */
 export function countingStorageOf(page: ProfileStore, map?: MapProgress): KeyValueStorage {
   const storage = page.gameStorage(COUNTING);
@@ -66,11 +86,15 @@ export interface KeyedCounting extends TestSession {
   readonly page: FakePage;
 }
 
-/** Jeden vstup do Počítání s úložištěm hry a klíči od stránky (bez klíčů `undefined`). */
+/**
+ * Jeden vstup do Počítání s úložištěm hry a klíči od stránky (bez klíčů
+ * `undefined`). Bez mapy od stránky leží mapa v úložišti hry `storage`.
+ */
 export function enterCountingWithKeys(
   storage: KeyValueStorage | undefined,
   keyRewards: KeyRewards | undefined,
   seed?: number,
+  mapProgress: MapProgressStore = openMapProgress(storage),
 ): KeyedCounting {
   const timers = new FakeTimers();
   const recognizer = new FakeRecognizerLoader();
@@ -86,6 +110,7 @@ export function enterCountingWithKeys(
     page,
     loadRecognizer: recognizer.load,
     keyRewards,
+    mapProgress,
     onChange: () => {
       changes += 1;
     },
@@ -95,7 +120,7 @@ export function enterCountingWithKeys(
 
 /** Vstup do Počítání aktivního profilu stránky `page` (volitelně s mapou uloženou dřív). */
 export function enterCountingOn(page: ProfileStore, map?: MapProgress): KeyedCounting {
-  return enterCountingWithKeys(countingStorageOf(page, map), keysOf(page));
+  return enterCountingWithKeys(countingStorageOf(page, map), keysOf(page), undefined, mapOf(page));
 }
 
 /** Dítě vyřeší 9 příkladů a ťukne správně na 10.: řada je plná, nic dalšího neproběhlo. */

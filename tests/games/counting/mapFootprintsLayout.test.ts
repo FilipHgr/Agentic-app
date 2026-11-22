@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { layoutMapFootprints } from '../../../src/games/counting/logic/mapFootprints';
-import { layoutMapScenery } from '../../../src/games/counting/logic/mapScenery';
-import { MAP_STEPS } from '../../../src/games/counting/logic/progressMap';
-import { layoutProgressMap } from '../../../src/games/counting/logic/progressMapLayout';
+import { layoutMapFootprints } from '../../../src/shared/logic/mapFootprints';
+import { layoutMapScenery } from '../../../src/shared/logic/mapScenery';
+import { MAP_STEPS } from '../../../src/shared/logic/progressMap';
+import { layoutProgressMap } from '../../../src/shared/logic/progressMapLayout';
 import { IPAD_WINDOWS } from '../../shared/viewportFixtures';
 import { HOME_SCREEN_WINDOWS } from '../../shared/layoutRules';
 import { cardBox } from './mapCardScenes';

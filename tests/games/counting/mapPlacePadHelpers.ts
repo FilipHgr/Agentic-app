@@ -8,7 +8,7 @@
  * čtvercová dlaždice), proto ji testy měří jako její obdélník
  * `width × height` se středem `x`, `y` (tvar se do něj vždy vejde).
  *
- * Navržené rozhraní `src/games/counting/logic/mapPlacePads.ts` (čistý
+ * Navržené rozhraní `src/shared/logic/mapPlacePads.ts` (čistý
  * TypeScript bez Phaseru, v herních jednotkách jako rozložení mapy):
  * - `type PlacePadKind = 'stump' | 'sandMound' | 'stoneTile' | 'seaweedRock' | 'planetoid'`
  *   (pařez, písečný kopeček, kamenná dlaždice, kámen s řasou, planetka),
@@ -35,8 +35,8 @@
  * aby podložkám uhnuly (AC3).
  */
 
-import { layoutMapPlacePads } from '../../../src/games/counting/logic/mapPlacePads';
-import type { MapPlacePad, MapPlacePads } from '../../../src/games/counting/logic/mapPlacePads';
+import { layoutMapPlacePads } from '../../../src/shared/logic/mapPlacePads';
+import type { MapPlacePad, MapPlacePads } from '../../../src/shared/logic/mapPlacePads';
 import { box, toCss } from '../../shared/viewportFixtures';
 import type { Box } from '../../shared/viewportFixtures';
 import { arcCases } from './mapPathHelpers';

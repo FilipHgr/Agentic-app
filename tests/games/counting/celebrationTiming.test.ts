@@ -9,10 +9,10 @@ import type {
   CountingSession,
   SessionChange,
 } from '../../../src/games/counting/logic/countingSession';
-import { MAP_STEPS, serializeMapProgress } from '../../../src/games/counting/logic/progressMap';
-import type { MapProgress } from '../../../src/games/counting/logic/progressMap';
+import { MAP_STEPS, serializeMapProgress } from '../../../src/shared/logic/progressMap';
+import type { MapProgress } from '../../../src/shared/logic/progressMap';
 import { STARS_PER_SET } from '../../../src/shared/logic/stars';
-import { MAP_PROGRESS_KEY } from '../../../src/games/counting/storage/mapStorage';
+import { MAP_PROGRESS_KEY, openMapProgress } from '../../../src/shared/storage/mapProgressStorage';
 import type { Tone } from '../../../src/shared/audio/tonePlayer';
 import type { KeyRewards } from '../../../src/shared/logic/keyRewards';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
@@ -141,6 +141,8 @@ function enterTimed(storage: KeyValueStorage, keyRewards?: KeyRewards): TimedCou
     page,
     loadRecognizer: new FakeRecognizerLoader().load,
     keyRewards,
+    // Mapa v úložišti hry, kam ji test uložil (sdílená mapa profilu, #193).
+    mapProgress: openMapProgress(storage),
     rudy,
     onChange: (change) => changes.push({ value: change.kind, atMs: clock.nowMs }),
   });

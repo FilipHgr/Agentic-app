@@ -116,6 +116,11 @@ export class SignPad {
     this.pad.lock();
   }
 
+  /** Schová plochu na psaní pod kartou s mapou (#193), `false` ji ukáže. */
+  setHidden(hidden: boolean): void {
+    this.pad.setHidden(hidden);
+  }
+
   /** Okénko se zhoupne: vyzývá psát znovu. */
   sway(): void {
     this.pad.sway();

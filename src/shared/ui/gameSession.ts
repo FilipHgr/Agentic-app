@@ -28,6 +28,7 @@ import type {
   PageBackdrop,
 } from '../logic/gameHost';
 import type { KeyRewards } from '../logic/keyRewards';
+import type { MapProgressStore } from '../logic/progressMap';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
 import type { GameRecords } from '../storage/profileRecords';
 
@@ -51,6 +52,8 @@ export interface GameSessionOptions {
   readonly records?: GameRecords | undefined;
   /** Klíče za dokončené mapy aktivního profilu (#139); bez nich hra klíče nedává. */
   readonly keyRewards?: KeyRewards | undefined;
+  /** Mapa postupu aktivního profilu, společná všem hrám (#193); bez ní mapa jen v paměti. */
+  readonly mapProgress?: MapProgressStore | undefined;
   /** Nastaví pozadí stránky kolem plátna (#134), `null` výchozí; bez něj hra pozadí nemění. */
   readonly pageBackdrop?: ((backdrop: PageBackdrop | null) => void) | undefined;
   /**
@@ -142,6 +145,7 @@ export function startGameSession(options: GameSessionOptions): GameSession {
     profileMarker: options.profileMarker,
     records: options.records,
     keyRewards: options.keyRewards,
+    mapProgress: options.mapProgress,
   };
 
   const session: GameSession = {

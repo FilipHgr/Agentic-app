@@ -16,13 +16,13 @@
  * změny tohoto rozložení i logiky mapy.
  */
 
-import type { GameArea } from '../../../shared/logic/viewportLayout';
+import type { GameArea } from './viewportLayout';
 import { MAP_GOAL_CELEBRATION_SCALE } from './mapAnimation';
 import { MAP_STEPS, MAP_THEMES } from './progressMap';
 import type { MapThemeId } from './progressMap';
 import { pathLinePieces, pathLinePoints, pathPointAt, pathSamples } from './progressMapPath';
 import type { MapPathShape } from './progressMapPath';
-import { PROGRESS_MAP_SHAPE } from './theme';
+import { PROGRESS_MAP_SHAPE } from './mapTheme';
 
 export { pathLinePoints, pathPointAt };
 

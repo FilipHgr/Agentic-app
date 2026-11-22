@@ -1,13 +1,11 @@
 import Phaser from 'phaser';
 
-import { STAR_FLIGHT_MS } from '../logic/countingSession';
 import { starFlightPointAt, starFlightShareAt } from '../logic/mapAnimation';
-import { STARS_PER_SET } from '../../../shared/logic/stars';
-import type { StarProgress } from '../../../shared/logic/stars';
-import { StarRow } from '../../../shared/ui/StarRow';
-import type { Origin } from '../../../shared/ui/StarRow';
-import { ABOVE_MAP_DEPTH } from '../logic/sceneDepths';
-import type { SceneLayouts } from './SceneLayouts';
+import { STARS_PER_SET } from '../logic/stars';
+import type { StarProgress } from '../logic/stars';
+import { StarRow } from './StarRow';
+import type { Origin } from './StarRow';
+import { ABOVE_MAP_DEPTH } from '../logic/mapDepths';
 
 /**
  * Jak velká hvězdička vyletí z řady (proti hvězdičce v řadě), aby byla
@@ -27,7 +25,8 @@ interface MapFlight {
 }
 
 /**
- * Sdílená řada hvězdiček Počítání s letem plné řady do okna s mapou (#154).
+ * Sdílená řada hvězdiček s letem plné řady do okna s mapou (#154), společná
+ * všem hrám s mapou postupu (#193): Počítání i Znaménka.
  */
 export class MapStarRow extends StarRow {
   private mapFlight: MapFlight | null = null;
@@ -36,22 +35,6 @@ export class MapStarRow extends StarRow {
    * řadu vyprázdní až po chvíli (`celebrationEnded`), aby plná řada neblikla.
    */
   private rowSentToMap = false;
-
-  /**
-   * @param readProgress Vrátí současný počet získaných hvězdiček (čte se při kreslení).
-   */
-  constructor(scene: Phaser.Scene, layouts: SceneLayouts, readProgress: () => StarProgress) {
-    super(
-      scene,
-      () => ({
-        stars: layouts.scenery().stars,
-        starSize: layouts.scenery().starSize,
-        detailScale: layouts.keypad().detailScale,
-      }),
-      readProgress,
-      STAR_FLIGHT_MS,
-    );
-  }
 
   /**
    * Řada hvězdiček na novém místě a v nové velikosti, rozsvícená jako

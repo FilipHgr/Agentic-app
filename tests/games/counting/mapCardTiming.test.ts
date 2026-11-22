@@ -6,9 +6,9 @@ import {
   keyRewardMomentAt,
   mapClosableFromMs,
   markerShareAt,
-} from '../../../src/games/counting/logic/mapAnimation';
-import { mapShowMs } from '../../../src/games/counting/logic/progressMap';
-import type { MapMove } from '../../../src/games/counting/logic/progressMap';
+} from '../../../src/shared/logic/mapAnimation';
+import { mapShowMs } from '../../../src/shared/logic/progressMap';
+import type { MapMove } from '../../../src/shared/logic/progressMap';
 import type { KeyReward } from '../../../src/shared/logic/keyRewards';
 import { LATEST_ARRIVAL_MS, allMoves } from './mapAnimationHelpers';
 import type { MoveCase } from './mapAnimationHelpers';

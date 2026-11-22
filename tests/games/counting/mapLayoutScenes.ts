@@ -5,7 +5,7 @@
  * hraje (iPad na šířku, telefon na šířku i na výšku, hranice, spuštění
  * z plochy), pro každou z 5 map a se značkou na každém kroku 0 až 3.
  *
- * Navržené rozhraní `src/games/counting/logic/progressMapLayout.ts`:
+ * Navržené rozhraní `src/shared/logic/progressMapLayout.ts`:
  * `layoutProgressMap(area: GameArea, theme: MapThemeId): ProgressMapLayout`
  * v herních jednotkách jako ostatní rozložení Počítání (mapa smí mít podle
  * `theme` vlastní tvar cesty):
@@ -20,9 +20,9 @@
  * domečkem i během mapy, #87 AC4), mapa nesmí do jejich rohu.
  */
 
-import { MAP_STEPS, MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
-import type { MapThemeId } from '../../../src/games/counting/logic/progressMap';
-import { layoutProgressMap, markerAt } from '../../../src/games/counting/logic/progressMapLayout';
+import { MAP_STEPS, MAP_THEMES } from '../../../src/shared/logic/progressMap';
+import type { MapThemeId } from '../../../src/shared/logic/progressMap';
+import { layoutProgressMap, markerAt } from '../../../src/shared/logic/progressMapLayout';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import { HOME_SCREEN_WINDOWS } from '../../shared/layoutRules';
 import type { LayoutItem, LayoutScene } from '../../shared/layoutRules';

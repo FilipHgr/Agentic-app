@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 
-import { colorNumber } from '../../../shared/logic/theme';
+import { colorNumber } from '../logic/theme';
 import type { MapPlacePad, MapPlacePads, PlacePadKind, PlacePadLook } from '../logic/mapPlacePads';
 import type { MapThemeId } from '../logic/progressMap';
-import { MAP_PLACE_PAD_COLORS } from '../logic/theme';
+import { MAP_PLACE_PAD_COLORS } from '../logic/mapTheme';
 
 /**
  * Podložky zastávek na mapě postupu (#147): pod každým místem malá kresba

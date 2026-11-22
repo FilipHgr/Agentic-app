@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
 
-import type { KeyReward } from '../../../shared/logic/keyRewards';
-import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
+import type { KeyReward } from '../logic/keyRewards';
+import { FONT_FAMILY, colorNumber } from '../logic/theme';
 import { keyRewardMomentAt } from '../logic/mapAnimation';
 import type { MapRect } from '../logic/progressMapLayout';
-import { PROGRESS_MAP_SHAPE } from '../logic/theme';
-import type { ProgressMapStyle } from '../logic/theme';
+import { PROGRESS_MAP_SHAPE } from '../logic/mapTheme';
+import type { ProgressMapStyle } from '../logic/mapTheme';
 import { keyHalfTextures } from './mapPictureTextures';
 
 /**

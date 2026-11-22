@@ -209,6 +209,21 @@ export class WritingPad<State, Result> {
     return { x: this.confirmButton.x, y: this.confirmButton.y };
   }
 
+  /**
+   * Schová celou plochu na psaní (okénka, smazání, ✓ a štětec), např. pod
+   * kartou s mapou (#193); `false` ji ukáže beze změny zápisu.
+   */
+  setHidden(hidden: boolean): void {
+    this.brush.setVisible(!hidden);
+    for (const object of [
+      ...this.views.map((view) => view.container),
+      this.confirmButton,
+      this.clearButton,
+    ]) {
+      object.setVisible(!hidden);
+    }
+  }
+
   /** Okénka se zhoupnou do stran: vyzývají psát znovu, nic netrestají (#188). */
   sway(): void {
     const containers = this.views.map((view) => view.container);

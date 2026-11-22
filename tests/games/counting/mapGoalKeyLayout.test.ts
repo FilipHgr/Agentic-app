@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAP_STEPS } from '../../../src/games/counting/logic/progressMap';
-import {
-  MAP_PATH_WIDTH_SHARE,
-  pathPointAt,
-} from '../../../src/games/counting/logic/progressMapLayout';
+import { MAP_STEPS } from '../../../src/shared/logic/progressMap';
+import { MAP_PATH_WIDTH_SHARE, pathPointAt } from '../../../src/shared/logic/progressMapLayout';
 import { LAYOUT_RULES } from '../../shared/layoutRules';
 import type { LayoutItem, LayoutScene } from '../../shared/layoutRules';
 import { box, heightOf, toCss } from '../../shared/viewportFixtures';
@@ -153,12 +150,12 @@ describe('#139 AC2: půlka klíče stojí u cíle a nic nepřekrývá', () => {
  */
 const KEY_FILES: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(
-    import.meta.glob<string>('../../../src/games/counting/icons/*', {
+    import.meta.glob<string>('../../../src/shared/icons/*', {
       query: '?inline',
       import: 'default',
       eager: true,
     }),
-  ).map(([path, dataUrl]) => [path.replace('../../../src/games/counting/icons/', ''), dataUrl]),
+  ).map(([path, dataUrl]) => [path.replace('../../../src/shared/icons/', ''), dataUrl]),
 );
 
 /** Nejvýš tolik bajtů smí mít půlka klíče (malý obrázek, rychlé stažení). */
@@ -178,7 +175,7 @@ describe('#139 AC2: klíč je malý obrázek uložený v repozitáři', () => {
   });
 
   it('licence uvádí klíč jako obrázek vytvořený službou ElevenLabs', () => {
-    const paragraph = licenceParagraphsWith('src/games/counting/icons/key-head.webp')[0];
+    const paragraph = licenceParagraphsWith('src/shared/icons/key-head.webp')[0];
     expect(paragraph, 'odstavec s klíčem').toBeDefined();
     expect(paragraph ?? '', 'půlka dříku').toContain('key-blade.webp');
     expect(paragraph ?? '', 'služba').toMatch(/ElevenLabs/);

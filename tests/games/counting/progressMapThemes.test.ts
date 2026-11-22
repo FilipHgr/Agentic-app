@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
-import { PROGRESS_MAP_BACKGROUNDS } from '../../../src/games/counting/logic/theme';
+import { MAP_THEMES } from '../../../src/shared/logic/progressMap';
+import { PROGRESS_MAP_BACKGROUNDS } from '../../../src/shared/logic/mapTheme';
 
 /**
  * Testy k #133 AC6: dokud nejsou hotové obrázky map, má každá z 5 map
  * zástupný vzhled s vlastní barvou pozadí, aby dítě poznalo, že přišla
  * jiná mapa.
  *
- * Navržené rozhraní `src/games/counting/logic/theme.ts`:
+ * Navržené rozhraní `src/shared/logic/mapTheme.ts`:
  * `PROGRESS_MAP_BACKGROUNDS: Readonly<Record<MapThemeId, string>>` barva
  * pozadí mapy jako `#RRGGBB` (scéna ji kreslí místo dnešního
  * `PROGRESS_MAP_STYLE.background`).

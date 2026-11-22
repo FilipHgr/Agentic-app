@@ -3,7 +3,6 @@ import Phaser from 'phaser';
 import { sharedToneContext } from '../../../shared/audio/sharedAudio';
 import { createTonePlayer } from '../../../shared/audio/tonePlayer';
 import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
-import { DEFAULT_PROFILE_COLOR } from '../../../shared/logic/profiles';
 import type { GameHost } from '../../../shared/logic/gameHost';
 import { gameAreaFor } from '../../../shared/logic/viewportLayout';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
@@ -12,9 +11,9 @@ import type { RudyVariants } from '../../../shared/storage/rudyVariantsStorage';
 import { RudyMoments } from '../../../shared/ui/rudyMoments';
 import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
 import type { Origin } from '../../../shared/ui/StarRow';
-import { GAME_AREA_KEY, readViewport } from '../../../shared/ui/viewport';
+import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
 import type { TapOutcome } from '../logic/answerRound';
-import { createCountingSession } from '../logic/countingSession';
+import { STAR_FLIGHT_MS, createCountingSession } from '../logic/countingSession';
 import type {
   CountingSession,
   SessionChange,
@@ -24,33 +23,22 @@ import type {
 } from '../logic/countingSession';
 import { isTwoBoxRound, playStateAfterResize } from '../logic/deviceLayout';
 import type { PlayState } from '../logic/deviceLayout';
-import { createMapPictureLoading } from '../logic/mapPictureLoading';
-import type { MapLook, MapPictureId } from '../logic/mapPictureLoading';
 import type { GameProgress } from '../logic/progress';
-import { mapMarkerFor, upcomingMapTheme } from '../logic/progressMap';
 import { countingRudyLines, countingRudyVoiceUrl } from '../logic/rudyLines';
 import type { CountingRudyLine } from '../logic/rudyLines';
-import {
-  layoutProgressMapCard,
-  mapCardPageBackdrop,
-  mapCardPictureCover,
-} from '../logic/progressMapCard';
-import type { MapMarker, MapThemeId } from '../logic/progressMap';
 import { loadDigitRecognizer } from '../logic/recognizerLoading';
 import type { RecognizerLoadStatus } from '../logic/recognizerLoading';
-import { ABOVE_MAP_DEPTH } from '../logic/sceneDepths';
+import { ABOVE_MAP_DEPTH } from '../../../shared/logic/mapDepths';
 import type { GameSettings } from '../logic/settings';
 import { switchToKeypad } from '../logic/twoBoxWriting';
 import type { TwoBoxConfirmResult, TwoBoxRound } from '../logic/twoBoxWriting';
 import { highlightCorrectButton } from './AnswerButton';
 import type { AnswerButton } from './AnswerButton';
 import { ParentPanels } from './ParentPanels';
-import { loadMapPicture, preloadGoalSymbols } from './mapPictureTextures';
-import { ProgressMapView } from './ProgressMapView';
-import type { MapScreen } from './ProgressMapView';
+import { MapCardScreen } from '../../../shared/ui/MapCardScreen';
 import { RoundView } from './RoundView';
 import { SceneLayouts, gameAreaFromRegistry } from './SceneLayouts';
-import { MapStarRow } from './MapStarRow';
+import { MapStarRow } from '../../../shared/ui/MapStarRow';
 
 /** Bez stránky (hra spuštěná jinak než z menu) kolečko nic neotevře. */
 const NO_PAGE: SessionPage = { attachSettingsGear: () => () => undefined };
@@ -64,7 +52,8 @@ const NO_PAGE: SessionPage = { attachSettingsGear: () => () => undefined };
  * Části obrazovky kreslí samostatné soubory vedle (#57): `RoundView`
  * (příklad, číselník, okénka, nápověda), `MapStarRow` (sdílená řada
  * hvězdiček s letem do mapy), sdílené `Confetti`,
- * `ProgressMapView` (mapa postupu po oslavě, #87) a `ParentPanels`
+ * sdílené `MapCardScreen` (karta se společnou mapou postupu po oslavě,
+ * #87, #145, #193) a `ParentPanels`
  * (nastavení a průvodce). Panda Rudy (oslava po 10. hvězdičce přímo na
  * obrazovce, #170, #186) je sdílené `RudyMoments`; kdy se ukáže, řídí
  * sezení.
@@ -100,17 +89,29 @@ export class GameScene extends Phaser.Scene {
     onDotTapped: (index, circle) => this.onDotTapped(index, circle),
     onHintButtonTapped: () => this.onHintButtonTapped(),
   });
-  private readonly starRow = new MapStarRow(this, this.layouts, () => this.currentProgress());
-  private readonly confetti = new Confetti(this, ABOVE_MAP_DEPTH);
-  private readonly progressMap = new ProgressMapView(
+  private readonly starRow = new MapStarRow(
     this,
-    () => this.profileMarker(),
-    () => this.onMapTapped(),
+    () => ({
+      stars: this.layouts.scenery().stars,
+      starSize: this.layouts.scenery().starSize,
+      detailScale: this.layouts.keypad().detailScale,
+    }),
+    () => this.currentProgress(),
+    STAR_FLIGHT_MS,
   );
-  /** Obrázky map se stahují na pozadí, jen ten, který se ukáže příště (#134). */
-  private readonly mapPictures = createMapPictureLoading((picture) =>
-    loadMapPicture(this, picture),
-  );
+  private readonly confetti = new Confetti(this, ABOVE_MAP_DEPTH);
+  /** Karta s mapou postupu po oslavě, společná všem hrám s hvězdičkami (#145, #193). */
+  private readonly progressMap = new MapCardScreen(this, {
+    gameArea: () => this.gameArea,
+    fit: 'fixed',
+    host: () => this.readHost(),
+    source: () => ({
+      shownMove: () => this.session.shownMap(),
+      goalKeyReward: () => this.session.goalKeyReward(),
+      mapProgress: () => this.session.mapProgress(),
+      tap: () => this.session.tapMap(),
+    }),
+  });
   // Společný zvukový kontext stránky, odemčený už ťuknutím v menu (#67 AC6).
   private readonly sounds = createTonePlayer(sharedToneContext);
   /** Panda Rudy (#170, #186); vznikne v `create`, kód a obrázky stáhne až při oslavě. */
@@ -122,7 +123,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Symboly cíle map jsou malé, načtou se hned se scénou (#134 AC2). */
   preload(): void {
-    preloadGoalSymbols(this);
+    this.progressMap.preload();
   }
 
   create(): void {
@@ -153,13 +154,15 @@ export class GameScene extends Phaser.Scene {
       loadRecognizer: loadDigitRecognizer,
       // Klíče aktivního profilu od stránky (#139); bez stránky mapa klíč nedává.
       keyRewards: host?.keyRewards,
+      // Mapa postupu aktivního profilu, společná všem hrám (#193); bez stránky jen paměť.
+      mapProgress: host?.mapProgress,
       rudy: this.sessionRudy(countingRudyLines(host?.storage)),
       onChange: (change) => this.onSessionChange(change),
     });
     this.session = session;
     host?.onLeave(() => session.leave());
 
-    this.prepareMapPicture();
+    this.progressMap.prepare();
     this.starRow.create();
     this.starRow.paint();
     this.view.listenForKeypadRelease();
@@ -200,15 +203,6 @@ export class GameScene extends Phaser.Scene {
     return isGameHost(stored) ? stored : undefined;
   }
 
-  /** Značka hráče na mapě v barvě profilu od stránky (#87); bez stránky výchozí barva. */
-  private profileMarker(): MapMarker {
-    const marker = this.readHost()?.profileMarker;
-    return mapMarkerFor({
-      nickname: marker?.letter,
-      color: marker?.color ?? DEFAULT_PROFILE_COLOR,
-    });
-  }
-
   /** Domeček je vidět jen tehdy, když jde použít (ne v nastavení a průvodci, #68 AC4). */
   private updateHome(): void {
     this.readHost()?.setHomeAvailable(this.session.homeAvailable());
@@ -219,7 +213,7 @@ export class GameScene extends Phaser.Scene {
     switch (change.kind) {
       case 'roundStarted':
         this.drawNewRound();
-        this.prepareMapPicture();
+        this.progressMap.prepare();
         break;
       case 'celebrationStarted':
         this.confetti.throw(this.gameArea, this.layouts.keypad().detailScale);
@@ -238,18 +232,18 @@ export class GameScene extends Phaser.Scene {
         this.starRow.paint();
         break;
       case 'mapShown':
-        this.showProgressMap();
+        this.progressMap.show(this.starRow);
         break;
       case 'mapHidden':
         // Okno se zavřelo: zbylé konfety dopadnou samy (#154 AC1).
         this.confetti.forget();
-        this.hideProgressMap();
+        this.progressMap.hide();
         break;
       case 'mapStopped':
         // Nastavení přerušilo okno i let hvězdiček: nic se nedohraje (#154 AC6).
         this.confetti.clear();
         this.starRow.stopMapFlight();
-        this.hideProgressMap();
+        this.progressMap.hide();
         break;
       case 'settingsOpened':
         this.panels.openSettings();
@@ -262,81 +256,6 @@ export class GameScene extends Phaser.Scene {
         break;
     }
     this.updateHome();
-  }
-
-  private showProgressMap(): void {
-    const move = this.session.shownMap();
-    if (move !== null) {
-      const look = this.mapPictures.mapShown(this.mapPictureOf(move.theme));
-      this.progressMap.show(this.mapScreen(look), move, this.session.goalKeyReward());
-      this.showPageBackdrop();
-      // Plná řada odletí ke značce na mapě (#154 AC3).
-      this.starRow.flyToMap(
-        () => this.progressMap.markerPosition(),
-        () => this.progressMap.elapsedMs(),
-      );
-    }
-  }
-
-  /**
-   * Ťuknutí na kartu s mapou nebo na ztmavení (#145 AC4): po doběhnutí
-   * animace ji sezení zavře (ohlásí `mapHidden`), dřív se karta jen zhoupne.
-   */
-  private onMapTapped(): void {
-    if (this.session.tapMap() === 'tooEarly') {
-      this.progressMap.wobble();
-    }
-  }
-
-  private hideProgressMap(): void {
-    this.progressMap.hide();
-    this.mapPictures.mapHidden();
-    this.readHost()?.setPageBackdrop?.(null);
-  }
-
-  /**
-   * Otočení zařízení: ukázaná mapa dostane vzhled pro novou orientaci
-   * (obrázek jen když je stažený, AC4), jinak se připraví obrázek další mapy.
-   */
-  private relayoutProgressMap(): void {
-    const move = this.session.shownMap();
-    if (move === null) {
-      this.prepareMapPicture();
-      return;
-    }
-    const look = this.mapPictures.orientationChanged(this.mapPictureOf(move.theme));
-    this.progressMap.redraw(this.mapScreen(look));
-    this.showPageBackdrop();
-  }
-
-  /** Během hraní se na pozadí stáhne obrázek mapy, kterou ukáže příští plná řada. */
-  private prepareMapPicture(): void {
-    this.mapPictures.prepare(this.mapPictureOf(upcomingMapTheme(this.session.mapProgress())));
-  }
-
-  /** Obrázek mapy `theme` v orientaci karty (#145 AC2: řídí se tvarem karty). */
-  private mapPictureOf(theme: MapThemeId): MapPictureId {
-    return {
-      theme,
-      orientation: mapCardPictureCover(layoutProgressMapCard(readViewport())).orientation,
-    };
-  }
-
-  /** Karta s mapou v dnešním okně (#145): poloha a velikost podle okna, výřezu a rohů. */
-  private mapScreen(look: MapLook): MapScreen {
-    const card = layoutProgressMapCard(readViewport());
-    return { area: this.gameArea, window: this.windowSize(), card, look };
-  }
-
-  /** Velikost okna v CSS px: ztmavení přes celé okno, ne jen herní plochu. */
-  private windowSize(): { width: number; height: number } {
-    const { width, height } = readViewport();
-    return { width, height };
-  }
-
-  /** Okraje okna kolem plátna jsou během karty ztmavené stejně jako hra (#145 AC2). */
-  private showPageBackdrop(): void {
-    this.readHost()?.setPageBackdrop?.(mapCardPageBackdrop());
   }
 
   /** Nastavení, jak se má rozehraný příklad ukázat: s číselníkem, nebo s okénky. */
@@ -381,7 +300,7 @@ export class GameScene extends Phaser.Scene {
     this.layouts.clear();
     this.starRow.redraw();
     this.relayoutRound();
-    this.relayoutProgressMap();
+    this.progressMap.relayout();
     this.panels.fitTo(this.gameArea);
     this.rudy.relayout();
   }

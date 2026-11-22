@@ -1,13 +1,16 @@
 /**
  * Tóny Porovnávání (#178): veselá melodie za správnou odpověď, jeden
  * tichý hluboký tón za chybu (žádný bzučák) a slavnostní melodie po
- * zaplnění řady hvězdiček. Ťuknutí na okénko (#187) jemně cinkne.
+ * zaplnění řady hvězdiček. Ťuknutí na okénko (#187) jemně cinkne. Zvuky
+ * mapy postupu (krok, cíl, půlka klíče) jsou společné s Počítáním (#193).
  * Čistý TypeScript bez Web Audio.
  */
 
 import type { Tone } from '../../../shared/audio/tonePlayer';
+import { MAP_SOUNDS } from '../../../shared/logic/mapSounds';
+import type { MapSoundName } from '../../../shared/logic/mapSounds';
 
-export type CompareSoundName = 'correct' | 'wrong' | 'celebration' | 'boxTap';
+export type CompareSoundName = 'correct' | 'wrong' | 'celebration' | 'boxTap' | MapSoundName;
 
 const CORRECT_TONES: readonly Tone[] = [
   { frequencyHz: 523.25, startSeconds: 0, durationSeconds: 0.12, volume: 0.35 },
@@ -41,4 +44,5 @@ export const COMPARE_SOUNDS: Readonly<Record<CompareSoundName, readonly Tone[]>>
   wrong: WRONG_TONES,
   celebration: CELEBRATION_TONES,
   boxTap: BOX_TAP_TONES,
+  ...MAP_SOUNDS,
 };

@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { createCountingSession } from '../../../src/games/counting/logic/countingSession';
-import { START_MAP } from '../../../src/games/counting/logic/progressMap';
-import type { MapMove, MapProgress } from '../../../src/games/counting/logic/progressMap';
+import { START_MAP } from '../../../src/shared/logic/progressMap';
+import type { MapMove, MapProgress } from '../../../src/shared/logic/progressMap';
 import { STARS_PER_SET } from '../../../src/shared/logic/stars';
 import { COUNTING_META } from '../../../src/games/counting/meta';
 import { PROFILE_COLORS } from '../../../src/shared/logic/profiles';
 import { openProfiles } from '../../../src/shared/storage/profileStorage';
 import type { ProfileStore } from '../../../src/shared/storage/profileStorage';
+import { MAP_PROGRESS_AREA, openMapProgress } from '../../../src/shared/storage/mapProgressStorage';
 import { DeviceStorage } from '../../shared/profileFixtures';
 
 import { seededRandom } from './seededRandom';
@@ -30,7 +31,8 @@ import type { TestSession } from './sessionFakes';
  * kroky jsou přepočítané na 3 kroky se stejnou ochranou. Jedno „načtení stránky“ je
  * `openProfiles(storage)`, vstup do Počítání je sezení nad úložištěm
  * aktivního profilu (`store.gameStorage(COUNTING_META.id)`), jako v
- * `profiles.test.ts` (#71). Odchod domečkem je `leave()`, zavření hry je
+ * `profiles.test.ts` (#71). Mapu dá hře stránka ze společné oblasti
+ * profilu (#193), jako při spuštění z menu. Odchod domečkem je `leave()`, zavření hry je
  * konec sezení bez `leave()`.
  */
 
@@ -46,6 +48,10 @@ function enterCounting(store: ProfileStore): TestSession {
     timers,
     page: new FakePage(),
     loadRecognizer: recognizer.load,
+    mapProgress: openMapProgress(
+      store.gameStorage(MAP_PROGRESS_AREA),
+      store.gameStorage(COUNTING_META.id),
+    ),
     onChange: () => undefined,
   });
   if (session.guideOpen()) {

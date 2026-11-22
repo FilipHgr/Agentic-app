@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { layoutMapScenery } from '../../../src/games/counting/logic/mapScenery';
-import type { SceneryBox } from '../../../src/games/counting/logic/mapScenery';
-import { MAP_STEPS } from '../../../src/games/counting/logic/progressMap';
-import { pathPointAt } from '../../../src/games/counting/logic/progressMapLayout';
-import type { MapPoint } from '../../../src/games/counting/logic/progressMapLayout';
+import { layoutMapScenery } from '../../../src/shared/logic/mapScenery';
+import type { SceneryBox } from '../../../src/shared/logic/mapScenery';
+import { MAP_STEPS } from '../../../src/shared/logic/progressMap';
+import { pathPointAt } from '../../../src/shared/logic/progressMapLayout';
+import type { MapPoint } from '../../../src/shared/logic/progressMapLayout';
 import type { Box } from '../../shared/viewportFixtures';
 import { cornerItems } from './layoutScenes';
 import { cardBox, cardWindowCase } from './mapCardScenes';

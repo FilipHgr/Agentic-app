@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAP_STEPS, MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
-import { MAP_ARRIVAL_PULSE_SCALE } from '../../../src/games/counting/logic/progressMapLayout';
+import { MAP_STEPS, MAP_THEMES } from '../../../src/shared/logic/progressMap';
+import { MAP_ARRIVAL_PULSE_SCALE } from '../../../src/shared/logic/progressMapLayout';
 import { LAYOUT_RULES, MIN_TAP_SIDE } from '../../shared/layoutRules';
 import type { LayoutScene } from '../../shared/layoutRules';
 import { heightOf, toCss, box, widthOf } from '../../shared/viewportFixtures';

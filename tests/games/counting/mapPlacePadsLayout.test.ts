@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { layoutMapFootprints } from '../../../src/games/counting/logic/mapFootprints';
-import { layoutMapScenery } from '../../../src/games/counting/logic/mapScenery';
-import { MAP_STEPS, MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
-import {
-  MAP_PATH_WIDTH_SHARE,
-  pathLinePoints,
-} from '../../../src/games/counting/logic/progressMapLayout';
-import { PROGRESS_MAP_CARD_STYLE } from '../../../src/games/counting/logic/theme';
+import { layoutMapFootprints } from '../../../src/shared/logic/mapFootprints';
+import { layoutMapScenery } from '../../../src/shared/logic/mapScenery';
+import { MAP_STEPS, MAP_THEMES } from '../../../src/shared/logic/progressMap';
+import { MAP_PATH_WIDTH_SHARE, pathLinePoints } from '../../../src/shared/logic/progressMapLayout';
+import { PROGRESS_MAP_CARD_STYLE } from '../../../src/shared/logic/mapTheme';
 import { fitViolations, overlapViolations } from '../../shared/layoutRules';
 import type { LayoutItem, LayoutScene } from '../../shared/layoutRules';
 import { box, toCss } from '../../shared/viewportFixtures';

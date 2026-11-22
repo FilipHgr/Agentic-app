@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { SOUNDS } from '../../../src/games/counting/logic/answerSounds';
-import { MAP_GOAL_SHOW_MS, MAP_STEPS } from '../../../src/games/counting/logic/progressMap';
-import type { MapProgress } from '../../../src/games/counting/logic/progressMap';
+import { MAP_GOAL_SHOW_MS, MAP_STEPS } from '../../../src/shared/logic/progressMap';
+import { serializeMapProgress } from '../../../src/shared/logic/progressMap';
+import type { MapProgress } from '../../../src/shared/logic/progressMap';
 import { STARS_PER_SET } from '../../../src/shared/logic/stars';
-import { MAP_PROGRESS_KEY, loadMapProgress } from '../../../src/games/counting/storage/mapStorage';
+import { MAP_PROGRESS_KEY, loadMapProgress } from '../../../src/shared/storage/mapProgressStorage';
 import { saveProgress } from '../../../src/games/counting/storage/progressStorage';
 import type { KeyBalance, KeyReward } from '../../../src/shared/logic/keyRewards';
 import { PROFILE_COLORS } from '../../../src/shared/logic/profiles';
@@ -17,6 +18,8 @@ import {
   enterCountingWithKeys,
   fillRow,
   keysOf,
+  mapOf,
+  mapStorageOf,
   openPage,
   waitForMap,
 } from './keyRewardFakes';
@@ -204,10 +207,24 @@ describe('#139 AC3: za jednu dokončenou mapu je půl klíče jen jednou', () =>
     const firstPage = openPage(storage);
     const secondPage = openPage(storage);
     const first = enterCountingOn(firstPage, beforeGoal(0));
-    const second = enterCountingWithKeys(countingStorageOf(secondPage), keysOf(secondPage));
+    const second = enterCountingWithKeys(
+      countingStorageOf(secondPage),
+      keysOf(secondPage),
+      undefined,
+      mapOf(secondPage),
+    );
 
     expect(reachGoal(first), '1. panel').toBe('half');
-    expect(reachGoal(second), '2. panel, stejná mapa').toBeNull();
+    // Mapa patří profilu (#193): 2. panel pokračuje na společné mapě, cíl
+    // stejné mapy už podruhé nepřijde a půlka nepřibude.
+    fillRow(second);
+    waitForMap(second);
+    expect(second.session.shownMap(), '2. panel, další mapa').toMatchObject({
+      from: 0,
+      to: 1,
+      reachedGoal: false,
+    });
+    expect(second.session.goalKeyReward(), '2. panel bez půlky').toBeNull();
     first.timers.runAll();
     second.timers.runAll();
 
@@ -223,7 +240,7 @@ describe('#139 AC3: za jednu dokončenou mapu je půl klíče jen jednou', () =>
     expect(keysOf(page).balance(), 'před poškozením').toEqual(balanceAfter(3));
 
     // Poškozený počet map: krok zůstane, mapa jde zase od 0 map (#133 AC5).
-    countingStorageOf(page).setItem(
+    mapStorageOf(page).setItem(
       MAP_PROGRESS_KEY,
       JSON.stringify({ format: 2, step: MAP_STEPS - 1, completedMaps: -5 }),
     );
@@ -236,7 +253,8 @@ describe('#139 AC3: za jednu dokončenou mapu je půl klíče jen jednou', () =>
     afterCorruption.session.leave();
     expect(keysOf(page).balance(), 'po 1. mapě od poškození').toEqual(balanceAfter(3));
 
-    const later = enterCountingOn(page, beforeGoal(3));
+    mapStorageOf(page).setItem(MAP_PROGRESS_KEY, serializeMapProgress(beforeGoal(3)));
+    const later = enterCountingOn(page);
     expect(reachGoal(later), '4. mapa nad dřív dosaženým počtem').toBe('wholeKey');
     later.timers.runAll();
     expect(keysOf(page).balance()).toEqual(balanceAfter(4));
@@ -306,7 +324,7 @@ describe('#139 AC5: mapy dokončené před změnou se převedou při prvním ote
       saveProgress(countingStorage, { earned: 4 });
       expect(keysOf(page).balance(), 'před otevřením Počítání').toEqual(NO_KEYS);
 
-      const test = enterCountingWithKeys(countingStorage, keysOf(page));
+      const test = enterCountingWithKeys(countingStorage, keysOf(page), undefined, mapOf(page));
       const label = `${map.completedMaps} map, krok ${map.step}`;
       expect(keysOf(page).balance(), label).toEqual(balanceAfter(map.completedMaps));
       test.timers.advance(MAP_GOAL_SHOW_MS * 2);
@@ -315,7 +333,7 @@ describe('#139 AC5: mapy dokončené před změnou se převedou při prvním ote
       expect(keyTones(test), `${label}: žádný tón`).toBe(0);
       expect(test.session.mapProgress(), `${label}: mapa zůstala`).toEqual(map);
       expect(test.session.starCount(), `${label}: hvězdičky zůstaly`).toBe(4);
-      expect(loadMapProgress(countingStorage), `${label}: uložená mapa zůstala`).toEqual(map);
+      expect(loadMapProgress(mapStorageOf(page)), `${label}: uložená mapa zůstala`).toEqual(map);
     }
   });
 
@@ -336,7 +354,7 @@ describe('#139 AC5: mapy dokončené před změnou se převedou při prvním ote
     const countingStorage = countingStorageOf(page);
     countingStorage.setItem(MAP_PROGRESS_KEY, JSON.stringify({ step: 4, completedMaps: 2 }));
 
-    enterCountingWithKeys(countingStorage, keysOf(page)).session.leave();
+    enterCountingWithKeys(countingStorage, keysOf(page), undefined, mapOf(page)).session.leave();
 
     expect(keysOf(page).balance()).toEqual(balanceAfter(2));
   });
@@ -385,7 +403,7 @@ describe('#139 AC6: chybějící nebo poškozený záznam klíčů a hra bez kl�
     const page = openPage(storage);
     const countingStorage = countingStorageOf(page, beforeGoal(0));
     storage.failWrite = (key) => key.includes(KEY_REWARDS_AREA);
-    const test = enterCountingWithKeys(countingStorage, keysOf(page));
+    const test = enterCountingWithKeys(countingStorage, keysOf(page), undefined, mapOf(page));
 
     expect(reachGoal(test)).toBe('half');
     test.timers.runAll();
@@ -400,7 +418,12 @@ describe('#139 AC6: chybějící nebo poškozený záznam klíčů a hra bez kl�
 
   it('bez klíčů od stránky mapa dojde do cíle bez půlky, bez tónu klíče a bez chyby', () => {
     const page = openPage(new DeviceStorage());
-    const test = enterCountingWithKeys(countingStorageOf(page, beforeGoal(0)), undefined);
+    const test = enterCountingWithKeys(
+      countingStorageOf(page, beforeGoal(0)),
+      undefined,
+      undefined,
+      mapOf(page),
+    );
 
     expect(reachGoal(test)).toBeNull();
     test.timers.runAll();
@@ -427,7 +450,12 @@ describe('#139 AC6: chybějící nebo poškozený záznam klíčů a hra bez kl�
         throw new Error('klíče selhaly');
       },
     };
-    const test = enterCountingWithKeys(countingStorageOf(page, beforeGoal(0)), failing);
+    const test = enterCountingWithKeys(
+      countingStorageOf(page, beforeGoal(0)),
+      failing,
+      undefined,
+      mapOf(page),
+    );
 
     expect(reachGoal(test)).toBeNull();
     test.timers.runAll();

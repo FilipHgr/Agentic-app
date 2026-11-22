@@ -3,15 +3,15 @@ import { describe, expect, it } from 'vitest';
 import type { Tone } from '../../../src/shared/audio/tonePlayer';
 import { SOUNDS } from '../../../src/games/counting/logic/answerSounds';
 import { CELEBRATION_MS, STAR_FLIGHT_MS } from '../../../src/games/counting/logic/countingSession';
-import { markerShareAt } from '../../../src/games/counting/logic/mapAnimation';
+import { markerShareAt } from '../../../src/shared/logic/mapAnimation';
 import {
   MAP_GOAL_SHOW_MS,
   MAP_STEPS,
   serializeMapProgress,
-} from '../../../src/games/counting/logic/progressMap';
-import type { MapProgress } from '../../../src/games/counting/logic/progressMap';
+} from '../../../src/shared/logic/progressMap';
+import type { MapProgress } from '../../../src/shared/logic/progressMap';
 import { STARS_PER_SET } from '../../../src/shared/logic/stars';
-import { MAP_PROGRESS_KEY, loadMapProgress } from '../../../src/games/counting/storage/mapStorage';
+import { MAP_PROGRESS_KEY, loadMapProgress } from '../../../src/shared/storage/mapProgressStorage';
 import { correctAnswerOf, enterCounting, solveProblems, testDevice } from './sessionFakes';
 import type { TestDevice, TestSession } from './sessionFakes';
 

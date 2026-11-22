@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 /**
  * Pomůcky pro testy obrázků map postupu (#134): soubory obrázků a symbolů
- * cíle ve složce `src/games/counting/maps/`, hlavička WebP a text
+ * cíle ve složce `src/shared/maps/`, hlavička WebP a text
  * `public/licence.txt`.
  *
  * Soubory se čtou přes `import.meta.glob` (`?inline` jako `data:` adresa
@@ -11,11 +11,11 @@
  * z testů menu (každá část má vlastní testy).
  */
 
-import type { MapThemeId } from '../../../src/games/counting/logic/progressMap';
+import type { MapThemeId } from '../../../src/shared/logic/progressMap';
 import licenceText from '../../../public/licence.txt?raw';
 
 /** Složka s obrázky map a symboly cíle v repozitáři (od kořene). */
-export const MAPS_FOLDER = 'src/games/counting/maps';
+export const MAPS_FOLDER = 'src/shared/maps';
 
 /** Orientace obrázku, jak ji zadání pojmenovává v souborech. */
 export type PictureOrientation = 'landscape' | 'portrait';
@@ -58,7 +58,7 @@ function withoutPrefix(path: string): string {
 /** Obrázky WebP ve složce map jako `data:` adresy, klíč je cesta od kořene. */
 export const PICTURE_FILES: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(
-    import.meta.glob<string>('../../../src/games/counting/maps/*.webp', {
+    import.meta.glob<string>('../../../src/shared/maps/*.webp', {
       query: '?inline',
       import: 'default',
       eager: true,
@@ -69,7 +69,7 @@ export const PICTURE_FILES: Readonly<Record<string, string>> = Object.fromEntrie
 /** Symboly cíle SVG ve složce map jako text, klíč je cesta od kořene. */
 export const SYMBOL_FILES: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(
-    import.meta.glob<string>('../../../src/games/counting/maps/*.svg', {
+    import.meta.glob<string>('../../../src/shared/maps/*.svg', {
       query: '?raw',
       import: 'default',
       eager: true,
@@ -79,7 +79,7 @@ export const SYMBOL_FILES: Readonly<Record<string, string>> = Object.fromEntries
 
 /** Všechny soubory ve složce map (jakéhokoli druhu), cesty od kořene. */
 export const MAPS_FOLDER_FILES: readonly string[] = Object.keys(
-  import.meta.glob('../../../src/games/counting/maps/*', { query: '?url', eager: false }),
+  import.meta.glob('../../../src/shared/maps/*', { query: '?url', eager: false }),
 ).map(withoutPrefix);
 
 export function picturePath(theme: MapThemeId, orientation: PictureOrientation): string {

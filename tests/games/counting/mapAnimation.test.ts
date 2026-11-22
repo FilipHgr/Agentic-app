@@ -7,16 +7,16 @@ import {
   isPlaceLitAt,
   markerPointAt,
   markerShareAt,
-} from '../../../src/games/counting/logic/mapAnimation';
+} from '../../../src/shared/logic/mapAnimation';
 import {
   MAP_GOAL_SHOW_MS,
   MAP_SHOW_MS,
   MAP_STEPS,
   mapShowMs,
-} from '../../../src/games/counting/logic/progressMap';
-import type { MapMove } from '../../../src/games/counting/logic/progressMap';
-import { layoutProgressMap } from '../../../src/games/counting/logic/progressMapLayout';
-import type { ProgressMapLayout } from '../../../src/games/counting/logic/progressMapLayout';
+} from '../../../src/shared/logic/progressMap';
+import type { MapMove } from '../../../src/shared/logic/progressMap';
+import { layoutProgressMap } from '../../../src/shared/logic/progressMapLayout';
+import type { ProgressMapLayout } from '../../../src/shared/logic/progressMapLayout';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import { viewportOf } from '../../shared/viewportFixtures';
 import type { TestWindow } from '../../shared/viewportFixtures';
@@ -34,7 +34,7 @@ import { MAP_WINDOWS } from './mapLayoutScenes';
 /**
  * Testy k #135 AC1–AC4: značka jde po cestě mapy, místa se rozsvítí, až
  * na ně značka dojde, a cíl slaví. Testuje se čistá časová osa ukázání
- * mapy (`src/games/counting/logic/mapAnimation.ts`): kde je značka, co
+ * mapy (`src/shared/logic/mapAnimation.ts`): kde je značka, co
  * svítí a jak cíl slaví v čase od ukázání mapy. Scéna ji jen kreslí.
  * Každé pravidlo má jeden test, který v cyklu projde všechna okna mapy
  * (`MAP_WINDOWS`), 5 map a všechny kroky včetně kroku nové mapy ze startu;

@@ -16,7 +16,7 @@ import { MAP_STEPS } from './progressMap';
 import type { MapThemeId } from './progressMap';
 import { layoutProgressMap, mapContentBox } from './progressMapLayout';
 import type { MapArea, MapRect, ProgressMapLayout } from './progressMapLayout';
-import { MAP_PLACE_PAD_COLORS } from './theme';
+import { MAP_PLACE_PAD_COLORS } from './mapTheme';
 
 /** Druh podložky: pařez, písečný kopeček, kamenná dlaždice, kámen s řasou, planetka. */
 export type PlacePadKind = 'stump' | 'sandMound' | 'stoneTile' | 'seaweedRock' | 'planetoid';

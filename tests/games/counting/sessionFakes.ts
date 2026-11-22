@@ -14,6 +14,7 @@ import type { GameSettings } from '../../../src/games/counting/logic/settings';
 import type { DigitRecognizer } from '../../../src/games/counting/logic/writingRound';
 import type { Tone } from '../../../src/shared/audio/tonePlayer';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
+import { openMapProgress } from '../../../src/shared/storage/mapProgressStorage';
 
 import { seededRandom } from './seededRandom';
 import { memoryStorage } from './storageFakes';
@@ -304,6 +305,8 @@ export function enterCounting(
     timers,
     page: device.page,
     loadRecognizer: recognizer.load,
+    // Mapa postupu nad úložištěm zařízení: přežije odchod i nový vstup (#87, #193).
+    mapProgress: openMapProgress(device.storage),
     rudy,
     onChange: () => {
       changes += 1;

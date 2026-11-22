@@ -11,13 +11,13 @@
  * Čistý TypeScript bez Phaseru; kreslí scéna, zvuky pouští sezení.
  */
 
-import type { KeyReward } from '../../../shared/logic/keyRewards';
-import { SOUNDS, soundLengthSeconds } from './answerSounds';
+import type { KeyReward } from './keyRewards';
+import { MAP_SOUNDS, soundLengthSeconds } from './mapSounds';
 import type { MapMove } from './progressMap';
 import type { MapPoint, ProgressMapLayout } from './progressMapLayout';
 import { pathPoseBetween, walkBetween } from './progressMapPath';
 import type { PathWalk } from './progressMapPath';
-import { STARS_PER_SET } from '../../../shared/logic/stars';
+import { STARS_PER_SET } from './stars';
 
 /** Jak dlouho letí jedna hvězdička z řady ke značce (#154 AC3). */
 export const STAR_TO_MAP_FLIGHT_MS = 420;
@@ -292,7 +292,7 @@ export function goalCelebrationAt(move: MapMove, elapsedMs: number): GoalCelebra
  * (#139 AC2): až dohraje melodie cíle, která začne, když značka dojde.
  */
 export const KEY_REWARD_APPEAR_MS =
-  MARKER_ARRIVAL_MS + Math.ceil(soundLengthSeconds(SOUNDS.mapGoal) * 1000);
+  MARKER_ARRIVAL_MS + Math.ceil(soundLengthSeconds(MAP_SOUNDS.mapGoal) * 1000);
 
 /** Jak dlouho půlka klíče naskakuje (zvětšuje se z nuly). */
 export const KEY_REWARD_POP_MS = 350;

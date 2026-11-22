@@ -3,12 +3,14 @@
  * do menu, úložiště aktivního profilu (#71), značku profilu (#87), háček
  * na podržení domečku (#124), záznamy her aktivního profilu (#125),
  * háček na držení domečku (#129), pozadí stránky kolem hry (#134) a klíče
- * za dokončené mapy aktivního profilu (#139).
+ * za dokončené mapy aktivního profilu (#139) a mapu postupu aktivního
+ * profilu, společnou všem hrám (#193).
  * Spouštění her (`src/shared/ui/gameRunner.ts`) to hře dá do registru
  * Phaseru pod klíčem `GAME_HOST_KEY`. Čistý TypeScript.
  */
 
 import type { KeyRewards } from './keyRewards';
+import type { MapProgressStore } from './progressMap';
 import type { Profile } from './profiles';
 import type { KeyValueStorage } from '../storage/keyValueStorage';
 import type { GameRecords } from '../storage/profileRecords';
@@ -92,6 +94,12 @@ export interface GameHost {
    * `undefined`, když stránka žádné nedala (hra pak klíče nedává).
    */
   readonly keyRewards?: KeyRewards | undefined;
+  /**
+   * Mapa postupu aktivního profilu (#193), jedna pro všechny hry
+   * s hvězdičkami: hra ji jen čte a posouvá, označení profilu nedostane.
+   * `undefined`, když stránka žádnou nedala (hra pak mapu drží v paměti).
+   */
+  readonly mapProgress?: MapProgressStore | undefined;
 }
 
 /** Je hodnota z registru stránka pro hru? */
@@ -110,8 +118,18 @@ export function isGameHost(value: unknown): value is GameHost {
     (host.storage === undefined || isKeyValueStorage(host.storage)) &&
     (host.profileMarker === undefined || isProfileMarker(host.profileMarker)) &&
     (host.records === undefined || isGameRecords(host.records)) &&
-    (host.keyRewards === undefined || isKeyRewards(host.keyRewards))
+    (host.keyRewards === undefined || isKeyRewards(host.keyRewards)) &&
+    (host.mapProgress === undefined || isMapProgressStore(host.mapProgress))
   );
+}
+
+/** Má hodnota tvar mapy postupu (funkce `load` a `save`)? */
+function isMapProgressStore(value: unknown): value is MapProgressStore {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const store = value as Partial<MapProgressStore>;
+  return typeof store.load === 'function' && typeof store.save === 'function';
 }
 
 /** Má hodnota tvar klíčů (funkce `reportCompletedMaps`, `balance`, `spendKey` a `spentItems`)? */

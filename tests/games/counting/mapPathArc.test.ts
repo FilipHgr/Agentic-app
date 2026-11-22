@@ -6,24 +6,18 @@ import {
   markerPointAt,
   markerShareAt,
   markerTrailAt,
-} from '../../../src/games/counting/logic/mapAnimation';
-import { mapCardPictureCover } from '../../../src/games/counting/logic/progressMapCard';
-import { mapShowMs } from '../../../src/games/counting/logic/progressMap';
-import type { MapMove } from '../../../src/games/counting/logic/progressMap';
+} from '../../../src/shared/logic/mapAnimation';
+import { mapCardPictureCover } from '../../../src/shared/logic/progressMapCard';
+import { mapShowMs } from '../../../src/shared/logic/progressMap';
+import type { MapMove } from '../../../src/shared/logic/progressMap';
 import {
   layoutProgressMap,
   pathBandFits,
   pathLinePoints,
   pathPointAt,
-} from '../../../src/games/counting/logic/progressMapLayout';
-import type {
-  MapPoint,
-  ProgressMapLayout,
-} from '../../../src/games/counting/logic/progressMapLayout';
-import {
-  PROGRESS_MAP_BACKGROUNDS,
-  progressMapStyleFor,
-} from '../../../src/games/counting/logic/theme';
+} from '../../../src/shared/logic/progressMapLayout';
+import type { MapPoint, ProgressMapLayout } from '../../../src/shared/logic/progressMapLayout';
+import { PROGRESS_MAP_BACKGROUNDS, progressMapStyleFor } from '../../../src/shared/logic/mapTheme';
 import { contrastRatio } from '../../../src/shared/logic/theme';
 import { IPAD_WINDOWS } from '../../shared/viewportFixtures';
 import type { TestWindow } from '../../shared/viewportFixtures';

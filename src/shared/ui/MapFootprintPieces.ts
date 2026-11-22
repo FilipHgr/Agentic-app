@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-import { colorNumber } from '../../../shared/logic/theme';
+import { colorNumber } from '../logic/theme';
 import { footprintMomentAt } from '../logic/mapFootprints';
 import type {
   FootprintKind,

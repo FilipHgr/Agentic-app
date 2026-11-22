@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { createMapPictureLoading } from '../../../src/games/counting/logic/mapPictureLoading';
-import type {
-  LoadMapPicture,
-  MapPictureId,
-} from '../../../src/games/counting/logic/mapPictureLoading';
-import { MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
+import { createMapPictureLoading } from '../../../src/shared/logic/mapPictureLoading';
+import type { LoadMapPicture, MapPictureId } from '../../../src/shared/logic/mapPictureLoading';
+import { MAP_THEMES } from '../../../src/shared/logic/progressMap';
 
 /**
  * Testy k #134 AC4 a otevřené otázce 4: obrázek mapy se stahuje na pozadí
@@ -19,7 +16,7 @@ import { MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
  * Stahování je podvržené: každé zavolání vrátí slib, který test sám splní
  * nebo odmítne (jako u rozpoznávání psaní, #58), nic se nestahuje a nečasuje.
  *
- * Navržené rozhraní `src/games/counting/logic/mapPictureLoading.ts`:
+ * Navržené rozhraní `src/shared/logic/mapPictureLoading.ts`:
  * - `interface MapPictureId { theme: MapThemeId; orientation: MapOrientation }`,
  * - `type MapPictureStatus = 'notStarted' | 'loading' | 'ready' | 'failed'`,
  * - `type MapLook = 'picture' | 'placeholder'`,

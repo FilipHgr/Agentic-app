@@ -1,6 +1,7 @@
 /**
  * Klíče za dokončené mapy (#139), společné pro všechny hry: za každou
- * dokončenou mapu v Počítání dostane profil půl klíče, za dvě mapy celý
+ * dokončenou mapu (od #193 na společné mapě profilu, ať ji dokončila
+ * kterákoli hra) dostane profil půl klíče, za dvě mapy celý
  * klíč (navazující úkol jím odemkne omalovánku). Hra nahlásí, kolik map
  * profil dokončil, a dozví se, jestli tím přibyla půlka, nebo se dokončil
  * celý klíč. Započte se jen nejvyšší nahlášený počet, takže stejná mapa

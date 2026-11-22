@@ -4,7 +4,7 @@
  * k bodu (vzdálenost a ušlá délka od startu) a mapy v kartě (#145) ve
  * všech oknech mapy z #133 AC7.
  *
- * Navržené rozhraní `src/games/counting/logic/progressMapLayout.ts` (čistý
+ * Navržené rozhraní `src/shared/logic/progressMapLayout.ts` (čistý
  * TypeScript bez Phaseru, v herních jednotkách jako rozložení mapy):
  * - `pathPointAt(layout: ProgressMapLayout, segment: number, share: number): MapPoint`
  *   bod na oblouku úseku z místa `segment` na místo `segment + 1`; `share`
@@ -13,7 +13,7 @@
  * - `pathLinePoints(layout: ProgressMapLayout, segment: number): readonly MapPoint[]`
  *   lomená čára, kterou scéna kreslí čáru cesty úseku (od místa `segment`
  *   po místo `segment + 1`), dost hustá, aby byla od oblouku nejvýš 1 CSS px.
- * Navržené rozhraní `src/games/counting/logic/mapAnimation.ts`:
+ * Navržené rozhraní `src/shared/logic/mapAnimation.ts`:
  * - `markerPointAt(layout, move, elapsedMs): MapPoint` zůstává, jen značka
  *   jde po oblouku a díl ušlé délky oblouku odpovídá `markerShareAt`,
  * - `interface MarkerTrail { points: readonly MapPoint[]; sparkles: readonly MapPoint[] }`:
@@ -24,17 +24,14 @@
  *   vyražením nebo už došla).
  */
 
-import { MAP_STEPS, MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
-import type { MapThemeId } from '../../../src/games/counting/logic/progressMap';
-import {
-  layoutProgressMap,
-  pathPointAt,
-} from '../../../src/games/counting/logic/progressMapLayout';
+import { MAP_STEPS, MAP_THEMES } from '../../../src/shared/logic/progressMap';
+import type { MapThemeId } from '../../../src/shared/logic/progressMap';
+import { layoutProgressMap, pathPointAt } from '../../../src/shared/logic/progressMapLayout';
 import type {
   MapArea,
   MapPoint,
   ProgressMapLayout,
-} from '../../../src/games/counting/logic/progressMapLayout';
+} from '../../../src/shared/logic/progressMapLayout';
 import type { TestWindow } from '../../shared/viewportFixtures';
 import { cardWindowCase } from './mapCardScenes';
 import type { CardWindowCase } from './mapCardScenes';

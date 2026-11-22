@@ -11,6 +11,8 @@
  * (#125) dostane jen pro aktivní profil, bez jeho označení. Klíče za
  * dokončené mapy (#139) jsou v úložišti aktivního profilu v oblasti
  * `KEY_REWARDS_AREA`, takže je smazání profilu smaže s ostatními daty.
+ * Stejně je tam mapa postupu (#193) v oblasti `MAP_PROGRESS_AREA`, jedna
+ * pro všechny hry; při prvním otevření se do ní převede mapa Počítání.
  */
 
 import { isGameUnlocked } from '../../shared/logic/gameAccess';
@@ -19,6 +21,11 @@ import type { GameProfileMarker } from '../../shared/logic/gameHost';
 import type { GameEntry } from '../../shared/logic/gameRegistry';
 import type { KeyValueStorage } from '../../shared/storage/keyValueStorage';
 import { KEY_REWARDS_AREA, openKeyRewards } from '../../shared/storage/keyRewardsStorage';
+import {
+  LEGACY_MAP_GAME_ID,
+  MAP_PROGRESS_AREA,
+  openMapProgress,
+} from '../../shared/storage/mapProgressStorage';
 import type { GameRecords } from '../../shared/storage/profileRecords';
 import { isGameModule, runGame } from '../../shared/ui/gameRunner';
 
@@ -58,6 +65,14 @@ export function launchGame(game: GameEntry, loaded: unknown, context: LaunchCont
       context.gameStorage === undefined
         ? undefined
         : openKeyRewards(context.gameStorage(KEY_REWARDS_AREA)),
+    // Mapa profilu, ne hry (#193 AC1); dřívější mapa Počítání se převede jen jednou (AC3).
+    mapProgress:
+      context.gameStorage === undefined
+        ? undefined
+        : openMapProgress(
+            context.gameStorage(MAP_PROGRESS_AREA),
+            context.gameStorage(LEGACY_MAP_GAME_ID),
+          ),
   });
   context.closeMenu();
 }

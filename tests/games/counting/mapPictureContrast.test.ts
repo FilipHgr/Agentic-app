@@ -4,17 +4,11 @@ import {
   MAP_PICTURE_SIZE,
   mapOrientationOf,
   mapPictureCover,
-} from '../../../src/games/counting/logic/mapPictures';
-import { MAP_STEPS } from '../../../src/games/counting/logic/progressMap';
-import { pathPointAt } from '../../../src/games/counting/logic/progressMapLayout';
-import type {
-  MapPoint,
-  ProgressMapLayout,
-} from '../../../src/games/counting/logic/progressMapLayout';
-import {
-  PROGRESS_MAP_BACKGROUNDS,
-  progressMapStyleFor,
-} from '../../../src/games/counting/logic/theme';
+} from '../../../src/shared/logic/mapPictures';
+import { MAP_STEPS } from '../../../src/shared/logic/progressMap';
+import { pathPointAt } from '../../../src/shared/logic/progressMapLayout';
+import type { MapPoint, ProgressMapLayout } from '../../../src/shared/logic/progressMapLayout';
+import { PROGRESS_MAP_BACKGROUNDS, progressMapStyleFor } from '../../../src/shared/logic/mapTheme';
 import { contrastRatio } from '../../../src/shared/logic/theme';
 import { pictureFileName } from './mapPictureHelpers';
 import { pictureMapCases } from './mapPictureLayoutScenes';
@@ -31,7 +25,7 @@ import { PICTURE_TONES, TONE_GRID } from './mapPictureTones';
  * Barvy jsou změřené předem (`mapPictureTones.ts`), Node WebP nepřečte;
  * test otisků v `mapPictureFiles.test.ts` hlídá, že patří k souborům.
  *
- * Navržené rozhraní `src/games/counting/logic/theme.ts`:
+ * Navržené rozhraní `src/shared/logic/mapTheme.ts`:
  * `progressMapStyleFor(theme: MapThemeId, look: MapLook): ProgressMapStyle`
  * barvy mapy podle tématu a vzhledu (`MapLook = 'picture' | 'placeholder'`
  * z `mapPictureLoading.ts`), aspoň `pathColor` (cesta) a

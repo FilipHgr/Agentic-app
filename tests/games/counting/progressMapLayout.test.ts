@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAP_STEPS, MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
+import { MAP_STEPS, MAP_THEMES } from '../../../src/shared/logic/progressMap';
 import {
   layoutProgressMap,
   markerAt,
   pathPointAt,
-} from '../../../src/games/counting/logic/progressMapLayout';
-import type {
-  MapPoint,
-  ProgressMapLayout,
-} from '../../../src/games/counting/logic/progressMapLayout';
+} from '../../../src/shared/logic/progressMapLayout';
+import type { MapPoint, ProgressMapLayout } from '../../../src/shared/logic/progressMapLayout';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import { LAYOUT_RULES } from '../../shared/layoutRules';
 import type { LayoutScene } from '../../shared/layoutRules';

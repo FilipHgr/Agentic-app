@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 
-import { colorNumber } from '../../../shared/logic/theme';
+import { colorNumber } from '../logic/theme';
 import { sceneryPoseAt, scenerySizeOf } from '../logic/mapScenery';
 import type { MapScenery, SceneryKind, SceneryPiece } from '../logic/mapScenery';
-import { MAP_SCENERY_COLORS } from '../logic/theme';
+import { MAP_SCENERY_COLORS } from '../logic/mapTheme';
 
 /**
  * Kousky prostředí na mapě postupu (#136): každý kousek je jedna malá

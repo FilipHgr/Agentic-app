@@ -4,7 +4,7 @@
  * (`MAP_WINDOWS`) a obrazovka mapy s pohyblivými kousky pro společná
  * pravidla rozložení (`tests/shared/layoutRules.ts`).
  *
- * Navržené rozhraní `src/games/counting/logic/mapScenery.ts` (čistý
+ * Navržené rozhraní `src/shared/logic/mapScenery.ts` (čistý
  * TypeScript bez Phaseru, v herních jednotkách jako rozložení mapy):
  * - `type SceneryKind = 'waves' | 'gull' | 'fallingLeaves' | 'butterfly'
  *   | 'flag' | 'cloud' | 'bubbles' | 'fish' | 'stars' | 'comet'`,
@@ -31,29 +31,22 @@ import {
   MAP_SCENERY_KINDS,
   layoutMapScenery,
   sceneryPoseAt,
-} from '../../../src/games/counting/logic/mapScenery';
+} from '../../../src/shared/logic/mapScenery';
 import type {
   MapScenery,
   SceneryBox,
   SceneryKind,
   SceneryPiece,
   SceneryPose,
-} from '../../../src/games/counting/logic/mapScenery';
-import {
-  MAP_GOAL_SHOW_MS,
-  MAP_STEPS,
-  MAP_THEMES,
-} from '../../../src/games/counting/logic/progressMap';
-import type { MapThemeId } from '../../../src/games/counting/logic/progressMap';
+} from '../../../src/shared/logic/mapScenery';
+import { MAP_GOAL_SHOW_MS, MAP_STEPS, MAP_THEMES } from '../../../src/shared/logic/progressMap';
+import type { MapThemeId } from '../../../src/shared/logic/progressMap';
 import {
   layoutProgressMap,
   markerAt,
   pathPointAt,
-} from '../../../src/games/counting/logic/progressMapLayout';
-import type {
-  MapPoint,
-  ProgressMapLayout,
-} from '../../../src/games/counting/logic/progressMapLayout';
+} from '../../../src/shared/logic/progressMapLayout';
+import type { MapPoint, ProgressMapLayout } from '../../../src/shared/logic/progressMapLayout';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import type { GameArea } from '../../../src/shared/logic/viewportLayout';
 import type { LayoutItem, LayoutScene } from '../../shared/layoutRules';

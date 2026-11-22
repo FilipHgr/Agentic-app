@@ -120,6 +120,15 @@ export class EquationView {
     return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
   }
 
+  /** Schová příklad pod kartou s mapou (#193), `false` ho ukáže beze změny. */
+  setHidden(hidden: boolean): void {
+    for (const part of this.parts) {
+      part.setVisible(!hidden);
+    }
+    this.box.setVisible(!hidden);
+    this.boxHit?.setVisible(!hidden);
+  }
+
   /** Nový příklad naskočí ze zmenšení. */
   popIn(): void {
     for (const target of [...this.parts, this.box]) {
@@ -291,6 +300,11 @@ export class SignButtonView {
       this.press();
       onTap();
     });
+  }
+
+  /** Schová tlačítko pod kartou s mapou (#193), `false` ho ukáže. */
+  setHidden(hidden: boolean): void {
+    this.container.setVisible(!hidden);
   }
 
   destroy(): void {

@@ -6,10 +6,10 @@ import {
   parseMapProgress,
   readMapRecord,
   serializeMapProgress,
-} from '../../../src/games/counting/logic/progressMap';
-import type { MapMove } from '../../../src/games/counting/logic/progressMap';
+} from '../../../src/shared/logic/progressMap';
+import type { MapMove } from '../../../src/shared/logic/progressMap';
 import { STARS_PER_SET } from '../../../src/shared/logic/stars';
-import { MAP_PROGRESS_KEY } from '../../../src/games/counting/storage/mapStorage';
+import { MAP_PROGRESS_KEY } from '../../../src/shared/storage/mapProgressStorage';
 import { correctAnswerOf, enterCounting, solveProblems, testDevice } from './sessionFakes';
 import type { TestSession } from './sessionFakes';
 

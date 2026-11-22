@@ -5,17 +5,17 @@ import {
   MARKER_WALK_MS,
   markerPointAt,
   markerTrailAt,
-} from '../../../src/games/counting/logic/mapAnimation';
+} from '../../../src/shared/logic/mapAnimation';
 import {
   MAP_FOOTPRINT_KINDS,
   footprintMomentAt,
   layoutMapFootprints,
-} from '../../../src/games/counting/logic/mapFootprints';
-import type { FootprintKind, MapFootprint } from '../../../src/games/counting/logic/mapFootprints';
-import { MAP_THEMES, mapShowMs } from '../../../src/games/counting/logic/progressMap';
-import type { MapMove, MapThemeId } from '../../../src/games/counting/logic/progressMap';
-import { layoutProgressMap } from '../../../src/games/counting/logic/progressMapLayout';
-import type { ProgressMapLayout } from '../../../src/games/counting/logic/progressMapLayout';
+} from '../../../src/shared/logic/mapFootprints';
+import type { FootprintKind, MapFootprint } from '../../../src/shared/logic/mapFootprints';
+import { MAP_THEMES, mapShowMs } from '../../../src/shared/logic/progressMap';
+import type { MapMove, MapThemeId } from '../../../src/shared/logic/progressMap';
+import { layoutProgressMap } from '../../../src/shared/logic/progressMapLayout';
+import type { ProgressMapLayout } from '../../../src/shared/logic/progressMapLayout';
 import type { TestWindow } from '../../shared/viewportFixtures';
 import { allMoves, sampleTimes } from './mapAnimationHelpers';
 import type { MoveCase } from './mapAnimationHelpers';

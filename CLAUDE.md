@@ -40,7 +40,8 @@ Webová hra v prohlížeči na výuku matematiky pro děti.
   Verze viz `package.json`.
 - Projekt má oddělené části:
   - `src/shared/` společné věci stránky (herní plocha podle okna, kolečko
-    nastavení, společné barvy, úložiště, přehrávač tónů),
+    nastavení, společné barvy, úložiště, přehrávač tónů, mapa postupu
+    a klíče společné pro všechny hry, záznamy přehledu pro rodiče),
   - `src/games/<hra>/` jednotlivé hry (dnes `counting` = Počítání) se
     vstupem `index.ts` (scény hry, stahuje se až po ťuknutí v menu)
     a `meta.ts` (id, kategorie, symbol dlaždice, název z textů hry

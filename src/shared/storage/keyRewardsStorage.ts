@@ -138,7 +138,7 @@ export function openKeyRewards(storage: KeyValueStorage | undefined): KeyRewards
    * Počet map, který se nepodařilo uložit (úložiště zápis odmítlo výjimkou).
    * Platí jen pro tuto instanci, tedy do návratu do menu: stránka otevírá
    * klíče znovu při každém spuštění hry. Po návratu se počet znovu nahlásí
-   * z mapy Počítání při vstupu do hry. Úložiště profilu navíc nepovedený
+   * ze společné mapy profilu při vstupu do hry s hvězdičkami (#193). Úložiště profilu navíc nepovedený
    * zápis podrží samo v paměti do zavření stránky (AC6).
    */
   let unsavedMaps = 0;

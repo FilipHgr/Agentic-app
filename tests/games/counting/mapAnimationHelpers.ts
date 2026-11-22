@@ -7,12 +7,9 @@
  * úseky, #133 AC7), takže „na cestě“ znamená ležet na některém z oblouků.
  */
 
-import { MAP_STEPS, MAP_THEMES, stepOnMap } from '../../../src/games/counting/logic/progressMap';
-import type { MapMove, MapThemeId } from '../../../src/games/counting/logic/progressMap';
-import type {
-  MapPoint,
-  ProgressMapLayout,
-} from '../../../src/games/counting/logic/progressMapLayout';
+import { MAP_STEPS, MAP_THEMES, stepOnMap } from '../../../src/shared/logic/progressMap';
+import type { MapMove, MapThemeId } from '../../../src/shared/logic/progressMap';
+import type { MapPoint, ProgressMapLayout } from '../../../src/shared/logic/progressMapLayout';
 import { denseArcOf, projectOntoArc } from './mapPathHelpers';
 
 /** Tolerance polohy v herních jednotkách (zaokrouhlení). */

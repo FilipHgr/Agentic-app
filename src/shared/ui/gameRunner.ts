@@ -20,6 +20,7 @@ import type { CanvasResolution } from '../logic/canvasResolution';
 import { GAME_HOST_KEY } from '../logic/gameHost';
 import type { GameProfileMarker } from '../logic/gameHost';
 import type { KeyRewards } from '../logic/keyRewards';
+import type { MapProgressStore } from '../logic/progressMap';
 import { homeButtonFor } from '../logic/homeButton';
 import { settingsGearFor } from '../logic/settingsGear';
 import { PAGE_BACKGROUND } from '../logic/theme';
@@ -90,6 +91,8 @@ export interface RunGameOptions {
   readonly records?: GameRecords | undefined;
   /** Klíče za dokončené mapy aktivního profilu (#139), jen v zařízení. */
   readonly keyRewards?: KeyRewards | undefined;
+  /** Mapa postupu aktivního profilu, společná všem hrám (#193), jen v zařízení. */
+  readonly mapProgress?: MapProgressStore | undefined;
 }
 
 /** Phaser hra bez vlastních zvuků: hry hrají přes společný zvukový kontext stránky. */
@@ -168,6 +171,7 @@ export function runGame(module: GameModule, options: RunGameOptions): Phaser.Gam
     profileMarker: options.profileMarker,
     records: options.records,
     keyRewards: options.keyRewards,
+    mapProgress: options.mapProgress,
     pageBackdrop: applyPageBackdrop,
     onLeft: options.onLeft,
     startScenes: (session) => {

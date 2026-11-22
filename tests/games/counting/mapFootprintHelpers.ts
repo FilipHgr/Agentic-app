@@ -5,7 +5,7 @@
  * kde leží na oblouku (ušlá délka od startu, úsek, strana), barva obrázku
  * pod ní a smíchání poloprůhledné barvy s pozadím.
  *
- * Navržené rozhraní `src/games/counting/logic/mapFootprints.ts` (čistý
+ * Navržené rozhraní `src/shared/logic/mapFootprints.ts` (čistý
  * TypeScript bez Phaseru, v herních jednotkách jako rozložení mapy):
  * - `type FootprintKind = 'paw' | 'bareFoot' | 'boot' | 'bubble' | 'star'`
  *   (tlapky, šlápoty bosých nohou, stopy bot, bublinky, hvězdičky),
@@ -34,22 +34,19 @@
  * - `interface MapFootprintStyle { lit: FootprintLook; unlit: FootprintLook }`,
  * - `mapFootprintStyleFor(theme: MapThemeId, look: MapLook): MapFootprintStyle`
  *   prošlé zlaté s tmavým obrysem, neprošlé bílé poloprůhledné.
- * V `src/games/counting/logic/mapAnimation.ts` zůstává `markerTrailAt`,
+ * V `src/shared/logic/mapAnimation.ts` zůstává `markerTrailAt`,
  * jen `points` (zlatá čára) je během chůze prázdné, `sparkles` zůstávají.
  */
 
-import { MAP_STEPS } from '../../../src/games/counting/logic/progressMap';
-import { layoutMapFootprints } from '../../../src/games/counting/logic/mapFootprints';
+import { MAP_STEPS } from '../../../src/shared/logic/progressMap';
+import { layoutMapFootprints } from '../../../src/shared/logic/mapFootprints';
 import type {
   FootprintLook,
   MapFootprint,
   MapFootprints,
-} from '../../../src/games/counting/logic/mapFootprints';
-import { mapCardPictureCover } from '../../../src/games/counting/logic/progressMapCard';
-import type {
-  MapPoint,
-  ProgressMapLayout,
-} from '../../../src/games/counting/logic/progressMapLayout';
+} from '../../../src/shared/logic/mapFootprints';
+import { mapCardPictureCover } from '../../../src/shared/logic/progressMapCard';
+import type { MapPoint, ProgressMapLayout } from '../../../src/shared/logic/progressMapLayout';
 import { contrastRatio } from '../../../src/shared/logic/theme';
 import { pictureFileName } from './mapPictureHelpers';
 import { PICTURE_TONES, TONE_GRID } from './mapPictureTones';

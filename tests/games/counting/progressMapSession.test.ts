@@ -7,10 +7,10 @@ import {
   MAP_STEPS,
   START_MAP,
   serializeMapProgress,
-} from '../../../src/games/counting/logic/progressMap';
-import type { MapMove, MapProgress } from '../../../src/games/counting/logic/progressMap';
+} from '../../../src/shared/logic/progressMap';
+import type { MapMove, MapProgress } from '../../../src/shared/logic/progressMap';
 import { STARS_PER_SET } from '../../../src/shared/logic/stars';
-import { MAP_PROGRESS_KEY, loadMapProgress } from '../../../src/games/counting/storage/mapStorage';
+import { MAP_PROGRESS_KEY, loadMapProgress } from '../../../src/shared/storage/mapProgressStorage';
 import { LEGACY_PROGRESS_KEY } from '../../shared/profileFixtures';
 import {
   correctAnswerOf,
@@ -36,7 +36,7 @@ import { brokenStorage } from './storageFakes';
  * - `shownMap(): MapMove | null` co mapa právě ukazuje (`from`, `to`,
  *   `reachedGoal` a podle #133 `theme`, tedy která z 5 map), `null`,
  *   když mapa není vidět.
- * Uložení `src/games/counting/storage/mapStorage.ts`: `MAP_PROGRESS_KEY`
+ * Uložení `src/shared/storage/mapProgressStorage.ts`: `MAP_PROGRESS_KEY`
  * (klíč v úložišti hry profilu), `loadMapProgress(storage)`
  * a `saveMapProgress(storage, progress)`, chyby úložiště hra nevidí.
  */

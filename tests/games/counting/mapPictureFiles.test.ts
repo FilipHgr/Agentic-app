@@ -5,8 +5,8 @@ import {
   MAP_ORIENTATIONS,
   MAP_PICTURE_SIZE,
   mapPictureUrl,
-} from '../../../src/games/counting/logic/mapPictures';
-import { MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
+} from '../../../src/shared/logic/mapPictures';
+import { MAP_THEMES } from '../../../src/shared/logic/progressMap';
 import {
   GOAL_SYMBOLS,
   LICENCE_TEXT,
@@ -36,12 +36,12 @@ import { PICTURE_TONES, TONE_GRID } from './mapPictureTones';
  * a licence jsou v `public/licence.txt` a hra nic nestahuje z cizích
  * serverů. Stejné kontroly jako u dlaždic her (#122) a ikon Noto (#106).
  *
- * Navržené soubory ve složce `src/games/counting/maps/`:
+ * Navržené soubory ve složce `src/shared/maps/`:
  * `<mapa>-landscape.webp` (1200 × 800), `<mapa>-portrait.webp`
  * (800 × 1200) a `goal-<mapa>.svg` (Noto Emoji z `@iconify-json/noto`
  * 1.2.10: gem-stone, mushroom, castle, spiral-shell, ringed-planet).
  *
- * Navržené rozhraní `src/games/counting/logic/mapPictures.ts` (popis
+ * Navržené rozhraní `src/shared/logic/mapPictures.ts` (popis
  * v `mapPictures.test.ts`): `MAP_ORIENTATIONS`, `MAP_PICTURE_SIZE`,
  * `mapPictureUrl(theme, orientation)` a `MAP_GOAL_SYMBOLS`.
  */

@@ -89,7 +89,7 @@ Otisky SHA-256 výsledných obrysů:
   castle.png: 3031f3c86c792bb378c012f39dd44da86f99afb60d25c664c804573e87c3b280
   owl.png: 557728d78fd4471f4cc28d4173bdba0917a69bab76dc02eba4c9b10b781908c5
 
-Obrázky map postupu v Počítání (src/games/counting/maps/island-landscape.webp,
+Obrázky map postupu všech her s hvězdičkami (src/shared/maps/island-landscape.webp,
 island-portrait.webp, forest-landscape.webp, forest-portrait.webp,
 castle-landscape.webp, castle-portrait.webp, underwater-landscape.webp,
 underwater-portrait.webp, space-landscape.webp, space-portrait.webp) jsou
@@ -108,7 +108,7 @@ na WebP. Zdrojové PNG nejsou v repozitáři, otisky SHA-256 zdrojů:
   space-landscape: a3d89742a07a621498d946b2b45b360e5f8789382affa68f74334432b2783619
   space-portrait: 74f2c07b7aa76df5aa1cc14c593ea9264f730430ae70b9992831a02e3f2c24d9
 
-Klíč za dokončenou mapu v Počítání (src/games/counting/icons/key-head.webp,
+Klíč za dokončenou mapu (src/shared/icons/key-head.webp,
 key-blade.webp) a klíč ukazatele klíčů na výběru omalovánek
 (src/games/coloring/icons/key.webp, key-head.webp) je obrázek vytvořený
 službou ElevenLabs (https://elevenlabs.io), model GPT Image 2.5. Použito
@@ -192,8 +192,8 @@ Ikony nástrojů v Omalovánkách (src/games/coloring/icons/: paintbrush, eraser
 pen, pencil, rainbow, star, bubbles, barber-pole, sparkles, splatter), paleta
 v úchytu panelu nástrojů (artist-palette), zámek
 zamčené omalovánky, otevřený zámek na výběru omalovánek (locked, unlocked) a
-symboly cíle map postupu v Počítání
-(src/games/counting/maps/: gem-stone, mushroom, castle, spiral-shell,
+symboly cíle map postupu
+(src/shared/maps/: gem-stone, mushroom, castle, spiral-shell,
 ringed-planet) jsou obrázky ze sady Noto Emoji, autor
 Google Inc.,
 https://github.com/googlefonts/noto-emoji

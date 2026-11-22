@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { SOUNDS, soundLengthSeconds } from '../../../src/games/counting/logic/answerSounds';
-import { keyRewardMomentAt, markerShareAt } from '../../../src/games/counting/logic/mapAnimation';
-import { MAP_GOAL_SHOW_MS, MAP_STEPS } from '../../../src/games/counting/logic/progressMap';
+import { keyRewardMomentAt, markerShareAt } from '../../../src/shared/logic/mapAnimation';
+import { MAP_GOAL_SHOW_MS, MAP_STEPS } from '../../../src/shared/logic/progressMap';
 import type { Tone } from '../../../src/shared/audio/tonePlayer';
 import type { KeyReward } from '../../../src/shared/logic/keyRewards';
 import type { ProfileStore } from '../../../src/shared/storage/profileStorage';

@@ -12,8 +12,8 @@ import {
   parseMapProgress,
   serializeMapProgress,
   stepOnMap,
-} from '../../../src/games/counting/logic/progressMap';
-import type { MapProgress } from '../../../src/games/counting/logic/progressMap';
+} from '../../../src/shared/logic/progressMap';
+import type { MapProgress } from '../../../src/shared/logic/progressMap';
 import { PROFILE_COLORS } from '../../../src/shared/logic/profiles';
 
 /**
@@ -23,7 +23,7 @@ import { PROFILE_COLORS } from '../../../src/shared/logic/profiles';
  * (8 kroků) se stejnou ochranou: krok za řadu, jen dopředu, doby
  * zobrazení, uložení a nové načtení, poškozená data a značka hráče.
  *
- * Navržené rozhraní `src/games/counting/logic/progressMap.ts`:
+ * Navržené rozhraní `src/shared/logic/progressMap.ts`:
  * - `MAP_STEPS = 3` (krok 0 start, 1 a 2 zastávky, 3 cíl),
  *   `MAP_SHOW_MS` a `MAP_GOAL_SHOW_MS` (od #145 AC3 obě 7000),
  * - `MapThemeId = 'island' | 'forest' | 'castle' | 'underwater' | 'space'`,

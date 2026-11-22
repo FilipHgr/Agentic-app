@@ -12,6 +12,8 @@ import type {
   CompareProblem,
   CompareSign,
 } from '../../../src/games/compare/logic/compareProblems';
+import type { KeyRewards } from '../../../src/shared/logic/keyRewards';
+import type { MapProgressStore } from '../../../src/shared/logic/progressMap';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
 
 /**
@@ -226,13 +228,19 @@ export interface TestCompare {
 /**
  * Dítě otevře Porovnávání nad úložištěm `storage` (bez něj jen paměť).
  * S `rudy` hra ukazuje Rudyho po 10. hvězdičce (#181, #186), bez něj hraje bez něj.
- * `today` je dnešní den pro přehled pro rodiče (#192).
+ * `today` je dnešní den pro přehled pro rodiče (#192). `profile` jsou klíče
+ * a mapa postupu aktivního profilu od stránky (#193); bez nich mapa jen
+ * v paměti a bez klíčů.
  */
 export function openCompare(
   storage?: KeyValueStorage,
   seed?: number,
   rudy?: CompareRudy,
   today?: () => Date,
+  profile?: {
+    readonly keyRewards?: KeyRewards | undefined;
+    readonly mapProgress?: MapProgressStore | undefined;
+  },
 ): TestCompare {
   const timers = new FakeTimers();
   const sounds = new FakeSounds();
@@ -248,6 +256,8 @@ export function openCompare(
     onChange: (change) => changes.push(change),
     // Dnešní den pro přehled pro rodiče (#192); bez něj hodiny zařízení.
     today,
+    keyRewards: profile?.keyRewards,
+    mapProgress: profile?.mapProgress,
   });
   return { session, timers, sounds, changes, gear };
 }

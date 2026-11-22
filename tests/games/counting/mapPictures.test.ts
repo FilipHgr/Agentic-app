@@ -5,9 +5,9 @@ import {
   mapOrientationOf,
   mapPictureCover,
   mapPictureUrl,
-} from '../../../src/games/counting/logic/mapPictures';
-import type { MapOrientation } from '../../../src/games/counting/logic/mapPictures';
-import { MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
+} from '../../../src/shared/logic/mapPictures';
+import type { MapOrientation } from '../../../src/shared/logic/mapPictures';
+import { MAP_THEMES } from '../../../src/shared/logic/progressMap';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import { viewportOf } from '../../shared/viewportFixtures';
 import { MAP_WINDOWS } from './mapLayoutScenes';
@@ -19,7 +19,7 @@ import { MAP_WINDOWS } from './mapLayoutScenes';
  * všechna okna mapy z #133 (`MAP_WINDOWS`) a 5 map, popis případu je ve
  * zprávě `expect`.
  *
- * Navržené rozhraní `src/games/counting/logic/mapPictures.ts` (čistý
+ * Navržené rozhraní `src/shared/logic/mapPictures.ts` (čistý
  * TypeScript, obrázky jen jako adresy z importu `../maps/*.webp`):
  * - `type MapOrientation = 'landscape' | 'portrait'`,
  *   `MAP_ORIENTATIONS: readonly MapOrientation[]`,

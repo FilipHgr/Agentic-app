@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_SCENERY_PIECES_PER_KIND } from '../../../src/games/counting/logic/mapScenery';
-import { createMapPictureLoading } from '../../../src/games/counting/logic/mapPictureLoading';
-import { mapOrientationOf } from '../../../src/games/counting/logic/mapPictures';
-import { MAP_SHOW_MS, MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
+import { MAX_SCENERY_PIECES_PER_KIND } from '../../../src/shared/logic/mapScenery';
+import { createMapPictureLoading } from '../../../src/shared/logic/mapPictureLoading';
+import { mapOrientationOf } from '../../../src/shared/logic/mapPictures';
+import { MAP_SHOW_MS, MAP_THEMES } from '../../../src/shared/logic/progressMap';
 import { isInside } from '../../shared/viewportFixtures';
 import type { TestWindow } from '../../shared/viewportFixtures';
 import {
@@ -24,7 +24,7 @@ import type { SceneryCase, SceneryPose } from './mapSceneryScenes';
 
 /**
  * Testy k #136 AC1–AC4: na každé z 5 map se jemně hýbe prostředí podle
- * tématu. Testuje se čistá logika `src/games/counting/logic/mapScenery.ts`
+ * tématu. Testuje se čistá logika `src/shared/logic/mapScenery.ts`
  * (druhy pohybu, rozložení kousků a kde je kousek v čase od ukázání mapy),
  * scéna ji jen kreslí. Každé pravidlo má jeden test, který v cyklu projde
  * všechna okna mapy (`MAP_WINDOWS`) a 5 map; popis případu je ve zprávě

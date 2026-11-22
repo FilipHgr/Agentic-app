@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { markerPointAt } from '../../../src/games/counting/logic/mapAnimation';
-import { MAP_PICTURE_SIZE, mapOrientationOf } from '../../../src/games/counting/logic/mapPictures';
-import { MAP_STEPS, MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
+import { markerPointAt } from '../../../src/shared/logic/mapAnimation';
+import { MAP_PICTURE_SIZE, mapOrientationOf } from '../../../src/shared/logic/mapPictures';
+import { MAP_STEPS, MAP_THEMES } from '../../../src/shared/logic/progressMap';
 import {
   mapCardPageBackdrop,
   mapCardPictureCover,
-} from '../../../src/games/counting/logic/progressMapCard';
-import { layoutProgressMap } from '../../../src/games/counting/logic/progressMapLayout';
+} from '../../../src/shared/logic/progressMapCard';
+import { layoutProgressMap } from '../../../src/shared/logic/progressMapLayout';
 import {
   PROGRESS_MAP_BACKGROUNDS,
   PROGRESS_MAP_CARD_STYLE,
-} from '../../../src/games/counting/logic/theme';
+} from '../../../src/shared/logic/mapTheme';
 import { PAGE_BACKGROUND, WHITE } from '../../../src/shared/logic/theme';
 import { LAYOUT_RULES, MIN_TAP_SIDE } from '../../shared/layoutRules';
 import type { LayoutItem, LayoutScene } from '../../shared/layoutRules';

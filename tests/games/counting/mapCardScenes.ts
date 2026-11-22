@@ -4,7 +4,7 @@
  * karty. Karta se počítá ve všech oknech mapy z #133 AC7 (`MAP_WINDOWS`)
  * a mapa v ní pro každou z 5 map a se značkou na každém kroku 0 až 3.
  *
- * Navržené rozhraní `src/games/counting/logic/progressMapCard.ts` (čistý
+ * Navržené rozhraní `src/shared/logic/progressMapCard.ts` (čistý
  * TypeScript bez Phaseru):
  * - `interface ProgressMapCard { rect: PictureRect; area: GameArea }`:
  *   `rect` je plocha obrázku mapy v kartě v CSS px okna (bez bílého
@@ -20,17 +20,17 @@
  *   od levého horního rohu karty, smí přečnívat a ořízne se),
  * - `mapCardPageBackdrop(): PageBackdrop` okraje stránky kolem plátna
  *   během karty.
- * Vzhled karty `PROGRESS_MAP_CARD_STYLE` v `src/games/counting/logic/theme.ts`:
+ * Vzhled karty `PROGRESS_MAP_CARD_STYLE` v `src/shared/logic/mapTheme.ts`:
  * `dimAlpha` (0,4), `borderCss` (6), `borderColor` (bílá), `cornerRadiusCss`.
  */
 
-import { MAP_STEPS, MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
-import type { MapThemeId } from '../../../src/games/counting/logic/progressMap';
-import { layoutProgressMapCard } from '../../../src/games/counting/logic/progressMapCard';
-import type { ProgressMapCard } from '../../../src/games/counting/logic/progressMapCard';
-import { layoutMapScenery } from '../../../src/games/counting/logic/mapScenery';
-import { layoutProgressMap } from '../../../src/games/counting/logic/progressMapLayout';
-import { PROGRESS_MAP_CARD_STYLE } from '../../../src/games/counting/logic/theme';
+import { MAP_STEPS, MAP_THEMES } from '../../../src/shared/logic/progressMap';
+import type { MapThemeId } from '../../../src/shared/logic/progressMap';
+import { layoutProgressMapCard } from '../../../src/shared/logic/progressMapCard';
+import type { ProgressMapCard } from '../../../src/shared/logic/progressMapCard';
+import { layoutMapScenery } from '../../../src/shared/logic/mapScenery';
+import { layoutProgressMap } from '../../../src/shared/logic/progressMapLayout';
+import { PROGRESS_MAP_CARD_STYLE } from '../../../src/shared/logic/mapTheme';
 import { gameAreaFor } from '../../../src/shared/logic/viewportLayout';
 import type { GameArea } from '../../../src/shared/logic/viewportLayout';
 import type { LayoutItem, LayoutScene } from '../../shared/layoutRules';

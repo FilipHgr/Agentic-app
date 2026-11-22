@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 
-import type { KeyReward } from '../../../shared/logic/keyRewards';
-import { FONT_FAMILY, colorNumber } from '../../../shared/logic/theme';
-import type { GameArea, GameSize } from '../../../shared/logic/viewportLayout';
+import type { KeyReward } from '../logic/keyRewards';
+import { FONT_FAMILY, colorNumber } from '../logic/theme';
+import type { GameArea, GameSize } from '../logic/viewportLayout';
 import type { MapLook } from '../logic/mapPictureLoading';
 import { MAP_GOAL_SYMBOLS } from '../logic/mapPictures';
 import type { PictureRect } from '../logic/mapPictures';
@@ -35,9 +35,9 @@ import {
   PROGRESS_MAP_SHAPE,
   PROGRESS_MAP_STYLE,
   progressMapStyleFor,
-} from '../logic/theme';
-import type { ProgressMapStyle } from '../logic/theme';
-import { CONFETTI_COLORS } from '../../../shared/logic/confetti';
+} from '../logic/mapTheme';
+import type { ProgressMapStyle } from '../logic/mapTheme';
+import { CONFETTI_COLORS } from '../logic/confetti';
 import { GoalKeyBadge } from './GoalKeyBadge';
 import { drawFootprints } from './MapFootprintPieces';
 import type { DrawnFootprints } from './MapFootprintPieces';
@@ -45,7 +45,7 @@ import { drawPlacePads } from './MapPlacePadPieces';
 import { drawScenery, moveScenery } from './MapSceneryPieces';
 import type { DrawnSceneryPiece } from './MapSceneryPieces';
 import { goalSymbolTextureKey, mapPictureTextureKey } from './mapPictureTextures';
-import { MAP_DEPTH } from '../logic/sceneDepths';
+import { MAP_DEPTH } from '../logic/mapDepths';
 
 /**
  * Předčasné ťuknutí kartu krátce zhoupne do stran (#145 AC4): jak daleko

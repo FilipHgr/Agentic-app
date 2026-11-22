@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAP_GOAL_CELEBRATION_SCALE } from '../../../src/games/counting/logic/mapAnimation';
-import { MAP_STEPS } from '../../../src/games/counting/logic/progressMap';
+import { MAP_GOAL_CELEBRATION_SCALE } from '../../../src/shared/logic/mapAnimation';
+import { MAP_STEPS } from '../../../src/shared/logic/progressMap';
 import { LAYOUT_RULES } from '../../shared/layoutRules';
 import type { LayoutItem, LayoutScene } from '../../shared/layoutRules';
 import { box, isInside, toCss, widthOf } from '../../shared/viewportFixtures';
@@ -26,10 +26,10 @@ import type { PictureMapCase } from './mapPictureLayoutScenes';
  *
  * Navržené rozhraní (navíc k #134):
  * - `ProgressMapLayout.goalCelebration: MapSquare` v
- *   `src/games/counting/logic/progressMapLayout.ts`: čtverec, do kterého
+ *   `src/shared/logic/progressMapLayout.ts`: čtverec, do kterého
  *   se vejde celý slavící symbol cíle (podklad zvětšený 1,3× i se září
  *   a prstencem), se středem ve středu symbolu cíle, v herních jednotkách,
- * - `MAP_GOAL_CELEBRATION_SCALE` v `src/games/counting/logic/mapAnimation.ts`.
+ * - `MAP_GOAL_CELEBRATION_SCALE` v `src/shared/logic/mapAnimation.ts`.
  *
  * Značka v cíli smí slavící cíl překrýt (záře je kolem cíle, aby cíl byl
  * poznat i pod značkou, kontrola UX #133), start ani zastávky ne.

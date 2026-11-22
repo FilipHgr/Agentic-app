@@ -5,10 +5,15 @@ import {
   STAR_FLIGHT_MS,
   createCountingSession,
 } from '../../../src/games/counting/logic/countingSession';
-import { MAP_STEPS, mapThemeFor } from '../../../src/games/counting/logic/progressMap';
-import type { MapMove, MapProgress } from '../../../src/games/counting/logic/progressMap';
+import { MAP_STEPS, mapThemeFor } from '../../../src/shared/logic/progressMap';
+import type { MapMove, MapProgress } from '../../../src/shared/logic/progressMap';
 import { STARS_PER_SET } from '../../../src/shared/logic/stars';
-import { MAP_PROGRESS_KEY, loadMapProgress } from '../../../src/games/counting/storage/mapStorage';
+import {
+  MAP_PROGRESS_AREA,
+  MAP_PROGRESS_KEY,
+  loadMapProgress,
+  openMapProgress,
+} from '../../../src/shared/storage/mapProgressStorage';
 import { COUNTING_META } from '../../../src/games/counting/meta';
 import { PROFILE_COLORS } from '../../../src/shared/logic/profiles';
 import type { KeyValueStorage } from '../../../src/shared/storage/keyValueStorage';
@@ -36,8 +41,10 @@ import type { TestSession } from './sessionFakes';
  * „načtení stránky“ je `openProfiles(storage)`, vstup do Počítání je sezení
  * nad úložištěm hry aktivního profilu (jako v `progressMapProfiles.test.ts`).
  *
- * Navržené rozhraní: `loadMapProgress(storage)` v
- * `src/games/counting/storage/mapStorage.ts` přečte záznam z #87, převede
+ * Od #193 dá mapu hře stránka ze společné oblasti profilu
+ * (`openMapProgress`), která při prvním otevření převezme mapu Počítání.
+ * `loadMapProgress(storage)` v
+ * `src/shared/storage/mapProgressStorage.ts` přečte záznam z #87, převede
  * ho (0 → 0, 1–2 → 1, 3–7 → 2, 8 → 3, počet map zůstane) a hned ho uloží
  * v novém tvaru, který se od záznamu z #87 pozná (navrženo pole
  * `format: 2` v `serializeMapProgress`). Nový záznam se už nepřevádí.
@@ -61,6 +68,10 @@ function enterCounting(store: ProfileStore): TestSession {
     timers,
     page: new FakePage(),
     loadRecognizer: recognizer.load,
+    mapProgress: openMapProgress(
+      store.gameStorage(MAP_PROGRESS_AREA),
+      store.gameStorage(COUNTING_META.id),
+    ),
     onChange: () => undefined,
   });
   if (session.guideOpen()) {

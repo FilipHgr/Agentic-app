@@ -1,10 +1,11 @@
 /**
- * Mapa postupu v Počítání (#87, #133): za každou plnou řadu hvězdiček jde
- * značka hráče o krok dál. Mapa má 3 kroky, krok 0 je start, 1 a 2
+ * Mapa postupu (#87, #133), od #193 společná všem hrám s hvězdičkami
+ * (Počítání a Znaménka) a jedna pro profil: za každou plnou řadu
+ * hvězdiček v kterékoli hře jde značka hráče o krok dál. Mapa má 3 kroky, krok 0 je start, 1 a 2
  * zastávky a krok 3 cíl. Po cíli začne další plná řada další mapu
  * z 5 map ve stálém pořadí. Jen dopředu, nic se nebere.
  * Čistý TypeScript bez Phaseru; uložení řeší
- * `src/games/counting/storage/mapStorage.ts`, rozmístění míst
+ * `src/shared/storage/mapProgressStorage.ts`, rozmístění míst
  * `progressMapLayout.ts` a kreslení scéna.
  */
 
@@ -46,6 +47,26 @@ export interface MapProgress {
 
 /** Nový hráč: na startu, žádná dokončená mapa. */
 export const START_MAP: MapProgress = { step: 0, completedMaps: 0 };
+
+/**
+ * Kolik plných řad (kroků) má hráč na mapách za sebou celkem. Mapa jde
+ * jen dopředu, takže větší číslo je vždy dál (dva panely, neuložený krok).
+ */
+export function totalMapSteps(progress: MapProgress): number {
+  const stepOnCurrentMap = progress.step >= MAP_STEPS ? 0 : progress.step;
+  return progress.completedMaps * MAP_STEPS + stepOnCurrentMap;
+}
+
+/**
+ * Mapa aktivního profilu, jak ji stránka dá hře (`GameHost.mapProgress`,
+ * #193); ukládání je v `src/shared/storage/mapProgressStorage.ts`.
+ */
+export interface MapProgressStore {
+  /** Kde stojí značka a kolik map profil dokončil (čte se pokaždé znovu). */
+  load(): MapProgress;
+  /** Uloží postup; `false`, když se uložit nepodařil (platí pak v paměti). */
+  save(progress: MapProgress): boolean;
+}
 
 /** Jeden krok značky, který mapa ukáže. */
 export interface MapMove {

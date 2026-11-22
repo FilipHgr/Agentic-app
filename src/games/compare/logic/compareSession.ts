@@ -34,13 +34,28 @@
  * pryč; po ✓ s plnou řadou přijde Rudy znovu, jen když ho dítě za tuto
  * řadu ještě nevidělo, jinak rovnou konfety.
  *
+ * Mapa postupu (#193): po odchodu Rudyho melodie a konfety a za
+ * `CELEBRATION_TO_MAP_MS` karta se společnou mapou profilu, stejně a se
+ * stejnými časy jako v Počítání (sdílené `mapCardFlow.ts`): hvězdičky
+ * z řady doletí do karty, značka dojde o krok dál, v cíli půlka klíče,
+ * karta se zavře ťuknutím po doběhnutí animace nebo sama po 7 s a teprve
+ * potom přijde nový příklad. Krok se započte a uloží hned po 10.
+ * hvězdičce. Nastavení kartu zavře; když hvězdičky ještě nedoletěly,
+ * ukáže se karta po ✓ znovu s oslavou, jinak přijde nový příklad.
+ *
  * Přehled pro rodiče v menu (#192): vyřešený příklad se zapíše k dnešku,
  * napoprvé, když dítě u příkladu ještě neťuklo na špatné znaménko; každé
  * špatné znaménko je chyba u příkladu. Ťuknutí na prázdné okénko
  * a nerozpoznaný zápis chyba nejsou.
  */
 
+import type { KeyReward, KeyRewards } from '../../../shared/logic/keyRewards';
+import { CELEBRATION_TO_MAP_MS, createMapCardFlow } from '../../../shared/logic/mapCardFlow';
+import type { MapTapOutcome } from '../../../shared/logic/mapCardFlow';
+import { MAP_SHOW_MS } from '../../../shared/logic/progressMap';
+import type { MapMove, MapProgress, MapProgressStore } from '../../../shared/logic/progressMap';
 import { STARS_PER_SET, createStarProgress, starsAfterTap } from '../../../shared/logic/stars';
+import { openMapProgress } from '../../../shared/storage/mapProgressStorage';
 import type { AnswerOutcome, StarProgress } from '../../../shared/logic/stars';
 import { comparisonKey, missingSignKey } from '../../../shared/logic/overviewProblems';
 import { createActivityLog } from '../../../shared/storage/activityStorage';
@@ -59,8 +74,18 @@ export type { CompareSoundName } from './compareSounds';
 /** Jak dlouho po správné odpovědi zůstane příklad se znaménkem v okénku, než přijde další. */
 export const NEXT_PROBLEM_MS = 1400;
 
-/** Jak dlouho trvá oslava s konfetami po 10. hvězdičce. */
-export const CELEBRATION_MS = 2600;
+export {
+  CELEBRATION_TO_MAP_MS,
+  MAP_CLOSE_ANSWER_PAUSE_MS,
+} from '../../../shared/logic/mapCardFlow';
+export type { MapTapOutcome } from '../../../shared/logic/mapCardFlow';
+
+/**
+ * Jak dlouho trvá oslava po odchodu Rudyho, když dítě kartu s mapou
+ * nezavře ťuknutím: melodie a konfety, za `CELEBRATION_TO_MAP_MS` karta
+ * s mapou a ta je vidět 7 s (#145 AC3, #193 AC2).
+ */
+export const CELEBRATION_MS = CELEBRATION_TO_MAP_MS + MAP_SHOW_MS;
 
 /**
  * Od kolikáté hvězdičky v řadě se dopředu stahuje oslava Rudyho, aby po
@@ -68,7 +93,14 @@ export const CELEBRATION_MS = 2600;
  */
 export const PREPARE_CELEBRATION_FROM_STARS = 8;
 
-/** Co se ve hře změnilo; scéna to nakreslí. */
+/**
+ * Co se ve hře změnilo; scéna to nakreslí. U oslavy (#193):
+ * `celebrationStarted` melodie a konfety, `mapShown` karta s mapou
+ * (`shownMap()`), do které teprve letí hvězdičky z řady,
+ * `celebrationEnded` hvězdičky doletěly a řada je prázdná, `mapHidden`
+ * karta se zavřela (nový příklad přijde zvlášť), `mapStopped` kartu
+ * zavřelo nastavení.
+ */
 export type CompareChange =
   | { readonly kind: 'problemStarted' }
   | { readonly kind: 'solved'; readonly sign: CompareSign }
@@ -77,6 +109,9 @@ export type CompareChange =
   | { readonly kind: 'writeAgain' }
   | { readonly kind: 'celebrationStarted' }
   | { readonly kind: 'celebrationEnded' }
+  | { readonly kind: 'mapShown' }
+  | { readonly kind: 'mapHidden' }
+  | { readonly kind: 'mapStopped' }
   | { readonly kind: 'settingsOpened' }
   | { readonly kind: 'settingsClosed' };
 
@@ -123,6 +158,10 @@ export interface CompareSessionOptions {
   readonly attachSettingsGear?: ((open: () => void) => () => void) | undefined;
   /** Panda Rudy (#181, #186); bez ní oslava začne hned po 10. hvězdičce. */
   readonly rudy?: CompareRudy | undefined;
+  /** Klíče aktivního profilu od stránky (#139, #193); bez nich mapa klíč nedává. */
+  readonly keyRewards?: KeyRewards | undefined;
+  /** Mapa postupu aktivního profilu, společná všem hrám (#193); bez ní jen v paměti. */
+  readonly mapProgress?: MapProgressStore | undefined;
   readonly onChange?: ((change: CompareChange) => void) | undefined;
   /**
    * Dnešní datum podle kalendáře zařízení pro přehled pro rodiče (#192);
@@ -137,6 +176,22 @@ export interface CompareSession {
   /** Znaménko v okénku po správné odpovědi, jinak `null` (prázdné okénko). */
   filledSign(): CompareSign | null;
   isCelebrating(): boolean;
+  /** Kde stojí značka na společné mapě profilu a kolik map je hotových (#193). */
+  mapProgress(): MapProgress;
+  /** Krok, který právě ukazuje karta s mapou; `null`, když karta není vidět. */
+  shownMap(): MapMove | null;
+  /** Co dal cíl, který karta právě ukazuje (#139), jinak `null`. */
+  goalKeyReward(): KeyReward | null;
+  /**
+   * Je příklad i s ovládáním (tlačítka znamének, plocha na psaní) schovaný,
+   * protože je vidět karta s mapou (#193)? Jinak by vyčníval po stranách karty.
+   */
+  problemHidden(): boolean;
+  /**
+   * Ťuknutí kamkoli mimo kolečko a domeček, když je vidět karta s mapou
+   * (#145 AC4): zavře ji až po doběhnutí animace, dřív nic nezmění.
+   */
+  tapMap(): MapTapOutcome;
   /** Platné nastavení (po posledním ✓). */
   settings(): CompareSettings;
   settingsOpen(): boolean;
@@ -204,6 +259,31 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
 
   const notify = (change: CompareChange): void => options.onChange?.(change);
 
+  /** Hvězdičky doletěly do karty s mapou: řada začíná od 0 (#154 AC3). */
+  const landStars = (): void => {
+    rowCelebratedByRudy = false;
+    progress = createStarProgress();
+    saveProgress(storage, progress);
+    notify({ kind: 'celebrationEnded' });
+  };
+
+  // Karta s mapou po oslavě, krok na společné mapě profilu a půlka klíče za
+  // dokončenou mapu jsou stejné jako v Počítání (#193 AC2, AC4).
+  const mapCard = createMapCardFlow({
+    mapProgress: options.mapProgress ?? openMapProgress(undefined),
+    keyRewards: options.keyRewards,
+    timers,
+    playSound: (name) => sounds.play(name),
+    events: {
+      onShown: () => notify({ kind: 'mapShown' }),
+      onStarsLanded: landStars,
+      onHidden: () => {
+        notify({ kind: 'mapHidden' });
+        startNextProblem();
+      },
+    },
+  });
+
   const schedule = (ms: number, callback: () => void): void => {
     cancelPending = timers.after(ms, () => {
       cancelPending = null;
@@ -270,12 +350,15 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     options.rudy?.prepare();
   };
 
-  const endCelebration = (): void => {
-    rowCelebratedByRudy = false;
-    progress = createStarProgress();
-    saveProgress(storage, progress);
-    notify({ kind: 'celebrationEnded' });
-    startNextProblem();
+  /** Karta s krokem za plnou řadu; bez kroku (nemělo by nastat) rovnou prázdná řada. */
+  const showMap = (): void => {
+    if (phase === 'left' || choice !== null) {
+      return;
+    }
+    if (!mapCard.show()) {
+      landStars();
+      startNextProblem();
+    }
   };
 
   const startCelebration = (): void => {
@@ -286,7 +369,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     phase = 'celebrating';
     sounds.play('celebration');
     notify({ kind: 'celebrationStarted' });
-    schedule(CELEBRATION_MS, endCelebration);
+    schedule(CELEBRATION_TO_MAP_MS, showMap);
   };
 
   /** Plná řada: nejdřív Rudy s oslavou, po jeho odchodu melodie a konfety (#181 AC2, #186 AC3). */
@@ -304,6 +387,10 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     // Plná řada se uloží taky: po zavření uprostřed oslavy začne prázdná řada.
     saveProgress(storage, progress);
     prepareCelebrationIfDue();
+    if (result.setCompleted) {
+      // Krok na mapě se započte a uloží hned, ještě před oslavou (#87 AC4).
+      mapCard.step();
+    }
     phase = 'solved';
     filledSign = sign;
     sounds.play('correct');
@@ -319,10 +406,15 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     cancelPending?.();
     cancelPending = null;
     stopRudy();
+    // Karta s mapou se zavře; krok na mapě je už započtený (#193).
+    const mapWasShown = mapCard.stop();
     choice = settings;
     if (phase === 'celebrating') {
       // Oslava se po ✓ přehraje znovu od začátku.
       sounds.stopAll();
+    }
+    if (mapWasShown) {
+      notify({ kind: 'mapStopped' });
     }
     notify({ kind: 'settingsOpened' });
   };
@@ -350,7 +442,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   };
 
   const tap = (sign: CompareSign): AnswerOutcome => {
-    if (phase !== 'waiting' || choice !== null || rudyIsOpen) {
+    if (phase !== 'waiting' || choice !== null || rudyIsOpen || mapCard.blocksAnswers()) {
       return 'ignored';
     }
     // Znaménko jiného druhu (třeba pozdě potvrzené + u „a ☐ b“) není odpověď.
@@ -370,7 +462,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   };
 
   const tapBox = (): boolean => {
-    if (phase !== 'waiting' || choice !== null || rudyIsOpen) {
+    if (phase !== 'waiting' || choice !== null || rudyIsOpen || mapCard.blocksAnswers()) {
       return false;
     }
     sounds.play('boxTap');
@@ -379,7 +471,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
   };
 
   const writingRejected = (): boolean => {
-    if (phase !== 'waiting' || choice !== null || rudyIsOpen) {
+    if (phase !== 'waiting' || choice !== null || rudyIsOpen || mapCard.blocksAnswers()) {
       return false;
     }
     sounds.play('boxTap');
@@ -396,6 +488,11 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
     starCount: () => progress.earned,
     filledSign: () => filledSign,
     isCelebrating: () => phase === 'celebrating' && choice === null,
+    mapProgress: () => mapCard.mapProgress(),
+    shownMap: () => mapCard.shownMove(),
+    goalKeyReward: () => mapCard.goalKeyReward(),
+    problemHidden: () => mapCard.shownMove() !== null,
+    tapMap: () => (choice === null ? mapCard.tap() : 'ignored'),
     settings: () => settings,
     settingsOpen: () => choice !== null,
     settingsChoice: () => choice,
@@ -418,6 +515,7 @@ export function createCompareSession(options: CompareSessionOptions): CompareSes
       choice = null;
       cancelPending?.();
       cancelPending = null;
+      mapCard.leave();
       stopRudy();
       detachGear();
       sounds.stopAll();

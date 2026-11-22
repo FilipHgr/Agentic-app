@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { SCENERY_TOP_SHARE } from '../../../src/games/counting/logic/mapScenery';
-import { mapContentBox } from '../../../src/games/counting/logic/progressMapLayout';
-import { MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
+import { SCENERY_TOP_SHARE } from '../../../src/shared/logic/mapScenery';
+import { mapContentBox } from '../../../src/shared/logic/progressMapLayout';
+import { MAP_THEMES } from '../../../src/shared/logic/progressMap';
 import {
   KIND_NAMES,
   MAP_SCENERY_KINDS,

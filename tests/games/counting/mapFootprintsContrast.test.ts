@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapFootprintStyleFor } from '../../../src/games/counting/logic/mapFootprints';
-import type { MapFootprintStyle } from '../../../src/games/counting/logic/mapFootprints';
-import type { MapLook } from '../../../src/games/counting/logic/mapPictureLoading';
-import { PROGRESS_MAP_BACKGROUNDS } from '../../../src/games/counting/logic/theme';
-import { MAP_THEMES } from '../../../src/games/counting/logic/progressMap';
+import { mapFootprintStyleFor } from '../../../src/shared/logic/mapFootprints';
+import type { MapFootprintStyle } from '../../../src/shared/logic/mapFootprints';
+import type { MapLook } from '../../../src/shared/logic/mapPictureLoading';
+import { PROGRESS_MAP_BACKGROUNDS } from '../../../src/shared/logic/mapTheme';
+import { MAP_THEMES } from '../../../src/shared/logic/progressMap';
 import { describePoint, footprintCases, printContrast, toneUnder } from './mapFootprintHelpers';
 import type { FootprintCase } from './mapFootprintHelpers';
-import type { MapPoint } from '../../../src/games/counting/logic/progressMapLayout';
+import type { MapPoint } from '../../../src/shared/logic/progressMapLayout';
 
 /**
  * Testy k #144 AC3: prošlé (zlaté s tmavým obrysem) a neprošlé (bílé
