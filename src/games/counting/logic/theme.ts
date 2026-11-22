@@ -425,3 +425,23 @@ export function progressMapStyleFor(theme: MapThemeId, look: MapLook): ProgressM
   }
   return DARK_PICTURES.has(theme) ? LIGHT_ON_PICTURE : DARK_ON_PICTURE;
 }
+
+/**
+ * Přehled pro rodiče (#183): sloupeček vyřešených světlejší modrou, uvnitř
+ * něj vyřešené napoprvé tmavší modrou jako čísla číselníku. Oba odstíny
+ * mají proti pozadí kontrast aspoň 3 : 1 a liší se od sebe.
+ */
+export const OVERVIEW_STYLE = {
+  solvedColor: '#4C8FDB',
+  firstTryColor: BLUE,
+  titleColor: TEXT,
+  textColor: TEXT,
+  dayColor: SETTINGS_LABEL_COLOR,
+  todayColor: TEXT,
+  valueColor: SETTINGS_LABEL_COLOR,
+  emptyColor: SETTINGS_LABEL_COLOR,
+  buttonBackground: KEYPAD_BUTTON_STYLE.background,
+  buttonBorderColor: KEYPAD_BUTTON_STYLE.borderColor,
+  buttonBorderWidth: KEYPAD_BUTTON_STYLE.borderWidth,
+  buttonTextColor: BLUE,
+} as const;

@@ -84,6 +84,7 @@ export class GameScene extends Phaser.Scene {
   private readonly panels = new ParentPanels(this, {
     settings: () => this.session.settings(),
     gameArea: () => this.gameArea,
+    weekOverview: () => this.session.weekOverview(),
     onSettingsConfirmed: (chosen) => this.session.confirmSettings(chosen),
     onGuideFinished: (chosen) => this.session.finishGuide(chosen),
   });

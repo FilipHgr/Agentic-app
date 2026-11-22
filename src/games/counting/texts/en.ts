@@ -39,4 +39,15 @@ export default {
     celebrationStars: 'Awesome! You got all ten stars!',
     celebrationStar: "Yippee! You're a counting star!",
   },
+  overview: {
+    button: 'Overview',
+    title: 'Problems solved in the last 7 days',
+    legendNotFirstTry: 'After a mistake or hint',
+    legendFirstTry: 'First try',
+    totalSolved: 'Solved this week',
+    totalFirstTry: 'On first try',
+    empty: 'No problems yet',
+    back: 'Back',
+    dayNames: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  },
 } satisfies CountingTexts;

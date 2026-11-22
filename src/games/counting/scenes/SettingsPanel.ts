@@ -3,12 +3,22 @@ import Phaser from 'phaser';
 import { CHECK_BUTTON_COLOR, checkButtonStyle } from '../logic/checkButton';
 import { CONFIRM_BUTTON_STYLE, SETTINGS_PANEL_STYLE } from '../logic/theme';
 import { colorNumber } from '../../../shared/logic/theme';
-import { layoutDeviceSettingsPanel } from '../logic/deviceLayout';
+import { layoutDeviceOverview, layoutDeviceSettingsPanel } from '../logic/deviceLayout';
+import {
+  backToSettings,
+  canConfirmSettings,
+  openParentPanel,
+  showOverview,
+} from '../logic/overviewPanel';
+import type { ParentPanelState } from '../logic/overviewPanel';
+import type { WeekOverview } from '../logic/weekActivity';
+import { countingTexts } from '../texts/countingTexts';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import type { ButtonSlot } from '../logic/screenLayout';
 import { chooseOption, selectedOptions } from '../logic/settingsSession';
 import type { SettingsSession } from '../logic/settingsSession';
 import { PANEL_HEIGHT, PANEL_WIDTH, placePanel } from './panelFit';
+import { OverviewView, addTextButton } from './OverviewView';
 import { SettingsRows } from './SettingsRows';
 
 /** Pozadí panelu je stejné jako hra (#53). */
@@ -25,26 +35,31 @@ export const PANEL_DEPTH = 100;
  * příkladů (+, −, + −), způsob odpovědi (číselník, psaní) a potvrzovací „✓“.
  * Vybrané volby jsou plně modré. Rozměry jsou v `src/games/counting/logic/settingsLayout.ts`
  * a na telefonu v `src/games/counting/logic/phoneSettingsLayout.ts` (#59).
+ * Tlačítko Přehled ukáže místo voleb přehled vyřešených příkladů a Zpět
+ * vrátí volby, jak je rodič rozehrál (#183 AC3).
  */
 export class SettingsPanel {
   private readonly container: Phaser.GameObjects.Container;
   private readonly backdrop: Phaser.GameObjects.Rectangle;
   /** Řady a ✓; po otočení telefonu se nakreslí znovu podle nového rozložení. */
   private readonly content: Phaser.GameObjects.Container;
-  private session: SettingsSession;
+  private panel: ParentPanelState;
+  private area: GameArea;
 
-  /** Rozehrané volby; zůstanou i po otočení telefonu (#54). */
+  /** Rozehrané volby; zůstanou i po otočení telefonu (#54) a po návratu z přehledu (#183). */
   get currentSession(): SettingsSession {
-    return this.session;
+    return this.panel.session;
   }
 
   constructor(
     private readonly scene: Phaser.Scene,
     session: SettingsSession,
     area: GameArea,
+    private readonly weekOverview: () => WeekOverview,
     private readonly onConfirm: (session: SettingsSession) => void,
   ) {
-    this.session = session;
+    this.panel = openParentPanel(session);
+    this.area = area;
     // Pozadí má plochu 1024 × 768 a roztáhne se přes celou herní plochu.
     const width = PANEL_WIDTH;
     const height = PANEL_HEIGHT;
@@ -75,20 +90,64 @@ export class SettingsPanel {
    * rozložení nové plochy (#59 AC7). Vybrané volby zůstanou, nic se neuloží.
    */
   fitTo(area: GameArea): void {
-    const layout = layoutDeviceSettingsPanel(area);
+    this.area = area;
     this.scene.tweens.killTweensOf(this.content.list);
     this.content.removeAll(true);
+    if (this.panel.view === 'overview') {
+      this.drawOverview(area);
+    } else {
+      this.drawSettings(area);
+    }
+  }
+
+  private drawSettings(area: GameArea): void {
+    const layout = layoutDeviceSettingsPanel(area);
     new SettingsRows(
       this.scene,
       this.content,
       layout,
-      () => selectedOptions(this.session),
+      () => selectedOptions(this.panel.session),
       (change) => {
-        this.session = chooseOption(this.session, change);
+        this.panel = { ...this.panel, session: chooseOption(this.panel.session, change) };
       },
     );
     this.addConfirmButton(layout.confirm);
+    addTextButton(
+      this.scene,
+      this.content,
+      layout.overviewButton,
+      countingTexts().overview.button,
+      layout.optionLook.borderScale,
+      () => this.switchTo(showOverview(this.panel)),
+    );
     placePanel(this.container, this.backdrop, area, layout.placement);
+  }
+
+  /** Přehled se počítá při každém otevření, aby ukázal i dnešní příklady. */
+  private drawOverview(area: GameArea): void {
+    const layout = layoutDeviceOverview(area);
+    new OverviewView(
+      this.scene,
+      this.content,
+      layout,
+      this.weekOverview(),
+      countingTexts().overview,
+      () => this.switchTo(backToSettings(this.panel)),
+    );
+    placePanel(this.container, this.backdrop, area, layout.placement);
+  }
+
+  /**
+   * Přepnutí mezi nastavením a přehledem; rozehrané volby zůstanou. Volá se
+   * až po zhoupnutí tlačítka, mimo zpracování ťuknutí. Panel zavřený ✓
+   * mezitím se už nepřekreslí.
+   */
+  private switchTo(panel: ParentPanelState): void {
+    if (!this.container.active) {
+      return;
+    }
+    this.panel = panel;
+    this.fitTo(this.area);
   }
 
   private addConfirmButton(slot: ButtonSlot): void {
@@ -116,7 +175,10 @@ export class SettingsPanel {
   }
 
   private confirm(): void {
+    if (!canConfirmSettings(this.panel)) {
+      return;
+    }
     this.container.destroy();
-    this.onConfirm(this.session);
+    this.onConfirm(this.panel.session);
   }
 }

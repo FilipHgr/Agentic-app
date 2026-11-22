@@ -18,6 +18,15 @@ import type { DotCounting } from './dotCounting';
 import { visibleGroups } from './phoneHint';
 import { layoutPhoneHintButton } from './phoneHintButton';
 import { planPhoneScreen } from './phoneLayout';
+import {
+  layoutPhoneLandscapeOverview,
+  layoutPhonePortraitOverview,
+  layoutTabletOverview,
+  phoneLandscapeOverviewButton,
+  phonePortraitOverviewButton,
+  tabletOverviewButton,
+} from './overviewLayout';
+import type { OverviewButtonSlot, OverviewLayout } from './overviewLayout';
 import { layoutPhoneLandscapeGuide, layoutPhonePortraitGuide } from './phoneGuideLayout';
 import type { GuideStepParts } from './phoneGuideLayout';
 import { layoutPhoneLandscapeSettings, layoutPhonePortraitSettings } from './phoneSettingsLayout';
@@ -357,6 +366,8 @@ export interface DeviceSettingsLayout extends SettingsLayout {
   readonly mode: LayoutMode;
   /** Kam a jak zmenšené se rozložení na herní plochu dá. */
   readonly placement: PanelPlacement;
+  /** Tlačítko, které otevře přehled pro rodiče (#183 AC3). */
+  readonly overviewButton: OverviewButtonSlot;
 }
 
 /** Telefonní rozložení (nastavení i průvodce) je přímo v jednotkách herní plochy, nic se nezmenšuje. */
@@ -373,6 +384,7 @@ export function layoutDeviceSettingsPanel(area: GameArea): DeviceSettingsLayout 
       ...layoutPhoneLandscapeSettings(area),
       mode: area.mode,
       placement: PHONE_SETTINGS_PLACEMENT,
+      overviewButton: phoneLandscapeOverviewButton(area),
     };
   }
   if (area.mode === 'phonePortrait') {
@@ -380,13 +392,45 @@ export function layoutDeviceSettingsPanel(area: GameArea): DeviceSettingsLayout 
       ...layoutPhonePortraitSettings(area),
       mode: area.mode,
       placement: PHONE_SETTINGS_PLACEMENT,
+      overviewButton: phonePortraitOverviewButton(area),
     };
   }
   return {
     ...layoutSettingsPanel(TABLET_GAME_WIDTH, TABLET_GAME_HEIGHT),
     mode: area.mode,
     placement: tabletPanelPlacement(area),
+    overviewButton: tabletOverviewButton(),
   };
+}
+
+/** Přehled pro rodiče pro danou herní plochu (#183). */
+export interface DeviceOverviewLayout extends OverviewLayout {
+  readonly mode: LayoutMode;
+  /** Kam a jak zmenšené se rozložení na herní plochu dá. */
+  readonly placement: PanelPlacement;
+}
+
+/**
+ * Přehled pro rodiče: na telefonu na šířku a na výšku vlastní rozložení
+ * podle nastavení S, jinde panel 1024 × 768 zmenšený na herní plochu
+ * stejně jako nastavení.
+ */
+export function layoutDeviceOverview(area: GameArea): DeviceOverviewLayout {
+  if (area.mode === 'phoneLandscape') {
+    return {
+      ...layoutPhoneLandscapeOverview(area),
+      mode: area.mode,
+      placement: PHONE_SETTINGS_PLACEMENT,
+    };
+  }
+  if (area.mode === 'phonePortrait') {
+    return {
+      ...layoutPhonePortraitOverview(area),
+      mode: area.mode,
+      placement: PHONE_SETTINGS_PLACEMENT,
+    };
+  }
+  return { ...layoutTabletOverview(), mode: area.mode, placement: tabletPanelPlacement(area) };
 }
 
 /** Krok průvodce nastavením pro danou herní plochu (#60). */

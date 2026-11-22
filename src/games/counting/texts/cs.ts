@@ -39,4 +39,15 @@ export default {
     celebrationStars: 'Paráda! Máš všech deset hvězdiček!',
     celebrationStar: 'Jupí! Jsi počítací hvězda!',
   },
+  overview: {
+    button: 'Přehled',
+    title: 'Vyřešené příklady za 7 dní',
+    legendNotFirstTry: 'Po chybě nebo s nápovědou',
+    legendFirstTry: 'Napoprvé',
+    totalSolved: 'Za týden vyřešeno',
+    totalFirstTry: 'Z toho napoprvé',
+    empty: 'Zatím žádné příklady',
+    back: 'Zpět',
+    dayNames: ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'],
+  },
 } satisfies CountingTexts;

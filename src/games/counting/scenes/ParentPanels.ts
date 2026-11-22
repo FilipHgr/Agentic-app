@@ -3,6 +3,7 @@ import type Phaser from 'phaser';
 import type { GameArea } from '../../../shared/logic/viewportLayout';
 import type { PlayState } from '../logic/deviceLayout';
 import type { GameSettings } from '../logic/settings';
+import type { WeekOverview } from '../logic/weekActivity';
 import { CLOSED_SETTINGS, openSettings, pageAppearance } from '../logic/settingsSession';
 import { guidePageAppearance } from '../logic/setupGuide';
 import { applyPageAppearance } from '../ui/pageAppearance';
@@ -15,6 +16,8 @@ export interface ParentPanelsHost {
   readonly settings: () => GameSettings;
   /** Současná herní plocha (iPad, telefon na šířku nebo na výšku, zmenšené). */
   readonly gameArea: () => GameArea;
+  /** Kolik dítě vyřešilo za posledních 7 dní, pro přehled v nastavení (#183). */
+  readonly weekOverview: () => WeekOverview;
   /** Rodič v nastavení ťukl na ✓ s volbami `chosen`. */
   readonly onSettingsConfirmed: (chosen: GameSettings) => void;
   /** Rodič v průvodci ťukl na „Začít hrát“ s volbami `chosen`. */
@@ -82,10 +85,16 @@ export class ParentPanels {
     const session = openSettings(CLOSED_SETTINGS, this.host.settings());
     applyPageAppearance(pageAppearance(session), settingsButton);
 
-    this.settingsPanel = new SettingsPanel(this.scene, session, this.host.gameArea(), (chosen) => {
-      this.settingsPanel = undefined;
-      applyPageAppearance(pageAppearance(CLOSED_SETTINGS), settingsButton);
-      this.host.onSettingsConfirmed(chosen.open ? chosen.choice : this.host.settings());
-    });
+    this.settingsPanel = new SettingsPanel(
+      this.scene,
+      session,
+      this.host.gameArea(),
+      this.host.weekOverview,
+      (chosen) => {
+        this.settingsPanel = undefined;
+        applyPageAppearance(pageAppearance(CLOSED_SETTINGS), settingsButton);
+        this.host.onSettingsConfirmed(chosen.open ? chosen.choice : this.host.settings());
+      },
+    );
   }
 }

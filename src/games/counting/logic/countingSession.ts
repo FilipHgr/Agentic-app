@@ -15,6 +15,7 @@ import type { Tone } from '../../../shared/audio/tonePlayer';
 import type { KeyReward, KeyRewards } from '../../../shared/logic/keyRewards';
 import type { RudyLineMove } from '../../../shared/logic/rudy';
 import type { KeyValueStorage } from '../../../shared/storage/keyValueStorage';
+import { loadActivity, saveActivity } from '../storage/activityStorage';
 import { loadMapProgress, saveMapProgress } from '../storage/mapStorage';
 import { loadProgress, saveProgress } from '../storage/progressStorage';
 import { loadSettingsState, saveSettings } from '../storage/settingsStorage';
@@ -50,6 +51,8 @@ import { confirmSettings as confirmSettingsChoice } from './settingsSession';
 import { STARS_PER_SET, startNewStarSet, starsAfterTap } from '../../../shared/logic/stars';
 import type { StarProgress } from '../../../shared/logic/stars';
 import type { DigitRecognizer } from './writingRound';
+import { recordSolvedProblem, weekOverview } from './weekActivity';
+import type { ActivityRecord, WeekOverview } from './weekActivity';
 
 /** Jak dlouho se po správné odpovědi čeká na nový příklad. */
 export const NEXT_PROBLEM_DELAY_MS = 800;
@@ -184,6 +187,11 @@ export interface CountingSessionOptions {
    * neukazuje a oslava začne hned po doletu hvězdičky.
    */
   readonly rudy?: SessionRudy | undefined;
+  /**
+   * Dnešní datum podle kalendáře zařízení pro přehled pro rodiče (#183);
+   * bez něj hodiny zařízení. Testy ho dávají samy.
+   */
+  readonly today?: (() => Date) | undefined;
   /** Obrazovka se má překreslit; po odchodu se už nezavolá. */
   readonly onChange: (change: SessionChange) => void;
 }
@@ -219,6 +227,8 @@ export interface CountingSession {
   goalKeyReward(): KeyReward | null;
   /** Uložené nastavení rodiče. */
   settings(): GameSettings;
+  /** Kolik dítě vyřešilo za posledních 7 dní (#183); nic nemění ani neukládá. */
+  weekOverview(): WeekOverview;
   /** Čím dítě odpovídá v rozehraném příkladu (psaní jen s rozpoznáváním, #58). */
   answerInput(): AnswerInput;
   /** Stažené rozpoznávání psaní, nebo `null`, dokud není. */
@@ -280,6 +290,9 @@ export function createCountingSession(options: CountingSessionOptions): Counting
   let isCelebrating = false;
   // Mapa postupu přežije odchod i zavření hry (#87 AC3).
   let map: MapProgress = loadMapProgress(storage);
+  // Vyřešené příklady pro přehled pro rodiče (#183); v paměti platí i bez úložiště.
+  const today = options.today ?? (() => new Date());
+  let activity: ActivityRecord = loadActivity(storage);
   /** Krok za právě zaplněnou řadu, který mapa ukáže po oslavě. */
   let moveToShow: MapMove | null = null;
   let shownMove: MapMove | null = null;
@@ -546,6 +559,16 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     startRound();
   }
 
+  /**
+   * Vyřešený příklad se přičte k dnešku do přehledu pro rodiče (#183 AC1);
+   * napoprvé je bez chyby a bez nápovědy. Plné úložiště hru nezastaví.
+   */
+  function countSolvedProblem(): void {
+    const firstTry = round.wrongAnswers === 0 && round.hintRequested !== true;
+    activity = recordSolvedProblem(activity, today(), firstTry);
+    saveActivity(storage, activity);
+  }
+
   /** Společné vyhodnocení číselníku i psaní: zvuk, hvězdička a další příklad. */
   function applyOutcome(outcome: TapOutcome): TapOutcome {
     if (outcome !== 'ignored') {
@@ -562,6 +585,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
       prepareCelebrationIfDue();
     }
     if (outcome === 'correct') {
+      countSolvedProblem();
       if (result.setCompleted) {
         stepMap();
         isCelebrating = true;
@@ -661,6 +685,7 @@ export function createCountingSession(options: CountingSessionOptions): Counting
     shownMap: () => shownMove,
     goalKeyReward: () => shownKeyReward,
     settings: () => settings,
+    weekOverview: () => weekOverview(activity, today()),
     answerInput: () => roundInput,
     recognizer: () => recognizerLoading.recognizer(),
     guideOpen: () => guideIsOpen,
