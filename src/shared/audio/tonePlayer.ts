@@ -123,9 +123,11 @@ export function createTonePlayer(createContext: () => AudioContextLike | undefin
         return;
       }
 
-      if (audio.state === 'suspended') {
+      // Uspaný i přerušený kontext (iOS po přepnutí aplikace, #196) se zkusí
+      // rozběhnout; odmítnutí zvuk nevypne, další ťuknutí ho zkusí znovu.
+      if (audio.state !== 'running') {
         audio.resume().catch(() => {
-          soundIsBroken = true;
+          // Prohlížeč zvuk zatím nepovolil: tento tón je potichu.
         });
       }
 

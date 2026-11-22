@@ -27,7 +27,7 @@
 
 import Phaser from 'phaser';
 
-import { unlockSharedAudio } from '../../shared/audio/sharedAudio';
+import { listenForSharedAudioUnlock } from '../../shared/audio/sharedAudio';
 import { profileMarkerOf } from '../../shared/logic/gameHost';
 import type { GameCategory, GameEntry } from '../../shared/logic/gameRegistry';
 import { PAGE_BACKGROUND } from '../../shared/logic/theme';
@@ -73,16 +73,6 @@ function canvasSize(): { width: number; height: number } {
     width: Math.max(1, Math.round(window.innerWidth * MENU_UNITS_PER_CSS_PX)),
     height: Math.max(1, Math.round(window.innerHeight * MENU_UNITS_PER_CSS_PX)),
   };
-}
-
-/**
- * Safari pustí zvuk jen v reakci na dotyk, a to až po zvednutí prstu.
- * Odemčený zvuk pak hra spuštěná z menu použije hned (průvodce, #67 AC6).
- */
-function unlockAudioOnTouch(): void {
-  for (const type of ['pointerdown', 'pointerup', 'touchend'] as const) {
-    document.addEventListener(type, unlockSharedAudio, { capture: true, passive: true });
-  }
 }
 
 /**
@@ -280,7 +270,9 @@ export function startMenuPage(options: MenuPageOptions): void {
   }
 
   showPageLanguage(document, currentLanguage());
-  unlockAudioOnTouch();
+  // Safari pustí zvuk jen v reakci na dotyk; odemčený zvuk pak hra spuštěná
+  // z menu použije hned (průvodce, #67 AC6), i v tichém režimu (#196).
+  listenForSharedAudioUnlock();
 
   const parent = document.getElementById('menu');
   let menuShown = true;
