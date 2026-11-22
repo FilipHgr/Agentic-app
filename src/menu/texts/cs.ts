@@ -7,6 +7,7 @@ export default {
     all: { title: 'Vše' },
     addingSubtracting: { title: 'Sčítání a odčítání' },
     drawing: { title: 'Kreslení' },
+    numbers: { title: 'Čísla' },
   },
   profiles: {
     nicknameTitle: 'Přezdívka',

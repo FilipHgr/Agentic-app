@@ -173,7 +173,7 @@ describe('#138 AC1: nabídka jazyků ukazuje „Čeština“ a „English“', (
 });
 
 describe('#138 AC2: po výběru English je menu anglicky', () => {
-  it('kategorie jsou „All“, „Plus and minus“ a „Drawing“', async () => {
+  it('kategorie jsou „All“, „Plus and minus“, „Drawing“ a „Numbers“ (#178)', async () => {
     deviceStorage();
     const { test } = await englishPage();
     chooseLanguage(test, 'en');
@@ -181,14 +181,19 @@ describe('#138 AC2: po výběru English je menu anglicky', () => {
       all: 'All',
       addingSubtracting: 'Plus and minus',
       drawing: 'Drawing',
+      numbers: 'Numbers',
     });
   });
 
-  it('názvy her na dlaždicích jsou „Counting“ a „Colouring“', async () => {
+  it('názvy her na dlaždicích jsou „Counting“, „Colouring“ a „Compare“ (#178)', async () => {
     deviceStorage();
     const { test } = await englishPage();
     chooseLanguage(test, 'en');
-    expect(tileTitles(test)).toEqual({ counting: 'Counting', coloring: 'Colouring' });
+    expect(tileTitles(test)).toEqual({
+      counting: 'Counting',
+      coloring: 'Colouring',
+      compare: 'Compare',
+    });
   });
 
   it('pořadí kategorií a dlaždic se po výběru angličtiny nezmění', async () => {
@@ -274,7 +279,11 @@ describe('#138 AC2: po výběru English je menu anglicky', () => {
       title: czech.test.menu.pageTitle(),
     }).toEqual(menuBefore);
     expect(menuBefore.title).toBe('Matematika');
-    expect(menuBefore.tiles).toEqual({ counting: 'Počítání', coloring: 'Omalovánky' });
+    expect(menuBefore.tiles).toEqual({
+      counting: 'Počítání',
+      coloring: 'Omalovánky',
+      compare: 'Porovnávání',
+    });
     expect(czech.page.documentElement.lang).toBe('cs');
     expect(czech.page.labels.get('aria-label')).toBe('Nastavení pro rodiče');
     expect(czech.countingTitle()).toBe('Počítání');

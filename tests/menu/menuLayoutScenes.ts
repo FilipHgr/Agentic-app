@@ -20,6 +20,7 @@ import {
 } from '../../src/menu/logic/profileLayout';
 import type { ColorStepLayout, NicknameStepLayout } from '../../src/menu/logic/profileLayout';
 import { GAME_CATEGORIES } from '../../src/shared/logic/gameRegistry';
+import { chooseLayoutMode } from '../../src/shared/logic/viewportLayout';
 import { LANGUAGES } from '../../src/shared/texts/languages';
 import type { Language } from '../../src/shared/texts/languages';
 import { sharedTexts } from '../../src/shared/texts/sharedTexts';
@@ -441,6 +442,39 @@ export function todayCategoryTitles(language: Language = 'cs'): string[] {
     const category = all.find((candidate) => candidate.id === id);
     return menuText(category?.titleKey ?? '', language) ?? '';
   });
+}
+
+/** Začátek kategorií pod lištou v CSS px: telefon na šířku, jinak iPad (obrázek B, #67). */
+const PHONE_LANDSCAPE_CATEGORY_TOP = 80;
+const TABLET_CATEGORY_TOP = 104;
+const CATEGORY_HIT = 64;
+const CATEGORY_GAP = 8;
+const CATEGORY_EDGE = 4;
+
+/**
+ * Vejdou se dnešní kategorie do sloupce vlevo bez posouvání (#178)?
+ * Počítá se nezávisle na rozložení menu: od začátku kategorií 64 px na
+ * kategorii a 8 px mezi nimi, nejvýš 4 px nad spodní okraj volné plochy.
+ * Na telefonu na výšku sloupec není (#95).
+ */
+export function todayColumnFits(window: TestWindow): boolean {
+  const mode = chooseLayoutMode(viewportOf(window));
+  if (mode === 'phonePortrait') {
+    return false;
+  }
+  const top = mode === 'phoneLandscape' ? PHONE_LANDSCAPE_CATEGORY_TOP : TABLET_CATEGORY_TOP;
+  const count = todayCategoryTitles().length;
+  const free = freeAreaOf(window);
+  const columnBottom = free.top + top + count * CATEGORY_HIT + (count - 1) * CATEGORY_GAP;
+  return columnBottom <= free.bottom - CATEGORY_EDGE;
+}
+
+/**
+ * Ukazuje dnešní menu výběr kategorie (#95)? Na telefonu na výšku vždy,
+ * jinde jen když se kategorie nevejdou do sloupce (#178).
+ */
+export function todayUsesPicker(window: TestWindow): boolean {
+  return !todayColumnFits(window);
 }
 
 /** Menu s dnešními hrami a kategoriemi. */

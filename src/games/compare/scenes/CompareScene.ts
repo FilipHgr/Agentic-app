@@ -1,0 +1,270 @@
+import Phaser from 'phaser';
+
+import { sharedToneContext } from '../../../shared/audio/sharedAudio';
+import { createTonePlayer } from '../../../shared/audio/tonePlayer';
+import { GAME_HOST_KEY, isGameHost } from '../../../shared/logic/gameHost';
+import type { GameHost } from '../../../shared/logic/gameHost';
+import { FONT_FAMILY } from '../../../shared/logic/theme';
+import { gameAreaFor } from '../../../shared/logic/viewportLayout';
+import type { GameArea } from '../../../shared/logic/viewportLayout';
+import { Confetti } from '../../../shared/ui/Confetti';
+import { followCanvasResolution } from '../../../shared/ui/sharpCanvas';
+import { StarRow } from '../../../shared/ui/StarRow';
+import { GAME_AREA_KEY } from '../../../shared/ui/viewport';
+import { COMPARE_GAME_AREA_FIT, layoutCompareScreen } from '../logic/compareLayout';
+import type { CompareLayout } from '../logic/compareLayout';
+import { correctChoice } from '../logic/compareProblems';
+import type { CompareChoice } from '../logic/compareProblems';
+import { createCompareSession } from '../logic/compareSession';
+import type { CompareChange, CompareSession } from '../logic/compareSession';
+import { COMPARE_SOUNDS } from '../logic/compareSounds';
+import { SIGN_STYLE } from '../logic/theme';
+import { CardView, EqualButtonView } from './CardView';
+
+/** Jak dlouho letí hvězdička od karty do řady. */
+const STAR_FLIGHT_MS = 600;
+/** Znak naskočí ze zmenšení. */
+const SIGN_POP_MS = 220;
+/** Nové karty naskočí ze zmenšení. */
+const CARDS_POP_MS = 180;
+const CARDS_POP_FROM = 0.92;
+
+/**
+ * Jediná scéna Porovnávání (#178). Scéna jen kreslí a animuje; co se ve
+ * hře děje (příklad, odpovědi, hvězdičky, oslava, uložení), řídí sezení
+ * `compareSession.ts`. Rozložení se bere podle herní plochy (iPad,
+ * telefon na šířku i na výšku) a po otočení se překreslí bez nového
+ * příkladu. Hvězdičky a konfety jsou sdílené (`StarRow`, `Confetti`).
+ */
+export class CompareScene extends Phaser.Scene {
+  private session!: CompareSession;
+  private gameArea: GameArea = gameAreaFor(undefined, COMPARE_GAME_AREA_FIT);
+  private layout: CompareLayout = layoutCompareScreen(this.gameArea);
+  private cards: CardView[] = [];
+  private equalButton: EqualButtonView | null = null;
+  private sign: Phaser.GameObjects.Text | null = null;
+  // Společný zvukový kontext stránky, odemčený už ťuknutím v menu.
+  private readonly tones = createTonePlayer(sharedToneContext);
+  private readonly starRow = new StarRow(
+    this,
+    () => this.layout.stars,
+    () => ({ earned: this.session.starCount() }),
+    STAR_FLIGHT_MS,
+  );
+  private readonly confetti = new Confetti(this);
+
+  constructor() {
+    super('compare');
+  }
+
+  create(): void {
+    // Ostré plátno na iPadu (#77); kreslí se dál v herních jednotkách.
+    followCanvasResolution(this);
+    this.gameArea = this.readGameArea();
+    this.layout = layoutCompareScreen(this.gameArea);
+    this.registry.events.on(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.registry.events.off(`changedata-${GAME_AREA_KEY}`, this.onGameAreaChanged, this);
+      // Hra skončila jinak než domečkem: sezení se zastaví stejně.
+      this.session.leave();
+    });
+
+    const host = this.readHost();
+    const session = createCompareSession({
+      // Úložiště aktivního profilu od stránky; bez stránky jen paměť.
+      storage: host?.storage,
+      random: Math.random,
+      sounds: {
+        play: (name) => this.tones.play(COMPARE_SOUNDS[name]),
+        stopAll: () => this.tones.stopAll(),
+      },
+      timers: {
+        after: (ms, callback) => {
+          const timer = this.time.delayedCall(ms, callback);
+          return () => timer.remove(false);
+        },
+      },
+      onChange: (change) => this.onSessionChange(change),
+    });
+    this.session = session;
+    host?.onLeave(() => session.leave());
+    // Domeček jde použít vždy, nastavení hra zatím nemá (kolečko zůstane skryté).
+    host?.setHomeAvailable(true);
+
+    this.starRow.create();
+    this.starRow.paint();
+    this.drawProblem(false);
+  }
+
+  /** Stránka s domečkem z registru; bez ní hra běží jen bez něj. */
+  private readHost(): GameHost | undefined {
+    const stored: unknown = this.registry.get(GAME_HOST_KEY);
+    return isGameHost(stored) ? stored : undefined;
+  }
+
+  private readGameArea(): GameArea {
+    const stored: unknown = this.registry.get(GAME_AREA_KEY);
+    return isGameArea(stored) ? stored : gameAreaFor(undefined, COMPARE_GAME_AREA_FIT);
+  }
+
+  private onSessionChange(change: CompareChange): void {
+    switch (change.kind) {
+      case 'problemStarted':
+        this.drawProblem(true);
+        break;
+      case 'solved':
+        this.showSolved(change.choice);
+        break;
+      case 'wrong':
+        this.targetOf(change.choice)?.shake();
+        break;
+      case 'celebrationStarted':
+        this.confetti.throw(this.gameArea, this.layout.unitsPerCssPx);
+        break;
+      case 'celebrationEnded':
+        // Zbylé konfety dopadnou samy, řada je zase prázdná.
+        this.confetti.forget();
+        this.starRow.paint();
+        break;
+    }
+  }
+
+  private targetOf(choice: CompareChoice): CardView | EqualButtonView | null | undefined {
+    switch (choice) {
+      case 'left':
+        return this.cards[0];
+      case 'right':
+        return this.cards[1];
+      case 'equal':
+        return this.equalButton;
+    }
+  }
+
+  /** Správně: karta se rozsvítí, místo „=“ naskočí znak a hvězdička letí do řady. */
+  private showSolved(choice: CompareChoice): void {
+    const target = this.targetOf(choice);
+    if (choice !== 'equal') {
+      this.cards[choice === 'left' ? 0 : 1]?.markCorrect();
+    }
+    const origin = target?.center ?? { x: this.layout.sign.x, y: this.layout.sign.y };
+    this.equalButton?.hide();
+    this.drawSign(true);
+    this.starRow.flyToRow(origin, () => undefined);
+  }
+
+  /** Zelený okraj správné karty bez zhoupnutí; u „=“ žádná karta. */
+  private markCorrectCard(choice: CompareChoice): void {
+    if (choice !== 'equal') {
+      this.cards[choice === 'left' ? 0 : 1]?.markCorrect(false);
+    }
+  }
+
+  /** Smaže karty, „=“ i znak. */
+  private clearProblem(): void {
+    for (const card of this.cards) {
+      card.destroy();
+    }
+    this.cards = [];
+    this.equalButton?.destroy();
+    this.equalButton = null;
+    if (this.sign) {
+      this.tweens.killTweensOf(this.sign);
+      this.sign.destroy();
+      this.sign = null;
+    }
+  }
+
+  /** Nakreslí rozehraný příklad podle rozložení; `animate` u nového příkladu. */
+  private drawProblem(animate: boolean): void {
+    this.clearProblem();
+    const { layout } = this;
+    const unit = layout.unitsPerCssPx;
+    const problem = this.session.problem();
+    this.cards = [
+      new CardView(
+        this,
+        layout.cards[0],
+        unit,
+        layout.cardCornerRadius,
+        { count: problem.left, groups: layout.dotGroups, side: 0 },
+        () => this.session.tap('left'),
+      ),
+      new CardView(
+        this,
+        layout.cards[1],
+        unit,
+        layout.cardCornerRadius,
+        { count: problem.right, groups: layout.dotGroups, side: 1 },
+        () => this.session.tap('right'),
+      ),
+    ];
+    if (this.session.shownSign() === null) {
+      this.equalButton = new EqualButtonView(this, layout.equalButton, unit, () =>
+        this.session.tap('equal'),
+      );
+    } else {
+      // Vyřešený příklad po otočení: správná karta zůstane zeleně orámovaná.
+      this.markCorrectCard(correctChoice(problem));
+      this.drawSign(false);
+    }
+    if (animate) {
+      for (const card of this.cards) {
+        card.container.setScale(CARDS_POP_FROM);
+        this.tweens.add({
+          targets: card.container,
+          scale: 1,
+          duration: CARDS_POP_MS,
+          ease: 'Back.easeOut',
+        });
+      }
+    }
+  }
+
+  /** Znak na místě „=“ („>“, „<“, „=“), vždy rovně: karty jsou vedle sebe. */
+  private drawSign(animate: boolean): void {
+    const sign = this.session.shownSign();
+    if (sign === null) {
+      return;
+    }
+    const { layout } = this;
+    this.sign = this.add
+      .text(layout.sign.x, layout.sign.y, sign, {
+        fontFamily: FONT_FAMILY,
+        fontSize: `${Math.round(layout.sign.size)}px`,
+        fontStyle: SIGN_STYLE.fontWeight,
+        color: SIGN_STYLE.color,
+      })
+      .setOrigin(0.5);
+    if (animate) {
+      this.sign.setScale(0.3);
+      this.tweens.add({
+        targets: this.sign,
+        scale: 1,
+        duration: SIGN_POP_MS,
+        ease: 'Back.easeOut',
+      });
+    }
+  }
+
+  /** Otočení zařízení nebo změna lišty: totéž kolo v novém rozložení, bez nového příkladu. */
+  private onGameAreaChanged(): void {
+    this.gameArea = this.readGameArea();
+    this.layout = layoutCompareScreen(this.gameArea);
+    this.starRow.redraw();
+    this.drawProblem(false);
+  }
+}
+
+/** Je hodnota z registru herní plocha? */
+function isGameArea(value: unknown): value is GameArea {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const area = value as Partial<GameArea>;
+  return (
+    typeof area.mode === 'string' &&
+    typeof area.width === 'number' &&
+    typeof area.height === 'number' &&
+    typeof area.scale === 'number'
+  );
+}

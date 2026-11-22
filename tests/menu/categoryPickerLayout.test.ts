@@ -32,6 +32,7 @@ import {
   pickerRowText,
   shiftY,
   todayCategoryTitles,
+  todayColumnFits,
   todayLayout,
   unseenElements,
 } from './menuLayoutScenes';
@@ -167,13 +168,27 @@ describe('#95 AC1: zavřený výběr jen na telefonu na výšku', () => {
     }
   });
 
-  it('na iPadu, ve zmenšeném zobrazení a na telefonu na šířku výběr není a sloupec zůstává', () => {
-    expect(COLUMN_WINDOWS.length).toBeGreaterThan(0);
-    for (const window of COLUMN_WINDOWS) {
+  it('na iPadu, ve zmenšeném zobrazení a na telefonu na šířku výběr není a sloupec zůstává, když se kategorie do sloupce vejdou', () => {
+    const fitting = COLUMN_WINDOWS.filter(todayColumnFits);
+    expect(fitting.length).toBeGreaterThan(0);
+    for (const window of fitting) {
       const layout = todayLayout(window);
       expect(layout.categoryPicker ?? null, window.name).toBeNull();
       expect(layout.categoryDirection, window.name).toBe('column');
       expect(layout.categories, window.name).toHaveLength(todayCategoryTitles().length);
+    }
+  });
+
+  // #178: čtvrtá kategorie (Čísla) se na nízkém telefonu na šířku do sloupce
+  // nevejde; místo posouvaného sloupce je tam výběr kategorie v liště.
+  it('na šířku, kde se kategorie do sloupce nevejdou, je místo sloupce jedno tlačítko výběru (#178)', () => {
+    const notFitting = COLUMN_WINDOWS.filter((window) => !todayColumnFits(window));
+    expect(notFitting.length).toBeGreaterThan(0);
+    for (const window of notFitting) {
+      const layout = todayLayout(window);
+      expect(layout.categoryPicker ?? null, window.name).not.toBeNull();
+      expect(layout.categories, window.name).toHaveLength(0);
+      expect(layout.categoryPicker?.rows, window.name).toHaveLength(todayCategoryTitles().length);
     }
   });
 

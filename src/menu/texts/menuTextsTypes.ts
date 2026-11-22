@@ -13,6 +13,7 @@ export interface MenuTexts {
     readonly all: { readonly title: string };
     readonly addingSubtracting: { readonly title: string };
     readonly drawing: { readonly title: string };
+    readonly numbers: { readonly title: string };
   };
   /**
    * Formulář profilu (#72): nadpisy 1. a 2. kroku; potvrzení smazání

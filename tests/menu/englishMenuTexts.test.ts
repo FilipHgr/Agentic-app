@@ -29,6 +29,8 @@ const ENGLISH_MENU = {
     all: { title: 'All' },
     addingSubtracting: { title: 'Plus and minus' },
     drawing: { title: 'Drawing' },
+    // #178: nová kategorie Porovnávání.
+    numbers: { title: 'Numbers' },
   },
   profiles: {
     nicknameTitle: 'Nickname',
@@ -65,7 +67,7 @@ describe('#137 AC1: anglické texty menu', () => {
     expect(Object.keys(MENU_FILES)).toContain('en');
   });
 
-  it('kategorie jsou „All“, „Plus and minus“ a „Drawing“', () => {
+  it('kategorie jsou „All“, „Plus and minus“, „Drawing“ a „Numbers“ (#178)', () => {
     expect(englishMenu()['categories']).toEqual(ENGLISH_MENU.categories);
   });
 

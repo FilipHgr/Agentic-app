@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { GAMES } from '../../src/gameList';
 import { menuLayoutFor } from '../../src/menu/logic/menuLayout';
 import type { MenuBox, MenuLayout } from '../../src/menu/logic/menuLayout';
 import { createMenuTouch } from '../../src/menu/logic/menuTouch';
@@ -585,9 +586,17 @@ describe('#157 AC2: místo v liště zůstává, profil se neposune, jazyk je ú
     expect(problems).toEqual([]);
   });
 
+  /** Počet kategorií v době #157: Vše, Sčítání a odčítání, Kreslení. */
+  const CATEGORIES_AT_157 = 3;
+
+  // Kategorie jako v době #157 (bez Čísel z #178): čtvrtá kategorie
+  // nahradí na nízkém telefonu na šířku sloupec výběrem, to s lištou nesouvisí.
   it('lišta se neposunula: kategorie, výběr kategorie a mřížka začínají na stejném místě', () => {
     const problems = BAR_BEFORE_157.flatMap((row) => {
-      const layout = todayLayout(windowOf(row));
+      const layout = menuLayoutFor(viewportOf(windowOf(row)), {
+        categoryTitles: todayCategoryTitles().slice(0, CATEGORIES_AT_157),
+        tileCount: GAMES.length,
+      });
       const pickerTop = layout.categoryPicker?.button.top ?? null;
       const tops: Array<[string, number | null, number | null]> = [
         ['mřížka', layout.gridScroll.viewport.top, row.gridTop],

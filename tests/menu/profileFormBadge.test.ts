@@ -259,7 +259,10 @@ describe('#161 AC3: kolečko nepřidá žádný nový text', () => {
     expect(Object.keys(MENU_FILES).length).toBeGreaterThan(0);
     for (const [language, texts] of Object.entries(MENU_FILES)) {
       // Repliky pandy (`rudyLines`) přidal až #171, s kolečkem nesouvisí.
-      const keys = [...leavesOf(texts).keys()].filter((key) => !key.startsWith('rudyLines.'));
+      // Kategorii Čísla (`categories.numbers`) přidal až #178, s kolečkem nesouvisí.
+      const keys = [...leavesOf(texts).keys()].filter(
+        (key) => !key.startsWith('rudyLines.') && key !== 'categories.numbers.title',
+      );
       expect(keys.sort(), language).toEqual(TEXT_KEYS_BEFORE_161);
     }
   });

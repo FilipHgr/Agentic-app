@@ -121,7 +121,7 @@ export interface MenuProfileBadgeLayout {
   readonly labelInset: number;
 }
 
-/** Výběr kategorie na telefonu na výšku (#95). */
+/** Výběr kategorie (#95): telefon na výšku, nebo když se kategorie nevejdou do sloupce (#178). */
 export interface MenuCategoryPicker {
   /** Ťukací plocha tlačítka (64 px vysoká, přes celou šířku menu). */
   readonly button: MenuBox;
@@ -196,8 +196,9 @@ export interface MenuLayout {
   /** Kategorie v řadě se posouvají vodorovně, ve sloupci svisle. */
   readonly categoryScroll: MenuScrollArea;
   /**
-   * Výběr kategorie (#95), jen na telefonu na výšku; jinde `null`
-   * a kategorie jsou ve sloupci. S výběrem je `categories` prázdné.
+   * Výběr kategorie (#95) na telefonu na výšku a tam, kde se kategorie
+   * nevejdou do sloupce bez posouvání (#178); jinde `null` a kategorie
+   * jsou ve sloupci. S výběrem je `categories` prázdné.
    */
   readonly categoryPicker: MenuCategoryPicker | null;
 }
@@ -518,6 +519,24 @@ function categoryPeek(
   const viewportEnd = endOf(viewport, direction);
   const cut = slots.find((slot) => endOf(slot.pill, direction) > viewportEnd);
   return cut === undefined ? Infinity : viewportEnd - startOf(cut.pill, direction);
+}
+
+/**
+ * Vejdou se kategorie do sloupce vedle mřížky bez posouvání (s mezerou
+ * 8 px)? Když ne, menu ukáže místo sloupce výběr kategorie (#95, #178).
+ */
+function columnFits(free: MenuBox, metrics: MenuMetrics, count: number): boolean {
+  const last = categoryColumn(free, metrics, count, CATEGORY_GAP)[count - 1];
+  return last === undefined || last.hit.bottom <= free.bottom - VIEWPORT_EDGE;
+}
+
+/**
+ * Chybí ve sloupci k celému zobrazení jen jedna kategorie (#178)? Posouvat
+ * sloupec kvůli jediné skryté kategorii by dítě nepoznalo, menu pak ukáže
+ * výběr kategorie. Při mnoha kategoriích se sloupec dál posouvá (#69).
+ */
+function columnMissesOneCategory(free: MenuBox, metrics: MenuMetrics, count: number): boolean {
+  return !columnFits(free, metrics, count) && columnFits(free, metrics, count - 1);
 }
 
 /** Mezera z `gaps`, která je nejblíž schválené (24 px) a splní `isGood`. */
@@ -1001,6 +1020,53 @@ function centeredBlockMargin(isRow: boolean, metrics: MenuMetrics): number {
   return isRow ? metrics.sideMargin : Math.min(metrics.columnGap, metrics.sideMargin);
 }
 
+/**
+ * Vystředěný blok (#156) v celé ploše jako dřív. Jen když by přesáhl jazyk
+ * v liště, vybere se nejlepší mřížka v užším místě, kde ho nepřesáhne
+ * (#178). Dlaždice tam nejsou menší než dnes, mezera ne užší a blok zůstává
+ * uprostřed (#156), proto může mít jiný počet sloupců. Když se tam dnešní
+ * dlaždice nevejdou, zůstane blok jako dřív.
+ */
+function centeredGridIn(input: TileGridInput, today: TodayTiles): CenteredGrid | undefined {
+  const find = (room: Size): CenteredGrid | undefined =>
+    centeredGridFor(
+      input.allTileCount,
+      { width: today.width, height: today.height },
+      today.gap,
+      room,
+      input.metrics.tileTitleFontSize,
+    );
+  const anywhere = find(centeredRoom(input, false));
+  if (anywhere === undefined || !reachesPastLanguage(input, anywhere)) {
+    return anywhere;
+  }
+  return find(centeredRoom(input, true)) ?? anywhere;
+}
+
+/** Přesáhl by vystředěný blok pravý okraj jazyka v liště (#178)? */
+function reachesPastLanguage(input: TileGridInput, grid: CenteredGrid): boolean {
+  const tiles = centeredTiles(input.tileArea, grid, input.allTileCount);
+  return tiles.some((tile) => tile.right > input.rightLimit);
+}
+
+/**
+ * Místo pro vystředěný blok (#156): volná plocha bez okrajů. Blok stojí
+ * uprostřed plochy a nesmí přesáhnout pravý okraj jazyka v liště (#178),
+ * proto je místo nejvýš dvakrát tak široké jako vzdálenost středu plochy
+ * od jazyka. Užší je jen tam, kde by blok jazyk přesáhl; jinde se nic nemění.
+ */
+function centeredRoom(input: TileGridInput, besideLanguage: boolean): Size {
+  const margin = centeredBlockMargin(input.isRow, input.metrics);
+  const room = roomOf(input.tileArea, margin, CENTERED_BLOCK_EDGE);
+  if (!besideLanguage) {
+    return room;
+  }
+  // Blok zůstává uprostřed plochy, jen je nejvýš tak široký, aby nepřesáhl jazyk.
+  const center = (input.tileArea.left + input.tileArea.right) / 2;
+  const limited = 2 * (input.rightLimit - center);
+  return { width: Math.min(room.width, limited), height: room.height };
+}
+
 /** Plocha `area` bez okrajů `across` vlevo i vpravo a `down` nahoře i dole. */
 function roomOf(area: MenuBox, across: number, down: number): Size {
   return {
@@ -1023,6 +1089,8 @@ interface TileGridInput {
   /** Spodní okraj lišty, na telefonu na výšku i výběru kategorie. */
   readonly aboveGrid: number;
   readonly isRow: boolean;
+  /** Pravý okraj, za který vystředěný blok nesmí (pravý okraj jazyka v liště, #178). */
+  readonly rightLimit: number;
   readonly tileCount: number;
   readonly allTileCount: number;
 }
@@ -1134,19 +1202,7 @@ function centeredTileGrid(input: TileGridInput, centered: CenteredGrid): TileGri
  */
 function tileGridFor(input: TileGridInput): TileGrid {
   const today = todayTilesFor(input);
-  const centered = today.allFit
-    ? centeredGridFor(
-        input.allTileCount,
-        { width: today.width, height: today.height },
-        today.gap,
-        roomOf(
-          input.tileArea,
-          centeredBlockMargin(input.isRow, input.metrics),
-          CENTERED_BLOCK_EDGE,
-        ),
-        input.metrics.tileTitleFontSize,
-      )
-    : undefined;
+  const centered = today.allFit ? centeredGridIn(input, today) : undefined;
   return centered === undefined
     ? scrollingTileGrid(input, today)
     : centeredTileGrid(input, centered);
@@ -1175,14 +1231,36 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     right -= BUTTON_SIZE + metrics.barGap;
   }
 
-  const isRow = mode === 'phonePortrait';
+  // Výběr kategorie (#95) je na telefonu na výšku pod lištou. Na telefonu
+  // na šířku nahradí sloupec, když se do něj kategorie nevejdou bez
+  // posouvání (#178: čtvrtá kategorie na nízkém telefonu); stojí pak
+  // v liště mezi profilem a jazykem a mřížka má celou šířku pod lištou.
+  const pickerInBar =
+    mode === 'phoneLandscape' &&
+    columnMissesOneCategory(free, metrics, content.categoryTitles.length);
+  const pickerBelowBar = mode === 'phonePortrait';
+  const isRow = pickerBelowBar || pickerInBar;
   const direction = isRow ? 'row' : 'column';
+  const pickerBox: MenuBox = pickerInBar
+    ? {
+        left: profileSlot.right + metrics.barGap,
+        right:
+          Math.min(languageSlot.left, ...reservedSlots.map((box) => box.left)) - metrics.barGap,
+        top: barTop,
+        bottom: barTop + BUTTON_SIZE,
+      }
+    : {
+        left: profileSlot.left,
+        right: Math.max(languageSlot.right, ...reservedSlots.map((box) => box.right)),
+        top: free.top + metrics.contentTop,
+        bottom: free.top + metrics.contentTop + BUTTON_SIZE,
+      };
   const categoryViewport: MenuBox = isRow
     ? {
         left: free.left + VIEWPORT_EDGE,
         right: free.right - VIEWPORT_EDGE,
-        top: free.top + metrics.contentTop - VIEWPORT_EDGE,
-        bottom: free.top + metrics.contentTop + BUTTON_SIZE + VIEWPORT_EDGE,
+        top: pickerBox.top - VIEWPORT_EDGE,
+        bottom: pickerBox.bottom + VIEWPORT_EDGE,
       }
     : {
         left: free.left + VIEWPORT_EDGE,
@@ -1190,7 +1268,7 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
         top: free.top + metrics.contentTop - VIEWPORT_EDGE,
         bottom: free.bottom - VIEWPORT_EDGE,
       };
-  // Na telefonu na výšku jsou kategorie v seznamu výběru (#95), ne v řadě.
+  // S výběrem kategorie (#95) jsou kategorie v jeho seznamu, ne v řadě.
   const categories = isRow
     ? []
     : categorySlotsFor(
@@ -1213,7 +1291,7 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     ? {
         left: free.left + metrics.sideMargin,
         right: free.right - metrics.sideMargin,
-        top: free.top + metrics.contentTop + BUTTON_SIZE + metrics.columnGap,
+        top: pickerInBar ? free.top + metrics.contentTop : pickerBox.bottom + metrics.columnGap,
         bottom: free.bottom - metrics.sideMargin,
       }
     : {
@@ -1237,14 +1315,16 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
     tileArea: {
       left: isRow ? free.left : free.left + metrics.sideMargin + metrics.categoryWidth,
       right: free.right,
-      top: isRow ? free.top + metrics.contentTop + BUTTON_SIZE : barBottom,
+      top: pickerBelowBar ? pickerBox.bottom : barBottom,
       bottom: free.bottom,
     },
     // Kamera mřížky kreslí i kousek vedle viditelné plochy: nad ní až po
     // lištu nebo řadu kategorií, do stran a dolů až k okraji volné plochy.
     clipLeft: isRow ? free.left : categoryViewport.right,
-    aboveGrid: isRow ? Math.max(barBottom, categoryViewport.bottom) : barBottom,
+    aboveGrid: pickerBelowBar ? Math.max(barBottom, categoryViewport.bottom) : barBottom,
     isRow,
+    // Vystředěný blok nesmí přesáhnout jazyk vpravo v liště (#157, #178).
+    rightLimit: languageSlot.right,
     tileCount: content.tileCount,
     allTileCount: Math.max(content.tileCount, content.allTileCount ?? content.tileCount),
   });
@@ -1252,9 +1332,9 @@ export function menuLayoutFor(viewport: Viewport | undefined, content: MenuConte
   const categoryPicker = isRow
     ? categoryPickerFor(
         free,
-        profileSlot.left,
-        Math.max(languageSlot.right, ...reservedSlots.map((box) => box.right)),
-        free.top + metrics.contentTop,
+        pickerBox.left,
+        pickerBox.right,
+        pickerBox.top,
         content.categoryTitles.length,
       )
     : null;

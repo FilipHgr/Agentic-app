@@ -33,7 +33,7 @@ v rámci komerčního tarifu vlastníka hry. Nahrávky vznikly přes napojení
 ElevenLabs a jsou převedené na mono 44,1 kHz 64 kb/s.
 
 Obrázky na dlaždicích her v menu (src/games/counting/tile.webp,
-src/games/coloring/tile.webp) jsou vytvořené službou ElevenLabs
+src/games/coloring/tile.webp, src/games/compare/tile.webp) jsou vytvořené službou ElevenLabs
 (https://elevenlabs.io), model GPT Image 2.5. Použito v rámci komerčního
 tarifu vlastníka hry. Úprava: zmenšeno na 512 px, pozadí #F5F5F7 vybělené
 do bílé, převedeno na WebP.

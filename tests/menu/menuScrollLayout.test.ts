@@ -29,6 +29,7 @@ import {
   shiftCategory,
   shiftY,
   todayCategoryTitles,
+  todayColumnFits,
   todayLayout,
   visiblePart,
 } from './menuLayoutScenes';
@@ -185,13 +186,37 @@ describe('#69 AC1: dnes (jedna hra) se nic neposouvá, když se kategorie vejdou
     }
   });
 
-  it('mimo telefon na výšku se dnešní kategorie vždy vejdou (posouvat se smí jen řada na telefonu na výšku, #88)', () => {
+  // #178: kde se dnešní kategorie do sloupce nevejdou (sloupec počítaný
+  // nezávisle na rozložení menu), je místo sloupce výběr kategorie (#95).
+  it('mimo telefon na výšku se dnešní kategorie vždy vejdou, nebo se sloupec nevejde a je místo něj výběr kategorie (#88, #178)', () => {
     for (const window of MENU_WINDOWS) {
       if (isPhonePortrait(window)) {
         continue;
       }
-      expect(todayFits(window), window.name).toBe(true);
-      expect(todayLayout(window).categoryScroll.maxOffset, window.name).toBe(0);
+      const layout = todayLayout(window);
+      if (todayColumnFits(window)) {
+        expect(todayFits(window), window.name).toBe(true);
+        expect(layout.categoryPicker ?? null, window.name).toBeNull();
+      } else {
+        expect(layout.categoryPicker ?? null, window.name).not.toBeNull();
+        expect(layout.categories, window.name).toHaveLength(0);
+      }
+      expect(layout.categoryScroll.maxOffset, window.name).toBe(0);
+    }
+  });
+
+  it('v každém okně se dnešní kategorie vejdou do sloupce, nebo je vidět výběr kategorie, a nic z kategorií se neposouvá (#178)', () => {
+    for (const window of MENU_WINDOWS) {
+      const layout = todayLayout(window);
+      const columnFitsWhole =
+        layout.categoryPicker === null &&
+        layout.categories.length === todayCategoryTitles().length &&
+        layout.categories.every((category) =>
+          isInside(category.hit, layout.categoryScroll.viewport),
+        );
+      const pickerShown = layout.categoryPicker !== null && layout.categories.length === 0;
+      expect(columnFitsWhole || pickerShown, window.name).toBe(true);
+      expect(layout.categoryScroll.maxOffset, window.name).toBe(0);
     }
   });
 

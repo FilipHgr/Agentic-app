@@ -275,10 +275,10 @@ describe('#95 AC5: symboly kategorií', () => {
     expect(symbolProblems([...ALL_MENU_CATEGORIES, sameSymbol])).toHaveLength(1);
   });
 
-  it('dnešní kategorie mají schválené symboly: „Vše“ ▦, „Sčítání a odčítání“ + −, „Kreslení“ ✎', () => {
+  it('dnešní kategorie mají schválené symboly: „Vše“ ▦, „Sčítání a odčítání“ + −, „Kreslení“ ✎, „Čísla“ < > (#178)', () => {
     expect(
       Object.fromEntries(ALL_MENU_CATEGORIES.map((category) => [category.id, category.symbol])),
-    ).toEqual({ all: '▦', addingSubtracting: '+ −', drawing: '✎' });
+    ).toEqual({ all: '▦', addingSubtracting: '+ −', drawing: '✎', numbers: '< >' });
   });
 
   it('zkušební kategorie v testech mají také různé symboly', () => {

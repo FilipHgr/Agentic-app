@@ -27,6 +27,7 @@ export interface GameCategory {
 export const GAME_CATEGORIES: readonly GameCategory[] = [
   { id: 'addingSubtracting', titleKey: 'categories.addingSubtracting.title', symbol: '+ −' },
   { id: 'drawing', titleKey: 'categories.drawing.title', symbol: '✎' },
+  { id: 'numbers', titleKey: 'categories.numbers.title', symbol: '< >' },
 ];
 
 /**

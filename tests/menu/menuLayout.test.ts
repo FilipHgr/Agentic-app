@@ -11,6 +11,7 @@ import {
   gridScenes,
   todayCategoryTitles,
   todayLayout,
+  todayUsesPicker,
 } from './menuLayoutScenes';
 
 /**
@@ -105,12 +106,12 @@ function neighbours<T>(items: readonly T[]): Array<[T, T]> {
 }
 
 describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', () => {
-  it('menu má jednu dlaždici na hru (žádné šedé „?“) a každá kategorie svou ťukací plochu (na telefonu na výšku řádek seznamu, #95)', () => {
+  it('menu má jednu dlaždici na hru (žádné šedé „?“) a každá kategorie svou ťukací plochu (na telefonu na výšku a když se sloupec nevejde řádek seznamu, #95, #178)', () => {
     for (const window of MENU_WINDOWS) {
       const layout = todayLayout(window);
       const count = todayCategoryTitles('cs').length;
       expect(layout.tiles, window.name).toHaveLength(GAMES.length);
-      if (isPhonePortrait(window)) {
+      if (todayUsesPicker(window)) {
         expect(layout.categories, window.name).toHaveLength(0);
         expect(layout.categoryPicker?.rows, window.name).toHaveLength(count);
       } else {
@@ -173,21 +174,35 @@ describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', 
         // #157: vyhrazené místo po schovaných „…“ patří k liště.
         ...layout.reservedSlots.map((box) => box.bottom),
       );
+      // #178: když se sloupec nevejde, je tlačítko výběru na telefonu na
+      // šířku v liště mezi profilem a vyhrazeným místem, ne pod ní.
+      const pickerInBar = !isPhonePortrait(window) && todayUsesPicker(window);
       for (const box of [
-        ...pickerBoxes(layout),
+        ...(pickerInBar ? [] : pickerBoxes(layout)),
         ...layout.categories.map((c) => c.hit),
         ...layout.tiles,
       ]) {
         expect(box.top, window.name).toBeGreaterThanOrEqual(barBottom);
       }
+      const button = layout.categoryPicker?.button;
+      if (pickerInBar && button !== undefined) {
+        const firstReserved = Math.min(
+          layout.languageSlot.left,
+          ...layout.reservedSlots.map((box) => box.left),
+        );
+        expect(button.top, window.name).toBeGreaterThanOrEqual(layout.profileSlot.top);
+        expect(button.bottom, window.name).toBeLessThanOrEqual(barBottom);
+        expect(button.left, window.name).toBeGreaterThanOrEqual(layout.profileSlot.right);
+        expect(button.right, window.name).toBeLessThanOrEqual(firstReserved);
+      }
     }
   });
 
-  it('kategorie jdou v pořadí: na výšku v seznamu výběru shora dolů (#95), jinak ve sloupci shora dolů', () => {
+  it('kategorie jdou v pořadí: v seznamu výběru shora dolů (na výšku #95, když se sloupec nevejde #178), jinak ve sloupci shora dolů', () => {
     for (const window of MENU_WINDOWS) {
       const layout = todayLayout(window);
       const hits = layout.categories.map((category) => category.hit);
-      if (isPhonePortrait(window)) {
+      if (todayUsesPicker(window)) {
         const rows = layout.categoryPicker?.rows ?? [];
         expect(rows, window.name).toHaveLength(todayCategoryTitles('cs').length);
         for (const [previous, next] of neighbours(rows)) {
@@ -204,12 +219,12 @@ describe('#67 AC1: rozložení podle obrázku B ve všech zkušebních oknech', 
     }
   });
 
-  it('mřížka dlaždic je na výšku pod tlačítkem výběru kategorie (#95), jinak vpravo vedle sloupce', () => {
+  it('mřížka dlaždic je pod tlačítkem výběru kategorie (na výšku #95, když se sloupec nevejde #178), jinak vpravo vedle sloupce', () => {
     for (const window of MENU_WINDOWS) {
       const layout = todayLayout(window);
       const hits = layout.categories.map((category) => category.hit);
       for (const tile of layout.tiles) {
-        if (isPhonePortrait(window)) {
+        if (todayUsesPicker(window)) {
           expect(pickerBoxes(layout), window.name).toHaveLength(1);
           expect(tile.top, window.name).toBeGreaterThanOrEqual(
             Math.max(...pickerBoxes(layout).map((box) => box.bottom)),

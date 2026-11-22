@@ -326,6 +326,7 @@ describe('#137 AC2: kontrola menu opravdu zachytí příliš dlouhý text (uměl
   const czech = menuTextsOf('cs');
   const ipad = findWindow('iPad 1180×820');
   const phoneLandscape = findWindow('844×340');
+  const phoneLandscapeWithColumn = findWindow('932×430');
   const phonePortrait = findWindow('390×844');
 
   function longLanguage(change: Partial<MenuLanguageTexts>): MenuLanguageTexts {
@@ -360,13 +361,26 @@ describe('#137 AC2: kontrola menu opravdu zachytí příliš dlouhý text (uměl
     expect(overflowAmount(problem)).toBeGreaterThan(0);
   });
 
+  // #178: na 844 × 340 se dnešní kategorie do sloupce nevejdou (je tam
+  // výběr kategorie), sloupec na telefonu na šířku se proto zkouší na 932 × 430.
   it('dlouhou kategorii ve sloupci zachytí i na telefonu na šířku', () => {
     const long = 'Sčítání, odčítání a porovnávání';
     const texts = longLanguage({
       categoryTitles: [czech.categoryTitles[0] ?? '', long, ...czech.categoryTitles.slice(2)],
     });
-    const problem = problemWith(overflowsIn('xx', texts, phoneLandscape), long);
+    const problem = problemWith(overflowsIn('xx', texts, phoneLandscapeWithColumn), long);
     expect(problem).toContain('kategorie ve sloupci vlevo');
+  });
+
+  it('dlouhou kategorii na tlačítku výběru v liště zachytí na nízkém telefonu na šířku (#178)', () => {
+    const long = 'Sčítání, odčítání a porovnávání čísel do sta';
+    const texts = longLanguage({
+      categoryTitles: [czech.categoryTitles[0] ?? '', long, ...czech.categoryTitles.slice(2)],
+    });
+    const problems = overflowsIn('xx', texts, phoneLandscape).filter((problem) =>
+      problem.includes(long),
+    );
+    expect(problems.some((problem) => problem.includes('tlačítko výběru kategorie'))).toBe(true);
   });
 
   it('dlouhou kategorii na tlačítku i v seznamu výběru kategorie zachytí na telefonu na výšku', () => {

@@ -8,6 +8,7 @@ export default {
     // „Adding and subtracting“ se do sloupce kategorií nevejde, platí záloha z #137.
     addingSubtracting: { title: 'Plus and minus' },
     drawing: { title: 'Drawing' },
+    numbers: { title: 'Numbers' },
   },
   profiles: {
     nicknameTitle: 'Nickname',
