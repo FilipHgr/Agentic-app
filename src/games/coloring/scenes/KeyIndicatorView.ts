@@ -48,6 +48,8 @@ interface LooseKey {
   state: 'flying' | 'inLock' | 'turning' | 'returning';
   /** Co se zavolá po doletu do zámku (i když se let dokončí hned). */
   onLanded: (() => void) | null;
+  /** Kam klíč letí (hrot v klíčové dírce a měřítko), aby šel let dokončit hned (#198). */
+  flightEnd: { readonly x: number; readonly y: number; readonly scale: number } | null;
 }
 
 /** Co ukazatel dostal k nakreslení, aby se mohl nakreslit znovu, když klíč vyletí nebo se vrátí. */
@@ -197,11 +199,12 @@ export class KeyIndicatorView {
       this.drawIndicator();
     }
     const end = tipOf(target);
+    key.flightEnd = { x: end.x, y: end.y, scale: target.width / key.unitSide };
     this.scene.tweens.add({
       targets: key.image,
       x: end.x,
       y: end.y,
-      scale: target.width / key.unitSide,
+      scale: key.flightEnd.scale,
       duration: KEY_FLIGHT_MS,
       ease: 'Sine.easeInOut',
       onComplete: () => this.land(key),
@@ -254,6 +257,14 @@ export class KeyIndicatorView {
       return;
     }
     this.scene.tweens.killTweensOf(key.image);
+    if (key.state === 'flying' && key.flightEnd !== null) {
+      // Pomalý tablet (#198): výběr už let počítá za skončený, ale animace
+      // ještě běží. Klíč se dosadí do zámku a otočí se v něm.
+      key.image
+        .setPosition(key.flightEnd.x, key.flightEnd.y)
+        .setScale(key.flightEnd.scale)
+        .setAngle(0);
+    }
     key.state = 'turning';
     key.onLanded = null;
     this.scene.tweens.add({
@@ -420,7 +431,7 @@ export class KeyIndicatorView {
       .setPosition(end.x, end.y)
       .setScale(side / unitSide)
       .setDepth(this.depth + 1);
-    this.looseKey = { image, unitSide, state: 'inLock', onLanded: null };
+    this.looseKey = { image, unitSide, state: 'inLock', onLanded: null, flightEnd: null };
     return this.looseKey;
   }
 

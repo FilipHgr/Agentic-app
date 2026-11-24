@@ -43,7 +43,9 @@
  *   (AC4). S celým klíčem (#159, nahrazuje odemčení jedním ťuknutím z #140
  *   AC5) první ťuknutí klíč nespotřebuje, jen ho pošle z ukazatele do
  *   zámku (`keyToLock`); scéna po letu hlásí `keyLanded`. Ťuknutí na
- *   stejnou omalovánku za letu nic neudělá. Druhé ťuknutí po doletu klíč
+ *   stejnou omalovánku za letu nic neudělá; let skončí ohlášením doletu,
+ *   nebo nejpozději po `KEY_FLIGHT_MS`, i když scéna na pomalém tabletu
+ *   dolet ohlásí později (#198). Druhé ťuknutí po doletu klíč
  *   utratí, zámek se otevře a omalovánka se otevírá jako po ťuknutí na
  *   odemčenou. Během otevírání se další ťuknutí nepočítá, takže se utratí
  *   jen jeden klíč (#140 AC6). Ťuknutí na jinou zamčenou omalovánku pošle
@@ -750,8 +752,11 @@ export function startPictureChoice(
 
   /**
    * Klíč poslaný do zámku, nebo `null`. Po 5 s v zámku bez ťuknutí se
-   * vrátí do ukazatele (#159 AC4). Klíč, o jehož doletu scéna nedala
-   * vědět (scéna skončila), se vrátí po stejné době od doletu podle plánu.
+   * vrátí do ukazatele (#159 AC4). 5 s se počítá až od doletu, který
+   * ohlásí scéna: na pomalém tabletu stránka při přípravě obrysů zamrzne
+   * i na několik sekund a klíč doletí až potom. Dřív se čekání počítalo od
+   * plánovaného doletu, klíč se vrátil dřív, než ho dítě vidělo v zámku,
+   * a druhé ťuknutí ho poslalo do zámku znovu místo odemčení (#198).
    */
   const currentKey = (): typeof sentKey => {
     if (sentKey === null) {
@@ -764,13 +769,26 @@ export function startPictureChoice(
     if (sentKey.awaitingCheck) {
       sentKey = { ...sentKey, awaitingCheck: false, checkedAt: now() };
     }
-    const arrivedAt = sentKey.landedAt ?? sentKey.sentAt + KEY_FLIGHT_MS;
+    if (sentKey.landedAt === null) {
+      // Scéna dolet ještě neohlásila: klíč je pořád na cestě nebo v zámku (#198).
+      return sentKey;
+    }
+    const arrivedAt = sentKey.landedAt;
     const returnsAt = Math.max(arrivedAt, sentKey.checkedAt ?? arrivedAt) + KEY_WAIT_MS;
     if (now() >= returnsAt) {
       sentKey = null;
     }
     return sentKey;
   };
+
+  /**
+   * Je klíč v zámku? Doletěl, když to scéna ohlásila, nebo když od
+   * vyletění uběhla doba letu (`KEY_FLIGHT_MS`). Na pomalém tabletu jde čas
+   * animací pomaleji než hodiny a scéna dolet ohlásí i o sekundy později;
+   * druhé ťuknutí dítěte se tím nesmí zahodit jako ťuknutí za letu (#198).
+   */
+  const keyArrived = (key: NonNullable<typeof sentKey>): boolean =>
+    key.landedAt !== null || now() >= key.sentAt + KEY_FLIGHT_MS;
 
   /** Klíč se vrátí do ukazatele (ťuknutí jinam, listování, kniha, domeček, #159 AC4). */
   const returnKey = (): void => {
@@ -785,7 +803,7 @@ export function startPictureChoice(
   const tapLocked = (picture: PictureIdentity, place: number): PreviewTap => {
     const key = currentKey();
     const keyHere = key !== null && pictureKey(key.picture) === pictureKey(picture);
-    if (keyHere && key.landedAt === null) {
+    if (keyHere && !keyArrived(key)) {
       // Ťuknutí za letu klíče nic nespotřebuje (#159 AC3).
       return { kind: 'ignored' };
     }
