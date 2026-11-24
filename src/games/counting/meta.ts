@@ -28,7 +28,7 @@ export const COUNTING_OVERVIEW: GameOverviewSpec = {
 
 export const COUNTING_META: GameMeta = {
   id: 'counting',
-  categoryId: 'addingSubtracting',
+  categoryId: 'math',
   symbol: '2+3',
   access: 'free',
   titles: { cs: cs.title, en: en.title },

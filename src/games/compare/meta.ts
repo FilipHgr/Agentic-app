@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 /**
- * Údaje o hře Znaménka (do #190 Porovnávání) pro menu (#178): id, kategorie Čísla, symbol
+ * Údaje o hře Znaménka (do #190 Porovnávání) pro menu (#178): id, kategorie Matematika (#199), symbol
  * dlaždice (znaky bez emoji varianty), přístup zdarma a název hry z textů
  * jazyků. Menu je zná bez stažení hry, proto tu nic jiného (scény,
  * logika, Phaser) být nesmí.
@@ -29,7 +29,7 @@ export const COMPARE_OVERVIEW: GameOverviewSpec = {
 
 export const COMPARE_META: GameMeta = {
   id: 'compare',
-  categoryId: 'numbers',
+  categoryId: 'math',
   symbol: '4☐2',
   access: 'free',
   titles: { cs: cs.title, en: en.title },

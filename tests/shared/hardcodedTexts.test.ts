@@ -191,7 +191,7 @@ describe('#137 AC5: kontrola natvrdo napsaných textů prochází i anglické te
 
   it('kontrola vidí anglické texty sdílené části, menu, Počítání i Omalovánek', () => {
     const texts = languageTexts(SOURCES);
-    for (const text of ['Maths', 'Drawing', 'Counting', 'Colouring', ...SHORT_ENGLISH_TEXTS]) {
+    for (const text of ['Maths', 'Create', 'Counting', 'Colouring', ...SHORT_ENGLISH_TEXTS]) {
       expect(texts.has(text), text).toBe(true);
     }
   });

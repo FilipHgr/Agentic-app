@@ -361,7 +361,7 @@ describe('#137 AC2: kontrola menu opravdu zachytí příliš dlouhý text (uměl
     expect(overflowAmount(problem)).toBeGreaterThan(0);
   });
 
-  // #178: na 844 × 340 se dnešní kategorie do sloupce nevejdou (je tam
+  // #178: na 844 × 340 se čtyři kategorie do sloupce nevejdou (je tam
   // výběr kategorie), sloupec na telefonu na šířku se proto zkouší na 932 × 430.
   it('dlouhou kategorii ve sloupci zachytí i na telefonu na šířku', () => {
     const long = 'Sčítání, odčítání a porovnávání';
@@ -372,10 +372,17 @@ describe('#137 AC2: kontrola menu opravdu zachytí příliš dlouhý text (uměl
     expect(problem).toContain('kategorie ve sloupci vlevo');
   });
 
+  // #199: dnešní tři kategorie se na 844 × 340 do sloupce vejdou, výběr
+  // v liště tam je jen se čtyřmi kategoriemi (#178), proto čtvrtá navíc.
   it('dlouhou kategorii na tlačítku výběru v liště zachytí na nízkém telefonu na šířku (#178)', () => {
     const long = 'Sčítání, odčítání a porovnávání čísel do sta';
     const texts = longLanguage({
-      categoryTitles: [czech.categoryTitles[0] ?? '', long, ...czech.categoryTitles.slice(2)],
+      categoryTitles: [
+        czech.categoryTitles[0] ?? '',
+        long,
+        ...czech.categoryTitles.slice(2),
+        'Čtvrtá',
+      ],
     });
     const problems = overflowsIn('xx', texts, phoneLandscape).filter((problem) =>
       problem.includes(long),

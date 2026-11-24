@@ -18,8 +18,8 @@ import {
  * Testy k #67 AC1: rozložení menu podle obrázku B ve všech zkušebních
  * oknech. `menuLayoutFor` dostane okno a obsah (názvy viditelných
  * kategorií v jazyce a počet dlaždic) a vrátí polohy v CSS px okna, i s
- * výřezem. Dnes jsou v menu kategorie „Vše“ a „Sčítání a odčítání“
- * a jedna dlaždice (Počítání).
+ * výřezem. Od #199 jsou v menu kategorie „Vše“, „Matematika“ a „Tvoření“
+ * a tři dlaždice (Počítání, Omalovánky, Znaménka).
  *
  * Na telefonu na výšku je místo řady kategorií tlačítko výběru kategorie
  * (#95, `layout.categoryPicker`, jinde `null`) a `layout.categories` je

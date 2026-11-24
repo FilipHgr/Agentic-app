@@ -13,11 +13,8 @@ import { testMenu, watchedLocalStorage } from './menuFixtures';
  * Rozhraní: `src/menu/texts/en.ts` (`export default { … } satisfies
  * MenuTexts`), od #138 i v `MENU_TEXTS` v `menuTexts.ts`.
  *
- * Kategorie „Sčítání a odčítání“: tabulka navrhuje „Adding and
- * subtracting“, ale zadání (otázka 2, platí doporučení) říká, že když se
- * v některém okně nevejde, použije se „Plus and minus“. Podle měření z AC2
- * se „Adding and subtracting“ do sloupce kategorií na iPadu ani na telefonu
- * nevejde (`menuTextsFit.test.ts`), proto test čeká zálohu.
+ * Kategorie podle #199: „Math“ a „Create“ (dřív „Plus and minus“,
+ * „Drawing“ a „Numbers“).
  */
 
 const MENU_FILES = dictionariesByLanguage(
@@ -27,10 +24,9 @@ const MENU_FILES = dictionariesByLanguage(
 const ENGLISH_MENU = {
   categories: {
     all: { title: 'All' },
-    addingSubtracting: { title: 'Plus and minus' },
-    drawing: { title: 'Drawing' },
-    // #178: nová kategorie Porovnávání.
-    numbers: { title: 'Numbers' },
+    // #199: jen Matematika a Tvoření.
+    math: { title: 'Math' },
+    create: { title: 'Create' },
   },
   profiles: {
     nicknameTitle: 'Nickname',
@@ -85,7 +81,7 @@ describe('#137 AC1: anglické texty menu', () => {
     expect(Object.keys(MENU_FILES)).toContain('en');
   });
 
-  it('kategorie jsou „All“, „Plus and minus“, „Drawing“ a „Numbers“ (#178)', () => {
+  it('kategorie jsou „All“, „Math“ a „Create“ (#199)', () => {
     expect(englishMenu()['categories']).toEqual(ENGLISH_MENU.categories);
   });
 

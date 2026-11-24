@@ -7,7 +7,8 @@ import { MENU_STYLE } from '../logic/menuTheme';
 import { CHECK_SYMBOL, sceneText } from './languageArt';
 
 /**
- * Kreslení výběru kategorie na telefonu na výšku (#95) podle obrázků
+ * Kreslení výběru kategorie na telefonu na výšku (#95) a tam, kde se kategorie
+ * nevejdou do sloupce (#178), podle obrázků
  * D1–D2: tlačítko se symbolem v rámečku, názvem a šipkou a řádky seznamu.
  * Souřadnice jsou CSS px okna, `unit` je počet jednotek plátna na CSS px.
  * Všechno se kreslí se středem v počátku kontejneru. Ťuknutí řeší logika

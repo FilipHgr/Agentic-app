@@ -37,7 +37,7 @@ function entry(id: string, access: GameAccess): GameEntry {
   return {
     id,
     titleKey: `games.${id}.title`,
-    categoryId: 'addingSubtracting',
+    categoryId: 'math',
     symbol: '2+3',
     access,
     load: () => Promise.resolve({}),

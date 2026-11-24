@@ -5,9 +5,8 @@ import type { MenuTexts } from './menuTextsTypes';
 export default {
   categories: {
     all: { title: 'Vše' },
-    addingSubtracting: { title: 'Sčítání a odčítání' },
-    drawing: { title: 'Kreslení' },
-    numbers: { title: 'Čísla' },
+    math: { title: 'Matematika' },
+    create: { title: 'Tvoření' },
   },
   profiles: {
     nicknameTitle: 'Přezdívka',

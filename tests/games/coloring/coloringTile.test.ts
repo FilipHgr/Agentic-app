@@ -16,19 +16,20 @@ import { dictionariesByLanguage, leavesOf } from '../../shared/textChecks';
  * Testy k #88 AC1 (dlaždice Omalovánky v nové kategorii, hra hned
  * dostupná) a k části AC7 „hra nemá žádné texty kromě názvu v menu“, kterou
  * jde ověřit na souborech textů. Rozhodnutí vlastníka k otázce 3: kategorie
- * „Kreslení“ a symbol ✎ (znak bez emoji varianty).
+ * „Kreslení“ a symbol ✎ (znak bez emoji varianty). Od #199 je kategorie
+ * „Tvoření“ (`create`) se stejným symbolem ✎.
  *
  * Navržené rozhraní:
  * - `src/games/coloring/meta.ts` vydává `COLORING_META: GameMeta`
- *   (`id: 'coloring'`, `categoryId: 'drawing'`, `symbol: '✎'`, `access: 'free'`),
+ *   (`id: 'coloring'`, `categoryId: 'create'` od #199, `symbol: '✎'`, `access: 'free'`),
  * - `src/games/coloring/texts/coloringTexts.ts` vydává
  *   `coloringTexts(language?): ColoringTexts` s jediným klíčem `title`,
- * - nová kategorie `{ id: 'drawing', titleKey: 'categories.drawing.title' }`
+ * - kategorie `{ id: 'create', titleKey: 'categories.create.title' }` (#199)
  *   v `GAME_CATEGORIES` a její název v `src/menu/texts/cs.ts`.
  */
 
 const COLORING_ID = 'coloring';
-const DRAWING_CATEGORY = 'drawing';
+const CREATE_CATEGORY = 'create';
 
 /** Texty Omalovánek každého jazyka se souborem `src/games/coloring/texts/<jazyk>.ts`. */
 const COLORING_FILES = dictionariesByLanguage(
@@ -68,18 +69,18 @@ describe('#88 AC1: v menu je dlaždice Omalovánky v nové kategorii', () => {
     expect(COLORING_META.titles.cs).toBe('Omalovánky');
   });
 
-  it('Omalovánky jsou v nové kategorii „Kreslení“, ne ve Sčítání a odčítání', () => {
-    expect(findGame(GAMES, COLORING_ID)?.categoryId).toBe(DRAWING_CATEGORY);
-    expect(GAME_CATEGORIES.map((category) => category.id)).toContain(DRAWING_CATEGORY);
-    expect(menuText('categories.drawing.title', 'cs')).toBe('Kreslení');
+  it('Omalovánky jsou v kategorii „Tvoření“, ne v Matematice (#199)', () => {
+    expect(findGame(GAMES, COLORING_ID)?.categoryId).toBe(CREATE_CATEGORY);
+    expect(GAME_CATEGORIES.map((category) => category.id)).toContain(CREATE_CATEGORY);
+    expect(menuText('categories.create.title', 'cs')).toBe('Tvoření');
   });
 
-  it('menu ukáže kategorii Kreslení a v ní dlaždici Omalovánky', () => {
+  it('menu ukáže kategorii Tvoření a v ní dlaždici Omalovánky (#199)', () => {
     const menu = czechMenu();
-    const drawing = menu.categories().find((category) => category.id === DRAWING_CATEGORY);
-    expect(drawing?.title).toBe('Kreslení');
+    const create = menu.categories().find((category) => category.id === CREATE_CATEGORY);
+    expect(create?.title).toBe('Tvoření');
 
-    menu.tapCategory(DRAWING_CATEGORY);
+    menu.tapCategory(CREATE_CATEGORY);
     expect(menu.tiles()).toEqual([{ gameId: COLORING_ID, symbol: '✎', title: 'Omalovánky' }]);
   });
 

@@ -15,7 +15,7 @@ import { IPAD_WINDOWS, freeAreaOf, viewportOf } from '../../shared/viewportFixtu
 import { dictionariesByLanguage, leavesOf } from '../../shared/textChecks';
 
 /**
- * Testy k #178 AC1 (dlaždice Porovnávání v nové kategorii Čísla, ťuknutí
+ * Testy k #178 AC1 (dlaždice Porovnávání, od #199 v kategorii Matematika, ťuknutí
  * spustí hru) a AC8 (texty cs/en). Scéna potřebuje Phaser a prohlížeč,
  * v testu ji nahradí prázdná třída; zkouší se, co vstup hry vydá stránce.
  */
@@ -25,7 +25,8 @@ vi.mock('../../../src/games/compare/scenes/CompareScene', () => ({
 }));
 
 const COMPARE_ID = 'compare';
-const NUMBERS_CATEGORY = 'numbers';
+/** Od #199 jsou Znaménka v Matematice (dřív v kategorii Čísla z #178). */
+const MATH_CATEGORY = 'math';
 
 const COMPARE_FILES = dictionariesByLanguage(
   import.meta.glob('../../../src/games/compare/texts/*.ts', { eager: true }),
@@ -44,7 +45,7 @@ function menuIn(
   });
 }
 
-describe('#178 AC1: v menu je dlaždice Porovnávání v nové kategorii Čísla', () => {
+describe('#178 AC1: v menu je dlaždice Porovnávání v kategorii Matematika (#199)', () => {
   it('seznam her obsahuje Porovnávání a Počítání i Omalovánky zůstávají', () => {
     const ids = GAMES.map((game) => game.id);
     expect(ids).toContain(COMPARE_ID);
@@ -60,19 +61,20 @@ describe('#178 AC1: v menu je dlaždice Porovnávání v nové kategorii Čísla
     expect(menuText('games.compare.title', 'en')).toBe('Signs');
   });
 
-  it('kategorie se jmenuje česky „Čísla“ a anglicky „Numbers“ a má symbol „< >“', () => {
-    const numbers = GAME_CATEGORIES.find((category) => category.id === NUMBERS_CATEGORY);
-    expect(numbers?.symbol).toBe('< >');
-    expect(menuText('categories.numbers.title', 'cs')).toBe('Čísla');
-    expect(menuText('categories.numbers.title', 'en')).toBe('Numbers');
+  it('kategorie se jmenuje česky „Matematika“ a anglicky „Math“ a má symbol „+ −“ (#199)', () => {
+    const math = GAME_CATEGORIES.find((category) => category.id === MATH_CATEGORY);
+    expect(math?.symbol).toBe('+ −');
+    expect(menuText('categories.math.title', 'cs')).toBe('Matematika');
+    expect(menuText('categories.math.title', 'en')).toBe('Math');
   });
 
-  it('Porovnávání je v kategorii Čísla a ta v menu ukáže jen jeho dlaždici', () => {
-    expect(findGame(GAMES, COMPARE_ID)?.categoryId).toBe(NUMBERS_CATEGORY);
+  it('Porovnávání je v kategorii Matematika a ta v menu ukáže dlaždice Počítání a Znaménka (#199)', () => {
+    expect(findGame(GAMES, COMPARE_ID)?.categoryId).toBe(MATH_CATEGORY);
     const menu = menuIn('cs');
-    expect(menu.categories().map((category) => category.id)).toContain(NUMBERS_CATEGORY);
-    menu.tapCategory(NUMBERS_CATEGORY);
+    expect(menu.categories().map((category) => category.id)).toContain(MATH_CATEGORY);
+    menu.tapCategory(MATH_CATEGORY);
     expect(menu.tiles()).toEqual([
+      { gameId: 'counting', symbol: '2+3', title: 'Počítání' },
       { gameId: COMPARE_ID, symbol: COMPARE_META.symbol, title: 'Znaménka' },
     ]);
   });

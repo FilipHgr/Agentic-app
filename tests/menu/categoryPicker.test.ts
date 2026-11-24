@@ -20,7 +20,7 @@ import type { TestMenu } from './menuFixtures';
  * Navržené rozhraní:
  * - `GameCategory.symbol` (`src/shared/logic/gameRegistry.ts`): symbol
  *   kategorie, není to text jazyka; „Vše“ má `ALL_CATEGORY.symbol` ▦,
- *   „Sčítání a odčítání“ „+ −“, „Kreslení“ ✎,
+ *   od #199 „Matematika“ „+ −“ a „Tvoření“ ✎,
  * - `MenuCategoryView.symbol` v `menu.categories()`,
  * - `menu.categoryButton()`: `{ symbol, title, arrow }` vybrané kategorie,
  *   šipka ▾ u zavřeného a ▴ u otevřeného seznamu,
@@ -275,10 +275,10 @@ describe('#95 AC5: symboly kategorií', () => {
     expect(symbolProblems([...ALL_MENU_CATEGORIES, sameSymbol])).toHaveLength(1);
   });
 
-  it('dnešní kategorie mají schválené symboly: „Vše“ ▦, „Sčítání a odčítání“ + −, „Kreslení“ ✎, „Čísla“ < > (#178)', () => {
+  it('dnešní kategorie mají schválené symboly: „Vše“ ▦, „Matematika“ + −, „Tvoření“ ✎ (#199)', () => {
     expect(
       Object.fromEntries(ALL_MENU_CATEGORIES.map((category) => [category.id, category.symbol])),
-    ).toEqual({ all: '▦', addingSubtracting: '+ −', drawing: '✎', numbers: '< >' });
+    ).toEqual({ all: '▦', math: '+ −', create: '✎' });
   });
 
   it('zkušební kategorie v testech mají také různé symboly', () => {

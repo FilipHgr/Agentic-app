@@ -462,15 +462,18 @@ const CATEGORY_EDGE = 4;
  * Vejdou se dnešní kategorie do sloupce vlevo bez posouvání (#178)?
  * Počítá se nezávisle na rozložení menu: od začátku kategorií 64 px na
  * kategorii a 8 px mezi nimi, nejvýš 4 px nad spodní okraj volné plochy.
- * Na telefonu na výšku sloupec není (#95).
+ * Na telefonu na výšku sloupec není (#95). `count` je počet kategorií
+ * i s „Vše“ (bez zadání dnešní).
  */
-export function todayColumnFits(window: TestWindow): boolean {
+export function todayColumnFits(
+  window: TestWindow,
+  count: number = todayCategoryTitles().length,
+): boolean {
   const mode = chooseLayoutMode(viewportOf(window));
   if (mode === 'phonePortrait') {
     return false;
   }
   const top = mode === 'phoneLandscape' ? PHONE_LANDSCAPE_CATEGORY_TOP : TABLET_CATEGORY_TOP;
-  const count = todayCategoryTitles().length;
   const free = freeAreaOf(window);
   const columnBottom = free.top + top + count * CATEGORY_HIT + (count - 1) * CATEGORY_GAP;
   return columnBottom <= free.bottom - CATEGORY_EDGE;

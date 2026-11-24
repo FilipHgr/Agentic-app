@@ -129,11 +129,11 @@ describe('#67 AC3: každá hra patří právě do jedné kategorie ze seznamu', 
     }
   });
 
-  it('Počítání je v kategorii „Sčítání a odčítání“', () => {
+  it('Počítání je v kategorii „Matematika“ (#199)', () => {
     const counting = findGame(GAMES, 'counting');
     const category = GAME_CATEGORIES.find((candidate) => candidate.id === counting?.categoryId);
     expect(category).toBeDefined();
-    expect(menuText(category?.titleKey ?? '', 'cs')).toBe('Sčítání a odčítání');
+    expect(menuText(category?.titleKey ?? '', 'cs')).toBe('Matematika');
   });
 
   it('první kategorie v menu se česky jmenuje „Vše“', () => {
@@ -188,7 +188,7 @@ describe('#74 AC1: každá hra je buď zdarma, nebo v předplatném, a Počítá
     const load = (): Promise<unknown> => Promise.resolve({});
     const base = {
       id: 'zkouska',
-      categoryId: 'addingSubtracting',
+      categoryId: 'math',
       symbol: '?',
       titles: { cs: 'Zkouška' },
     };

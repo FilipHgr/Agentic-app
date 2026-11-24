@@ -173,15 +173,14 @@ describe('#138 AC1: nabídka jazyků ukazuje „Čeština“ a „English“', (
 });
 
 describe('#138 AC2: po výběru English je menu anglicky', () => {
-  it('kategorie jsou „All“, „Plus and minus“, „Drawing“ a „Numbers“ (#178)', async () => {
+  it('kategorie jsou „All“, „Math“ a „Create“ (#199)', async () => {
     deviceStorage();
     const { test } = await englishPage();
     chooseLanguage(test, 'en');
     expect(categoryTitles(test)).toEqual({
       all: 'All',
-      addingSubtracting: 'Plus and minus',
-      drawing: 'Drawing',
-      numbers: 'Numbers',
+      math: 'Math',
+      create: 'Create',
     });
   });
 

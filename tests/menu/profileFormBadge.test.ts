@@ -242,11 +242,14 @@ const MENU_FILES = dictionariesByLanguage(
   import.meta.glob('../../src/menu/texts/*.ts', { eager: true }),
 );
 
-/** Klíče textů menu před #161 (commit 8572b72). */
+/**
+ * Klíče textů menu před #161 (commit 8572b72). Kategorie Sčítání a odčítání
+ * a Kreslení nahradily v #199 Matematika a Tvoření, s kolečkem to nesouvisí.
+ */
 const TEXT_KEYS_BEFORE_161: readonly string[] = [
-  'categories.addingSubtracting.title',
   'categories.all.title',
-  'categories.drawing.title',
+  'categories.create.title',
+  'categories.math.title',
   'profiles.colorTitle',
   'profiles.deleteCancel',
   'profiles.deleteConfirm',
@@ -258,11 +261,8 @@ describe('#161 AC3: kolečko nepřidá žádný nový text', () => {
   it('texty menu mají v každém jazyce stejné klíče jako před #161', () => {
     expect(Object.keys(MENU_FILES).length).toBeGreaterThan(0);
     for (const [language, texts] of Object.entries(MENU_FILES)) {
-      // Kategorii Čísla (`categories.numbers`) přidal až #178 a přehled pro
-      // rodiče (`overview`) až #192, s kolečkem nesouvisí.
-      const keys = [...leavesOf(texts).keys()].filter(
-        (key) => key !== 'categories.numbers.title' && !key.startsWith('overview.'),
-      );
+      // Přehled pro rodiče (`overview`) přidal až #192, s kolečkem nesouvisí.
+      const keys = [...leavesOf(texts).keys()].filter((key) => !key.startsWith('overview.'));
       expect(keys.sort(), language).toEqual(TEXT_KEYS_BEFORE_161);
     }
   });

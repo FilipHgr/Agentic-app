@@ -26,9 +26,9 @@ export interface GameCategory {
  * (`src/menu/texts/<jazyk>.ts`) a vlastní symbol (#95).
  */
 export const GAME_CATEGORIES: readonly GameCategory[] = [
-  { id: 'addingSubtracting', titleKey: 'categories.addingSubtracting.title', symbol: '+ −' },
-  { id: 'drawing', titleKey: 'categories.drawing.title', symbol: '✎' },
-  { id: 'numbers', titleKey: 'categories.numbers.title', symbol: '< >' },
+  // #199: jen dvě kategorie, Matematika (Počítání, Znaménka) a Tvoření (Omalovánky).
+  { id: 'math', titleKey: 'categories.math.title', symbol: '+ −' },
+  { id: 'create', titleKey: 'categories.create.title', symbol: '✎' },
 ];
 
 /**

@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 /**
- * Údaje o Omalovánkách pro menu (#88): id, kategorie Kreslení, symbol
+ * Údaje o Omalovánkách pro menu (#88): id, kategorie Tvoření (#199), symbol
  * dlaždice ✎ (znak bez emoji varianty), přístup zdarma a název hry
  * z textů jazyků. Menu je zná bez stažení hry, proto tu nic jiného
  * (scény, logika, Phaser) být nesmí.
@@ -16,7 +16,7 @@ import tile from './tile.webp';
 
 export const COLORING_META: GameMeta = {
   id: 'coloring',
-  categoryId: 'drawing',
+  categoryId: 'create',
   symbol: '✎',
   access: 'free',
   titles: { cs: cs.title, en: en.title },

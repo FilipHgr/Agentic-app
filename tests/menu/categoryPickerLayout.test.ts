@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ALL_CATEGORY } from '../../src/menu/logic/menuCategories';
 import type { MenuBox, MenuCategoryPicker, MenuLayout } from '../../src/menu/logic/menuLayout';
+import { GAMES } from '../../src/gameList';
 import { GAME_CATEGORIES } from '../../src/shared/logic/gameRegistry';
 import { chooseLayoutMode } from '../../src/shared/logic/viewportLayout';
 import { LANGUAGES } from '../../src/shared/texts/languages';
@@ -180,16 +181,24 @@ describe('#95 AC1: zavřený výběr jen na telefonu na výšku', () => {
     }
   });
 
-  // #178: čtvrtá kategorie (Čísla) se na nízkém telefonu na šířku do sloupce
+  // #199: dnešní tři kategorie (Vše, Matematika, Tvoření) se do sloupce
+  // vejdou v každém okně na šířku, výběr v liště tam proto není.
+  it('na šířku se dnešní kategorie vejdou do sloupce v každém okně, i na nízkém telefonu (#199)', () => {
+    expect(COLUMN_WINDOWS.filter((window) => !todayColumnFits(window))).toEqual([]);
+  });
+
+  // #178: čtvrtá kategorie se na nízkém telefonu na šířku do sloupce
   // nevejde; místo posouvaného sloupce je tam výběr kategorie v liště.
+  // Od #199 jsou dnes kategorie jen tři, pravidlo hlídá menu se čtyřmi.
   it('na šířku, kde se kategorie do sloupce nevejdou, je místo sloupce jedno tlačítko výběru (#178)', () => {
-    const notFitting = COLUMN_WINDOWS.filter((window) => !todayColumnFits(window));
+    const titles = [...todayCategoryTitles(), 'Čtvrtá'];
+    const notFitting = COLUMN_WINDOWS.filter((window) => !todayColumnFits(window, titles.length));
     expect(notFitting.length).toBeGreaterThan(0);
     for (const window of notFitting) {
-      const layout = todayLayout(window);
+      const layout = categoryPickerLayout(window, titles, GAMES.length);
       expect(layout.categoryPicker ?? null, window.name).not.toBeNull();
       expect(layout.categories, window.name).toHaveLength(0);
-      expect(layout.categoryPicker?.rows, window.name).toHaveLength(todayCategoryTitles().length);
+      expect(layout.categoryPicker?.rows, window.name).toHaveLength(titles.length);
     }
   });
 

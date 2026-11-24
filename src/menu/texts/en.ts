@@ -5,10 +5,8 @@ import type { MenuTexts } from './menuTextsTypes';
 export default {
   categories: {
     all: { title: 'All' },
-    // „Adding and subtracting“ se do sloupce kategorií nevejde, platí záloha z #137.
-    addingSubtracting: { title: 'Plus and minus' },
-    drawing: { title: 'Drawing' },
-    numbers: { title: 'Numbers' },
+    math: { title: 'Math' },
+    create: { title: 'Create' },
   },
   profiles: {
     nicknameTitle: 'Nickname',
