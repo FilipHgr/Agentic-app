@@ -368,3 +368,4 @@ změní starší, napiš nové a u starého doplň „(nahrazeno)“.
 - 2026-11-22 Přehled pro rodiče (#183, #184) patří do hlavního menu, ne do nastavení hry. Claude zvolil: tlačítko na vyhrazeném místě v liště menu, otevře se podržením 1 s (rodičovská brána jako kolečko), přehled za aktivní profil po hrách (Počítání i Znaménka); z nastavení Počítání tlačítko Přehled zmizí.
 - 2026-11-22 Odměny (mapa postupu a klíče) jsou stejné v každé hře a přenositelné mezi hrami: jeden postup na mapě za profil, krok z kterékoli hry s hvězdičkami (Počítání, Znaménka) se počítá do stejné mapy, klíče společné (#193).
 - 2026-11-22 Režim úpravy profilu (po ťuknutí na tužku v liště, #160): u každého profilu tužka vpravo nahoře nad kolečkem a změněné barvy, aby šlo poznat režim úpravy (#197).
+- 2026-11-24 Kategorie her v menu zatím jen dvě: „Matematika“ (Počítání, Znaménka) a „Tvoření“ (Omalovánky); „Vše“ zůstává jako první volba (#199).
